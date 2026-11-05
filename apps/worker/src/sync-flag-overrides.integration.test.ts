@@ -1,9 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import {
-	type DatabuddyFlag,
-	isTripwireRule,
-	type JsonValue,
-} from "@tripwire/contracts";
+import type { DatabuddyFlag, JsonValue } from "@tripwire/contracts";
 import {
 	accountDeletionServices,
 	applyMigrations,
@@ -45,7 +41,7 @@ const theirRule = {
 
 function fakeApi(flag: DatabuddyFlag, failures: number) {
 	let left = failures;
-	const state = { flag, calls: 0 };
+	const state = { flag, calls: 0, updates: 0 };
 	return {
 		state,
 		api: {
@@ -58,6 +54,7 @@ function fakeApi(flag: DatabuddyFlag, failures: number) {
 				return key === state.flag.key ? structuredClone(state.flag) : null;
 			},
 			async updateFlagRules(_id: string, rules: JsonValue[]) {
+				state.updates++;
 				state.flag = { ...state.flag, rules: structuredClone(rules) };
 				return structuredClone(state.flag);
 			},
@@ -70,11 +67,13 @@ async function seedOverride(flagKey: string): Promise<string> {
 	await db
 		.insert(schema.user)
 		.values({ id, name: `u-${id}`, email: `${id}@example.com` });
-	await flagOverrideServices.setUserFlagOverride(db, {
+	await db.insert(schema.userFlagOverrides).values({
+		id: generateId(),
 		userId: id,
 		flagKey,
-		choice: "on",
-		actorId: id,
+		value: true,
+		syncStatus: "pending",
+		updatedBy: id,
 	});
 	return id;
 }
@@ -174,11 +173,37 @@ describe("sync-flag-overrides job", () => {
 			await new Promise((resolve) => setTimeout(resolve, 250));
 		}
 		expect(fake.state.calls).toBe(3);
-		const rules = fake.state.flag.rules ?? [];
-		expect(rules.filter(isTripwireRule)).toHaveLength(1);
-		expect(rules).toContainEqual(theirRule);
+		expect(fake.state.flag.rules).toEqual([theirRule]);
+		expect(fake.state.updates).toBe(0);
+		expect(
+			(await flagOverrideServices.listUserFlagOverrides(db, userId))[0]?.choice,
+		).toBe("default");
 		await boss.offWork(SYNC_FLAG_OVERRIDES_QUEUE);
 	}, 40_000);
+
+	test("a stale queued local On reconciles to an external Off without writing rules", async () => {
+		const userId = await seedOverride("external-off");
+		const manual = {
+			type: "user_id",
+			operator: "equals",
+			value: userId,
+			enabled: false,
+			batch: false,
+		};
+		const fake = fakeApi(
+			{ id: "external", key: "external-off", rules: [theirRule, manual] },
+			0,
+		);
+		await syncFlagOverridesJob(
+			{ db, api: fake.api, logger },
+			{ flagKey: "external-off" },
+		);
+		expect(fake.state.updates).toBe(0);
+		expect(fake.state.flag.rules).toEqual([theirRule, manual]);
+		expect(
+			(await flagOverrideServices.listUserFlagOverrides(db, userId))[0],
+		).toMatchObject({ choice: "off", syncStatus: "synced" });
+	});
 
 	test("the queue keeps one pending sync per flag", () => {
 		expect(syncFlagOverridesOptions("show-sidebar")).toMatchObject({

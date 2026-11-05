@@ -1,3 +1,4 @@
+import { useFlags } from "@databuddy/sdk/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import type { FlagOverrideChoice } from "@tripwire/contracts";
@@ -72,6 +73,7 @@ const CHOICE_LABEL = {
 
 function useFlagOverride(userId: string) {
 	const queryClient = useQueryClient();
+	const { refresh } = useFlags();
 	const key = staffUserQueryKeys.flags(userId);
 	return useMutation({
 		mutationFn: (input: { flagKey: string; choice: FlagOverrideChoice }) =>
@@ -107,7 +109,11 @@ function useFlagOverride(userId: string) {
 			}
 			toast.fail(errorText(error, "Tripwire couldn't change this flag."));
 		},
-		onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
+		onSettled: () =>
+			Promise.all([
+				queryClient.invalidateQueries({ queryKey: key }),
+				refresh(true),
+			]),
 	});
 }
 
@@ -209,7 +215,7 @@ function FlagRow({
 							{row.evaluated.enabled ? "On" : "Off"}
 						</span>
 						<span className="type-caption text-text-2">
-							{flagSourceLabel(row.evaluated.source, row.override)}
+							{flagSourceLabel(row.evaluated.source)}
 						</span>
 					</>
 				) : (
@@ -219,7 +225,12 @@ function FlagRow({
 			<span className="order-last w-full sm:order-none sm:w-52 sm:shrink-0">
 				<SegmentedControl
 					aria-label={`Override for ${row.key}`}
-					disabled={!connected}
+					disabled={
+						!connected ||
+						row.inDatabuddy !== true ||
+						row.override === null ||
+						row.override.syncStatus === "pending"
+					}
 					fill
 					onValueChange={(value) => {
 						const next = pickValue(CHOICES, value);
@@ -259,7 +270,10 @@ export function FlagsSection({ view }: { view: AdminUserView }) {
 	const retry = useRetrySync(user.id);
 	const connected = data?.connected ?? false;
 	const flaggable = (data?.rows ?? []).filter(
-		(row) => row.override?.choice !== "on",
+		(row) =>
+			row.inDatabuddy === true &&
+			row.override?.syncStatus === "synced" &&
+			row.override.choice !== "on",
 	);
 	const action = (
 		<DropdownMenu>

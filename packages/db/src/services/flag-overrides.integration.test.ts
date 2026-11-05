@@ -8,12 +8,10 @@ import {
 } from "bun:test";
 import {
 	type DatabuddyFlag,
-	isTripwireRule,
 	type JsonValue,
 	TRIPWIRE_RULE_FIELD,
 } from "@tripwire/contracts";
-import { generateId } from "@tripwire/utils";
-import { eq } from "drizzle-orm";
+import { generateId, getDatabuddyUserOverride } from "@tripwire/utils";
 import {
 	applyMigrations,
 	createDb,
@@ -37,7 +35,7 @@ import {
 let container: TestDatabase;
 let db: Db;
 let pool: { end(): Promise<void> };
-
+let staff: string;
 const theirEmailRule = {
 	type: "email",
 	operator: "ends_with",
@@ -45,7 +43,6 @@ const theirEmailRule = {
 	enabled: true,
 	batch: false,
 };
-
 const theirUserRule = {
 	type: "user_id",
 	operator: "in",
@@ -53,14 +50,15 @@ const theirUserRule = {
 	enabled: false,
 	batch: false,
 };
-
 const theirRules = [theirEmailRule, theirUserRule];
 
 class FakeDatabuddy {
 	flags = new Map<string, DatabuddyFlag>();
 	updates = 0;
 	failNext: string | null = null;
-
+	failWrite = false;
+	confirmWrite = true;
+	omitWriteRules = false;
 	seed(key: string, rules: JsonValue[]) {
 		this.flags.set(key, {
 			id: `id-${key}`,
@@ -68,11 +66,9 @@ class FakeDatabuddy {
 			rules: structuredClone(rules),
 		});
 	}
-
 	rulesOf(key: string): JsonValue[] {
 		return this.flags.get(key)?.rules ?? [];
 	}
-
 	async getFlagByKey(key: string) {
 		if (this.failNext) {
 			const message = this.failNext;
@@ -80,29 +76,42 @@ class FakeDatabuddy {
 			throw new Error(message);
 		}
 		const flag = this.flags.get(key);
-		return flag ? structuredClone(flag) : null;
+		const snapshot = flag ? structuredClone(flag) : null;
+		await new Promise((resolve) => setTimeout(resolve, 5));
+		return snapshot;
 	}
-
 	async updateFlagRules(id: string, rules: JsonValue[]) {
+		if (this.failWrite) throw new Error("Databuddy answered 503");
 		for (const flag of this.flags.values()) {
 			if (flag.id === id) {
-				flag.rules = structuredClone(rules);
+				if (this.confirmWrite) flag.rules = structuredClone(rules);
 				this.updates++;
-				return structuredClone(flag);
+				const response = structuredClone(flag);
+				if (this.omitWriteRules) delete response.rules;
+				return response;
 			}
 		}
 		throw new Error("unknown flag id");
 	}
 }
-
+let fake: FakeDatabuddy;
 async function seedUser(name: string): Promise<string> {
 	const id = generateId();
 	await db.insert(user).values({ id, name, email: `${name}@example.com` });
 	return id;
 }
-
-let staff: string;
-
+async function set(
+	userId: string,
+	choice: "on" | "off" | "default",
+	flagKey = "show-sidebar",
+) {
+	return await setUserFlagOverride(db, fake, {
+		userId,
+		flagKey,
+		choice,
+		actorId: staff,
+	});
+}
 beforeAll(async () => {
 	container = await createTestDatabase();
 	const handle = createDb(container.url);
@@ -111,305 +120,324 @@ beforeAll(async () => {
 	await applyMigrations(db);
 	staff = await seedUser("grim");
 });
-
 afterAll(async () => {
 	await pool.end();
 	await container.stop();
 });
-
-let fake: FakeDatabuddy;
-
 beforeEach(async () => {
 	await db.delete(userFlagOverrides);
 	fake = new FakeDatabuddy();
+	fake.seed("show-sidebar", theirRules);
 });
 
-describe("setUserFlagOverride", () => {
-	test("records who changed what, from what, to what", async () => {
-		const mara = await seedUser("mara-history");
-		const first = await setUserFlagOverride(db, {
-			userId: mara,
-			flagKey: "show-sidebar",
-			choice: "on",
-			actorId: staff,
+describe("Databuddy-authoritative overrides", () => {
+	test("writes remotely before reporting success and records the real from/to values", async () => {
+		const id = await seedUser("history");
+		expect(await set(id, "on")).toEqual({
+			ok: true,
+			changed: true,
+			from: "default",
+			to: "on",
 		});
-		expect(first).toEqual({ changed: true, from: "default", to: "on" });
-		await setUserFlagOverride(db, {
-			userId: mara,
-			flagKey: "show-sidebar",
-			choice: "off",
-			actorId: staff,
+		expect(getDatabuddyUserOverride(fake.rulesOf("show-sidebar"), id)).toBe(
+			"on",
+		);
+		expect(await set(id, "off")).toEqual({
+			ok: true,
+			changed: true,
+			from: "on",
+			to: "off",
 		});
-		const again = await setUserFlagOverride(db, {
-			userId: mara,
-			flagKey: "show-sidebar",
-			choice: "off",
-			actorId: staff,
+		expect(await set(id, "off")).toEqual({
+			ok: true,
+			changed: false,
+			from: "off",
+			to: "off",
 		});
-		expect(again.changed).toBe(false);
-
-		const history = await listFlagOverrideHistory(db, mara);
-		expect(history.map((h) => [h.from, h.to, h.actorName])).toEqual([
+		expect(fake.updates).toBe(2);
+		expect(
+			(await listFlagOverrideHistory(db, id)).map((h) => [
+				h.from,
+				h.to,
+				h.actorName,
+			]),
+		).toEqual([
 			["on", "off", "grim"],
 			["default", "on", "grim"],
 		]);
-		const [row] = await listUserFlagOverrides(db, mara);
-		expect(row).toMatchObject({ choice: "off", syncStatus: "pending" });
-	});
-
-	test("reset to default keeps a row so the removal can sync", async () => {
-		const mara = await seedUser("mara-reset");
-		await setUserFlagOverride(db, {
-			userId: mara,
-			flagKey: "access-gate",
-			choice: "on",
-			actorId: staff,
-		});
-		await setUserFlagOverride(db, {
-			userId: mara,
-			flagKey: "access-gate",
-			choice: "default",
-			actorId: staff,
-		});
-		const rows = await listUserFlagOverrides(db, mara);
-		expect(rows).toHaveLength(1);
-		expect(rows[0]?.choice).toBe("default");
-	});
-});
-
-describe("syncFlagOverrides", () => {
-	test("writes Tripwire rules and keeps every rule Tripwire does not own", async () => {
-		fake.seed("show-sidebar", theirRules);
-		const on = await seedUser("on-user");
-		const off = await seedUser("off-user");
-		await setUserFlagOverride(db, {
-			userId: on,
-			flagKey: "show-sidebar",
-			choice: "on",
-			actorId: staff,
-		});
-		await setUserFlagOverride(db, {
-			userId: off,
-			flagKey: "show-sidebar",
+		expect((await listUserFlagOverrides(db, id))[0]).toMatchObject({
 			choice: "off",
-			actorId: staff,
+			syncStatus: "synced",
+			syncError: null,
 		});
-
-		const result = await syncFlagOverrides(db, fake, "show-sidebar");
-		expect(result).toEqual({ status: "synced", rows: 2, on: 1, off: 1 });
-
-		const rules = fake.rulesOf("show-sidebar");
-		expect(rules.filter((r) => !isTripwireRule(r))).toEqual(theirRules);
-		expect(rules).toContainEqual(
-			expect.objectContaining({
-				field: TRIPWIRE_RULE_FIELD.on,
-				values: [on],
+		expect(fake.rulesOf("show-sidebar")).toEqual(
+			expect.arrayContaining(theirRules),
+		);
+	});
+	test("external On beats cached Off, survives reconciliation, and can be deliberately turned Off again", async () => {
+		const id = await seedUser("external");
+		await set(id, "off");
+		fake.seed("show-sidebar", [
+			...theirRules,
+			{
+				type: "user_id",
+				operator: "equals",
+				value: id,
 				enabled: true,
-			}),
+				batch: false,
+			},
+		]);
+		const external = structuredClone(fake.rulesOf("show-sidebar"));
+		const writes = fake.updates;
+		expect((await listUserFlagOverrides(db, id))[0]?.choice).toBe("off");
+		expect(getDatabuddyUserOverride(external, id)).toBe("on");
+		await markFlagOverridePending(db, { userId: id, flagKey: "show-sidebar" });
+		expect(await syncFlagOverrides(db, fake, "show-sidebar")).toEqual({
+			status: "synced",
+			rows: 1,
+			on: 1,
+			off: 0,
+		});
+		expect(fake.updates).toBe(writes);
+		expect(fake.rulesOf("show-sidebar")).toEqual(external);
+		expect((await listUserFlagOverrides(db, id))[0]).toMatchObject({
+			choice: "on",
+			syncStatus: "synced",
+		});
+		expect(await set(id, "off")).toEqual({
+			ok: true,
+			changed: true,
+			from: "on",
+			to: "off",
+		});
+		expect(getDatabuddyUserOverride(fake.rulesOf("show-sidebar"), id)).toBe(
+			"off",
 		);
-		expect(rules).toContainEqual(
-			expect.objectContaining({
-				field: TRIPWIRE_RULE_FIELD.off,
-				values: [off],
-				enabled: false,
-			}),
-		);
-		const statuses = (await db.select().from(userFlagOverrides)).map(
-			(r) => r.syncStatus,
-		);
-		expect(statuses).toEqual(["synced", "synced"]);
 	});
-
-	test("a reset removes the user from the Tripwire rule on the next sync", async () => {
+	test("a cached Off never suppresses an explicit write of Off after external On", async () => {
+		const id = await seedUser("same-local-choice");
+		await set(id, "off");
+		fake.seed("show-sidebar", [
+			{
+				type: "user_id",
+				operator: "in",
+				values: [id, "external-member"],
+				batch: false,
+				enabled: true,
+			},
+		]);
+		expect(await set(id, "off")).toEqual({
+			ok: true,
+			changed: true,
+			from: "on",
+			to: "off",
+		});
+		expect(
+			getDatabuddyUserOverride(fake.rulesOf("show-sidebar"), "external-member"),
+		).toBe("on");
+		expect((await listFlagOverrideHistory(db, id))[0]).toMatchObject({
+			from: "on",
+			to: "off",
+		});
+	});
+	test("external removal remains Default instead of recreating a cached rule", async () => {
+		const id = await seedUser("removed-externally");
+		await set(id, "on");
 		fake.seed("show-sidebar", theirRules);
-		const mara = await seedUser("mara-removal");
-		await setUserFlagOverride(db, {
-			userId: mara,
-			flagKey: "show-sidebar",
-			choice: "on",
-			actorId: staff,
-		});
+		const writes = fake.updates;
 		await syncFlagOverrides(db, fake, "show-sidebar");
-		await setUserFlagOverride(db, {
-			userId: mara,
-			flagKey: "show-sidebar",
-			choice: "default",
-			actorId: staff,
-		});
-		await syncFlagOverrides(db, fake, "show-sidebar");
+		expect(fake.updates).toBe(writes);
 		expect(fake.rulesOf("show-sidebar")).toEqual(theirRules);
+		expect((await listUserFlagOverrides(db, id))[0]?.choice).toBe("default");
 	});
-
-	test("rules added in Databuddy between syncs survive the next sync", async () => {
-		fake.seed("show-sidebar", []);
-		const mara = await seedUser("mara-concurrent-rule");
-		await setUserFlagOverride(db, {
-			userId: mara,
-			flagKey: "show-sidebar",
-			choice: "on",
-			actorId: staff,
+	test("Default clears the selected user only, including explicit manual membership", async () => {
+		const id = await seedUser("reset");
+		fake.seed("show-sidebar", [
+			...theirRules,
+			{
+				type: "user_id",
+				operator: "in",
+				values: [id, "keep-me"],
+				enabled: true,
+				batch: false,
+				note: "manual",
+			},
+		]);
+		expect(await set(id, "default")).toEqual({
+			ok: true,
+			changed: true,
+			from: "on",
+			to: "default",
 		});
-		await syncFlagOverrides(db, fake, "show-sidebar");
-		const added = {
-			type: "property",
-			operator: "exists",
-			field: "beta",
+		expect(getDatabuddyUserOverride(fake.rulesOf("show-sidebar"), id)).toBe(
+			"default",
+		);
+		expect(
+			getDatabuddyUserOverride(fake.rulesOf("show-sidebar"), "keep-me"),
+		).toBe("on");
+		expect(fake.rulesOf("show-sidebar")).toContainEqual({
+			type: "user_id",
+			operator: "in",
+			values: ["keep-me"],
 			enabled: true,
 			batch: false,
-		};
-		const flag = fake.flags.get("show-sidebar");
-		flag?.rules?.push(added);
-		await markFlagOverridePending(db, {
-			userId: mara,
-			flagKey: "show-sidebar",
+			note: "manual",
 		});
-		await syncFlagOverrides(db, fake, "show-sidebar");
-		expect(fake.rulesOf("show-sidebar")).toContainEqual(added);
-		expect(fake.rulesOf("show-sidebar").filter(isTripwireRule)).toHaveLength(1);
+	});
+	test("serializes concurrent Tripwire edits so neither user's membership is lost", async () => {
+		const a = await seedUser("concurrent-a"),
+			b = await seedUser("concurrent-b");
+		const results = await Promise.all([set(a, "on"), set(b, "off")]);
+		expect(results.every((result) => result.ok)).toBe(true);
+		expect(getDatabuddyUserOverride(fake.rulesOf("show-sidebar"), a)).toBe(
+			"on",
+		);
+		expect(getDatabuddyUserOverride(fake.rulesOf("show-sidebar"), b)).toBe(
+			"off",
+		);
+		expect(fake.rulesOf("show-sidebar")).toEqual(
+			expect.arrayContaining(theirRules),
+		);
+	});
+	test("a failed remote write does not persist a new desired state or success history", async () => {
+		const id = await seedUser("write-failure");
+		fake.failWrite = true;
+		expect(await set(id, "on")).toEqual({
+			ok: false,
+			error: "Databuddy answered 503",
+		});
+		expect(await listUserFlagOverrides(db, id)).toEqual([]);
+		expect(await listFlagOverrideHistory(db, id)).toEqual([]);
+		expect(fake.rulesOf("show-sidebar")).toEqual(theirRules);
+	});
+	test("unconfirmed and incomplete remote responses fail closed", async () => {
+		const id = await seedUser("unconfirmed");
+		fake.confirmWrite = false;
+		expect((await set(id, "on")).ok).toBe(false);
+		expect(await listUserFlagOverrides(db, id)).toEqual([]);
+		fake.flags.set("show-sidebar", { id: "f-incomplete", key: "show-sidebar" });
+		const writes = fake.updates;
+		expect((await set(id, "on")).ok).toBe(false);
+		expect((await syncFlagOverrides(db, fake, "show-sidebar")).status).toBe(
+			"failed",
+		);
+		expect(fake.updates).toBe(writes);
+	});
+	test("an incomplete reset response is not mistaken for confirmation of Default", async () => {
+		const id = await seedUser("incomplete-reset");
+		await set(id, "on");
+		fake.omitWriteRules = true;
+		expect((await set(id, "default")).ok).toBe(false);
+		expect((await listUserFlagOverrides(db, id))[0]?.choice).toBe("on");
 	});
 
-	test("a Databuddy failure marks rows failed with the reason", async () => {
-		fake.seed("show-sidebar", theirRules);
-		const mara = await seedUser("mara-fail");
-		await setUserFlagOverride(db, {
-			userId: mara,
-			flagKey: "show-sidebar",
-			choice: "on",
-			actorId: staff,
+	test("an incomplete deletion response retains the durable cleanup record", async () => {
+		const id = await seedUser("incomplete-cleanup");
+		await set(id, "on");
+		await deleteUserAccount(db, id);
+		fake.omitWriteRules = true;
+		expect((await syncFlagOverrides(db, fake, "show-sidebar")).status).toBe(
+			"failed",
+		);
+		expect(
+			await listPendingFlagRemovals(db, new Date(Date.now() + 60_000)),
+		).toEqual(["show-sidebar"]);
+		fake.omitWriteRules = false;
+		await syncFlagOverrides(db, fake, "show-sidebar");
+		expect(
+			await listPendingFlagRemovals(db, new Date(Date.now() + 60_000)),
+		).toEqual([]);
+	});
+
+	test("missing flags and deleted users cannot create a remote override", async () => {
+		const id = await seedUser("missing");
+		expect(await set(id, "on", "not-a-flag")).toEqual({
+			ok: false,
+			error: FLAG_MISSING_MESSAGE,
 		});
+		expect(await set(generateId(), "on")).toEqual({
+			ok: false,
+			error: "This user no longer exists.",
+		});
+		expect(fake.updates).toBe(0);
+	});
+	test("a failed legacy reconciliation can retry without publishing its cached value", async () => {
+		const id = await seedUser("legacy-failure");
+		await set(id, "off");
+		await markFlagOverridePending(db, { userId: id, flagKey: "show-sidebar" });
 		fake.failNext = "Databuddy answered 503";
-		const result = await syncFlagOverrides(db, fake, "show-sidebar");
-		expect(result).toEqual({
+		expect(await syncFlagOverrides(db, fake, "show-sidebar")).toEqual({
 			status: "failed",
 			error: "Databuddy answered 503",
 		});
-		const [row] = await listUserFlagOverrides(db, mara);
-		expect(row).toMatchObject({
-			syncStatus: "failed",
-			syncError: "Databuddy answered 503",
-		});
-		expect(fake.rulesOf("show-sidebar")).toEqual(theirRules);
-
-		const retried = await syncFlagOverrides(db, fake, "show-sidebar");
-		expect(retried.status).toBe("synced");
-		const [after] = await listUserFlagOverrides(db, mara);
-		expect(after).toMatchObject({ syncStatus: "synced", syncError: null });
+		expect((await listUserFlagOverrides(db, id))[0]?.syncStatus).toBe("failed");
+		const writes = fake.updates;
+		expect((await syncFlagOverrides(db, fake, "show-sidebar")).status).toBe(
+			"synced",
+		);
+		expect(fake.updates).toBe(writes);
 	});
-
-	test("a flag missing in Databuddy fails without writing", async () => {
-		const mara = await seedUser("mara-missing");
-		await setUserFlagOverride(db, {
-			userId: mara,
-			flagKey: "not-a-flag",
-			choice: "on",
-			actorId: staff,
-		});
-		expect(await syncFlagOverrides(db, fake, "not-a-flag")).toEqual({
+	test("missing remote flags fail legacy pending rows without a write", async () => {
+		const id = await seedUser("legacy-missing");
+		await set(id, "on");
+		await markFlagOverridePending(db, { userId: id, flagKey: "show-sidebar" });
+		fake.flags.delete("show-sidebar");
+		const writes = fake.updates;
+		expect(await syncFlagOverrides(db, fake, "show-sidebar")).toEqual({
 			status: "missing",
 		});
-		const [row] = await listUserFlagOverrides(db, mara);
-		expect(row?.syncError).toBe(FLAG_MISSING_MESSAGE);
-		expect(fake.updates).toBe(0);
-	});
-
-	test("a change made during a sync stays pending for the next one", async () => {
-		fake.seed("show-sidebar", []);
-		const mara = await seedUser("mara-race");
-		await setUserFlagOverride(db, {
-			userId: mara,
-			flagKey: "show-sidebar",
-			choice: "on",
-			actorId: staff,
-		});
-		const original = fake.getFlagByKey.bind(fake);
-		fake.getFlagByKey = async (key: string) => {
-			await setUserFlagOverride(db, {
-				userId: mara,
-				flagKey: "show-sidebar",
-				choice: "off",
-				actorId: staff,
-			});
-			return await original(key);
-		};
-		await syncFlagOverrides(db, fake, "show-sidebar");
-		const [row] = await db
-			.select()
-			.from(userFlagOverrides)
-			.where(eq(userFlagOverrides.userId, mara));
-		expect(row?.syncStatus).toBe("pending");
-		expect(row?.value).toBe(false);
-	});
-
-	test("deleting a user drops their overrides so the next sync removes them", async () => {
-		fake.seed("show-sidebar", theirRules);
-		const gone = await seedUser("gone-user");
-		await setUserFlagOverride(db, {
-			userId: gone,
-			flagKey: "show-sidebar",
-			choice: "on",
-			actorId: staff,
-		});
-		await syncFlagOverrides(db, fake, "show-sidebar");
-		expect(fake.rulesOf("show-sidebar").filter(isTripwireRule)).toHaveLength(1);
-		await db.delete(user).where(eq(user.id, gone));
-		await syncFlagOverrides(db, fake, "show-sidebar");
-		expect(fake.rulesOf("show-sidebar")).toEqual(theirRules);
+		expect((await listUserFlagOverrides(db, id))[0]?.syncError).toBe(
+			FLAG_MISSING_MESSAGE,
+		);
+		expect(fake.updates).toBe(writes);
 	});
 });
 
-describe("account deletion", () => {
-	test("a deleted user leaves Databuddy on the next sync, even with no rows left", async () => {
-		fake.seed("show-sidebar", theirRules);
+describe("account-deletion cleanup", () => {
+	test("removes only explicitly deleted users and preserves remote users absent from the local cache", async () => {
+		const gone = await seedUser("deleted"),
+			stays = await seedUser("stays");
 		fake.seed("access-gate", []);
-		const gone = await seedUser("deleted-user");
-		const stays = await seedUser("staying-user");
-		for (const flagKey of ["show-sidebar", "access-gate"]) {
-			await setUserFlagOverride(db, {
-				userId: gone,
-				flagKey,
-				choice: "on",
-				actorId: staff,
-			});
-			await syncFlagOverrides(db, fake, flagKey);
-		}
-		await setUserFlagOverride(db, {
-			userId: stays,
-			flagKey: "show-sidebar",
-			choice: "off",
-			actorId: staff,
+		await set(gone, "on");
+		await set(gone, "on", "access-gate");
+		await set(stays, "off");
+		fake.flags.get("show-sidebar")?.rules?.push({
+			type: "user_id",
+			operator: "in",
+			field: TRIPWIRE_RULE_FIELD.on,
+			values: ["remote-only"],
+			enabled: true,
+			batch: false,
 		});
-		await syncFlagOverrides(db, fake, "show-sidebar");
-		expect(JSON.stringify(fake.rulesOf("access-gate"))).toContain(gone);
-
-		const deleted = await deleteUserAccount(db, gone);
-		expect(deleted.flagKeys.sort()).toEqual(["access-gate", "show-sidebar"]);
+		expect((await deleteUserAccount(db, gone)).flagKeys.sort()).toEqual([
+			"access-gate",
+			"show-sidebar",
+		]);
 		const later = new Date(Date.now() + 60_000);
 		expect((await listPendingFlagRemovals(db, later)).sort()).toEqual([
 			"access-gate",
 			"show-sidebar",
 		]);
-
 		await syncFlagOverrides(db, fake, "access-gate");
 		await syncFlagOverrides(db, fake, "show-sidebar");
 		expect(fake.rulesOf("access-gate")).toEqual([]);
-		expect(JSON.stringify(fake.rulesOf("show-sidebar"))).not.toContain(gone);
-		expect(JSON.stringify(fake.rulesOf("show-sidebar"))).toContain(stays);
+		expect(getDatabuddyUserOverride(fake.rulesOf("show-sidebar"), gone)).toBe(
+			"default",
+		);
+		expect(getDatabuddyUserOverride(fake.rulesOf("show-sidebar"), stays)).toBe(
+			"off",
+		);
+		expect(
+			getDatabuddyUserOverride(fake.rulesOf("show-sidebar"), "remote-only"),
+		).toBe("on");
 		expect(fake.rulesOf("show-sidebar")).toEqual(
 			expect.arrayContaining(theirRules),
 		);
 		expect(await listPendingFlagRemovals(db, later)).toEqual([]);
 	});
-
-	test("a failed sync keeps the removal so a later sweep retries it", async () => {
-		fake.seed("show-sidebar", []);
+	test("failed cleanup keeps its durable removal for the next sweep", async () => {
 		const gone = await seedUser("deleted-retry");
-		await setUserFlagOverride(db, {
-			userId: gone,
-			flagKey: "show-sidebar",
-			choice: "off",
-			actorId: staff,
-		});
-		await syncFlagOverrides(db, fake, "show-sidebar");
+		await set(gone, "off");
 		await deleteUserAccount(db, gone);
 		fake.failNext = "Databuddy is down";
 		expect((await syncFlagOverrides(db, fake, "show-sidebar")).status).toBe(
@@ -419,7 +447,9 @@ describe("account deletion", () => {
 		expect(await listPendingFlagRemovals(db, later)).toEqual(["show-sidebar"]);
 		expect(await listPendingFlagRemovals(db, new Date(0))).toEqual([]);
 		await syncFlagOverrides(db, fake, "show-sidebar");
-		expect(fake.rulesOf("show-sidebar")).toEqual([]);
+		expect(getDatabuddyUserOverride(fake.rulesOf("show-sidebar"), gone)).toBe(
+			"default",
+		);
 		expect(await listPendingFlagRemovals(db, later)).toEqual([]);
 	});
 });

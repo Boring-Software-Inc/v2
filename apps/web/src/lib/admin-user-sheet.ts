@@ -105,21 +105,7 @@ const SOURCE_LABELS = {
 	unknown: "Unknown",
 } satisfies Record<FlagSource, string>;
 
-export function flagSourceLabel(
-	source: FlagSource,
-	override: {
-		choice: FlagOverrideChoice;
-		syncStatus: FlagSyncStatus;
-	} | null = null,
-): string {
-	if (
-		source === "rule" &&
-		override?.choice !== undefined &&
-		override.choice !== "default" &&
-		override.syncStatus === "synced"
-	) {
-		return "Tripwire override";
-	}
+export function flagSourceLabel(source: FlagSource): string {
 	return SOURCE_LABELS[source];
 }
 

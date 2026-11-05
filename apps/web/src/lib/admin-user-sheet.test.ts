@@ -122,12 +122,8 @@ describe("flag labels", () => {
 	test("source labels", () => {
 		expect(flagSourceLabel("rule")).toBe("Their rule");
 		expect(flagSourceLabel("default")).toBe("Default");
-		expect(
-			flagSourceLabel("rule", { choice: "off", syncStatus: "synced" }),
-		).toBe("Tripwire override");
-		expect(
-			flagSourceLabel("rule", { choice: "off", syncStatus: "pending" }),
-		).toBe("Their rule");
+		expect(flagSourceLabel("group")).toBe("Group");
+		expect(flagSourceLabel("rollout")).toBe("Rollout");
 	});
 
 	test("sync labels", () => {
