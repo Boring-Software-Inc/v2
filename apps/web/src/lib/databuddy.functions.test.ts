@@ -73,7 +73,11 @@ test("root loader covers public routes independently of session early returns an
 	expect(root).toContain(
 		"const { databuddyWebsiteId } = Route.useLoaderData()",
 	);
-	expect(root).toContain("<FlagsProvider clientId={databuddyWebsiteId}>");
+	expect(root).toContain("<AccountFlagsProvider");
+	expect(root).toContain("clientId={databuddyWebsiteId}");
+	expect(root).toContain("isPending={identityPending}");
+	expect(root).toContain("user={user}");
+	expect(root).toContain("currentUserQueryOptions()");
 	expect(root).toContain(
 		"<DatabuddyAnalytics websiteId={databuddyWebsiteId} />",
 	);
