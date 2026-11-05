@@ -15,6 +15,12 @@ coverage/
 .turbo/
 /docs
 /repo_docs
+/plans/
+/PLAN.md
+/.design-system/*
+!/.design-system/design-system-lint-baseline.json
+/.ui-review/
+/.unipi/
 
 # local QA artifacts (screenshots, videos, db dumps) — never committed
 dogfood-output/

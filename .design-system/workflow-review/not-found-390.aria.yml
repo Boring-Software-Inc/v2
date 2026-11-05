@@ -1,5 +1,0 @@
-- main:
-  - button "Poke the ghost"
-  - heading "Push not found" [level=1]
-  - paragraph: The link is wrong, or your role cannot change workflows here.
-  - button "Back to workflows"
