@@ -110,7 +110,7 @@ test.skipIf(!process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH)(
 							"data-track-web-vitals": "true",
 							"data-track-errors": "true",
 							integrity:
-								"sha384-m2c2os7/DpqI3ZXwXLHVY6KrzL/iLwn+yuxTPwZskc+miPMNHCWBfyTojAqMXl1",
+								"sha384-m2cC2os7/DpqI3ZXwXLHVY6KrzL/iLwn+yuxTPwZskc+miPMNHCWBfyTojAqMXl1",
 							crossorigin: "anonymous",
 							async: "",
 						},

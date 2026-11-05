@@ -16,7 +16,7 @@ export function DatabuddyAnalytics({ websiteId }: { websiteId: string }) {
 		script.setAttribute("data-track-web-vitals", "true");
 		script.setAttribute("data-track-errors", "true");
 		script.integrity =
-			"sha384-m2c2os7/DpqI3ZXwXLHVY6KrzL/iLwn+yuxTPwZskc+miPMNHCWBfyTojAqMXl1";
+			"sha384-m2cC2os7/DpqI3ZXwXLHVY6KrzL/iLwn+yuxTPwZskc+miPMNHCWBfyTojAqMXl1";
 		script.crossOrigin = "anonymous";
 		script.async = true;
 		document.head.appendChild(script);
