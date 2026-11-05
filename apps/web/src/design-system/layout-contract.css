@@ -2899,3 +2899,49 @@
 [data-layout-role="rule-card-mode-trigger"] {
 	width: auto;
 }
+
+[data-layout-role="evidence-inline-code"],
+[data-layout-role="evidence-file-name"],
+[data-layout-role="evidence-crypto-value"] {
+	color: var(--tw-content-primary);
+}
+
+[data-layout-role="evidence-file-icon"] {
+	color: var(--tw-content-tertiary);
+}
+
+[data-layout-role="evidence-file-path"],
+[data-layout-role="evidence-crypto-value"] {
+	overflow-wrap: anywhere;
+}
+
+[data-layout-role="evidence-file-directory"] {
+	color: var(--tw-content-secondary);
+}
+
+[data-layout-role="evidence-file-row"] {
+	gap: var(--space-1-5);
+	padding-inline: var(--space-3);
+	padding-block: var(--space-2);
+}
+
+[data-layout-role="evidence-crypto-row"] {
+	gap: var(--space-1);
+	padding-inline: var(--space-3);
+	padding-block: var(--space-2);
+}
+
+[data-layout-role="rule-evidence"] {
+	padding-block-start: var(--space-1);
+}
+
+[data-layout-role="rule-evidence-detail"] {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+	padding-block-start: var(--space-2);
+}
+
+[data-layout-role="rule-evidence-raw"] {
+	padding-block-start: var(--space-2);
+}

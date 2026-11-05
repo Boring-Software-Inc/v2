@@ -118,18 +118,18 @@ export function RuleEvidence({
 		return null;
 	}
 	return (
-		<Collapsible className="pt-1">
+		<Collapsible data-layout-role="rule-evidence">
 			<CollapsibleTrigger size="sm">
 				{detail?.label ?? "Evidence"}
 			</CollapsibleTrigger>
 			<CollapsibleContent hiddenUntilFound>
-				<div className="flex flex-col gap-2 pt-2">
+				<div data-layout-role="rule-evidence-detail">
 					{detail?.body}
 					{raw && detail ? (
 						<Collapsible>
 							<CollapsibleTrigger size="sm">Raw evidence</CollapsibleTrigger>
 							<CollapsibleContent>
-								<div className="pt-2">
+								<div data-layout-role="rule-evidence-raw">
 									<JsonView data={inner} label="Raw evidence" />
 								</div>
 							</CollapsibleContent>

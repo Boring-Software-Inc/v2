@@ -1,12 +1,13 @@
 import type { ReactNode } from "react";
 import { DocumentBlank, Icon } from "#/design-system/icon";
+import { Caption } from "#/design-system/ui/typography";
 
 export function renderBackticks(text: string): ReactNode {
 	return text.split(/(`[^`]+`)/g).map((part, i) => {
 		if (part.length > 2 && part.startsWith("`") && part.endsWith("`")) {
 			return (
 				<code
-					className="text-text-1"
+					data-layout-role="evidence-inline-code"
 					// biome-ignore lint/suspicious/noArrayIndexKey: static split, stable order
 					key={i}
 				>
@@ -20,7 +21,12 @@ export function renderBackticks(text: string): ReactNode {
 
 export function FileIcon() {
 	return (
-		<Icon className="shrink-0 text-text-3" icon={DocumentBlank} size={14} />
+		<Icon
+			className="shrink-0"
+			data-layout-role="evidence-file-icon"
+			icon={DocumentBlank}
+			size={14}
+		/>
 	);
 }
 
@@ -29,9 +35,9 @@ export function FilePath({ file }: { file: string }) {
 	const dir = cut >= 0 ? file.slice(0, cut + 1) : "";
 	const base = cut >= 0 ? file.slice(cut + 1) : file;
 	return (
-		<span className="mono [overflow-wrap:anywhere]">
-			<span className="text-text-2">{dir}</span>
-			<span className="text-text-1">{base}</span>
+		<span className="mono" data-layout-role="evidence-file-path">
+			<span data-layout-role="evidence-file-directory">{dir}</span>
+			<span data-layout-role="evidence-file-name">{base}</span>
 		</span>
 	);
 }
@@ -66,7 +72,8 @@ export function FileRows({
 				const url = blobUrl(repo, sha, file);
 				return (
 					<li
-						className="rule-row flex min-w-0 items-center gap-1.5 px-3 py-2 type-code-sm"
+						className="rule-row flex min-w-0 items-center type-code-sm"
+						data-layout-role="evidence-file-row"
 						key={file}
 					>
 						<FileIcon />
@@ -101,16 +108,20 @@ export function CryptoMatches({
 		>
 			{matches.map((match, i) => (
 				<li
-					className="rule-row flex flex-col gap-1 px-3 py-2"
+					className="rule-row flex flex-col"
+					data-layout-role="evidence-crypto-row"
 					// biome-ignore lint/suspicious/noArrayIndexKey: matches have no id; order is fixed
 					key={i}
 				>
-					<span className="type-code-sm text-text-1 [overflow-wrap:anywhere]">
+					<span
+						className="type-code-sm"
+						data-layout-role="evidence-crypto-value"
+					>
 						{match.value}
 					</span>
-					<span className="type-caption text-text-2">
+					<Caption>
 						in <span className="mono">{match.location}</span>
-					</span>
+					</Caption>
 				</li>
 			))}
 		</ul>
