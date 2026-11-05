@@ -2945,3 +2945,103 @@
 [data-layout-role="rule-evidence-raw"] {
 	padding-block-start: var(--space-2);
 }
+
+[data-layout-role="ai-findings"],
+[data-layout-role="ai-trace-reasoning"] {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+}
+
+[data-layout-role="ai-findings-file"],
+[data-layout-role="ai-findings-list"],
+[data-layout-role="ai-finding"],
+[data-layout-role="ai-trace"] {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+}
+
+[data-layout-role="ai-findings-file"] {
+	padding: var(--space-1);
+}
+
+[data-layout-role="ai-findings-file-heading"] {
+	display: flex;
+	min-width: 0;
+	align-items: center;
+	gap: var(--space-1-5);
+	padding-inline: var(--space-2);
+	padding-block: var(--space-1-5);
+}
+
+[data-layout-role="ai-findings-file-link"] {
+	display: flex;
+	min-width: 0;
+	align-items: center;
+	gap: var(--space-1);
+}
+
+[data-layout-role="ai-findings-external"] {
+	color: var(--tw-content-tertiary);
+}
+
+[data-layout-role="ai-finding"] {
+	background-color: var(--tw-surface-container);
+	padding-inline: var(--space-2);
+	padding-block: var(--space-2);
+}
+
+[data-layout-role="ai-finding-heading"] {
+	display: flex;
+	align-items: baseline;
+	gap: var(--space-2);
+}
+
+[data-layout-role="ai-finding-line"] {
+	color: var(--tw-content-secondary);
+}
+
+@media (hover: hover) {
+	a[data-layout-role="ai-finding-line"]:hover {
+		color: var(--tw-content-primary);
+	}
+}
+
+[data-layout-role="ai-finding-note"] {
+	color: var(--tw-content-primary);
+	overflow-wrap: anywhere;
+}
+
+[data-layout-role="ai-trace-counters"] {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	column-gap: var(--space-3);
+	row-gap: var(--space-1);
+	padding-inline: var(--space-1);
+	color: var(--tw-content-secondary);
+}
+
+[data-layout-role="ai-trace-steps"] {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+	padding: var(--space-2);
+}
+
+[data-layout-role="ai-trace-trimmed"],
+[data-layout-role="ai-trace-step-label"],
+[data-layout-role="ai-trace-excerpt"] {
+	color: var(--tw-content-secondary);
+}
+
+[data-layout-role="ai-trace-step"] {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-0-5);
+}
+
+[data-layout-role="ai-trace-excerpt"] {
+	overflow-wrap: anywhere;
+}
