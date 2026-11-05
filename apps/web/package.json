@@ -12,7 +12,7 @@
 	"scripts": {
 		"dev": "bun --env-file=../../.env vite dev --port 3000 --host 0.0.0.0",
 		"build": "vite build && bun run build:instrument",
-		"build:instrument": "bun build instrument.server.mjs --production --target=node --outfile=.output/server/instrument.server.mjs && bun build node_modules/@sentry/server-runtime-injection/build/esm/hook.js --production --target=node --outfile=.output/server/hook.js",
+		"build:instrument": "bun build instrument.server.mjs --production --target=node --outfile=.output/server/instrument.server.mjs && bun build \"$(bun -p 'Bun.resolveSync(\"@sentry/server-runtime-injection/hook\", process.cwd())')\" --production --target=node --outfile=.output/server/hook.js",
 		"preview": "vite preview",
 		"start": "node --import ./.output/server/instrument.server.mjs .output/server/index.mjs",
 		"routes:gen": "bun run scripts/generate-route-tree.ts",
