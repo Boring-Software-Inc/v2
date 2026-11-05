@@ -1,0 +1,14 @@
+.gitignore
+  h_3279d55133f19f 18-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fee87872ed8dc96b6aab51c68d74d5884dd11bb9",
+  "prompts": {},
+  "humans": {
+    "h_3279d55133f19f": {
+      "author": "grim <75869731+ripgrim@users.noreply.github.com>"
+    }
+  }
+}
