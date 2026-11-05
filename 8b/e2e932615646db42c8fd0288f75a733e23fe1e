@@ -1,0 +1,22 @@
+apps/web/src/components/common/account-flags-provider.test.tsx
+  h_3279d55133f19f 1-74
+apps/web/src/components/common/account-flags-provider.tsx
+  h_3279d55133f19f 1-51
+apps/web/src/components/layouts/dashboard-layout.tsx
+  h_3279d55133f19f 1
+apps/web/src/lib/databuddy.functions.test.ts
+  h_3279d55133f19f 76-80
+apps/web/src/routes/__root.tsx
+  h_3279d55133f19f 1,14,27-30,153-155,169-173,177
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8be2e932615646db42c8fd0288f75a733e23fe1e",
+  "prompts": {},
+  "humans": {
+    "h_3279d55133f19f": {
+      "author": "grim <75869731+ripgrim@users.noreply.github.com>"
+    }
+  }
+}
