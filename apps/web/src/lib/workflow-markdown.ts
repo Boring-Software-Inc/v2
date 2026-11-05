@@ -4,6 +4,7 @@ import {
 	formatParamValue,
 	GATE_CATALOG,
 	type JsonValue,
+	jsonValueSchema,
 	ruleDisplayName,
 	ruleUiSchema,
 	scheduleSentenceText,
@@ -15,6 +16,7 @@ import {
 import { z } from "zod";
 
 const stringList = z.array(z.string()).catch([]);
+const stringEntries = z.array(z.string().optional().catch(undefined)).catch([]);
 const reviewerList = z
 	.array(storedReviewerSchema.optional().catch(undefined))
 	.catch([]);
@@ -50,20 +52,23 @@ type RuleNode = Extract<WorkflowNode, { type: "rule" }>;
 type GateNode = Extract<WorkflowNode, { type: "gate" }>;
 type ActionNode = Extract<WorkflowNode, { type: "action" }>;
 
-const WHEN_VERB: Record<EdgeWhen, string> = {
-	pass: "passes",
-	fail: "fails",
-	approve: "is approved by a maintainer",
-	deny: "is blocked by a maintainer",
-};
+const WHEN_VERB = new Map<EdgeWhen, string>([
+	["pass", "passes"],
+	["fail", "fails"],
+	["approve", "is approved by a maintainer"],
+	["deny", "is blocked by a maintainer"],
+]);
 
 const isTrigger = (n: WorkflowNode): n is TriggerNode => n.type === "trigger";
 const isRule = (n: WorkflowNode): n is RuleNode => n.type === "rule";
 const isGate = (n: WorkflowNode): n is GateNode => n.type === "gate";
 const isAction = (n: WorkflowNode): n is ActionNode => n.type === "action";
 
-const asObject = (c: JsonValue): Record<string, JsonValue> =>
-	typeof c === "object" && c !== null && !Array.isArray(c) ? c : {};
+const jsonObject = z.record(z.string(), jsonValueSchema).catch({});
+const optionalString = z.string().optional().catch(undefined);
+
+const asObject = (value: JsonValue): Record<string, JsonValue> =>
+	jsonObject.parse(value);
 
 /** The display name for any node, resolving rule refs through the runtime
  * catalog (built-in names, then the repo's custom-rule entries). */
@@ -122,8 +127,8 @@ function secretSet(params: Record<string, JsonValue>, key: string): boolean {
 	if (params[`${key}Set`] === true) {
 		return true;
 	}
-	const value = params[key];
-	return typeof value === "string" && value !== "";
+	const value = optionalString.parse(params[key]);
+	return value !== undefined && value !== "";
 }
 
 /** The safe param lines for an action — labels listed; delivery nodes report
@@ -131,9 +136,9 @@ function secretSet(params: Record<string, JsonValue>, key: string): boolean {
 function actionParams(node: ActionNode): string[] {
 	const params = node.params ?? {};
 	if (node.action === "label") {
-		const labels = Array.isArray(params.labels)
-			? params.labels.filter((l): l is string => typeof l === "string")
-			: [];
+		const labels = stringEntries
+			.parse(params.labels)
+			.flatMap((label) => (label === undefined ? [] : [label]));
 		return labels.length > 0 ? [`labels: ${labels.join(", ")}`] : [];
 	}
 	if (node.action === "request-review") {
@@ -147,9 +152,8 @@ function actionParams(node: ActionNode): string[] {
 		];
 	}
 	if (node.action === "lock") {
-		return typeof params.reason === "string"
-			? [`reason: ${params.reason}`]
-			: [];
+		const reason = optionalString.parse(params.reason);
+		return reason ? [`reason: ${reason}`] : [];
 	}
 	if (node.action === "webhook" || node.action === "discord") {
 		const rows = [secretSet(params, "url") ? "url set" : "url not set"];
@@ -190,7 +194,7 @@ function firingCondition(
 				return "on trigger";
 			}
 			const name = source ? midSentenceName(source, customRules) : edge.from;
-			return `when ${name} ${WHEN_VERB[edge.when ?? "pass"]}`;
+			return `when ${name} ${WHEN_VERB.get(edge.when ?? "pass")}`;
 		});
 	if (parts.length === 0) {
 		return null;

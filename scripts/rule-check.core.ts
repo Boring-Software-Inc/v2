@@ -12,12 +12,13 @@
  */
 import {
 	customRuleRecordSchema,
-	type NormalizedEvent,
+	type RepoScopedEvent,
 	type ResolvedCatalogEntry,
 	RULE_CATALOG,
 	type RuleResult,
 	resolveCatalog,
 	ruleIdOf,
+	storedJsonValueSchema,
 	type WorkflowDefinition,
 } from "@tripwire/contracts";
 import { executeWorkflow } from "@tripwire/core";
@@ -38,6 +39,7 @@ import { makeEvaluator } from "../apps/worker/src/jobs/run-workflows.ts";
 // must not touch bun.lock), so reach it by path — same as the worker internals.
 import {
 	createForgeSignalCtx,
+	type ProducerMap,
 	SignalUnavailableError,
 } from "../packages/sdk/src/index.ts";
 
@@ -49,6 +51,10 @@ const logger: Logger = new Proxy({} as Logger, {
 		return prop === "child" ? () => logger : () => undefined;
 	},
 });
+
+interface GithubSignalProducers {
+	[id: string]: ProducerMap<GithubHttp>[keyof ProducerMap<GithubHttp>];
+}
 
 export interface SignalReport {
 	id: string;
@@ -75,7 +81,7 @@ export interface CheckResult {
 	degradedReads: string[];
 }
 
-function buildForge(db: Db): { reads: GithubReads; signalHttp: GithubHttp } {
+function buildForge(db: Db) {
 	const appId = process.env.GITHUB_APP_ID;
 	const privateKey = process.env.GITHUB_APP_PRIVATE_KEY?.replaceAll(
 		"\\n",
@@ -88,13 +94,17 @@ function buildForge(db: Db): { reads: GithubReads; signalHttp: GithubHttp } {
 	}
 	const tokens = new InstallationTokenCache({ appId, privateKey });
 	const tokenFor = async (repoFullName: string) => {
-		const repo = await repoServices.getRepoByFullName(db, repoFullName);
+		const repo = await repoServices.getRepoByFullName(
+			db,
+			repoFullName,
+			"github",
+		);
 		if (!repo?.installationId) {
 			throw new Error(`no installation for ${repoFullName}`);
 		}
 		return tokens.getToken(repo.installationId);
 	};
-	const httpOptions = { tokenFor };
+	const httpOptions = { appId: Number(appId), tokenFor };
 	return {
 		reads: new GithubReads(httpOptions),
 		signalHttp: new GithubHttp(httpOptions),
@@ -108,7 +118,7 @@ async function fetchPrEvent(
 	repoFullName: string,
 	prNumber: number,
 	now: string,
-): Promise<NormalizedEvent> {
+): Promise<RepoScopedEvent> {
 	const [owner, name] = repoFullName.split("/");
 	const pr = (await http.get(
 		repoFullName,
@@ -118,6 +128,7 @@ async function fetchPrEvent(
 		{
 			deliveryId: `rule-check-${repoFullName}#${prNumber}`,
 			eventName: "pull_request",
+			signature: "",
 			body: JSON.stringify({
 				action: "opened",
 				pull_request: pr,
@@ -127,7 +138,7 @@ async function fetchPrEvent(
 		},
 		now,
 	);
-	if (!event) {
+	if (!event || !("repo" in event)) {
 		throw new Error(`could not normalize PR ${repoFullName}#${prNumber}`);
 	}
 	return event;
@@ -173,7 +184,11 @@ export async function listRules(input: {
 	db: Db;
 	repo: string;
 }): Promise<{ ref: string; name: string; source: string }[]> {
-	const repo = await repoServices.getRepoByFullName(input.db, input.repo);
+	const repo = await repoServices.getRepoByFullName(
+		input.db,
+		input.repo,
+		"github",
+	);
 	if (!repo) {
 		throw new Error(`repo not found: ${input.repo}`);
 	}
@@ -194,7 +209,7 @@ export async function checkRule(input: {
 	const { db, repo: repoFullName, ruleRef: rawRef, pr } = input;
 	const now = new Date().toISOString();
 
-	const repo = await repoServices.getRepoByFullName(db, repoFullName);
+	const repo = await repoServices.getRepoByFullName(db, repoFullName, "github");
 	if (!repo) {
 		throw new Error(`repo not found: ${repoFullName}`);
 	}
@@ -202,6 +217,31 @@ export async function checkRule(input: {
 	const { rows, parsed, catalog } = await loadCatalog(db, repo.id);
 	const entry = resolveRef(rawRef, catalog);
 	const ref = `${entry.ruleId}@${entry.version}`;
+
+	/** Custom rules have no config; built-ins prefer stored config to catalog defaults. */
+	const config =
+		entry.source === "built-in"
+			? ((await repoServices.listRuleConfigs(db, repo.id)).find(
+					(c) => c.ruleId === entry.ruleId,
+				)?.config ??
+				RULE_CATALOG.find((e) => e.ruleId === entry.ruleId)?.defaultConfig ??
+				{})
+			: {};
+
+	const parsedConfig = storedJsonValueSchema.safeParse(config);
+	if (!parsedConfig.success) {
+		return {
+			ref,
+			name: entry.name,
+			source: entry.source,
+			status: "skipped",
+			passed: false,
+			evidence: null,
+			skipReason: "Stored rule config is not valid JSON.",
+			signals: [],
+			degradedReads: [],
+		};
+	}
 
 	const { reads, signalHttp } = buildForge(db);
 	const event = await fetchPrEvent(signalHttp, repoFullName, pr, now);
@@ -216,17 +256,6 @@ export async function checkRule(input: {
 	);
 	const evaluate = makeEvaluator(ctx, logger, custom);
 
-	// Effective config: the repo's stored config for a built-in, else its catalog
-	// default. Custom rules carry no config — the rule IS the config.
-	let config: unknown = {};
-	if (entry.source === "built-in") {
-		const stored = (await repoServices.listRuleConfigs(db, repo.id)).find(
-			(c) => c.ruleId === entry.ruleId,
-		);
-		const catalogEntry = RULE_CATALOG.find((e) => e.ruleId === entry.ruleId);
-		config = stored?.config ?? catalogEntry?.defaultConfig ?? {};
-	}
-
 	// The synthetic one-node workflow: trigger → rule, NO actions. Structurally
 	// cannot comment, check, block, or notify.
 	const definition: WorkflowDefinition = {
@@ -235,7 +264,7 @@ export async function checkRule(input: {
 		version: 1,
 		nodes: [
 			{ id: "trigger", type: "trigger", kinds: [event.kind] },
-			{ id: "rule", type: "rule", ref, config },
+			{ id: "rule", type: "rule", ref, config: parsedConfig.data },
 		],
 		edges: [{ id: "e1", from: "trigger", to: "rule" }],
 	};
@@ -257,7 +286,8 @@ export async function checkRule(input: {
 		const signalId = parsed.find((c) => c.id === entry.ruleId)?.definition.when
 			.id;
 		if (signalId) {
-			const producer = githubForge.produces[signalId];
+			const producers: GithubSignalProducers = githubForge.produces;
+			const producer = producers[signalId];
 			const report: SignalReport = { id: signalId, resolved: false };
 			if (producer) {
 				try {

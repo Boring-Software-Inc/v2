@@ -133,7 +133,7 @@ export interface RefreshSurfacesJob {
 
 /** Minimal logger surface — satisfied by pino, console, etc. */
 export interface BossErrorLogger {
-	error(obj: unknown, msg?: string): void;
+	error(obj: { error: Error | string }, msg?: string): void;
 }
 
 /** Connection producers and the isolated worker must leave general backlog maintenance stopped. */

@@ -3,17 +3,23 @@ import type { Plugin } from "vite";
 
 const PREFIX = "\0pierre-catalog:";
 
-const CATALOGS: Record<string, (resolved: string) => string> = {
-	"shiki/langs": (resolved) =>
-		`export const bundledLanguages = { typescript: () => import(${JSON.stringify(
-			join(dirname(resolved), "langs/typescript.mjs"),
-		)}) };`,
-	"@pierre/theming/themes": (resolved) =>
-		`export { pierreThemes as themes } from ${JSON.stringify(
-			join(dirname(resolved), "collections/pierre.js"),
-		)};`,
-	"@pierre/highlights/themes/loader": () => "export const themes = {};",
-};
+const CATALOGS = new Map<string, (resolved: string) => string>([
+	[
+		"shiki/langs",
+		(resolved) =>
+			`export const bundledLanguages = { typescript: () => import(${JSON.stringify(
+				join(dirname(resolved), "langs/typescript.mjs"),
+			)}) };`,
+	],
+	[
+		"@pierre/theming/themes",
+		(resolved) =>
+			`export { pierreThemes as themes } from ${JSON.stringify(
+				join(dirname(resolved), "collections/pierre.js"),
+			)};`,
+	],
+	["@pierre/highlights/themes/loader", () => "export const themes = {};"],
+]);
 
 type Resolve = (
 	source: string,
@@ -30,7 +36,7 @@ export function pierreCatalogs() {
 			source: string,
 			importer: string | undefined,
 		) {
-			if (!importer?.includes("/@pierre/diffs/") || !(source in CATALOGS)) {
+			if (!importer?.includes("/@pierre/diffs/") || !CATALOGS.has(source)) {
 				return null;
 			}
 			const resolved = await this.resolve(source, importer, {
@@ -43,7 +49,7 @@ export function pierreCatalogs() {
 				return null;
 			}
 			const [source = "", resolved = ""] = id.slice(PREFIX.length).split("\0");
-			return CATALOGS[source]?.(resolved) ?? null;
+			return CATALOGS.get(source)?.(resolved) ?? null;
 		},
 	} satisfies Plugin;
 }

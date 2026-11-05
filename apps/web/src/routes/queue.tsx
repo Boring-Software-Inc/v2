@@ -2,8 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AccessPendingScreen } from "#/components/auth/access-pending-screen";
-import { Status } from "#/components/glaze/ui/status";
-import { toast } from "#/components/glaze/ui/toast";
+import { Status } from "#/design-system/ui/status";
+import { toast } from "#/design-system/ui/toast";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 

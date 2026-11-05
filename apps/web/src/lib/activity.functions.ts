@@ -7,6 +7,7 @@ import {
 	activityFeedSchema,
 	DEFAULT_WORKFLOW,
 	GITCAFE_RERUN_QUEUE,
+	normalizedEventSchema,
 	RULE_CATALOG,
 	rerunChangeRequestJobSchema,
 	ruleDisplayName,
@@ -217,16 +218,10 @@ export const rerunChangeRequest = createServerFn({ method: "POST" })
 		// Materialize the run NOW so the activity card shows evaluating
 		// immediately. Provisional snapshot is overwritten when the worker
 		// finalizes under the real derived definition.
+		const normalized = normalizedEventSchema.safeParse(eventRow.normalized);
 		const headSha =
-			eventRow.normalized &&
-			typeof eventRow.normalized === "object" &&
-			"changeRequest" in eventRow.normalized &&
-			eventRow.normalized.changeRequest &&
-			typeof eventRow.normalized.changeRequest === "object" &&
-			"headSha" in eventRow.normalized.changeRequest
-				? String(
-						(eventRow.normalized.changeRequest as { headSha: string }).headSha,
-					)
+			normalized.success && "changeRequest" in normalized.data
+				? normalized.data.changeRequest.headSha
 				: null;
 		const runId = await runServices.createRun(db, {
 			eventId: eventRow.id,

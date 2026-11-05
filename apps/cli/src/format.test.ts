@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { stripVTControlCharacters } from "node:util";
+import type { JsonValue } from "@tripwire/contracts";
 import {
 	decisionChoiceError,
 	errorLine,
@@ -576,5 +577,64 @@ describe("tables with colored cells", () => {
 				expect(row).toEqual((header ?? []).slice(0, row.length));
 			}
 		}
+	});
+});
+
+describe("declared formatter table entries", () => {
+	test.each([
+		"toString",
+		"constructor",
+		"__proto__",
+		"unknown-tool",
+	])("unknown tool %s has no formatter", (tool) => {
+		expect(formatResult(tool, {})).toBeNull();
+	});
+
+	test.each([
+		"toString",
+		"constructor",
+		"__proto__",
+		"unknown-step",
+	])("unknown setup step %s is displayed verbatim", (nextStep) => {
+		expect(formatResult("setup_status", { org: "grim", nextStep })).toBe(
+			`org       grim\nnext      ${nextStep}`,
+		);
+	});
+
+	test.each([
+		"toString",
+		"constructor",
+		"__proto__",
+		"unknown-hint",
+	])("unknown hint %s adds nothing to an error", (hint) => {
+		expect(friendlyError("fallback", { error: "No repo.", hint })).toBe(
+			"No repo.",
+		);
+	});
+
+	test.each([
+		["install_app", "Install the GitHub App"],
+		["sync_repos", "Wait for repos to sync, then run tripwire status again"],
+		["turn_on_gate", "Turn on the gate. Run tripwire gate on <repo>"],
+	])("declared setup step %s keeps its text", (nextStep, expected) => {
+		expect(
+			formatResult("setup_status", {
+				org: "grim",
+				nextStep,
+				installUrl: "https://example/install",
+			}),
+		).toBe(
+			`org       grim\nnext      ${expected}\nopen      https://example/install`,
+		);
+	});
+
+	test.each<[JsonValue]>([
+		[null],
+		[[]],
+		[{}],
+		["wrong"],
+		[{ org: "grim", nextStep: 17 }],
+	])("malformed formatter payloads keep the null fallback: %j", (data) => {
+		expect(formatResult("setup_status", data)).toBeNull();
 	});
 });

@@ -10,6 +10,7 @@ import {
 	type WorkflowDefinition,
 	type WorkflowNode,
 } from "@tripwire/contracts";
+import { z } from "zod";
 import {
 	nodeFieldValues,
 	summarizeFieldValue,
@@ -220,8 +221,9 @@ describe("templates", () => {
 					const shown = summarizeFieldValue(field, value);
 					expect(shown).not.toContain("…");
 					expect(shown).not.toMatch(/ \+\d+$/);
-					if (typeof value === "string") {
-						expect(shown).toBe(value);
+					const stringValue = z.string().safeParse(value);
+					if (stringValue.success) {
+						expect(shown).toBe(stringValue.data);
 					}
 				}
 			}

@@ -117,6 +117,15 @@ describe("AgentClientLogo", () => {
 		).toContain('viewBox="0 0 24 24"');
 	});
 
+	test("Tripwire CLI keeps its prompt glyph rather than a brand mark", () => {
+		const html = renderToStaticMarkup(
+			<AgentClientLogo clientName="Tripwire CLI" />,
+		);
+		expect(html).toContain('data-logo="tripwire-cli"');
+		expect(html).toContain("<span");
+		expect(html).not.toContain('viewBox="0 0 24 24"');
+	});
+
 	test("an unknown client renders the generic glyph, not a brand", () => {
 		const html = renderToStaticMarkup(
 			<AgentClientLogo clientName="Proof Agent" />,

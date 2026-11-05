@@ -1,0 +1,49 @@
+.glaze,
+[data-system="glaze"] {
+	--tw-surface-canvas: var(--page);
+	--tw-surface-page: var(--page);
+	--tw-surface-container: var(--paper);
+	--tw-surface-raised: var(--paper);
+	--tw-surface-inset: var(--field);
+	--tw-surface-overlay: var(--paper);
+	--tw-surface-inverse: var(--ink);
+
+	--tw-content-primary: var(--text-1);
+	--tw-content-secondary: var(--text-2);
+	--tw-content-tertiary: var(--text-3);
+	--tw-content-disabled: var(--text-disabled);
+	--tw-content-inverse: var(--text-inverse);
+
+	--tw-boundary-subtle: var(--line-faint);
+	--tw-boundary-default: var(--line);
+	--tw-boundary-control: var(--line-control);
+	--tw-boundary-strong: var(--line-strong);
+	--tw-boundary-focus: var(--focus);
+	--tw-boundary-feedback-inner: var(--feedback-outline-inner);
+	--tw-boundary-feedback-outer: var(--feedback-outline-outer);
+
+	--tw-interaction-hover: var(--hover);
+	--tw-interaction-row-hover: var(--hover-row);
+	--tw-interaction-selected: var(--pressed);
+	--tw-interaction-pressed: var(--pressed);
+	--tw-interaction-disabled: var(--field);
+
+	--tw-success-mark: var(--ok);
+	--tw-success-text: var(--ok-text);
+	--tw-success-wash: var(--ok-tint);
+	--tw-success-border: var(--ok);
+	--tw-warning-mark: var(--warn);
+	--tw-warning-text: var(--warn-text);
+	--tw-warning-wash: var(--warn-tint);
+	--tw-warning-border: var(--warn);
+	--tw-danger-mark: var(--fail);
+	--tw-danger-text: var(--fail-text);
+	--tw-danger-wash: var(--fail-tint);
+	--tw-danger-border: var(--fail);
+	--tw-info-mark: var(--ink-45);
+	--tw-info-text: var(--text-1);
+	--tw-info-wash: var(--field);
+	--tw-info-border: var(--line-strong);
+
+	--tw-agent-activity: var(--agent);
+}

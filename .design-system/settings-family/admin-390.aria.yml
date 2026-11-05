@@ -1,0 +1,54 @@
+- link "Skip to content":
+  - /url: "#main-content"
+- navigation "Primary":
+  - link "Tripwire, go to org home":
+    - /url: /dev-owner/home
+    - img "Tripwire"
+  - 'button "Org: Dev owner. Switch org"'
+  - button "Pick a repo"
+  - button "Search"
+  - button "Tripwire is in beta. Send feedback": Beta
+  - button "Account menu for Dev owner"
+- navigation "Org":
+  - link "Home":
+    - /url: /dev-owner/home
+  - link "Analytics":
+    - /url: /dev-owner/analytics
+  - link "Settings":
+    - /url: /dev-owner/settings
+- main:
+  - navigation "Settings":
+    - link "Members":
+      - /url: /dev-owner/settings/members
+    - link "Roles":
+      - /url: /dev-owner/settings/roles
+    - link "General":
+      - /url: /dev-owner/settings/general
+    - link "Redaction":
+      - /url: /dev-owner/settings/redaction
+    - link "Connections":
+      - /url: /dev-owner/settings/connections
+    - link "Agents":
+      - /url: /dev-owner/settings/agents
+    - link "Billing":
+      - /url: /dev-owner/settings/billing
+    - link "Profile":
+      - /url: /dev-owner/settings/account#profile
+    - link "Sign-in and GitHub":
+      - /url: /dev-owner/settings/account#sign-in
+    - link "Preferences":
+      - /url: /dev-owner/settings/account#preferences
+    - link "Orgs":
+      - /url: /dev-owner/settings/account#orgs
+  - heading "General" [level=1]
+  - text: Name
+  - textbox "Name": Dev owner
+  - text: Slug /
+  - textbox "Slug": dev-owner
+  - region "Timezone":
+    - heading "Timezone" [level=2]
+    - group:
+      - combobox "Timezone": UTC, the default
+      - button "Show options"
+- button "Dev"
+- region "Notifications"

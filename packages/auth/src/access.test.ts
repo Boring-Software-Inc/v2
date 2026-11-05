@@ -16,10 +16,7 @@ describe("waitlist access gate", () => {
 
 		test("ignores client-supplied accessStatus (server-assigned only)", () => {
 			const out = applySignupAccessDefaults(
-				{ email: "a@b.com", accessStatus: "approved" } as Record<
-					string,
-					unknown
-				>,
+				{ email: "a@b.com", accessStatus: "approved" },
 				null,
 			);
 			expect(out.accessStatus).toBe("pending");

@@ -20,12 +20,12 @@ import { pinWorkflows, restoreWorkflows } from "./workflow-pin.ts";
 export type SkipReason = string;
 
 /** Gate outcome → the GitHub check conclusion it lands as. */
-export const OUTCOME_TO_CONCLUSION: Record<Outcome, string> = {
+export const OUTCOME_TO_CONCLUSION = {
 	pass: "success",
 	block: "failure",
 	"needs-review": "in_progress",
 	degraded: "in_progress",
-};
+} satisfies Record<Outcome, string>;
 
 export interface RunOutcome {
 	scenario: string;

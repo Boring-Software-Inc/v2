@@ -1,0 +1,22 @@
+declare const planted: boolean;
+
+const LABEL_CLASSES = {
+	root: ["md:!text-sm", planted && "font-semibold"],
+} as const;
+
+const labelRecipe = cva("contract-label", {
+	variants: {
+		compact: { true: "hover:leading-tight" },
+	},
+});
+
+const config = { FALLBACK_CLASS: ["tracking-wide"] };
+
+export function RawTypographyFixture({ active }: { active: boolean }) {
+	return (
+		<p className={active && "focus:type-body-sm"} data-recipe={labelRecipe}>
+			{LABEL_CLASSES.root}
+			{config.FALLBACK_CLASS}
+		</p>
+	);
+}

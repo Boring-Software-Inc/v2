@@ -19,6 +19,7 @@ import {
 	gitCafeReceiptSchema,
 	normalizedEventSchema,
 	responseConfigSchema,
+	storedActionPayloadSchema,
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
 import { deriveDefaultWorkflow } from "@tripwire/core";
@@ -37,6 +38,7 @@ import {
 	organizationInstallations,
 	repoServices,
 	repos,
+	runActions,
 	runServices,
 	type TestDatabase,
 	workflowDefinitions,
@@ -742,67 +744,115 @@ test("a claimed installation cannot authorize another repository identity", asyn
 	).toBe(false);
 });
 
-test("a recorded comment command cannot authorize close or another payload", async () => {
-	const { gitCafeInstallationTokenSchema, gitCafeActionSubjectSchema } =
-		await import("@tripwire/contracts");
-	const token = gitCafeInstallationTokenSchema.parse(
-		await Bun.file(new URL("gitcafe-action-token-current.json", base)).json(),
-	);
-	const pull = gitCafeActionSubjectSchema.parse(
-		await Bun.file(new URL("gitcafe-read-scratch-pull.json", base)).json(),
-	);
-	const repository: unknown = await Bun.file(
-		new URL("gitcafe-connection-repository.json", base),
-	).json();
-	let writes = 0;
-	const runtime = buildGitCafeRuntime(
-		database.db,
-		{
-			appId: installation.appId,
-			keyId: "local-binding-test",
-			privateKey: generateKeyPairSync("ec", { namedCurve: "prime256v1" })
-				.privateKey.export({ format: "pem", type: "pkcs8" })
-				.toString(),
-		},
-		async (url, init) => {
-			if (url.includes("/api/apps/"))
-				return Response.json(
-					init.method === "GET"
-						? installation
-						: {
-								...token,
-								token: "local-binding-token",
-								expiresAt: new Date(Date.now() + 900000).toISOString(),
+for (const valid of [false, true]) {
+	test(
+		valid
+			? "a valid recorded comment cannot authorize close or another payload"
+			: "an invalid historical comment is audited and refused without forge writes",
+		async () => {
+			if (valid)
+				await database.db
+					.update(runActions)
+					.set({
+						payload: sql`${runActions.payload} || '{"verdict":"block"}'::jsonb`,
+					})
+					.where(eq(runActions.id, actionId));
+			const [before] = await database.db
+				.select()
+				.from(runActions)
+				.where(eq(runActions.id, actionId));
+			if (!before) throw new Error("Missing recorded action");
+			const { gitCafeInstallationTokenSchema, gitCafeActionSubjectSchema } =
+				await import("@tripwire/contracts");
+			const token = gitCafeInstallationTokenSchema.parse(
+				await Bun.file(
+					new URL("gitcafe-action-token-current.json", base),
+				).json(),
+			);
+			const pull = gitCafeActionSubjectSchema.parse(
+				await Bun.file(new URL("gitcafe-read-scratch-pull.json", base)).json(),
+			);
+			const repository: unknown = await Bun.file(
+				new URL("gitcafe-connection-repository.json", base),
+			).json();
+			let writes = 0;
+			const runtime = buildGitCafeRuntime(
+				database.db,
+				{
+					appId: installation.appId,
+					keyId: "local-binding-test",
+					privateKey: generateKeyPairSync("ec", { namedCurve: "prime256v1" })
+						.privateKey.export({ format: "pem", type: "pkcs8" })
+						.toString(),
+				},
+				async (url, init) => {
+					if (url.includes("/api/apps/"))
+						return Response.json(
+							init.method === "GET"
+								? installation
+								: {
+										...token,
+										token: "local-binding-token",
+										expiresAt: new Date(Date.now() + 900000).toISOString(),
+									},
+						);
+					if (new URL(url).pathname === "/api/repos/boring/scratch")
+						return Response.json(repository);
+					if (init.method !== "GET") writes++;
+					return Response.json({ ...pull, state: writes ? "closed" : "open" });
+				},
+			);
+			if (!runtime.adapter) throw new Error("Missing adapter");
+			expect(
+				await runtime.adapter.execute(
+					{ kind: "close", repoFullName: "boring/scratch", number: 1 },
+					{ actionId },
+				),
+			).toEqual({
+				refused: true,
+				reason: valid ? "command-mismatch" : "inactive",
+			});
+			const [afterFirst] = await database.db
+				.select()
+				.from(runActions)
+				.where(eq(runActions.id, actionId));
+			expect(afterFirst).toEqual(
+				valid
+					? before
+					: {
+							...before,
+							status: "superseded",
+							payload: {
+								...storedActionPayloadSchema.parse(before.payload),
+								actionFailure: "invalid-payload",
 							},
-				);
-			if (new URL(url).pathname === "/api/repos/boring/scratch")
-				return Response.json(repository);
-			if (init.method !== "GET") writes++;
-			return Response.json({ ...pull, state: writes ? "closed" : "open" });
+						},
+			);
+			expect(
+				await runtime.adapter.execute(
+					{
+						kind: "comment",
+						repoFullName: "boring/scratch",
+						number: 1,
+						body: "different body",
+						verdict: "pass",
+						previousVerdict: null,
+					},
+					{ actionId },
+				),
+			).toEqual({
+				refused: true,
+				reason: valid ? "command-mismatch" : "inactive",
+			});
+			const [afterSecond] = await database.db
+				.select()
+				.from(runActions)
+				.where(eq(runActions.id, actionId));
+			expect(afterSecond).toEqual(afterFirst);
+			expect(writes).toBe(0);
 		},
 	);
-	if (!runtime.adapter) throw new Error("Missing adapter");
-	expect(
-		await runtime.adapter.execute(
-			{ kind: "close", repoFullName: "boring/scratch", number: 1 },
-			{ actionId },
-		),
-	).toEqual({ refused: true, reason: "command-mismatch" });
-	expect(
-		await runtime.adapter.execute(
-			{
-				kind: "comment",
-				repoFullName: "boring/scratch",
-				number: 1,
-				body: "different body",
-				verdict: "pass",
-				previousVerdict: null,
-			},
-			{ actionId },
-		),
-	).toEqual({ refused: true, reason: "command-mismatch" });
-	expect(writes).toBe(0);
-});
+}
 
 async function admitPullReceipt(
 	source:

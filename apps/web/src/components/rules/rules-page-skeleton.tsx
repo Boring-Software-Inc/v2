@@ -1,6 +1,3 @@
-import { Card, CardFooter } from "#/components/glaze/ui/card";
-import { Panel } from "#/components/glaze/ui/panel";
-import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import {
 	RULE_CARD_CLASS,
@@ -8,7 +5,10 @@ import {
 	RULE_HEADER_CLASS,
 	RULE_PANEL_CLASS,
 } from "#/components/rules/rule-card-frame";
-import { cn } from "#/lib/glaze/utils";
+import { cn } from "#/design-system/lib/utils";
+import { Card, CardFooter } from "#/design-system/ui/card";
+import { Panel } from "#/design-system/ui/panel";
+import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 
 const RULE_SLOTS = [
 	{ key: "a", name: "w-32" },

@@ -6,8 +6,14 @@ import {
 	SheetSectionBlock,
 	SubHeading,
 } from "#/components/admin/user-sheet/sheet-parts";
-import { ChevronRight, Icon } from "#/components/glaze/icon";
-import { RelativeTime } from "#/components/glaze/ui/relative-time";
+import { ChevronRight, Icon } from "#/design-system/icon";
+import { RelativeTime } from "#/design-system/ui/relative-time";
+import {
+	Body,
+	CodeText,
+	Label,
+	SupportingText,
+} from "#/design-system/ui/typography";
 import {
 	changeRequestLabel,
 	contributorVerdictLabel,
@@ -15,14 +21,11 @@ import {
 } from "#/lib/admin-user-sheet";
 import type { AdminUserView } from "#/lib/staff-users.functions";
 
-const chevron =
-	"inline-flex size-8 items-center justify-center rounded-pill text-text-2 hover:bg-hover focus-visible:focus-ring";
-
 export function ModerationSection({ view }: { view: AdminUserView }) {
 	const { decisions, contributor } = view;
 	return (
 		<SheetSectionBlock id="moderation" title="Moderation">
-			<div className="flex flex-col">
+			<div data-layout-role="user-sheet-subsection">
 				<SubHeading count={decisions.total} title="Their decisions" />
 				{decisions.items.length === 0 ? (
 					<QuietLine>No human review decisions.</QuietLine>
@@ -35,20 +38,16 @@ export function ModerationSection({ view }: { view: AdminUserView }) {
 							);
 							return (
 								<ListRow key={item.itemId}>
-									<span className="w-22 shrink-0 type-label text-text-1">
-										{moderationDecisionLabel(item.status)}
-									</span>
-									<span className="min-w-0 flex-1 truncate text-text-1">
-										{label}
-									</span>
-									<span className="text-text-2 sm:w-30 sm:shrink-0">
+									<Label>{moderationDecisionLabel(item.status)}</Label>
+									<Body as="span">{label}</Body>
+									<SupportingText as="span">
 										{item.decidedAt ? (
 											<RelativeTime date={item.decidedAt} />
 										) : null}
-									</span>
+									</SupportingText>
 									<Link
 										aria-label={`Open the run for ${label}`}
-										className={chevron}
+										data-layout-role="user-sheet-row-link"
 										params={{ runId: item.runId }}
 										to="/runs/$runId"
 									>
@@ -60,7 +59,7 @@ export function ModerationSection({ view }: { view: AdminUserView }) {
 					</ListRows>
 				)}
 			</div>
-			<div className="flex flex-col">
+			<div data-layout-role="user-sheet-subsection">
 				<SubHeading count={contributor.total} title="As a contributor" />
 				{contributor.runs.length === 0 ? (
 					<QuietLine>No runs against their change requests.</QuietLine>
@@ -74,26 +73,22 @@ export function ModerationSection({ view }: { view: AdminUserView }) {
 							);
 							return (
 								<ListRow key={run.runId}>
-									<span
-										className={`w-22 shrink-0 type-label ${verdict.tone === "fail" ? "text-fail-text" : "text-text-1"}`}
-									>
-										{verdict.label}
+									<span data-state-tone={verdict.tone}>
+										<Label>{verdict.label}</Label>
 									</span>
-									<span className="min-w-0 flex-1 truncate text-text-1">
-										{label}
-									</span>
-									<span className="truncate text-text-2 sm:w-30 sm:shrink-0">
+									<Body as="span">{label}</Body>
+									<SupportingText as="span">
 										{run.blockingRuleId ? (
-											<span className="mono">{run.blockingRuleId}</span>
+											<CodeText as="span">{run.blockingRuleId}</CodeText>
 										) : run.humanReviewed ? (
 											"After human review"
 										) : (
 											<RelativeTime date={run.createdAt} />
 										)}
-									</span>
+									</SupportingText>
 									<Link
 										aria-label={`Open the run for ${label}`}
-										className={chevron}
+										data-layout-role="user-sheet-row-link"
 										params={{ runId: run.runId }}
 										to="/runs/$runId"
 									>

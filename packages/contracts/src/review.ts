@@ -28,6 +28,18 @@ export const aiReviewOutputSchema = z.object({
 });
 export type AiReviewOutput = z.infer<typeof aiReviewOutputSchema>;
 
+/** Only finite numeric per-request costs participate in review metering. */
+export const openRouterStepCostSchema = z.object(
+	{
+		usage: z.object(
+			{ cost: z.number({ error: "Invalid step cost" }) },
+			{ error: "Invalid step usage" },
+		),
+	},
+	{ error: "Invalid step metadata" },
+);
+export type OpenRouterStepCost = z.infer<typeof openRouterStepCostSchema>;
+
 /**
  * Config for ai-review@1 — the model is a config string (§8). When omitted,
  * the worker's AI_REVIEW_MODEL env supplies the default (explicit config
@@ -91,7 +103,15 @@ interface RawUsage {
 	cachedInputTokens?: number;
 }
 
-function excerpt(text: string): { excerpt: string; truncated: boolean } {
+const traceToolTextSchema = z.string();
+const traceCachedTokensSchema = z.union([
+	z.number(),
+	z.nan(),
+	z.literal(Infinity),
+	z.literal(-Infinity),
+]);
+
+function excerpt(text: string) {
 	if (text.length <= AI_REVIEW_TRACE_STEP_CHARS) {
 		return { excerpt: text, truncated: false };
 	}
@@ -121,19 +141,17 @@ export function boundAiReviewTrace(input: {
 			steps.push({ type: "reasoning", ...excerpt(raw.text) });
 		}
 		for (const call of raw.toolCalls ?? []) {
+			const text = traceToolTextSchema.safeParse(call.input);
 			steps.push({
 				type: "tool_call",
 				toolName: call.toolName,
-				...excerpt(
-					typeof call.input === "string"
-						? call.input
-						: JSON.stringify(call.input ?? {}),
-				),
+				...excerpt(text.success ? text.data : JSON.stringify(call.input ?? {})),
 			});
 		}
 	}
 	const trimmed = steps.length > AI_REVIEW_TRACE_MAX_STEPS;
 	const usage = input.usage ?? {};
+	const cached = traceCachedTokensSchema.safeParse(usage.cachedInputTokens);
 	return {
 		model: input.model,
 		stepsUsed: input.rawSteps.length,
@@ -143,10 +161,7 @@ export function boundAiReviewTrace(input: {
 		usage: {
 			input: usage.inputTokens ?? 0,
 			output: usage.outputTokens ?? 0,
-			cached:
-				typeof usage.cachedInputTokens === "number"
-					? usage.cachedInputTokens
-					: null,
+			cached: cached.success ? cached.data : null,
 		},
 		steps: trimmed ? steps.slice(0, AI_REVIEW_TRACE_MAX_STEPS) : steps,
 	};

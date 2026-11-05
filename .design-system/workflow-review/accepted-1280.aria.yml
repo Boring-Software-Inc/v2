@@ -1,0 +1,24 @@
+- main:
+  - heading "Review push" [level=1]
+  - text: Dev owner pushed 1 workflow tripwire-demo/active-webapp
+  - time: now, Nov 3, 2026, 12:14:38 AM
+  - text: Accepted
+  - paragraph: Accepted by Dev owner
+  - list:
+    - listitem:
+      - 'link "rule: Account age — accepted review"':
+        - /url: /dev-owner/active-webapp/workflows/01a1a079-70df-7df6-8e2a-def6de1523a4
+      - text: updated
+  - 'region "rule: Account age — accepted review"':
+    - 'heading "rule: Account age — accepted review" [level=2]'
+    - text: Changed tripwire.ts Added lines +3 Removed lines -3
+    - radiogroup "Diff layout":
+      - radio "Unified" [checked]
+      - radio "Split"
+    - button "Wrap lines"
+    - button "Copy tripwire.ts"
+    - status
+    - code:
+      - button:
+        - img
+      - text: "4 unmodified lines 5 6 7 8 9 9 10 11 12 13 14 14 15 16 17 18 19 20 21 22 23 24 24 25 workflow, workflows, } from \"./.tripwire/workflow.ts\"; function ruleAccountAge() { function ruleAccountAgeAcceptedReview() { const t = trigger(\"change-request.opened\", \"change-request.updated\"); const r = check(\"account-age\", { minDays: 7 }).after(t); const blockStep = block().after(r.fails); return workflow({ name: \"rule: Account age\", name: \"rule: Account age — accepted review\", steps: { t, r, block: blockStep, }, }); } export default workflows({ \"rule-account-age\": ruleAccountAge(), \"rule-account-age\": ruleAccountAgeAcceptedReview(), });"

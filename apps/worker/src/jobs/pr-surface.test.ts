@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { actionCommentMarker } from "@tripwire/contracts";
 import { pendingCheckIsStale, supersededBy } from "@tripwire/utils";
 import { commentRows, toForgeAction } from "./pr-surface.ts";
+import { actionPayload } from "./run-workflows.ts";
 
 describe("toForgeAction — request-review", () => {
 	test("GitCafe string identities reach the forge without mutable-handle substitution", () => {
@@ -63,26 +65,26 @@ describe("toForgeAction — request-review", () => {
 		).toMatchObject({ reviewers: ["octocat", "hubot"], teamReviewers: [] });
 	});
 
-	test("a row recorded before targets existed maps to empty lists", () => {
-		expect(
+	test("a row without review targets cannot execute", () => {
+		expect(() =>
 			toForgeAction(
 				{ kind: "request-review", payload: { nodeId: "w:review" } },
 				"a/b",
 				7,
 				"stamp",
 			),
-		).toMatchObject({ reviewers: [], teamReviewers: [] });
+		).toThrow();
 	});
 
-	test("a malformed payload maps to empty lists, never a bad request", () => {
-		expect(
+	test("malformed review targets cannot execute", () => {
+		expect(() =>
 			toForgeAction(
 				{ kind: "request-review", payload: { reviewers: ["bad name"] } },
 				"a/b",
 				7,
 				"stamp",
 			),
-		).toMatchObject({ reviewers: [], teamReviewers: [] });
+		).toThrow();
 	});
 });
 
@@ -209,12 +211,28 @@ describe("toForgeAction: lock and close never become a block", () => {
 		).toEqual({ kind: "lock", repoFullName: "a/b", number: 7, reason: "spam" });
 	});
 
-	test("lock with no or a bad reason locks without one", () => {
-		for (const payload of [{ nodeId: "w:l" }, { reason: "boring" }]) {
-			expect(
-				toForgeAction({ kind: "lock", payload }, "a/b", 7, "x", "91"),
-			).toEqual({ kind: "lock", repoFullName: "a/b", number: 7 });
-		}
+	test("lock without a reason locks without one", () => {
+		expect(
+			toForgeAction(
+				{ kind: "lock", payload: { nodeId: "w:l" } },
+				"a/b",
+				7,
+				"x",
+				"91",
+			),
+		).toEqual({ kind: "lock", repoFullName: "a/b", number: 7 });
+	});
+
+	test("lock with an invalid reason cannot execute", () => {
+		expect(() =>
+			toForgeAction(
+				{ kind: "lock", payload: { reason: "boring" } },
+				"a/b",
+				7,
+				"x",
+				"91",
+			),
+		).toThrow();
 	});
 
 	test("close", () => {
@@ -304,5 +322,40 @@ describe("pendingCheckIsStale", () => {
 				"sha-b",
 			),
 		).toBe(false);
+	});
+});
+
+describe("actionPayload", () => {
+	test("post-comment markers use the original node identity and override supplied metadata", () => {
+		const action = {
+			nodeId: "message",
+			action: "post-comment",
+			params: { message: "hello", marker: "untrusted", nodeId: "untrusted" },
+		};
+		const payload = actionPayload(action, "workflow", "run");
+		expect(payload).toEqual({
+			message: "hello",
+			nodeId: "workflow:message",
+			marker: actionCommentMarker({
+				workflowId: "workflow",
+				nodeId: "message",
+				runId: "run",
+			}),
+		});
+		expect(action.params).toEqual({
+			message: "hello",
+			marker: "untrusted",
+			nodeId: "untrusted",
+		});
+	});
+
+	test("other actions preserve their params without adding a comment marker", () => {
+		expect(
+			actionPayload(
+				{ nodeId: "label", action: "label", params: { labels: ["triage"] } },
+				"workflow",
+				"run",
+			),
+		).toEqual({ nodeId: "workflow:label", labels: ["triage"] });
 	});
 });

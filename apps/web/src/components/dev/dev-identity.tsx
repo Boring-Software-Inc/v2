@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { KeyboardEvent } from "react";
-import { Button } from "#/components/glaze/ui/button";
+import { Button } from "#/design-system/ui/button";
 import { devWhoamiQueryOptions } from "#/lib/dev/dev.query";
 
 function stopCommandKeys(event: KeyboardEvent<HTMLButtonElement>): void {

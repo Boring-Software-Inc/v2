@@ -1,4 +1,4 @@
-import type { WorkflowDefinition } from "@tripwire/contracts";
+import { runSnapshotSchema } from "@tripwire/contracts";
 import type { JsonValue, RunStepView } from "#/lib/runs.functions";
 
 /**
@@ -11,21 +11,15 @@ export function pendingRuleStepsFromSnapshot(
 	completed: readonly Pick<RunStepView, "nodeId" | "ruleRef">[],
 ): RunStepView[] {
 	const done = new Set(completed.filter((s) => s.ruleRef).map((s) => s.nodeId));
-	const defs = Array.isArray(snapshot)
-		? (snapshot as WorkflowDefinition[])
-		: [];
+	const defs = runSnapshotSchema.parse(snapshot);
 	const pending: RunStepView[] = [];
 	const now = new Date(0).toISOString();
 	for (const def of defs) {
-		if (!def || typeof def !== "object" || !Array.isArray(def.nodes)) {
-			continue;
-		}
-		const defId = typeof def.id === "string" ? def.id : "default@1";
 		for (const node of def.nodes) {
-			if (!node || node.type !== "rule" || typeof node.ref !== "string") {
+			if (node.type !== "rule") {
 				continue;
 			}
-			const nodeId = `${defId}:${node.id}`;
+			const nodeId = `${def.id}:${node.id}`;
 			if (done.has(nodeId)) {
 				continue;
 			}

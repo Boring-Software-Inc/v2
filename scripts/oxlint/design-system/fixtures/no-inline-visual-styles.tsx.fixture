@@ -1,0 +1,8 @@
+export function InlineVisualStyleFixture({ active }: { active: boolean }) {
+	return (
+		<>
+			<div style={{ width: 37 }}>Inline style</div>
+			<div {...(active ? { style: { height: 41 } } : {})}>Spread style</div>
+		</>
+	);
+}

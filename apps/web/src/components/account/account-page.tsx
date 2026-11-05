@@ -7,9 +7,16 @@ import { DeleteAccountDialog } from "#/components/account/delete-account-dialog"
 import { ForgeMark } from "#/components/common/forge-marks";
 import { MetaRow } from "#/components/common/meta-row";
 import { ItemRouterLink } from "#/components/common/router-links";
-import { ArrowRight, Icon } from "#/components/glaze/icon";
-import { Avatar } from "#/components/glaze/ui/avatar";
-import { Button } from "#/components/glaze/ui/button";
+import { OrgAvatar } from "#/components/organizations/org-avatar";
+import {
+	SettingsHeader,
+	SettingsSection,
+} from "#/components/settings/settings-frame";
+import { TimezonePicker } from "#/components/timezones/timezone-picker";
+import { ZonedTime } from "#/components/timezones/zoned-time";
+import { ArrowRight, Icon } from "#/design-system/icon";
+import { Avatar } from "#/design-system/ui/avatar";
+import { Button } from "#/design-system/ui/button";
 import {
 	Item,
 	ItemActions,
@@ -18,22 +25,15 @@ import {
 	ItemGroup,
 	ItemMedia,
 	ItemTitle,
-} from "#/components/glaze/ui/item";
+} from "#/design-system/ui/item";
 import {
 	SegmentedControl,
 	SegmentedControlItem,
-} from "#/components/glaze/ui/segmented-control";
-import { SkeletonSwap, SkeletonText } from "#/components/glaze/ui/skeleton";
-import { Status } from "#/components/glaze/ui/status";
-import { Switch } from "#/components/glaze/ui/switch";
-import { toast } from "#/components/glaze/ui/toast";
-import { OrgAvatar } from "#/components/organizations/org-avatar";
-import {
-	SettingsHeader,
-	SettingsSection,
-} from "#/components/settings/settings-frame";
-import { TimezonePicker } from "#/components/timezones/timezone-picker";
-import { ZonedTime } from "#/components/timezones/zoned-time";
+} from "#/design-system/ui/segmented-control";
+import { SkeletonSwap, SkeletonText } from "#/design-system/ui/skeleton";
+import { Status } from "#/design-system/ui/status";
+import { Switch } from "#/design-system/ui/switch";
+import { toast } from "#/design-system/ui/toast";
 import { useHasMounted } from "#/hooks/use-has-mounted";
 import { useSignOut } from "#/hooks/use-sign-out";
 import { useDeviceTimezone } from "#/hooks/use-timezones";

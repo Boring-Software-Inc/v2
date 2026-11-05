@@ -3,9 +3,16 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import type { SetupSearch } from "@tripwire/contracts";
 import { useState } from "react";
 import { ForgeMark } from "#/components/common/forge-marks";
-import { Alert, AlertTitle } from "#/components/glaze/ui/alert";
-import { Button } from "#/components/glaze/ui/button";
-import { Card, CardContent } from "#/components/glaze/ui/card";
+import { GitCafeConnectionProgress } from "#/components/organizations/gitcafe-connection-progress";
+import { InstallSetupPageSkeleton } from "#/components/organizations/install-setup-page-skeleton";
+import {
+	InstallSetupHeader,
+	InstallSetupShell,
+} from "#/components/organizations/install-setup-shell";
+import { OrgAvatar } from "#/components/organizations/org-avatar";
+import { Alert, AlertTitle } from "#/design-system/ui/alert";
+import { Button } from "#/design-system/ui/button";
+import { Card, CardContent } from "#/design-system/ui/card";
 import {
 	Item,
 	ItemActions,
@@ -14,14 +21,7 @@ import {
 	ItemGroup,
 	ItemMedia,
 	ItemTitle,
-} from "#/components/glaze/ui/item";
-import { GitCafeConnectionProgress } from "#/components/organizations/gitcafe-connection-progress";
-import { InstallSetupPageSkeleton } from "#/components/organizations/install-setup-page-skeleton";
-import {
-	InstallSetupHeader,
-	InstallSetupShell,
-} from "#/components/organizations/install-setup-shell";
-import { OrgAvatar } from "#/components/organizations/org-avatar";
+} from "#/design-system/ui/item";
 import {
 	confirmGitCafeConnection,
 	startGitCafeConnection,

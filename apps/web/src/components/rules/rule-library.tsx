@@ -3,13 +3,16 @@ import {
 	type RulePreview,
 	ruleUiSchema,
 } from "@tripwire/contracts";
-import { Button } from "#/components/glaze/ui/button";
-import { Card, CardContent } from "#/components/glaze/ui/card";
+import { CaughtCount, caughtLabel } from "#/components/rules/caught-count";
+import { rulesCaught, turnableRuleIds } from "#/components/rules/rule-packs";
+import { ParamSentence } from "#/components/rules-params/param-sentence";
+import { Button } from "#/design-system/ui/button";
+import { Card, CardContent } from "#/design-system/ui/card";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
-} from "#/components/glaze/ui/collapsible";
+} from "#/design-system/ui/collapsible";
 import {
 	Item,
 	ItemActions,
@@ -18,10 +21,7 @@ import {
 	ItemGroup,
 	ItemMeta,
 	ItemTitle,
-} from "#/components/glaze/ui/item";
-import { CaughtCount, caughtLabel } from "#/components/rules/caught-count";
-import { rulesCaught, turnableRuleIds } from "#/components/rules/rule-packs";
-import { ParamSentence } from "#/components/rules-params/param-sentence";
+} from "#/design-system/ui/item";
 import type { RuleConfigView } from "#/lib/rules.functions";
 
 export function libraryRules(

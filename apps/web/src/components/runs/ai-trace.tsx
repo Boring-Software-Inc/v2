@@ -3,7 +3,7 @@ import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
-} from "#/components/glaze/ui/collapsible";
+} from "#/design-system/ui/collapsible";
 
 const count = new Intl.NumberFormat("en-US");
 
@@ -15,15 +15,15 @@ export function AiTraceMeta({
 	durationMs: number;
 }) {
 	return (
-		<div className="flex flex-col gap-1">
-			<div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-1 type-caption text-text-2">
+		<div data-layout-role="ai-trace">
+			<div className="type-caption" data-layout-role="ai-trace-counters">
 				<span className="type-code-sm">{trace.model}</span>
 				<span>{count.format(trace.usage.input)} tokens in</span>
 				<span>{count.format(trace.usage.output)} out</span>
 				<span>{durationMs}ms</span>
 			</div>
 			{trace.steps.length > 0 ? (
-				<Collapsible className="flex flex-col gap-2">
+				<Collapsible data-layout-role="ai-trace-reasoning">
 					<CollapsibleTrigger
 						size="sm"
 						summary={`${trace.stepsUsed} of ${trace.maxSteps} steps`}
@@ -31,16 +31,22 @@ export function AiTraceMeta({
 						Reasoning
 					</CollapsibleTrigger>
 					<CollapsibleContent hiddenUntilFound>
-						<ol className="flex flex-col gap-2 rounded-tag well p-2">
+						<ol className="rounded-tag well" data-layout-role="ai-trace-steps">
 							{trace.trimmed ? (
-								<li className="type-caption text-text-2">
+								<li
+									className="type-caption"
+									data-layout-role="ai-trace-trimmed"
+								>
 									Trimmed to the first {trace.steps.length} steps.
 								</li>
 							) : null}
 							{trace.steps.map((step, i) => (
 								// biome-ignore lint/suspicious/noArrayIndexKey: trace steps are a fixed, ordered snapshot
-								<li className="flex flex-col gap-0.5" key={i}>
-									<span className="type-label-sm text-text-2">
+								<li data-layout-role="ai-trace-step" key={i}>
+									<span
+										className="type-label-sm"
+										data-layout-role="ai-trace-step-label"
+									>
 										{step.type === "tool_call" ? (
 											<>
 												Tool <span className="mono">{step.toolName ?? ""}</span>
@@ -49,7 +55,10 @@ export function AiTraceMeta({
 											"Reasoning"
 										)}
 									</span>
-									<pre className="type-code-block whitespace-pre-wrap [overflow-wrap:anywhere] text-text-2">
+									<pre
+										className="type-code-block whitespace-pre-wrap"
+										data-layout-role="ai-trace-excerpt"
+									>
 										{step.excerpt}
 										{step.truncated ? " [cut]" : ""}
 									</pre>

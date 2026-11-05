@@ -10,6 +10,19 @@ export const AGENT_SCOPES = [
 export const agentScopeSchema = z.enum(AGENT_SCOPES);
 export type AgentScope = z.infer<typeof agentScopeSchema>;
 
+/** Scope inspection only; the SDK owns JSON-RPC envelope and argument validation. */
+export const mcpToolCallScopeProbeSchema = z.object(
+	{
+		method: z.literal("tools/call", { error: "Not a tool call" }),
+		params: z.object(
+			{ name: z.string({ error: "Tool name must be a string" }) },
+			{ error: "Tool parameters must be an object" },
+		),
+	},
+	{ error: "Tool call must be an object" },
+);
+export type McpToolCallScopeProbe = z.infer<typeof mcpToolCallScopeProbeSchema>;
+
 export const AGENT_IDENTITY_SCOPES = [
 	"openid",
 	"profile",

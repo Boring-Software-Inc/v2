@@ -122,13 +122,15 @@ const pushPayload = z.object({
 	sender: ghAccount,
 });
 
-const PR_ACTION_TO_KIND: Record<string, EventKind> = {
-	opened: "change-request.opened",
-	reopened: "change-request.opened",
-	ready_for_review: "change-request.opened",
-	synchronize: "change-request.updated",
-	closed: "change-request.closed",
-};
+const PR_ACTION_TO_KIND = new Map(
+	Object.entries({
+		opened: "change-request.opened",
+		reopened: "change-request.opened",
+		ready_for_review: "change-request.opened",
+		synchronize: "change-request.updated",
+		closed: "change-request.closed",
+	} satisfies Record<string, EventKind>),
+);
 
 function rerunsOnEdit(
 	changes: z.infer<typeof pullRequestEdits> | undefined,
@@ -151,7 +153,7 @@ function pullRequestKind(
 			? "change-request.updated"
 			: undefined;
 	}
-	return PR_ACTION_TO_KIND[p.action];
+	return PR_ACTION_TO_KIND.get(p.action);
 }
 
 function toActor(account: z.infer<typeof ghAccount>) {

@@ -1,17 +1,17 @@
+import { ChainMark, TONE_WORD } from "#/components/runs/chain-mark";
+import { RuleEvidence } from "#/components/runs/rule-evidence";
 import {
 	Card,
 	CardContent,
 	CardFooter,
 	CardHeader,
 	CardTitle,
-} from "#/components/glaze/ui/card";
+} from "#/design-system/ui/card";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
-} from "#/components/glaze/ui/collapsible";
-import { ChainMark, TONE_WORD } from "#/components/runs/chain-mark";
-import { RuleEvidence } from "#/components/runs/rule-evidence";
+} from "#/design-system/ui/collapsible";
 import {
 	branchOutcomeLabel,
 	branchSummary,

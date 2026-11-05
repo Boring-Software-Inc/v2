@@ -1,0 +1,41 @@
+- main:
+  - region "This week":
+    - heading "This week" [level=1]
+    - paragraph: Oct 27 to Nov 2
+    - paragraph: Counts show runs recorded this week, including repeated checks and closed reviews.
+    - list "This week's run verdicts":
+      - listitem:
+        - link "Blocked":
+          - /url: /demo-team/solo-webapp/activity?verdict=block&from=2026-10-27T07%3A14%3A12.473Z&to=2026-11-03T07%3A14%3A12.473Z
+        - text: "31"
+      - listitem:
+        - link "Human review":
+          - /url: /demo-team/solo-webapp/activity?verdict=needs_review&from=2026-10-27T07%3A14%3A12.473Z&to=2026-11-03T07%3A14%3A12.473Z
+        - text: "6"
+      - listitem:
+        - link "Passed":
+          - /url: /demo-team/solo-webapp/activity?verdict=pass&from=2026-10-27T07%3A14%3A12.473Z&to=2026-11-03T07%3A14%3A12.473Z
+        - text: "28"
+    - text: 65 runs on solo-webapp
+    - button "Open run history"
+  - region "Connected repos":
+    - heading "Connected repos" [level=2]
+    - search "Filter repos":
+      - searchbox "Search repos"
+      - button "Needs attention 1"
+      - 'button "Sort: Attention"'
+    - region "Connected repo list":
+      - list "Connected repos":
+        - listitem:
+          - link "GitHub repository tripwire-demo/solo-webapp":
+            - /url: /demo-team/solo-webapp
+            - text: tripwire-demo/solo-webapp
+          - text: Has items to review
+          - time: 8:00 PM PST
+          - text: 6 to review 11 blocked
+          - navigation "Shortcuts for tripwire-demo/solo-webapp":
+            - button "Human review"
+            - button "Rules"
+            - button "Workflows"
+            - button "Activity"
+            - button "Analytics"

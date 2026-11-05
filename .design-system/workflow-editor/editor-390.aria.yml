@@ -1,0 +1,59 @@
+- link "Skip to content":
+  - /url: "#main-content"
+- navigation "Primary":
+  - link "Tripwire, go to org home":
+    - /url: /dev-owner/home
+    - img "Tripwire"
+  - 'button "Org: Dev owner. Switch org"'
+  - 'button "Repo: active-webapp. Switch repo"'
+  - button "Search"
+  - button "Tripwire is in beta. Send feedback": Beta
+  - button "Account menu for Dev owner"
+- navigation "Repo":
+  - link "Human review":
+    - /url: /dev-owner/active-webapp/moderation
+  - link "Activity":
+    - /url: /dev-owner/active-webapp/activity
+  - link "Rules":
+    - /url: /dev-owner/active-webapp/rules
+  - link "Workflows":
+    - /url: /dev-owner/active-webapp/workflows
+  - link "Responses":
+    - /url: /dev-owner/active-webapp/responses
+  - link "Analytics":
+    - /url: /dev-owner/active-webapp/analytics
+- main:
+  - 'button "Rename rule: Account age"': "rule: Account age"
+  - radiogroup "Workflow view":
+    - radio "Canvas" [checked]
+    - radio "Code"
+  - button "More workflow actions"
+  - button "Save workflow" [disabled]
+  - application:
+    - img:
+      - group "Edge from t to r"
+    - img:
+      - group "Edge from r to block"
+    - group:
+      - text: On an event
+      - button "Edit When": When A change request opens or gets new commits
+    - group:
+      - text: If any of these rules fail
+      - list:
+        - listitem:
+          - button "Edit Account age": Account age
+      - button "Add rule"
+      - button "Skip when"
+    - group: Block
+    - group "Zoom":
+      - button "Zoom in"
+      - button "Zoom out"
+      - button "Fit to view"
+  - button "Add steps"
+  - status
+- navigation "Open repos":
+  - link "dev-owner/active-webapp":
+    - /url: /dev-owner/active-webapp/workflows/01a1a0c0-a0bc-7719-9f7f-f1ed7a9a8f67
+  - button "Close dev-owner/active-webapp tab"
+- button "Dev"
+- region "Notifications"

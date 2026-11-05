@@ -7,24 +7,28 @@ import {
 	ruleSetLabel,
 } from "@tripwire/contracts";
 import { useState } from "react";
-import { Button } from "#/components/glaze/ui/button";
+import {
+	HistoryBackControl,
+	useCanGoBack,
+} from "#/components/common/history-back-control";
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { replayRuleIds, turnableRuleIds } from "#/components/rules/rule-packs";
+import { ReplayListSkeleton } from "#/components/rules/rules-replay-page-skeleton";
+import { useSetupInstallRules } from "#/components/setup/use-repo-setup";
+import { Button } from "#/design-system/ui/button";
 import {
 	Card,
 	CardContent,
 	CardFooter,
 	CardMeta,
-} from "#/components/glaze/ui/card";
+} from "#/design-system/ui/card";
 import {
 	Empty,
 	EmptyHeader,
 	EmptyRetry,
 	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
-import { Status } from "#/components/glaze/ui/status";
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { replayRuleIds, turnableRuleIds } from "#/components/rules/rule-packs";
-import { ReplayListSkeleton } from "#/components/rules/rules-replay-page-skeleton";
-import { useSetupInstallRules } from "#/components/setup/use-repo-setup";
+} from "#/design-system/ui/empty-state";
+import { Status } from "#/design-system/ui/status";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { orgRepoQueryOptions } from "#/lib/org.query";
 import {
@@ -67,6 +71,7 @@ function ReplayRowView({ row }: { row: ReplayRow }) {
 
 export function RulesReplayPage() {
 	const { org, repo: repoName } = routeApi.useParams();
+	const canGoBack = useCanGoBack();
 	const { data: repo } = useQuery(orgRepoQueryOptions(org, repoName));
 	const repoId = repo?.id ?? "";
 	const rulesQuery = useQuery(ruleConfigsQueryOptions(org, repoId));
@@ -105,7 +110,12 @@ export function RulesReplayPage() {
 		<DashboardLayout counts={{}}>
 			<div className="px-4 py-6 md:px-8 md:py-10">
 				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-					<header className="flex flex-wrap items-end justify-between gap-4">
+					<header data-layout-role="rules-replay-header">
+						{canGoBack ? (
+							<nav aria-label="Back" data-layout-role="page-navigation">
+								<HistoryBackControl />
+							</nav>
+						) : null}
 						<div className="flex flex-col gap-1">
 							<h1 className="type-title">Rule replay</h1>
 							{replay ? (

@@ -35,7 +35,7 @@ const PASSWORD = "tripwire-dev-persona";
 async function signUp(
 	email: string,
 	name: string,
-	extraBody?: Record<string, unknown>,
+	extraBody?: { isPlatformAdmin: boolean },
 ): Promise<{ cookie: string; userId: string }> {
 	const res = await auth.api.signUpEmail({
 		body: { email, password: PASSWORD, name, ...extraBody } as never,

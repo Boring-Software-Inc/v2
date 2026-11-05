@@ -1,10 +1,10 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import type { ResponseBlock } from "@tripwire/contracts";
 import { type KeyboardEvent, type ReactNode, useRef } from "react";
-import { DragHandle, Icon } from "#/components/glaze/icon";
 import { BLOCK_META } from "#/components/responses/blocks/block-catalog";
 import type { BlockDragData } from "#/components/responses/blocks/use-block-dnd";
-import { cn, mergeRefs } from "#/lib/glaze/utils";
+import { DragHandle, Icon } from "#/design-system/icon";
+import { cn, mergeRefs } from "#/design-system/lib/utils";
 
 export interface BlockRowProps {
 	block: ResponseBlock;

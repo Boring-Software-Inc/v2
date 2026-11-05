@@ -231,7 +231,7 @@ export function buildAlerts(t: DailyTotals, th: AlertThresholds): string[] {
 			`[ALERT] OpenRouter spend hit ${money(or)} today, over the ${money(
 				th.orDailyCapUsd,
 				2,
-			)} cap. Check /admin/economics.`,
+			)} cap.`,
 		);
 	}
 	if (t.driftPct != null && Math.abs(t.driftPct) > th.driftAlertPct) {
@@ -298,10 +298,10 @@ export function formatMonthlyReport(s: MonthlySummary): string {
 	].join("\n");
 }
 
-type PostFn = (url: string, body: unknown) => Promise<{ ok: boolean }>;
+type PostFn = (url: string, body: DigestPayload) => Promise<{ ok: boolean }>;
 type MultipartFn = (
 	url: string,
-	payloadJson: unknown,
+	payloadJson: DigestPayload,
 	files: MultipartFile[],
 ) => Promise<{ ok: boolean }>;
 

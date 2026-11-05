@@ -1,10 +1,10 @@
 import { getRouteApi } from "@tanstack/react-router";
 import { DateRangeFilter } from "#/components/common/date-range-filter";
-import { FilterBar } from "#/components/glaze/ui/filter-bar";
+import { FilterBar } from "#/design-system/ui/filter-bar";
 import {
 	SegmentedControl,
 	SegmentedControlItem,
-} from "#/components/glaze/ui/segmented-control";
+} from "#/design-system/ui/segmented-control";
 import { type DateRange, isoDay } from "#/lib/date-range";
 import { pickValue } from "#/lib/pick-value";
 import { ACTIVITY_VERDICT_LABELS, ACTIVITY_VERDICTS } from "#/lib/repo-search";

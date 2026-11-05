@@ -4,25 +4,6 @@ import { FORGE_CATALOG, type Forge } from "@tripwire/contracts";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { MetaRow } from "#/components/common/meta-row";
-import { Alert, AlertTitle } from "#/components/glaze/ui/alert";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
-import { Card, CardContent } from "#/components/glaze/ui/card";
-import {
-	Item,
-	ItemActions,
-	ItemContent,
-	ItemDescription,
-	ItemGroup,
-	ItemMedia,
-	ItemTitle,
-} from "#/components/glaze/ui/item";
-import {
-	Skeleton,
-	SkeletonSwap,
-	SkeletonText,
-} from "#/components/glaze/ui/skeleton";
-import { toast } from "#/components/glaze/ui/toast";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { GitCafeInstallSetup } from "#/components/organizations/gitcafe-install-setup";
 import { InstallSetupPageSkeleton } from "#/components/organizations/install-setup-page-skeleton";
@@ -31,6 +12,25 @@ import {
 	InstallSetupShell as SetupShell,
 } from "#/components/organizations/install-setup-shell";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
+import { Alert, AlertTitle } from "#/design-system/ui/alert";
+import { Badge } from "#/design-system/ui/badge";
+import { Button } from "#/design-system/ui/button";
+import { Card, CardContent } from "#/design-system/ui/card";
+import {
+	Item,
+	ItemActions,
+	ItemContent,
+	ItemDescription,
+	ItemGroup,
+	ItemMedia,
+	ItemTitle,
+} from "#/design-system/ui/item";
+import {
+	Skeleton,
+	SkeletonSwap,
+	SkeletonText,
+} from "#/design-system/ui/skeleton";
+import { toast } from "#/design-system/ui/toast";
 import { authClient } from "#/lib/auth-client";
 import {
 	type ClaimableInstallStatus,

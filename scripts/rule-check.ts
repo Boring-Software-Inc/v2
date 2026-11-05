@@ -7,9 +7,12 @@
  *   bun run rule-check --rule "spam forks" --pr owner/name#123 --json
  */
 import { createDb } from "@tripwire/db";
+import { z } from "zod";
 import { type CheckResult, checkRule, listRules } from "./rule-check.core.ts";
 
-function parseArgs(argv: string[]): Record<string, string | boolean> {
+const textArgSchema = z.string();
+
+function parseArgs(argv: string[]) {
 	const args: Record<string, string | boolean> = {};
 	for (let i = 0; i < argv.length; i++) {
 		const flag = argv[i];
@@ -22,7 +25,7 @@ function parseArgs(argv: string[]): Record<string, string | boolean> {
 	return args;
 }
 
-function parsePr(input: string): { repo: string; number: number } {
+function parsePr(input: string) {
 	const match = input.match(/^(.+)#(\d+)$/);
 	if (!match?.[1] || !match[2]) {
 		throw new Error(`--pr must look like owner/name#123, got "${input}"`);
@@ -66,11 +69,11 @@ async function main(): Promise<void> {
 	const { db, pool } = createDb();
 	try {
 		if (args.list) {
-			const repo = args.repo;
-			if (typeof repo !== "string" || !repo) {
+			const repo = textArgSchema.safeParse(args.repo);
+			if (!repo.success || !repo.data) {
 				throw new Error("--list requires --repo owner/name");
 			}
-			const rules = await listRules({ db, repo });
+			const rules = await listRules({ db, repo: repo.data });
 			const width = Math.max(...rules.map((r) => r.ref.length));
 			for (const rule of rules) {
 				console.log(
@@ -79,17 +82,22 @@ async function main(): Promise<void> {
 			}
 			return;
 		}
-		const ruleRef = args.rule;
-		const prArg = args.pr;
-		if (typeof ruleRef !== "string" || !ruleRef || typeof prArg !== "string") {
+		const ruleRef = textArgSchema.safeParse(args.rule);
+		const prArg = textArgSchema.safeParse(args.pr);
+		if (!ruleRef.success || !ruleRef.data || !prArg.success) {
 			console.error(
 				"usage:\n  rule-check --list --repo owner/name\n  rule-check --rule <ref|name> --pr owner/name#123 [--json]",
 			);
 			process.exitCode = 1;
 			return;
 		}
-		const { repo, number } = parsePr(prArg);
-		const result = await checkRule({ db, repo, ruleRef, pr: number });
+		const { repo, number } = parsePr(prArg.data);
+		const result = await checkRule({
+			db,
+			repo,
+			ruleRef: ruleRef.data,
+			pr: number,
+		});
 		console.log(
 			args.json ? JSON.stringify(result, null, 2) : formatResult(result),
 		);

@@ -1,8 +1,8 @@
 import type { ForgeId } from "@tripwire/contracts";
 import { useId } from "react";
 import { ForgeMark } from "#/components/common/forge-marks";
-import { Button } from "#/components/glaze/ui/button";
-import { toast } from "#/components/glaze/ui/toast";
+import { Button } from "#/design-system/ui/button";
+import { toast } from "#/design-system/ui/toast";
 
 export const FORGE_GRID = "grid grid-cols-2 gap-2";
 

@@ -646,3 +646,107 @@ reduced-motion handling, or accessible loading region as one maintained unit.
 Keeping the dependency behind the existing Glaze primitive prevents package API
 from spreading through feature code. Skullet is MIT licensed and introduces no
 new service, permission, storage boundary, or production credential.
+
+## 2026-11-02 — Quartz design system registry tooling
+
+**Added:** `@tailwindcss/postcss` in `apps/web`, as required by the Quartz theme
+registry from design.how. The existing `tailwindcss` dependency remains at the
+registry's compatible version.
+
+**What it replaces:** nothing. This is installation support for the approved
+replacement of the in-app Glaze design system with Quartz.
+
+**Why the stack can't do it:** the Quartz registry owns its Tailwind v4 theme,
+source scanning, custom variants, and generated component styles. The existing
+Vite plugin compiles the application stylesheet, but it does not satisfy the
+registry package contract used to install and lint Quartz consistently. Keeping
+the registry's declared PostCSS adapter avoids maintaining a local fork of the
+upstream theme artifacts.
+
+## 2026-11-02 — Quartz icon and table engines
+
+**Added:** `@fortawesome/free-solid-svg-icons` and `@tanstack/react-table` in
+`apps/web`, as required by the approved Quartz component registry.
+
+**What they replace:** Font Awesome replaces Glaze's direct Phosphor icon
+surface as screens move to Quartz's single icon entry point. TanStack Table
+replaces Glaze's hand-owned table state and interaction layer once table
+screens are ported.
+
+**Why the stack can't do it:** Quartz specifies solid Font Awesome glyphs as
+part of its visual and accessibility contract, including status shapes and
+forced-color behavior. The existing Phosphor package cannot supply those exact
+definitions. Quartz's table primitive delegates sorting, selection, column
+visibility, and row models to TanStack Table; TanStack Query and Virtual do not
+implement those contracts, and recreating them locally would fork the upstream
+component.
+
+## 2026-11-03 — Application-owned design-system boundary
+
+**Decision:** Application code imports `#/design-system/ui/*`,
+`#/design-system/icon`, and `#/design-system/lib/*`. It does not import Glaze or
+Quartz directly. `VITE_DESIGN_SYSTEM` selects the root scope, providers, styles,
+and token compatibility layer; Quartz is the default.
+
+**Why:** Direct design-system imports made feature files responsible for vendor
+API differences and token vocabulary. A visual-system change then spread prop
+and class edits through unrelated product code. The application facade keeps the
+product contract stable. Backend component adaptation and token translation now
+have one owned boundary under `apps/web/src/design-system` and the alias mapping
+in `apps/web/package.json` and `apps/web/tsconfig.json`.
+
+**Migration rule:** Until Quartz implementations cover the complete application
+contract, the facade resolves component modules to the established Glaze API and
+the Quartz mode translates its visual tokens at the root. Component
+implementations can move behind the facade one at a time without changing their
+call sites. A swap is accepted only after both `glaze` and `quartz` builds and
+browser captures pass with no feature-file changes between them.
+
+## 2026-11-03 — Glaze-only semantic UI contract supersedes Quartz
+
+**Decision:** Stop the Quartz migration and remove its runtime mode, compatibility
+palette, generated registry, support code, and registry-only dependencies. Glaze
+is again the sole implementation behind `#/design-system/*`. The application-owned
+facade remains mandatory so feature code depends on Tripwire contracts rather
+than Glaze paths.
+
+**Why:** Root-level token translation let incompatible color meanings compose.
+That produced invalid foreground chains, mismatched hover and surface colors, and
+states whose visual indicators disappeared. Keeping two incomplete visual systems
+made regressions possible without a feature-file change. The replacement is a
+closed semantic contract for typography, color, layout, and component states,
+with static and rendered checks at the application boundary.
+
+**Supersedes:** the active migration and runtime-switch portions of the three
+Quartz decisions above. Their historical dependency rationale remains recorded,
+but `@tailwindcss/postcss`, `@fortawesome/free-solid-svg-icons`, and
+`@tanstack/react-table` are removed because they have no non-Quartz consumer.
+
+## 2026-11-03: `@tripwire/ui` owns the proven semantic contract
+
+**Decision:** Promote the proven, application-agnostic semantic layer into the
+existing `packages/ui` workspace. `@tripwire/ui` now owns semantic typography,
+semantic typography and color CSS, and the generic page, section, action-row,
+and form-section molecules. Web keeps thin compatibility facades at the existing
+feature import paths.
+
+**Why:** The contracts are now used across the members and settings families and
+contain no route, query, auth, contracts, or domain logic. Keeping them app-owned
+would leave package ownership different from the architecture they have already
+proven. Reusing the existing package slot avoids a second design-system package
+and preserves the dependency direction that only web consumes UI.
+
+**Implementation boundary:** Glaze components, providers, and implementation
+styles remain in web. Package CSS maps semantic roles to custom properties that
+Glaze currently supplies. Member and invite collection-row geometry remains
+app-owned because it encodes product-specific action placement. A later Glaze
+implementation move requires separate review and is not part of this decision.
+
+**Dependencies:** No new repository dependency is introduced. React is the
+package peer, with the existing React and React type packages declared for local
+development and tests. Web declares the existing workspace package as a direct
+dependency.
+
+**Supersedes:** the temporary pilot constraint in the application-owned boundary
+decision and semantic UI plan that deferred package ownership until the API was
+proven.

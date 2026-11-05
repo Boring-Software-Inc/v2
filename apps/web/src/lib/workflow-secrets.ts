@@ -1,5 +1,6 @@
 import type { WorkflowDefinition, WorkflowNode } from "@tripwire/contracts";
 import { isDeliverableUrl } from "@tripwire/utils";
+import { z } from "zod";
 
 /**
  * Set-only masking for webhook/discord node secrets (url, signingSecret). The
@@ -11,10 +12,13 @@ import { isDeliverableUrl } from "@tripwire/utils";
  */
 
 const SECRET_KEYS = ["url", "signingSecret"] as const;
+const optionalSecretValueSchema = z.string().optional();
 
-function isDeliverySecretNode(
-	node: WorkflowNode,
-): node is Extract<WorkflowNode, { type: "action" }> {
+type DeliverySecretNode = Extract<WorkflowNode, { type: "action" }> & {
+	action: "webhook" | "discord";
+};
+
+function isDeliverySecretNode(node: WorkflowNode): node is DeliverySecretNode {
 	return (
 		node.type === "action" &&
 		(node.action === "webhook" || node.action === "discord")
@@ -65,26 +69,31 @@ export function restoreWorkflowSecrets(
 				: {};
 		for (const key of SECRET_KEYS) {
 			delete params[`${key}Set`];
-			const incomingValue = params[key];
-			if (incomingValue === "" || incomingValue === undefined) {
+			const incomingValue = optionalSecretValueSchema.safeParse(params[key]);
+			if (!incomingValue.success) {
+				continue;
+			}
+			if (incomingValue.data === "" || incomingValue.data === undefined) {
 				// Blank ⇒ keep the stored value (set-only).
-				if (typeof prior[key] === "string") {
-					params[key] = prior[key];
+				const priorValue = z.string().safeParse(prior[key]);
+				if (priorValue.success) {
+					params[key] = priorValue.data;
 				} else {
 					delete params[key];
 				}
-			} else if (typeof incomingValue === "string") {
-				if (key === "url" && !isDeliverableUrl(incomingValue)) {
+			} else {
+				const value = incomingValue.data;
+				if (key === "url" && !isDeliverableUrl(value)) {
 					error =
 						"The webhook URL must use HTTPS and must not be a private address.";
 				} else if (key === "url") {
 					changedUrlNodes.push({
 						nodeId: node.id,
-						url: incomingValue,
-						kind: node.action as "webhook" | "discord",
+						url: value,
+						kind: node.action,
 					});
 				}
-				if (key === "signingSecret" && incomingValue.length > 512) {
+				if (key === "signingSecret" && value.length > 512) {
 					error = "The signing secret is too long.";
 				}
 			}

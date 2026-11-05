@@ -1,11 +1,11 @@
 import { useState, useSyncExternalStore } from "react";
-import { Close, Icon } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
 import {
 	SetupStepList,
 	SetupStepRow,
 } from "#/components/setup/repo-setup-checklist";
 import { StepDoneMark } from "#/components/setup/step-done-mark";
+import { Close, Icon } from "#/design-system/icon";
+import { Button } from "#/design-system/ui/button";
 import type { RepoSetupProgress } from "#/lib/repo-setup";
 
 const DISMISSED_EVENT = "tripwire:setup-done-dismissed";

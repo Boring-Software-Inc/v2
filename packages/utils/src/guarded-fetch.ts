@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { jsonSerializationSchema } from "@tripwire/contracts";
 
 /**
  * The egress security boundary for outbound POSTs to USER-CONTROLLED URLs
@@ -157,6 +158,14 @@ export interface GuardedFetchDeps {
 	fetchImpl?: typeof fetch;
 }
 
+type GuardedPostHeaders = {
+	"content-type": string;
+	"x-webhook-timestamp"?: string;
+	"x-delivery-id"?: string;
+	"idempotency-key"?: string;
+	"x-webhook-signature"?: string;
+};
+
 export interface GuardedPostOptions extends GuardedFetchDeps {
 	/**
 	 * A stable delivery id sent as both `X-Delivery-ID` and `Idempotency-Key`.
@@ -182,7 +191,7 @@ export interface GuardedPostOptions extends GuardedFetchDeps {
  */
 export async function guardedPost(
 	raw: string,
-	body: unknown,
+	body: Parameters<typeof jsonSerializationSchema.parse>[0],
 	opts: GuardedPostOptions = {},
 ): Promise<GuardedFetchResult> {
 	const resolved = await guardedResolve(raw, opts);
@@ -194,12 +203,12 @@ export async function guardedPost(
 
 	// Serialize ONCE — this exact string is both signed and sent, so a valid
 	// signature always matches the wire body.
-	const bodyString = JSON.stringify(body);
+	const bodyString = jsonSerializationSchema.parse(body);
 	if (Buffer.byteLength(bodyString, "utf8") > MAX_REQUEST_BYTES) {
 		return { ok: false, failure: "body-too-large" };
 	}
 	const timestamp = Date.now();
-	const headers: Record<string, string> = {
+	const headers: GuardedPostHeaders = {
 		"content-type": "application/json",
 	};
 	if (opts.deliveryId) {
@@ -314,7 +323,7 @@ export interface MultipartFile {
  */
 export async function guardedPostMultipart(
 	raw: string,
-	payloadJson: unknown,
+	payloadJson: Parameters<typeof jsonSerializationSchema.parse>[0],
 	files: MultipartFile[],
 	opts: GuardedFetchDeps = {},
 ): Promise<GuardedFetchResult> {
@@ -328,7 +337,7 @@ export async function guardedPostMultipart(
 	}
 	const doFetch = opts.fetchImpl ?? fetch;
 	const form = new FormData();
-	form.append("payload_json", JSON.stringify(payloadJson));
+	form.append("payload_json", jsonSerializationSchema.parse(payloadJson));
 	for (const file of files) {
 		form.append(
 			file.field,

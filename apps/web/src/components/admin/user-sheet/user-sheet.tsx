@@ -14,21 +14,21 @@ import { QuietLine } from "#/components/admin/user-sheet/sheet-parts";
 import { useActiveSection } from "#/components/admin/user-sheet/use-active-section";
 import { UserSheetHeader } from "#/components/admin/user-sheet/user-sheet-header";
 import { UserSheetSkeleton } from "#/components/admin/user-sheet/user-sheet-skeleton";
-import { ChevronDown, ChevronUp, Close, Icon } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
+import { ChevronDown, ChevronUp, Close, Icon } from "#/design-system/icon";
+import { Button } from "#/design-system/ui/button";
 import {
 	Sheet,
 	SheetClose,
 	SheetContent,
 	SheetTitle,
-} from "#/components/glaze/ui/sheet";
+} from "#/design-system/ui/sheet";
+import { Caption } from "#/design-system/ui/typography";
 import {
 	SHEET_SECTIONS,
 	type SheetPosition,
 	type SheetSectionId,
 	type SheetStep,
 } from "#/lib/admin-user-sheet";
-import { cn } from "#/lib/glaze/utils";
 import type { AdminUserView } from "#/lib/staff-users.functions";
 import { adminUserQueryOptions } from "#/lib/staff-users.query";
 
@@ -55,10 +55,7 @@ function SheetSections({
 		});
 	};
 	return (
-		<div
-			className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain lg:overflow-hidden"
-			ref={scrollRef}
-		>
+		<div data-layout-role="user-sheet-scroll" ref={scrollRef}>
 			<UserSheetHeader
 				onBan={() => {
 					setBanOpen(true);
@@ -67,19 +64,13 @@ function SheetSections({
 				onDelete={() => setDeleteOpen(true)}
 				view={view}
 			/>
-			<div className="flex lg:min-h-0 lg:flex-1">
-				<div className="flex min-w-0 flex-1 flex-col lg:min-h-0">
-					<nav
-						aria-label="Sections"
-						className="sticky top-0 z-(--z-sticky) flex h-11 shrink-0 items-end gap-5 overflow-x-auto border-line-faint border-b bg-paper px-4 sm:px-6"
-					>
+			<div data-layout-role="user-sheet-workspace">
+				<div data-layout-role="user-sheet-main">
+					<nav aria-label="Sections" data-layout-role="user-sheet-nav">
 						{SHEET_SECTIONS.map((section) => (
 							<button
 								aria-current={active === section.id ? "true" : undefined}
-								className={cn(
-									"flex h-11 shrink-0 items-center border-transparent border-b-2 type-label text-text-2 transition-colors duration-(--dur-state) hover:text-text-1 focus-visible:focus-ring-inset",
-									active === section.id && "border-ink text-text-1",
-								)}
+								data-active={active === section.id ? "" : undefined}
 								key={section.id}
 								onClick={() => jump(section.id)}
 								type="button"
@@ -88,8 +79,8 @@ function SheetSections({
 							</button>
 						))}
 					</nav>
-					<div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
-						<div className="flex flex-col gap-10 px-4 pt-6 pb-10 sm:px-6">
+					<div data-layout-role="user-sheet-sections-scroll">
+						<div data-layout-role="user-sheet-sections">
 							<AccessSection now={now} view={view} />
 							<FlagsSection view={view} />
 							<AccountSection view={view} />
@@ -101,16 +92,13 @@ function SheetSections({
 								onDelete={() => setDeleteOpen(true)}
 								view={view}
 							/>
-							<div className="border-line-faint border-t pt-6 lg:hidden">
+							<div data-layout-role="user-sheet-details-mobile">
 								<DetailsRail view={view} />
 							</div>
 						</div>
 					</div>
 				</div>
-				<aside
-					aria-label="Details"
-					className="hidden w-74 shrink-0 overflow-y-auto border-line-faint border-s p-6 lg:block"
-				>
+				<aside aria-label="Details" data-layout-role="user-sheet-details-rail">
 					<DetailsRail view={view} />
 				</aside>
 			</div>
@@ -139,7 +127,7 @@ function SheetBodyFor({
 	}
 	if (error) {
 		return (
-			<div className="flex flex-col items-start gap-3 p-6">
+			<div data-layout-role="user-sheet-state">
 				<SheetTitle>Tripwire couldn't load this user</SheetTitle>
 				<QuietLine>{error.message}</QuietLine>
 				<Button onClick={() => void refetch()} size="sm" variant="secondary">
@@ -150,7 +138,7 @@ function SheetBodyFor({
 	}
 	if (!data) {
 		return (
-			<div className="flex flex-col gap-3 p-6">
+			<div data-layout-role="user-sheet-state">
 				<SheetTitle>This user no longer exists</SheetTitle>
 				<QuietLine>They may have deleted their account.</QuietLine>
 			</div>
@@ -183,12 +171,9 @@ export function UserSheet({
 			}}
 			open={userId !== undefined}
 		>
-			<SheetContent
-				className="data-[side=left]:w-full data-[side=right]:w-full data-[side=left]:max-w-250 data-[side=right]:max-w-250"
-				showCloseButton={false}
-			>
-				<div className="flex h-13 shrink-0 items-center justify-between gap-2 border-line-faint border-b px-4 sm:px-6">
-					<div className="flex items-center gap-2">
+			<SheetContent data-layout-role="user-sheet" showCloseButton={false}>
+				<div data-layout-role="user-sheet-toolbar">
+					<div data-layout-role="user-sheet-stepper">
 						<Button
 							aria-label="Previous user"
 							disabled={!position.prev}
@@ -207,9 +192,7 @@ export function UserSheet({
 						>
 							<Icon icon={ChevronDown} />
 						</Button>
-						<span className="ps-1 type-caption text-text-2 tabular-nums">
-							{position.label}
-						</span>
+						<Caption>{position.label}</Caption>
 					</div>
 					<SheetClose
 						aria-label="Close"

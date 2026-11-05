@@ -59,32 +59,32 @@ export function toggleTriggerKind(
 	return { ...node, kinds: node.kinds.filter((k) => k !== kind) };
 }
 
-const WHEN_LABELS: Partial<Record<EventKind, string>> = {
-	"change-request.opened": "A change request opens",
-	"change-request.updated": "A change request gets new commits",
-	"change-request.closed": "A change request closes",
-	"comment.created": "Someone comments",
-	push: "Someone pushes",
-};
+const WHEN_LABELS = new Map<EventKind, string>([
+	["change-request.opened", "A change request opens"],
+	["change-request.updated", "A change request gets new commits"],
+	["change-request.closed", "A change request closes"],
+	["comment.created", "Someone comments"],
+	["push", "Someone pushes"],
+]);
 
 export function whenLabel(kind: EventKind): string {
 	return (
-		WHEN_LABELS[kind] ??
+		WHEN_LABELS.get(kind) ??
 		TRIGGER_CATALOG.find((entry) => entry.kind === kind)?.name ??
 		kind
 	);
 }
 
-const CHANGE_REQUEST_VERBS: Partial<Record<EventKind, string>> = {
-	"change-request.opened": "opens",
-	"change-request.updated": "gets new commits",
-	"change-request.closed": "closes",
-};
+const CHANGE_REQUEST_VERBS = new Map<EventKind, string>([
+	["change-request.opened", "opens"],
+	["change-request.updated", "gets new commits"],
+	["change-request.closed", "closes"],
+]);
 
-const SOMEONE_VERBS: Partial<Record<EventKind, string>> = {
-	"comment.created": "comments",
-	push: "pushes",
-};
+const SOMEONE_VERBS = new Map<EventKind, string>([
+	["comment.created", "comments"],
+	["push", "pushes"],
+]);
 
 function orList(words: readonly string[]): string {
 	if (words.length <= 1) {
@@ -98,11 +98,11 @@ export function whenSentence(kinds: readonly EventKind[]): string | null {
 		kinds.includes(kind),
 	);
 	const changeRequest = ordered.flatMap((kind) => {
-		const verb = CHANGE_REQUEST_VERBS[kind];
+		const verb = CHANGE_REQUEST_VERBS.get(kind);
 		return verb ? [verb] : [];
 	});
 	const someone = ordered.flatMap((kind) => {
-		const verb = SOMEONE_VERBS[kind];
+		const verb = SOMEONE_VERBS.get(kind);
 		return verb ? [verb] : [];
 	});
 	const groups = [

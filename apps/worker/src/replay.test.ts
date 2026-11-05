@@ -14,7 +14,7 @@ describe("verdict replay — committed corpus", () => {
 		const bundles = parseCorpus(
 			await Bun.file(
 				new URL("../fixtures/replay-corpus.json", import.meta.url).pathname,
-			).json(),
+			).text(),
 		);
 		const report = await replay(bundles);
 
@@ -51,7 +51,7 @@ describe("verdict replay — a live workflow that could not run", () => {
 		const [bundle] = parseCorpus(
 			await Bun.file(
 				new URL("../fixtures/replay-corpus.json", import.meta.url).pathname,
-			).json(),
+			).text(),
 		);
 		if (!bundle) {
 			throw new Error("empty corpus");
@@ -80,5 +80,13 @@ describe("verdict replay — a live workflow that could not run", () => {
 			decisionNodeId: null,
 		});
 		expect(held.newVerdict).toBe("needs_review");
+	});
+});
+
+describe("parseCorpus", () => {
+	test("parses JSON at the corpus boundary and rejects malformed entries", () => {
+		expect(parseCorpus("[]")).toEqual([]);
+		expect(() => parseCorpus("not JSON")).toThrow(SyntaxError);
+		expect(() => parseCorpus('[{"runId":"incomplete"}]')).toThrow();
 	});
 });

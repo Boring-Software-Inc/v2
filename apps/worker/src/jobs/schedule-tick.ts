@@ -65,7 +65,7 @@ function scheduledEvent(
 	now: Date,
 ): ScheduledEvent {
 	const { authorExternalId, authorAvatarUrl, ...rest } = thread;
-	return {
+	const event: ScheduledEvent = {
 		id: generateId(),
 		forge: due.forge,
 		deliveryId: scheduleDeliveryId(due, thread.number, tickId),
@@ -75,13 +75,9 @@ function scheduledEvent(
 			fullName: due.repoFullName,
 		},
 		repoExternalId: due.repoExternalId,
-		...(due.installationId
-			? { installationExternalId: due.installationId }
-			: {}),
 		actor: {
 			login: thread.author,
 			externalId: authorExternalId,
-			...(authorAvatarUrl ? { avatarUrl: authorAvatarUrl } : {}),
 		},
 		occurredAt: now.toISOString(),
 		receivedAt: now.toISOString(),
@@ -89,6 +85,9 @@ function scheduledEvent(
 		schedule: { workflowId: due.workflowId, nodeId: due.nodeId, tickId },
 		thread: rest,
 	};
+	if (due.installationId) event.installationExternalId = due.installationId;
+	if (authorAvatarUrl) event.actor.avatarUrl = authorAvatarUrl;
+	return event;
 }
 
 async function tickOne(
@@ -220,7 +219,7 @@ export async function scheduleTick(
 			nodeId: schedule.nodeId,
 			repo: schedule.repoFullName,
 		});
-		let outcome: { events: number; error: string | null };
+		let outcome: Awaited<ReturnType<typeof tickOne>>;
 		try {
 			outcome = await tickOne(deps, schedule, now);
 		} catch (error) {

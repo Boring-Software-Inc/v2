@@ -105,6 +105,15 @@ export const ruleResultSchema = z.object({
 });
 export type RuleResult = z.infer<typeof ruleResultSchema>;
 
+/** Public projectors accept object evidence without cloning or validating its fields. */
+export const ruleEvidenceObjectSchema = z.custom<object>(
+	(value) =>
+		Object(value) === value &&
+		!Array.isArray(value) &&
+		!z.function().safeParse(value).success,
+);
+export type RuleEvidenceObject = z.infer<typeof ruleEvidenceObjectSchema>;
+
 const stepRuleSchema = ruleResultSchema.pick({ ruleId: true });
 
 /**
@@ -707,31 +716,48 @@ export const RULE_PARAMS = {
 
 /** The display schema for a rule ref (version-agnostic), or null if unknown. */
 export function ruleUiSchema(ref: string): RuleUiSchema | null {
-	return (RULE_PARAMS as Record<string, RuleUiSchema>)[ruleIdOf(ref)] ?? null;
+	return (
+		Object.entries(RULE_PARAMS).find(([id]) => id === ruleIdOf(ref))?.[1] ??
+		null
+	);
 }
+
+const paramNumberValueSchema = z.union([
+	z.number(),
+	z.nan(),
+	z.literal(Infinity),
+	z.literal(-Infinity),
+]);
+const paramStringListValueSchema = z.custom<unknown[]>(Array.isArray);
+const paramStringValueSchema = z.string().min(1);
 
 /**
  * Format a scalar param's value for the readable sentence — the ONE place the
  * unit/percent rules live, so display and tests agree. String-lists render as
  * chips in the component and are not handled here.
  */
-export function formatParamValue(param: RuleParam, value: unknown): string {
+export function formatParamValue(
+	param: RuleParam,
+	value: Parameters<typeof paramNumberValueSchema.safeParse>[0],
+): string {
+	const number = paramNumberValueSchema.safeParse(value);
 	if (param.kind === "number") {
-		const n = typeof value === "number" ? value : param.default;
+		const n = number.success ? number.data : param.default;
 		if (param.percent) {
 			return `${Math.round(n * 100)}%`;
 		}
 		return param.unit ? `${n} ${param.unit}` : String(n);
 	}
 	if (param.kind === "string-list") {
-		const arr = Array.isArray(value) ? (value as string[]) : [...param.default];
-		return arr.join(", ");
+		const array = paramStringListValueSchema.safeParse(value);
+		return (array.success ? array.data : [...param.default]).join(", ");
 	}
 	if (param.kind === "boolean") {
 		return value === true ? "on" : "off";
 	}
-	if (typeof value === "string" && value.length > 0) {
-		return value;
+	const text = paramStringValueSchema.safeParse(value);
+	if (text.success) {
+		return text.data;
 	}
 	return param.kind === "string" ? (param.default ?? "") : "";
 }

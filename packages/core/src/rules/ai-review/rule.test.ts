@@ -1,12 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import type { AiReviewOutput } from "@tripwire/contracts";
+import type { AiReviewResponse } from "../../context.ts";
 import { evaluateRule } from "../define.ts";
 import { fixtureContext, fixtureContributor } from "../test-context.ts";
 import { aiReview, aiReviewV2, aiReviewV3 } from "./rule.ts";
 
 const CONFIG = { model: "claude-fable-5", maxSteps: 12 };
 
-function mockGenerate(output: unknown, trace: unknown = { tokens: 42 }) {
+function mockGenerate(
+	output: AiReviewOutput,
+	trace: AiReviewResponse["trace"] = { tokens: 42 },
+) {
 	const calls: { instructions: string; prompt: string }[] = [];
 	const generate = (req: { instructions: string; prompt: string }) => {
 		calls.push(req);
@@ -91,14 +95,32 @@ describe("ai-review@1", () => {
 		const result = await evaluateRule(aiReview, ctx, CONFIG);
 		expect(result.status).toBe("evaluated");
 		expect(result.passed).toBe(true);
-		const evidence = result.evidence as {
-			output: AiReviewOutput;
-			trace: { tokens: number };
-		};
-		expect(evidence.output.verdict).toBe("pass");
-		expect(evidence.trace.tokens).toBe(42);
+		expect(result.evidence).toEqual({
+			output: PASS_OUTPUT,
+			trace: { tokens: 42 },
+		});
 		expect(calls[0]?.instructions).toContain("submit_review");
 		expect(calls[0]?.prompt).toContain("Codertocat/Hello-World");
+	});
+
+	test.each(
+		[null, "raw trace", ["tool call"], { raw: undefined }].map((trace) => ({
+			trace,
+		})),
+	)("injected trace %p is retained without normalization", async ({
+		trace,
+	}) => {
+		const { generate } = mockGenerate(PASS_OUTPUT, trace);
+		const result = await evaluateRule(
+			aiReview,
+			await fixtureContext({ generate }),
+			CONFIG,
+		);
+		expect(result.status).toBe("evaluated");
+		expect(result.evidence).toEqual({
+			output: PASS_OUTPUT,
+			trace,
+		});
 	});
 
 	test("block verdict ⇒ failed with findings in evidence", async () => {

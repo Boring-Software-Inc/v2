@@ -3,7 +3,8 @@ import { SetupPill } from "#/components/setup/setup-pill";
 import { useActiveScope } from "#/hooks/use-active-scope";
 import type { CurrentUser } from "#/lib/auth.functions";
 import { CommandPaletteButton } from "./command-palette-launcher";
-import { BetaTag, Brand, UserMenu } from "./dashboard-topbar";
+import { Brand, UserMenu } from "./dashboard-topbar";
+import { HeaderFeedbackControl } from "./header-feedback-control";
 import { OrgSwitcher, RepoSwitcher } from "./scope-switchers";
 
 export function DashboardRail({
@@ -22,7 +23,7 @@ export function DashboardRail({
 		>
 			<div className="flex items-center justify-between ps-1">
 				<Brand org={org} />
-				<BetaTag />
+				<HeaderFeedbackControl />
 			</div>
 			<div className="flex flex-col gap-1">
 				<OrgSwitcher appearance="rail" />

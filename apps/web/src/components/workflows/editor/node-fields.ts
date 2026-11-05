@@ -4,6 +4,7 @@ import {
 	describeDuration,
 	describeSchedule,
 	isScheduleTrigger,
+	jsonValueSchema,
 	RULE_CATALOG,
 	ruleUiSchema,
 	storedReviewerSchema,
@@ -12,6 +13,24 @@ import { z } from "zod";
 import { whenSentence } from "#/lib/trigger-kinds";
 
 const targetList = z.array(z.string()).catch([]);
+const stringItems = z
+	.array(z.string().optional().catch(undefined))
+	.catch([])
+	.transform((items) => items.filter((item) => item !== undefined));
+const optionalText = z.string().optional().catch(undefined);
+const jsonRecord = z.record(z.string(), jsonValueSchema);
+
+/** Array drafts retain numeric keys when a field edit spreads the config. */
+export const ruleConfigFieldsSchema = z
+	.union([
+		jsonRecord,
+		z
+			.array(jsonValueSchema)
+			.transform((items) =>
+				Object.fromEntries(items.map((value, index) => [String(index), value])),
+			),
+	])
+	.catch({});
 const reviewerList = z
 	.array(storedReviewerSchema.optional().catch(undefined))
 	.catch([]);
@@ -41,96 +60,91 @@ export type FieldSpec = FieldBase &
 		| { kind: "number"; min?: number; max?: number; int: boolean }
 		| { kind: "string" }
 		| { kind: "boolean" }
-		| { kind: "enum"; options: string[] }
+		| { kind: "enum"; options: (string | number)[] }
 		| { kind: "string-list" }
 		| { kind: "json" }
 	);
 
 /** Peel default/optional wrappers to the type that decides the editor. */
-function unwrapField(schema: z.ZodType): z.ZodType {
+function unwrapField(schema: z.core.$ZodType): z.core.$ZodType {
 	let current = schema;
 	while (current instanceof z.ZodDefault || current instanceof z.ZodOptional) {
-		current = current.unwrap() as z.ZodType;
+		current = current.unwrap();
 	}
 	return current;
 }
 
-function numberBounds(schema: z.ZodNumber): {
-	min?: number;
-	max?: number;
-	int: boolean;
-} {
-	const def = schema._zod.def as { checks?: unknown[] };
+function numberBounds(schema: z.ZodNumber) {
 	let min: number | undefined;
 	let max: number | undefined;
 	let int = false;
-	for (const check of def.checks ?? []) {
-		const c = (check as { _zod: { def: Record<string, unknown> } })._zod.def;
-		if (c.check === "greater_than" && typeof c.value === "number") {
-			min = c.value;
+	for (const check of schema._zod.def.checks ?? []) {
+		if (check instanceof z.core.$ZodCheckGreaterThan) {
+			const value = z.number().safeParse(check._zod.def.value);
+			if (value.success) {
+				min = value.data;
+			}
 		}
-		if (c.check === "less_than" && typeof c.value === "number") {
-			max = c.value;
+		if (check instanceof z.core.$ZodCheckLessThan) {
+			const value = z.number().safeParse(check._zod.def.value);
+			if (value.success) {
+				max = value.data;
+			}
 		}
-		if (c.check === "number_format" && c.format === "safeint") {
+		if (
+			check instanceof z.core.$ZodCheckNumberFormat &&
+			check._zod.def.format === "safeint"
+		) {
 			int = true;
 		}
 	}
 	return { min, max, int };
 }
 
-function fieldSecret(field: z.ZodType): boolean {
-	const meta =
-		typeof field.meta === "function"
-			? (field.meta() as { secret?: boolean } | undefined)
-			: undefined;
-	return meta?.secret === true;
-}
-
 /** Walk a config schema's shape into renderable field specs. */
-export function fieldsForSchema(schema: unknown): FieldSpec[] | null {
+export function fieldsForSchema(
+	schema: z.ZodType | undefined,
+): FieldSpec[] | null {
 	if (!(schema instanceof z.ZodObject)) {
 		return null;
 	}
-	return Object.entries(schema.shape as Record<string, unknown>).map(
-		([key, raw]) => {
-			const field = raw as z.ZodType;
-			const label = field.description ?? key;
-			const secret = fieldSecret(field);
-			const inner = unwrapField(field);
-			if (inner instanceof z.ZodNumber) {
-				return {
-					key,
-					label,
-					secret,
-					kind: "number" as const,
-					...numberBounds(inner),
-				};
-			}
-			if (inner instanceof z.ZodBoolean) {
-				return { key, label, secret, kind: "boolean" as const };
-			}
-			if (inner instanceof z.ZodEnum) {
-				return {
-					key,
-					label,
-					secret,
-					kind: "enum" as const,
-					options: inner.options as string[],
-				};
-			}
-			if (inner instanceof z.ZodArray) {
-				if (unwrapField(inner.element as z.ZodType) instanceof z.ZodString) {
-					return { key, label, secret, kind: "string-list" as const };
-				}
-				return { key, label, secret, kind: "json" as const };
-			}
-			if (inner instanceof z.ZodString) {
-				return { key, label, secret, kind: "string" as const };
+	return Object.entries(schema.shape).map(([key, field]) => {
+		const meta = z.globalRegistry.get(field);
+		const label = meta?.description ?? key;
+		const secret = meta?.secret === true;
+		const inner = unwrapField(field);
+		if (inner instanceof z.ZodNumber) {
+			return {
+				key,
+				label,
+				secret,
+				kind: "number" as const,
+				...numberBounds(inner),
+			};
+		}
+		if (inner instanceof z.ZodBoolean) {
+			return { key, label, secret, kind: "boolean" as const };
+		}
+		if (inner instanceof z.ZodEnum) {
+			return {
+				key,
+				label,
+				secret,
+				kind: "enum" as const,
+				options: inner.options,
+			};
+		}
+		if (inner instanceof z.ZodArray) {
+			if (unwrapField(inner.element) instanceof z.ZodString) {
+				return { key, label, secret, kind: "string-list" as const };
 			}
 			return { key, label, secret, kind: "json" as const };
-		},
-	);
+		}
+		if (inner instanceof z.ZodString) {
+			return { key, label, secret, kind: "string" as const };
+		}
+		return { key, label, secret, kind: "json" as const };
+	});
 }
 
 /** Version-exact catalog lookup for a rule ref (`account-age@1`). */
@@ -160,11 +174,7 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 			const entry = ruleCatalogEntryForRef(node.ref);
 			const fields = fieldsForSchema(entry?.configSchema) ?? [];
 			const params = ruleUiSchema(node.ref)?.params;
-			const config = (
-				typeof node.config === "object" && node.config !== null
-					? node.config
-					: {}
-			) as Record<string, JsonValue>;
+			const config = ruleConfigFieldsSchema.parse(node.config);
 			return fields.map((field) => ({
 				field: {
 					...field,
@@ -225,11 +235,7 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 		}
 		case "action": {
 			if (node.action === "label" || node.action === "remove-label") {
-				const labels = Array.isArray(node.params?.labels)
-					? node.params.labels.filter(
-							(item): item is string => typeof item === "string",
-						)
-					: [];
+				const labels = stringItems.parse(node.params?.labels);
 				return [
 					{
 						field: {
@@ -272,7 +278,7 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 				return rows;
 			}
 			if (node.action === "post-comment") {
-				const message = node.params?.message;
+				const message = optionalText.parse(node.params?.message);
 				return [
 					{
 						field: {
@@ -282,14 +288,14 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 							kind: "string",
 						},
 						value:
-							typeof message === "string" && message.trim() !== ""
+							message !== undefined && message.trim() !== ""
 								? message
 								: undefined,
 					},
 				];
 			}
 			if (node.action === "lock") {
-				const reason = node.params?.reason;
+				const reason = optionalText.parse(node.params?.reason);
 				return [
 					{
 						field: {
@@ -299,7 +305,7 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 							kind: "string",
 						},
 						value:
-							typeof reason === "string"
+							reason !== undefined
 								? `${reason.charAt(0).toUpperCase()}${reason.slice(1)}`
 								: "None",
 					},
@@ -310,7 +316,7 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 				const rows: NodeFieldValue[] = [
 					{
 						field: { key: "url", label: "URL", secret: true, kind: "string" },
-						value: typeof params.url === "string" ? params.url : undefined,
+						value: optionalText.parse(params.url),
 					},
 				];
 				if (node.action === "webhook" && params.signingSecret) {
@@ -364,9 +370,7 @@ export function summarizeFieldValue(
 		case "boolean":
 			return value === true ? "on" : "off";
 		case "string-list": {
-			const items = Array.isArray(value)
-				? value.filter((item): item is string => typeof item === "string")
-				: [];
+			const items = stringItems.parse(value);
 			if (items.length === 0) {
 				return "none";
 			}
@@ -376,8 +380,9 @@ export function summarizeFieldValue(
 			if (Array.isArray(value)) {
 				return value.length === 0 ? "none" : `${value.length} items`;
 			}
-			if (typeof value === "object") {
-				const keys = Object.keys(value);
+			const object = jsonRecord.safeParse(value);
+			if (object.success) {
+				const keys = Object.keys(object.data);
 				if (keys.length === 0) {
 					return "empty";
 				}

@@ -1,6 +1,6 @@
 import { BrandLockup } from "#/components/auth/brand-lockup";
-import { Card, CardContent } from "#/components/glaze/ui/card";
-import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
+import { Card, CardContent } from "#/design-system/ui/card";
+import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 
 export function InstallSetupPageSkeleton() {
 	return (

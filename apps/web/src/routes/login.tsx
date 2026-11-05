@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { type LoginSearch, loginSearchSchema } from "@tripwire/contracts";
 import { availableForgeLabels } from "@tripwire/utils/forge-sign-in";
 import { LoginPage } from "#/components/auth/login-page";
 import { LoginPageSkeleton } from "#/components/auth/login-page-skeleton";
@@ -8,22 +9,22 @@ import { buildSeo, formatPageTitle } from "#/lib/seo";
 import { type TrackingSearch, trackingSearch } from "#/lib/track";
 import { webviewHostQueryOptions } from "#/lib/webview.query";
 
+type LoginRouteSearch = LoginSearch & TrackingSearch;
+
 export const Route = createFileRoute("/login")({
-	validateSearch: (
-		search: Record<string, unknown>,
-	): { redirect?: string } & TrackingSearch => {
+	validateSearch: (search: Parameters<typeof loginSearchSchema.parse>[0]) => {
+		const parsed = loginSearchSchema.parse(search);
 		const resume = oauthAuthorizeResume(search);
-		return {
-			...trackingSearch(search),
-			// Same-site paths only — never an open redirect.
-			...(resume
-				? { redirect: resume }
-				: typeof search.redirect === "string" &&
-						search.redirect.startsWith("/") &&
-						!search.redirect.startsWith("//")
-					? { redirect: search.redirect }
-					: {}),
-		};
+		const result: LoginRouteSearch = trackingSearch(search);
+		if (resume) {
+			result.redirect = resume;
+		} else if (
+			parsed.redirect?.startsWith("/") &&
+			!parsed.redirect.startsWith("//")
+		) {
+			result.redirect = parsed.redirect;
+		}
+		return result;
 	},
 	/** Keep provider availability and browser detection in the SSR query cache. */
 	loader: async ({ context }) => {

@@ -2,11 +2,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import type { OrgRole } from "@tripwire/contracts";
 import { useId, useState } from "react";
+import { AdminPagination } from "#/components/admin/admin-pagination";
 import { formatAdminDate } from "#/components/admin/format-admin-date";
-import { ChevronDown, ChevronRight, Icon } from "#/components/glaze/icon";
-import { Avatar } from "#/components/glaze/ui/avatar";
-import { Button } from "#/components/glaze/ui/button";
-import { FilterBarSearch } from "#/components/glaze/ui/filter-bar";
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Page, PageBody, PageHeader } from "#/components/layouts/page";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import { OrgAvatar } from "#/components/organizations/org-avatar";
+import { ChevronDown, ChevronRight, Icon } from "#/design-system/icon";
+import { Avatar } from "#/design-system/ui/avatar";
+import { Button } from "#/design-system/ui/button";
+import { FilterBar, FilterBarSearch } from "#/design-system/ui/filter-bar";
 import {
 	Item,
 	ItemActions,
@@ -16,20 +21,19 @@ import {
 	ItemMedia,
 	ItemMeta,
 	ItemTitle,
-} from "#/components/glaze/ui/item";
-import { PaginationInfo } from "#/components/glaze/ui/pagination";
+} from "#/design-system/ui/item";
 import {
 	SegmentedControl,
 	SegmentedControlItem,
-} from "#/components/glaze/ui/segmented-control";
+} from "#/design-system/ui/segmented-control";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "#/components/glaze/ui/select";
-import { SkeletonText } from "#/components/glaze/ui/skeleton";
+} from "#/design-system/ui/select";
+import { SkeletonText } from "#/design-system/ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -39,15 +43,12 @@ import {
 	TableHeader,
 	TableLoading,
 	TableRow,
-} from "#/components/glaze/ui/table";
-import { toast } from "#/components/glaze/ui/toast";
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { MascotArt } from "#/components/mascot/mascot-art";
-import { OrgAvatar } from "#/components/organizations/org-avatar";
+} from "#/design-system/ui/table";
+import { toast } from "#/design-system/ui/toast";
+import { CodeText, Label, SupportingText } from "#/design-system/ui/typography";
 import { useDebouncedValue } from "#/hooks/use-debounced-value";
 import { adminUpdateOrgMemberRole } from "#/lib/admin.functions";
 import {
-	ADMIN_PAGE_SIZE,
 	adminOrgMembersQueryOptions,
 	adminOrgsQueryOptions,
 	adminQueryKeys,
@@ -89,103 +90,86 @@ export function AdminOrgsPage() {
 
 	const orgs = data?.orgs ?? [];
 	const total = data?.total ?? 0;
+	const filtered = kind !== "all" || debouncedSearch !== "";
 
-	const toolbar = (
-		<>
-			<SegmentedControl
-				size="sm"
-				aria-label="Org kind"
-				onValueChange={(value) => {
-					const next = pickValue(ADMIN_ORG_KINDS, value);
-					if (!next) {
-						return;
-					}
-					setOffset(0);
-					void navigate({
-						search: (prev) => ({ ...prev, kind: next }),
-						replace: true,
-						resetScroll: false,
-					});
-				}}
-				value={kind}
-			>
-				{KIND_FILTERS.map((f) => (
-					<SegmentedControlItem key={f.key} value={f.key}>
-						{f.label}
-					</SegmentedControlItem>
-				))}
-			</SegmentedControl>
-			<FilterBarSearch
-				aria-label="Search orgs"
-				className="ms-auto w-full sm:w-56 sm:flex-none"
-				onValueChange={(value) => {
-					setSearch(value);
-					setOffset(0);
-				}}
-				placeholder="Name or slug"
-				value={search}
-			/>
-		</>
-	);
+	const setKind = (value: string) => {
+		const next = pickValue(ADMIN_ORG_KINDS, value);
+		if (!next) {
+			return;
+		}
+		setOffset(0);
+		setExpandedOrgId(null);
+		void navigate({
+			search: (prev) => ({ ...prev, kind: next }),
+			replace: true,
+			resetScroll: false,
+		});
+	};
 
-	const footer = (
-		<>
-			{total === 0 ? (
-				<span>0 orgs</span>
-			) : (
-				<PaginationInfo
-					from={offset + 1}
-					noun="orgs"
-					to={Math.min(offset + ADMIN_PAGE_SIZE, total)}
-					total={total}
-				/>
-			)}
-			<div className="flex gap-2">
-				<Button
-					disabled={offset === 0}
-					onClick={() => setOffset(Math.max(0, offset - ADMIN_PAGE_SIZE))}
-					size="sm"
-					variant="secondary"
-				>
-					Previous
-				</Button>
-				<Button
-					disabled={offset + ADMIN_PAGE_SIZE >= total}
-					onClick={() => setOffset(offset + ADMIN_PAGE_SIZE)}
-					size="sm"
-					variant="secondary"
-				>
-					Next
-				</Button>
-			</div>
-		</>
-	);
+	const clearFilters = () => {
+		setSearch("");
+		setKind("all");
+	};
 
 	return (
 		<DashboardLayout counts={{}}>
-			<div className="px-4 py-6 md:px-8 md:py-10">
-				<div className="mx-auto flex w-full max-w-312 flex-col gap-6">
-					<header className="flex flex-col gap-1">
-						<h1 className="type-title">Orgs</h1>
-						<p className="type-body text-text-2">
-							Every org on this Tripwire server. Open a row to see its members
-							and change their roles.
-						</p>
-					</header>
-
+			<Page>
+				<PageHeader
+					description="Open an org to inspect its members and change team roles."
+					title="Orgs"
+				/>
+				<PageBody>
 					<Table
 						aria-busy={isLoading || undefined}
 						aria-label="Orgs"
-						footer={footer}
-						toolbar={toolbar}
+						data-admin-table="orgs"
+						footer={
+							<AdminPagination
+								noun="orgs"
+								offset={offset}
+								onOffsetChange={(next) => {
+									setExpandedOrgId(null);
+									setOffset(next);
+								}}
+								total={total}
+							/>
+						}
+						toolbar={
+							<FilterBar aria-label="Filter orgs">
+								<SegmentedControl
+									aria-label="Org kind"
+									onValueChange={setKind}
+									size="sm"
+									value={kind}
+								>
+									{KIND_FILTERS.map((filter) => (
+										<SegmentedControlItem key={filter.key} value={filter.key}>
+											{filter.label}
+										</SegmentedControlItem>
+									))}
+								</SegmentedControl>
+								<FilterBarSearch
+									aria-label="Search orgs"
+									onValueChange={(value) => {
+										setSearch(value);
+										setOffset(0);
+										setExpandedOrgId(null);
+									}}
+									placeholder="Name or slug"
+									value={search}
+								/>
+							</FilterBar>
+						}
 					>
 						<TableHeader>
 							<TableRow>
 								<TableHead>Org</TableHead>
 								<TableHead>Kind</TableHead>
 								<TableHead numeric>Members</TableHead>
-								<TableHead numeric>Repos</TableHead>
-								<TableHead>Created</TableHead>
+								<TableHead data-admin-column="org-repos" numeric>
+									Repos
+								</TableHead>
+								<TableHead data-admin-column="org-created">Created</TableHead>
 							</TableRow>
 						</TableHeader>
 						<TableBody>
@@ -211,23 +195,16 @@ export function AdminOrgsPage() {
 								/>
 							) : orgs.length === 0 ? (
 								<TableEmpty
-									art={<MascotArt mood="admin-table-empty" size="compact" />}
-									colSpan={COLUMN_COUNT}
-									description={
-										kind === "all" && !debouncedSearch
-											? "Orgs show up here when people sign up or create one."
-											: "Try another kind or search."
-									}
-									reason={
-										kind === "all" && !debouncedSearch ? "empty" : "no-results"
-									}
-									title={
-										kind === "all" && !debouncedSearch
-											? "No orgs yet"
-											: "No orgs match this filter"
-									}
 									action={
-										kind === "all" && !debouncedSearch ? (
+										filtered ? (
+											<Button
+												onClick={clearFilters}
+												size="sm"
+												variant="secondary"
+											>
+												Clear filters
+											</Button>
+										) : (
 											<Button
 												nativeButton={false}
 												render={<Link to="/admin/users" />}
@@ -236,24 +213,17 @@ export function AdminOrgsPage() {
 											>
 												View users
 											</Button>
-										) : (
-											<Button
-												onClick={() => {
-													setSearch("");
-													setOffset(0);
-													void navigate({
-														search: (prev) => ({ ...prev, kind: "all" }),
-														replace: true,
-														resetScroll: false,
-													});
-												}}
-												size="sm"
-												variant="secondary"
-											>
-												Clear filters
-											</Button>
 										)
 									}
+									art={<MascotArt mood="admin-table-empty" size="compact" />}
+									colSpan={COLUMN_COUNT}
+									description={
+										filtered
+											? "Try another org kind or search."
+											: "Orgs appear when people sign up or create a team."
+									}
+									reason={filtered ? "no-results" : "empty"}
+									title={filtered ? "No orgs match this filter" : "No orgs yet"}
 								/>
 							) : (
 								orgs.flatMap((org) => {
@@ -262,7 +232,7 @@ export function AdminOrgsPage() {
 									const rows = [
 										<TableRow key={org.id} open={expanded}>
 											<TableCell>
-												<div className="flex min-w-0 items-center gap-2">
+												<div data-layout-role="admin-org-identity">
 													<Button
 														aria-controls={expanded ? panelId : undefined}
 														aria-expanded={expanded}
@@ -282,22 +252,20 @@ export function AdminOrgsPage() {
 														name={org.name}
 														size="sm"
 													/>
-													<div className="flex min-w-0 flex-col">
-														<span className="truncate type-label">
-															{org.name}
-														</span>
-														<span className="truncate mono type-caption text-text-2">
-															{org.slug}
-														</span>
-													</div>
+													<span>
+														<Label>{org.name}</Label>
+														<CodeText as="span">{org.slug}</CodeText>
+													</span>
 												</div>
 											</TableCell>
-											<TableCell className="text-text-2">
+											<TableCell>
 												{org.isPersonal ? "Personal" : "Team"}
 											</TableCell>
 											<TableCell numeric>{org.memberCount}</TableCell>
-											<TableCell numeric>{org.repoCount}</TableCell>
-											<TableCell className="text-text-2">
+											<TableCell data-admin-column="org-repos" numeric>
+												{org.repoCount}
+											</TableCell>
+											<TableCell data-admin-column="org-created">
 												{formatAdminDate(org.createdAt)}
 											</TableCell>
 										</TableRow>,
@@ -306,8 +274,8 @@ export function AdminOrgsPage() {
 										rows.push(
 											<TableRow key={`${org.id}-members`}>
 												<TableCell
-													className="whitespace-normal py-1 ps-10"
 													colSpan={COLUMN_COUNT}
+													data-layout-role="admin-org-members-cell"
 													id={panelId}
 												>
 													<OrgMembersPanel
@@ -324,8 +292,8 @@ export function AdminOrgsPage() {
 							)}
 						</TableBody>
 					</Table>
-				</div>
-			</div>
+				</PageBody>
+			</Page>
 		</DashboardLayout>
 	);
 }
@@ -340,7 +308,12 @@ function OrgMembersPanel({
 	isPersonal: boolean;
 }) {
 	const queryClient = useQueryClient();
-	const { data: members } = useQuery(adminOrgMembersQueryOptions(orgId));
+	const {
+		data: members,
+		isLoading,
+		error,
+		refetch,
+	} = useQuery(adminOrgMembersQueryOptions(orgId));
 	const changeRole = useMutation({
 		mutationFn: adminUpdateOrgMemberRole,
 		onSettled: () =>
@@ -349,37 +322,56 @@ function OrgMembersPanel({
 			}),
 	});
 
-	if (!members) {
+	if (isLoading) {
 		return (
-			<div aria-busy className="py-2">
+			<div aria-busy data-layout-role="admin-org-members-state">
 				<span className="sr-only">Loading members of {orgName}</span>
-				<SkeletonText className="w-48" type="body-sm" />
+				<SkeletonText data-layout-size="member-row" type="body-sm" />
+			</div>
+		);
+	}
+	if (error) {
+		return (
+			<div data-layout-role="admin-org-members-state">
+				<SupportingText>
+					Tripwire couldn't load members of {orgName}.
+				</SupportingText>
+				<Button onClick={() => void refetch()} size="sm" variant="secondary">
+					Load members again
+				</Button>
+			</div>
+		);
+	}
+	if (!members || members.length === 0) {
+		return (
+			<div data-layout-role="admin-org-members-state">
+				<SupportingText>No members are attached to this org.</SupportingText>
 			</div>
 		);
 	}
 
 	return (
 		<ItemGroup aria-label={`Members of ${orgName}`} variant="plain">
-			{members.map((m) => (
-				<Item key={m.memberId} size="sm">
+			{members.map((member) => (
+				<Item key={member.memberId} size="sm">
 					<ItemMedia>
 						<Avatar
 							decorative
-							name={m.name}
+							name={member.name}
 							size="sm"
-							src={m.image ?? undefined}
+							src={member.image ?? undefined}
 						/>
 					</ItemMedia>
 					<ItemContent>
-						<ItemTitle>{m.name}</ItemTitle>
-						<ItemDescription>{m.email}</ItemDescription>
+						<ItemTitle>{member.name}</ItemTitle>
+						<ItemDescription>{member.email}</ItemDescription>
 					</ItemContent>
-					<ItemMeta>{formatAdminDate(m.joinedAt)}</ItemMeta>
-					<ItemActions className="me-0">
+					<ItemMeta>{formatAdminDate(member.joinedAt)}</ItemMeta>
+					<ItemActions>
 						{isPersonal ? (
-							<span className="type-label-sm text-text-2">
-								{m.role === "admin" ? "Admin" : "Member"}
-							</span>
+							<SupportingText as="span">
+								{member.role === "admin" ? "Admin" : "Member"}
+							</SupportingText>
 						) : (
 							<Select
 								disabled={changeRole.isPending}
@@ -391,7 +383,7 @@ function OrgMembersPanel({
 									changeRole.mutate(
 										{
 											data: {
-												memberId: m.memberId,
+												memberId: member.memberId,
 												role: value as OrgRole,
 											},
 										},
@@ -399,21 +391,25 @@ function OrgMembersPanel({
 											onSuccess: (result) => {
 												if (result.ok) {
 													toast.success(
-														`${m.name} is now ${value === "admin" ? "admin" : "member"}`,
+														`${member.name} is now ${value === "admin" ? "admin" : "member"}`,
 													);
 													return;
 												}
 												toast.fail(
 													result.error ??
-														`Tripwire couldn't change the role for ${m.name}. Try again.`,
+														`Tripwire couldn't change the role for ${member.name}. Try again.`,
 												);
 											},
+											onError: () =>
+												toast.fail(
+													`Tripwire couldn't change the role for ${member.name}. Try again.`,
+												),
 										},
 									);
 								}}
-								value={m.role}
+								value={member.role}
 							>
-								<SelectTrigger aria-label={`Role for ${m.name}`} size="sm">
+								<SelectTrigger aria-label={`Role for ${member.name}`} size="sm">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent size="sm">

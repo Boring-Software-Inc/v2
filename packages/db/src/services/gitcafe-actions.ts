@@ -8,8 +8,10 @@ import {
 	gitCafeActionPayloadSchema,
 	gitCafeCheckRerequestedEventSchema,
 	normalizedEventSchema,
+	persistedForgeActionSchema,
 	type RerunChangeRequestJob,
 	rerunChangeRequestJobSchema,
+	storedActionPayloadSchema,
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
 import { pendingCheckIsStale, supersededBy } from "@tripwire/utils";
@@ -25,6 +27,7 @@ import {
 	createRun,
 	getGitCafeEvaluationPhase,
 	getLatestRunForChangeRequest,
+	markActionInvalid,
 } from "./runs.ts";
 
 type CheckRerunPreparation =
@@ -218,10 +221,19 @@ export async function getPendingGitCafeReviewCleanup(db: Db, runId: string) {
 			),
 		)
 		.orderBy(runActions.recordedAt, runActions.id);
-	return rows.map((row) => ({
-		...row,
-		payload: gitCafeActionPayloadSchema.parse(row.payload),
-	}));
+	const valid = [];
+	for (const row of rows) {
+		const parsed = gitCafeActionPayloadSchema.safeParse(row.payload);
+		if (!parsed.success || !persistedForgeActionSchema.safeParse(row).success) {
+			await markActionInvalid(db, row.id);
+			continue;
+		}
+		valid.push({
+			...row,
+			payload: storedActionPayloadSchema.parse(row.payload),
+		});
+	}
+	return valid;
 }
 
 export async function dispatchGitCafeReview(
@@ -369,7 +381,12 @@ export async function getGitCafeRecordedAction(db: DbLike, actionId: string) {
 		.from(runActions)
 		.where(and(eq(runActions.id, actionId), eq(runActions.status, "recorded")));
 	if (!row) return null;
-	return { ...row, payload: gitCafeActionPayloadSchema.parse(row.payload) };
+	const parsed = gitCafeActionPayloadSchema.safeParse(row.payload);
+	if (!parsed.success || !persistedForgeActionSchema.safeParse(row).success) {
+		await markActionInvalid(db, actionId);
+		return null;
+	}
+	return { ...row, payload: parsed.data };
 }
 
 export async function readGitCafeAction(

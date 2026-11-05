@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { jsonValueSchema } from "./workflow.ts";
 
 /**
  * Economics observability contracts (economics-surface-contracts.md). Constants,
@@ -53,6 +54,61 @@ export const economicsProviderSchema = z.enum([
 	"planetscale",
 ]);
 export type EconomicsProvider = z.infer<typeof economicsProviderSchema>;
+
+/** Historical metering reads only these fields; malformed optional fields keep their individual fallbacks. */
+export const meteringEvidenceSchema = z.object({
+	evidence: z.object({
+		trace: z.object({
+			model: z.string().catch("unknown"),
+			stepsUsed: z.number().nullable().catch(null),
+			steps: z.array(jsonValueSchema).nullable().catch(null),
+			costUsd: z.number().nullable().catch(null),
+			usage: z.object({
+				input: z.number().nullable().catch(null),
+				output: z.number().nullable().catch(null),
+				cached: z.number().nullable().catch(null),
+				inputTokens: z.number().nullable().catch(null),
+				outputTokens: z.number().nullable().catch(null),
+				inputTokenDetails: z
+					.object({
+						cacheReadTokens: z.number().nullable().catch(null),
+						cachedTokens: z.number().nullable().catch(null),
+					})
+					.nullable()
+					.catch(null),
+			}),
+		}),
+	}),
+});
+export type MeteringEvidence = z.infer<typeof meteringEvidenceSchema>;
+
+export const railwayPricesSchema = z.object({
+	prices: z.record(z.string(), z.number()),
+});
+export type RailwayPrices = z.infer<typeof railwayPricesSchema>;
+
+const storedQuantitySchema = jsonValueSchema
+	.nullish()
+	.transform((value) => (value == null ? 0 : Number(value)));
+
+/** Read projection only: retain the historical Number conversion for stored provider quantities. */
+export const railwayServiceUsageSchema = z
+	.object({
+		name: z.string().nullable().catch(null),
+		cpuUnits: storedQuantitySchema,
+		memGbMin: storedQuantitySchema,
+		egressGb: storedQuantitySchema,
+	})
+	.catch({ name: null, cpuUnits: 0, memGbMin: 0, egressGb: 0 });
+export type RailwayServiceUsage = z.infer<typeof railwayServiceUsageSchema>;
+
+export const railwayRatesMetadataSchema = z
+	.object({
+		ratesDrift: z.boolean().catch(false),
+		verifiedAt: z.string().nullable().catch(null),
+	})
+	.catch({ ratesDrift: false, verifiedAt: null });
+export type RailwayRatesMetadata = z.infer<typeof railwayRatesMetadataSchema>;
 
 /**
  * Derive the COGS source from the run environment, purely. `keyKind` names which

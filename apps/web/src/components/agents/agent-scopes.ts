@@ -4,7 +4,7 @@ import {
 	type GlazeIcon,
 	Protected,
 	Show,
-} from "#/components/glaze/icon";
+} from "#/design-system/icon";
 
 export interface AgentPermission {
 	scope: string;

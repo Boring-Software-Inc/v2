@@ -29,10 +29,17 @@ export const EST_TOKENS_PER_RUN = 20_000;
  * we still MEASURE actual cached tokens rather than assume the caching savings.
  */
 export const PRICING_RETRIEVED = "2026-07-17";
-export const PRICING: Record<
-	string,
-	{ in: number; out: number; cachedIn: number }
-> = {
+interface ModelPricing {
+	in: number;
+	out: number;
+	cachedIn: number;
+}
+
+interface ModelPricingTable {
+	[model: string]: ModelPricing;
+}
+
+export const PRICING: ModelPricingTable = {
 	// Grok 4.5 (openrouter.ai/x-ai/grok-4.5) — <200K prompt; doubles at >=200K.
 	"x-ai/grok-4.5": { in: 2, out: 6, cachedIn: 0.5 },
 	"anthropic/claude-haiku-4.5": { in: 1, out: 5, cachedIn: 0.1 },

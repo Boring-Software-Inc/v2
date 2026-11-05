@@ -4,8 +4,8 @@ import {
 	CardFooter,
 	CardHeader,
 	CardTitle,
-} from "#/components/glaze/ui/card";
-import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
+} from "#/design-system/ui/card";
+import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 
 const CHIN_SLOTS = [
 	{ key: "a", width: "w-26" },

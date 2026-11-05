@@ -1,9 +1,12 @@
-import { formatDiscordMessage, type WebhookPayload } from "@tripwire/contracts";
+import {
+	deliveryActionPayloadSchema,
+	discordDeliveryPayloadSchema,
+	formatDiscordMessage,
+} from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
 import { runServices } from "@tripwire/db";
 import { type GuardedFetchDeps, guardedPost } from "@tripwire/utils";
 import type { Logger } from "pino";
-import { z } from "zod";
 
 /**
  * Outbound delivery for webhook + discord action nodes — the async, retriable
@@ -21,8 +24,6 @@ import { z } from "zod";
  */
 
 const GIVE_UP_MS = 60 * 60_000;
-
-const signingSecretSchema = z.string().min(1).optional().catch(undefined);
 
 export interface DeliverWebhookDeps {
 	db: Db;
@@ -54,26 +55,26 @@ export async function deliverWebhooks(
 	const giveUpBefore = new Date(now - GIVE_UP_MS);
 
 	for (const row of rows) {
-		const url = typeof row.payload.url === "string" ? row.payload.url : null;
-		const delivery = row.payload.delivery as WebhookPayload | undefined;
-		if (!url || !delivery) {
-			// Malformed row (no destination or unbuilt payload) — abandon it
-			// rather than retry forever.
-			await runServices.markActionSuperseded(db, row.id);
+		const parsed = (
+			row.kind === "discord"
+				? discordDeliveryPayloadSchema
+				: deliveryActionPayloadSchema
+		).safeParse(row.payload);
+		if (!parsed.success) {
+			await runServices.markActionInvalid(db, row.id);
 			result.abandoned++;
 			logger.error(
 				{ actionId: row.id, kind: row.kind },
-				"delivery row missing url or payload — abandoned",
+				"invalid delivery payload, abandoned",
 			);
 			continue;
 		}
 
+		const { url, delivery } = parsed.data;
 		const body =
 			row.kind === "discord" ? formatDiscordMessage(delivery) : delivery;
 		const signingSecret =
-			row.kind === "webhook"
-				? signingSecretSchema.parse(row.payload.signingSecret)
-				: undefined;
+			row.kind === "webhook" ? parsed.data.signingSecret : undefined;
 
 		const sent = await guardedPost(url, body, {
 			// Discord ignores idempotency + signature headers; only the raw

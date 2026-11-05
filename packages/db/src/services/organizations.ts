@@ -732,8 +732,8 @@ export async function recordInstallationAccount(
 	await db
 		.update(organizationInstallations)
 		.set({
-			...(input.accountType ? { accountType: input.accountType } : {}),
-			...(input.accountLogin ? { accountLogin: input.accountLogin } : {}),
+			accountType: input.accountType || undefined,
+			accountLogin: input.accountLogin || undefined,
 		})
 		.where(
 			and(

@@ -31,9 +31,9 @@ const config: UserConfig = {
 	plugins: [
 		{
 			rules: {
-				"ticket-required": (parsed: { ticket?: string | null }) => [
+				"ticket-required": (parsed) => [
 					!REQUIRE_TICKET ||
-						(typeof parsed.ticket === "string" && TICKET.test(parsed.ticket)),
+						(parsed.ticket != null && TICKET.test(parsed.ticket)),
 					"commit must start with a task id, e.g. `TRP-83 feat(ui): …`",
 				],
 			},

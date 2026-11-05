@@ -10,8 +10,9 @@ import { EntityCard } from "#/components/common/entity-card";
 import { ForgeLinkButton } from "#/components/common/forge-link-button";
 import { MetaRow } from "#/components/common/meta-row";
 import { ItemRouterLink } from "#/components/common/router-links";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
+import { ZonedTime } from "#/components/timezones/zoned-time";
+import { Badge } from "#/design-system/ui/badge";
+import { Button } from "#/design-system/ui/button";
 import {
 	Item,
 	ItemActions,
@@ -19,15 +20,14 @@ import {
 	ItemGroup,
 	ItemMeta,
 	ItemTitle,
-} from "#/components/glaze/ui/item";
+} from "#/design-system/ui/item";
 import {
 	Status,
 	StatusMark,
 	type StatusValue,
 	statusVariants,
-} from "#/components/glaze/ui/status";
-import { Truncate } from "#/components/glaze/ui/truncate";
-import { ZonedTime } from "#/components/timezones/zoned-time";
+} from "#/design-system/ui/status";
+import { Truncate } from "#/design-system/ui/truncate";
 import type { ActivityGroup, ActivityItem } from "#/lib/activity.functions";
 import { changeRequestForgeLink, eventForgeLink } from "#/lib/activity-links";
 
@@ -92,7 +92,7 @@ export function ActivityStack({ group }: { group: ActivityGroup }) {
 				variant="plain"
 			>
 				{visible.map((entry) => (
-					<EntryRow entry={entry} groupUrl={group.url} key={entry.event.id} />
+					<EntryRow entry={entry} groupUrl={group.url} key={entry.eventId} />
 				))}
 			</ItemGroup>
 		</EntityCard>
@@ -136,7 +136,7 @@ function StackDescription({ group }: { group: ActivityGroup }) {
 
 function StackStatus({ group }: { group: ActivityGroup }) {
 	const evaluating = group.currentRunId != null && group.currentVerdict == null;
-	const forge = group.timeline[0]?.event.forge;
+	const forge = group.timeline.find((entry) => entry.event)?.event?.forge;
 	const forgeLink = forge
 		? changeRequestForgeLink(forge, group.subjectNumber, group.url)
 		: null;
@@ -164,6 +164,17 @@ function EntryRow({
 	groupUrl: string | null;
 }) {
 	const { event, run, pending } = entry;
+	if (!event) {
+		return (
+			<Item size="sm">
+				<ItemContent>
+					<ItemTitle>
+						{entry.unavailableReason ?? "Historical event data is unavailable"}
+					</ItemTitle>
+				</ItemContent>
+			</Item>
+		);
+	}
 	const ours = isTripwireComment(event);
 	const runId = run?.runId ?? null;
 	const eventLink = runId ? null : eventForgeLink(event);

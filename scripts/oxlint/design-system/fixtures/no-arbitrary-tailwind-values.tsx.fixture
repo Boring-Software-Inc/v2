@@ -1,0 +1,19 @@
+declare const planted: boolean;
+
+const CARD_CLASSES = {
+	root: ["w-[37px]", planted && "[&>span]:block"],
+} as const;
+
+const cardRecipe = cva("contract-card", {
+	variants: {
+		active: { true: "supports-[display:grid]:grid" },
+	},
+});
+
+export function ArbitraryTailwindFixture({ active }: { active: boolean }) {
+	return (
+		<div className={active && "hover:h-[41px]"} data-recipe={cardRecipe}>
+			{CARD_CLASSES.root}
+		</div>
+	);
+}

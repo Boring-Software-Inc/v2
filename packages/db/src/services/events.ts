@@ -7,13 +7,18 @@ import {
 	type ActivityTimelineEntry,
 	bearsVerdict,
 	changeRequestAuthor,
+	changeRequestPayloadSchema,
 	type NormalizedEvent,
 	normalizedEventSchema,
+	storedJsonValueSchema,
+	storedNormalizedEventSchema,
+	verdictEventKindSchema,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
 import { and, desc, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
+import { z } from "zod";
 import type { Db } from "../client.ts";
 import { PROCESS_EVENT_QUEUE } from "../queue.ts";
 import { events } from "../schema/events.ts";
@@ -223,72 +228,59 @@ export async function listEvents(
 	};
 }
 
-/**
- * `db.execute()` returns RAW pg rows (`Record<string, unknown>`), NOT the typed
- * shapes Drizzle's query builder maps: jsonb → object, int4 → number, text →
- * string, and the trap — timestamptz → an ISO **string**, never a `Date`. So the
- * mappers below coerce every field explicitly; nothing downstream trusts a raw
- * row. The wire shapes themselves (ActivityTimelineEntry/Group/FeedItem) live in
- * @tripwire/contracts — one home, re-validated at the server-fn boundary.
- */
-type RawRow = Record<string, unknown>;
+const activityRowSchema = z.object({
+	event_id: z.string(),
+	event_kind: z.string().nullable(),
+	normalized: storedJsonValueSchema,
+	run_id: z.string().nullable(),
+	verdict: z.string().nullable(),
+	status: z.string().nullable(),
+	reason: z.string().nullable(),
+	failing_rule_id: z.string().nullable(),
+	repo_full_name: z.string().optional(),
+	subject_number: z.number().int().optional(),
+	received_at: z.union([z.date(), z.string()]).pipe(z.coerce.date()).optional(),
+});
+type ActivityRow = z.infer<typeof activityRowSchema>;
+const timedActivityRowSchema = activityRowSchema.required({
+	received_at: true,
+});
+const groupedActivityRowSchema = timedActivityRowSchema.required({
+	repo_full_name: true,
+	subject_number: true,
+});
+type GroupedActivityRow = z.infer<typeof groupedActivityRowSchema>;
 
-function asString(v: unknown): string | null {
-	return typeof v === "string" ? v : v == null ? null : String(v);
+function leadingReason(row: ActivityRow): string | null {
+	return (
+		row.reason ||
+		(row.failing_rule_id ? `${row.failing_rule_id.split("@")[0]} failed` : null)
+	);
 }
 
-function asMs(v: unknown): number {
-	if (v instanceof Date) {
-		return v.getTime();
-	}
-	if (typeof v === "string") {
-		return new Date(v).getTime();
-	}
-	return 0;
-}
-
-function asIso(v: unknown): string {
-	return new Date(asMs(v)).toISOString();
-}
-
-/**
- * A blocked entry must ALWAYS say why (§9). Prefer the rule's §10 one-liner; when
- * a historical run predates the projection (null summary), fall back to the bare
- * failing rule name — e.g. "account-age failed" — never a blank reason.
- */
-function leadingReason(row: RawRow): string | null {
-	if (typeof row.reason === "string" && row.reason) {
-		return row.reason;
-	}
-	if (typeof row.failing_rule_id === "string" && row.failing_rule_id) {
-		return `${row.failing_rule_id.split("@")[0]} failed`;
-	}
-	return null;
-}
-
-function mapRun(row: RawRow): ActivityRunSummary | null {
-	if (row.run_id == null) {
-		return null;
-	}
+function mapRun(row: ActivityRow): ActivityRunSummary | null {
+	if (row.run_id === null) return null;
 	return {
-		runId: String(row.run_id),
-		verdict: asString(row.verdict),
-		status: asString(row.status) ?? "running",
+		runId: row.run_id,
+		verdict: row.verdict,
+		status: row.status ?? "running",
 		reason: leadingReason(row),
 	};
 }
 
-function mapEntry(row: RawRow): ActivityTimelineEntry {
-	// `normalized` (jsonb) is a validated NormalizedEvent at write time (§5.6); the
-	// server fn re-parses the whole feed against activityFeedSchema, so a drifted
-	// row fails loudly there, not inside a downstream field access.
+function mapEntry(row: ActivityRow): ActivityTimelineEntry {
+	const parsed = storedNormalizedEventSchema.safeParse(row.normalized);
 	const run = mapRun(row);
 	const pending =
 		run != null &&
 		run.verdict == null &&
 		(run.status === "queued" || run.status === "running");
 	return {
-		event: row.normalized as NormalizedEvent,
+		eventId: row.event_id,
+		event: parsed.success ? parsed.data : null,
+		unavailableReason: parsed.success
+			? undefined
+			: "Historical event data is unavailable",
 		run,
 		pending: pending || undefined,
 	};
@@ -330,7 +322,7 @@ export async function listActivity(
 	{ cursor, limit = 50 }: { cursor?: string; limit?: number } = {},
 ): Promise<{ items: ActivityTimelineEntry[]; nextCursor: string | null }> {
 	const result = await db.execute(sql`
-		SELECT e.id AS event_id, e.normalized, r.id AS run_id, r.verdict,
+		SELECT e.id AS event_id, e.kind AS event_kind, e.normalized, r.id AS run_id, r.verdict,
 		       r.status, fr.summary AS reason, fr.rule_id AS failing_rule_id
 		${ACTIVITY_FROM}
 		WHERE e.normalized_at IS NOT NULL
@@ -338,10 +330,10 @@ export async function listActivity(
 		ORDER BY e.id DESC
 		LIMIT ${limit}
 	`);
-	const { rows } = result;
+	const rows = result.rows.map((row) => activityRowSchema.parse(row));
 	return {
 		items: rows.map(mapEntry),
-		nextCursor: rows.length === limit ? asString(rows.at(-1)?.event_id) : null,
+		nextCursor: rows.length === limit ? (rows.at(-1)?.event_id ?? null) : null,
 	};
 }
 
@@ -351,14 +343,14 @@ export async function getActivityForEvent(
 	eventId: string,
 ): Promise<ActivityTimelineEntry | null> {
 	const result = await db.execute(sql`
-		SELECT e.normalized, r.id AS run_id, r.verdict, r.status,
+		SELECT e.id AS event_id, e.kind AS event_kind, e.normalized, r.id AS run_id, r.verdict, r.status,
 		       fr.summary AS reason, fr.rule_id AS failing_rule_id
 		${ACTIVITY_FROM}
 		WHERE e.id = ${eventId}
 		LIMIT 1
 	`);
 	const row = result.rows[0];
-	return row?.normalized ? mapEntry(row) : null;
+	return row ? mapEntry(activityRowSchema.parse(row)) : null;
 }
 
 /**
@@ -391,7 +383,10 @@ export async function listBackfillEvents(
 		LIMIT ${cap}
 	`);
 	const out: { id: string; normalized: NormalizedEvent }[] = [];
-	for (const row of result.rows as { id: string; normalized: unknown }[]) {
+	for (const raw of result.rows) {
+		const row = z
+			.object({ id: z.string(), normalized: storedJsonValueSchema })
+			.parse(raw);
 		const parsed = normalizedEventSchema.safeParse(row.normalized);
 		if (parsed.success) {
 			out.push({ id: row.id, normalized: parsed.data });
@@ -412,7 +407,11 @@ export async function listBackfillEvents(
  * latest activity.
  */
 function eventUrl(event: NormalizedEvent): string | null {
-	if ("changeRequest" in event) {
+	if (
+		event.kind === "change-request.opened" ||
+		event.kind === "change-request.updated" ||
+		event.kind === "change-request.closed"
+	) {
 		return event.changeRequest.url;
 	}
 	if (event.kind === "comment.created") {
@@ -421,8 +420,8 @@ function eventUrl(event: NormalizedEvent): string | null {
 	return null;
 }
 
-function isTripwireComment(event: NormalizedEvent): boolean {
-	return event.kind === "comment.created" && event.comment.byTripwire === true;
+function isTripwireComment(event: NormalizedEvent | null): boolean {
+	return event?.kind === "comment.created" && event.comment.byTripwire === true;
 }
 
 /** Tripwire's own comment is ONE upserted artifact (§7): create + edits collapse
@@ -440,40 +439,57 @@ function dedupeTripwireComments(
 	);
 }
 
-function buildGroup(rows: RawRow[]): ActivityGroup {
+const historicalTitleSchema = z.object({
+	kind: verdictEventKindSchema,
+	changeRequest: changeRequestPayloadSchema.pick({ title: true }),
+});
+
+function buildGroup(rows: GroupedActivityRow[]): ActivityGroup {
 	const chrono = [...rows].sort(
-		(a, b) => asMs(a.received_at) - asMs(b.received_at),
+		(a, b) => a.received_at.getTime() - b.received_at.getTime(),
 	);
 	const timeline = dedupeTripwireComments(chrono.map(mapEntry));
-	const events = timeline.map((entry) => entry.event);
+	const events = timeline.flatMap((entry) =>
+		entry.event ? [entry.event] : [],
+	);
 	const latest = chrono.at(-1);
 	if (!latest) {
 		throw new Error("buildGroup called with no rows");
 	}
 	const header = events.at(-1);
 	// Header identity: the most recent change-request event carries the title.
-	const cr = [...events].reverse().find((e) => "changeRequest" in e);
+	const cr = [...events]
+		.reverse()
+		.find(
+			(event) =>
+				event.kind === "change-request.opened" ||
+				event.kind === "change-request.updated" ||
+				event.kind === "change-request.closed",
+		);
 	// Current verdict = the verdict of the latest event that produced a run.
 	const withRun = [...chrono]
 		.reverse()
 		.find(
-			(r) =>
-				r.run_id != null &&
-				bearsVerdict((r.normalized as NormalizedEvent | null)?.kind),
+			(row) =>
+				row.run_id != null &&
+				bearsVerdict(mapEntry(row).event?.kind ?? row.event_kind),
 		);
-	const subjectNumber = Number(latest.subject_number);
+	const subjectNumber = latest.subject_number;
+	const historicalTitle = [...chrono].reverse().flatMap((row) => {
+		const parsed = historicalTitleSchema.safeParse(row.normalized);
+		return parsed.success ? [parsed.data.changeRequest.title] : [];
+	})[0];
 	return {
-		repoFullName: String(latest.repo_full_name),
+		repoFullName: latest.repo_full_name,
 		subjectNumber,
-		title:
-			cr && "changeRequest" in cr
-				? cr.changeRequest.title
-				: `#${subjectNumber}`,
+		title: cr
+			? cr.changeRequest.title
+			: (historicalTitle ?? `#${subjectNumber}`),
 		url: cr ? eventUrl(cr) : header ? eventUrl(header) : null,
 		actor: changeRequestAuthor(events),
-		currentVerdict: withRun ? asString(withRun.verdict) : null,
-		currentRunId: withRun ? asString(withRun.run_id) : null,
-		latestActivityAt: asIso(latest.received_at),
+		currentVerdict: withRun ? withRun.verdict : null,
+		currentRunId: withRun ? withRun.run_id : null,
+		latestActivityAt: latest.received_at.toISOString(),
 		eventCount: rows.length,
 		timeline,
 	};
@@ -493,7 +509,7 @@ export async function listActivityFeed(
 			ORDER BY latest_at DESC
 			LIMIT ${limit}
 		)
-		SELECT e.normalized, e.repo_full_name, e.subject_number, e.received_at,
+		SELECT e.id AS event_id, e.kind AS event_kind, e.normalized, e.repo_full_name, e.subject_number, e.received_at,
 		       r.id AS run_id, r.verdict, r.status, fr.summary AS reason,
 		       fr.rule_id AS failing_rule_id
 		FROM grp g
@@ -513,8 +529,9 @@ export async function listActivityFeed(
 			ORDER BY s.started_at ASC LIMIT 1
 		) fr ON true
 	`);
-	const byKey = new Map<string, RawRow[]>();
-	for (const row of grouped.rows) {
+	const byKey = new Map<string, GroupedActivityRow[]>();
+	for (const raw of grouped.rows) {
+		const row = groupedActivityRowSchema.parse(raw);
 		const key = `${String(row.repo_full_name)}#${Number(row.subject_number)}`;
 		const bucket = byKey.get(key);
 		if (bucket) {
@@ -528,7 +545,7 @@ export async function listActivityFeed(
 	// Standalone rows for THIS repo (e.g. a push with no change request).
 	// Account-level installation events carry no repo and are out of scope.
 	const loose = await db.execute(sql`
-		SELECT e.normalized, r.id AS run_id, r.verdict, r.status, fr.summary AS reason,
+		SELECT e.id AS event_id, e.kind AS event_kind, e.normalized, r.id AS run_id, r.verdict, r.status, fr.summary AS reason,
 		       fr.rule_id AS failing_rule_id, e.received_at
 		${ACTIVITY_FROM}
 		WHERE e.normalized_at IS NOT NULL AND e.subject_number IS NULL
@@ -536,11 +553,14 @@ export async function listActivityFeed(
 		ORDER BY e.id DESC
 		LIMIT ${limit}
 	`);
-	const standalone = loose.rows.map((r) => ({
-		type: "event" as const,
-		entry: mapEntry(r),
-		at: asMs(r.received_at),
-	}));
+	const standalone = loose.rows.map((raw) => {
+		const row = timedActivityRowSchema.parse(raw);
+		return {
+			type: "event" as const,
+			entry: mapEntry(row),
+			at: row.received_at.getTime(),
+		};
+	});
 
 	const items: (ActivityFeedItem & { at: number })[] = [
 		...groups.map((group) => ({

@@ -1,18 +1,5 @@
 import type { BlockViewer, SurfacePlan } from "@tripwire/contracts";
 import { type ReactNode, useId, useLayoutEffect } from "react";
-import { Button } from "#/components/glaze/ui/button";
-import {
-	SegmentedControl,
-	SegmentedControlItem,
-} from "#/components/glaze/ui/segmented-control";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/components/glaze/ui/select";
-import { StatusMark } from "#/components/glaze/ui/status";
 import { CheckStateMock } from "#/components/responses/check-state-mock";
 import { GithubCommentMock } from "#/components/responses/github-comment-mock";
 import { usePreviewLink } from "#/components/responses/preview-link";
@@ -21,6 +8,19 @@ import type {
 	OutcomeMeta,
 } from "#/components/responses/responses-model";
 import { RunPageMock } from "#/components/responses/run-page-mock";
+import { Button } from "#/design-system/ui/button";
+import {
+	SegmentedControl,
+	SegmentedControlItem,
+} from "#/design-system/ui/segmented-control";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/design-system/ui/select";
+import { StatusMark } from "#/design-system/ui/status";
 import type { PreviewTab, PreviewView } from "#/lib/block-builder";
 import { pickValue } from "#/lib/pick-value";
 import type { RunView } from "#/lib/runs.functions";

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import type { JsonValue } from "@tripwire/contracts";
 import { parse as parseYaml } from "yaml";
 import { type Agent, buildAgents } from "#/agents";
 import { hostAgentId } from "#/agents/host";
@@ -36,7 +37,7 @@ function home(...parts: string[]): string {
 	return join(sandbox.home, ...parts);
 }
 
-function writeJson(path: string, value: unknown): void {
+function writeJson(path: string, value: JsonValue): void {
 	mkdirSync(dirname(path), { recursive: true });
 	writeFileSync(path, JSON.stringify(value));
 }

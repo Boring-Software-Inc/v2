@@ -1,5 +1,5 @@
 import { type Ref, useMemo, useState } from "react";
-import { Check, Icon, Pending } from "#/components/glaze/icon";
+import { Check, Icon, Pending } from "#/design-system/icon";
 import {
 	CommandEmpty,
 	CommandGroup,
@@ -7,7 +7,7 @@ import {
 	CommandItem,
 	CommandLabel,
 	CommandList,
-} from "#/components/glaze/ui/command";
+} from "#/design-system/ui/command";
 import { groupPresets } from "#/lib/dev/scenario-panel";
 import {
 	DEV_LATENCY_LABELS,

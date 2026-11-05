@@ -6,7 +6,7 @@ import {
 	ForgeCell,
 	type ForgeCellState,
 } from "#/components/forges/forge-cell";
-import { toast } from "#/components/glaze/ui/toast";
+import { toast } from "#/design-system/ui/toast";
 import { providerAvailabilityQueryOptions } from "#/lib/auth.query";
 import { authClient } from "#/lib/auth-client";
 

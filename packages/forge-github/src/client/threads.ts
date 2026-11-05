@@ -3,6 +3,7 @@ import type {
 	ThreadListQuery,
 	ThreadListResult,
 } from "@tripwire/forge";
+import { z } from "zod";
 import { type GithubHttp, GithubHttpError } from "./http.ts";
 
 const MAX_PAGES = 30;
@@ -19,9 +20,16 @@ interface GithubIssue {
 	pull_request?: unknown;
 }
 
+/** Static errors avoid inspecting rejected label objects while discriminating. */
+const labelStringSchema = z.string({ error: "Expected a label string" });
+
+function isLabelString(label: GithubIssue["labels"][number]): label is string {
+	return labelStringSchema.safeParse(label).success;
+}
+
 function labelNames(issue: GithubIssue): string[] {
 	return issue.labels.flatMap((label) =>
-		typeof label === "string" ? [label] : label.name ? [label.name] : [],
+		isLabelString(label) ? [label] : label.name ? [label.name] : [],
 	);
 }
 

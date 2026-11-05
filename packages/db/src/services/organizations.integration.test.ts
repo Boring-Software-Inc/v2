@@ -43,6 +43,7 @@ import {
 	listUserOrgs,
 	moveInstallation,
 	pickOrgSlug,
+	recordInstallationAccount,
 	redeemInviteLink,
 	resolveInstallStatus,
 	revokeInviteLink,
@@ -515,6 +516,110 @@ describe("installations (§2/§3) — webhook org-resolution", () => {
 			.from(repos)
 			.where(eq(repos.fullName, "acme/api"));
 		expect(repoRows[0]?.orgId).toBe(orgId);
+	});
+
+	test("partial installation metadata updates preserve omitted fields and forge scope", async () => {
+		await seedUser("metadata-owner");
+		const orgId = await seedTeamOrg("metadata-team", "metadata-owner");
+		for (const forge of ["github", "gitcafe"] as const) {
+			await db.insert(organizationInstallations).values({
+				id: generateId(),
+				organizationId: orgId,
+				forge,
+				installationId: "metadata-install",
+				accountLogin: "original",
+				accountType: "Organization",
+			});
+		}
+		await recordInstallationAccount(db, {
+			installationId: "metadata-install",
+			accountType: "User",
+			accountLogin: "",
+		});
+		let rows = await db
+			.select()
+			.from(organizationInstallations)
+			.where(eq(organizationInstallations.installationId, "metadata-install"));
+		expect(rows.find((row) => row.forge === "github")).toMatchObject({
+			accountType: "User",
+			accountLogin: "original",
+		});
+		expect(rows.find((row) => row.forge === "gitcafe")).toMatchObject({
+			accountType: "Organization",
+			accountLogin: "original",
+		});
+		await recordInstallationAccount(db, {
+			installationId: "metadata-install",
+			accountLogin: "renamed",
+		});
+		await recordInstallationAccount(db, {
+			installationId: "metadata-install",
+			accountLogin: "",
+		});
+		rows = await db
+			.select()
+			.from(organizationInstallations)
+			.where(eq(organizationInstallations.installationId, "metadata-install"));
+		expect(rows.find((row) => row.forge === "github")).toMatchObject({
+			accountType: "User",
+			accountLogin: "renamed",
+		});
+	});
+
+	test("repo resync without a truthy org keeps the existing ownership and row id", async () => {
+		const repo = {
+			externalId: "sync-owner-repo",
+			owner: "acme",
+			name: "sync-owner",
+			fullName: "acme/sync-owner",
+			private: false,
+		};
+		await syncInstallationRepos(
+			db,
+			"sync-owner-install",
+			[repo],
+			[],
+			"kept-org",
+		);
+		const [original] = await db
+			.select()
+			.from(repos)
+			.where(eq(repos.externalId, repo.externalId));
+		expect(original).toBeDefined();
+		for (const orgId of [undefined, null, ""]) {
+			await syncInstallationRepos(
+				db,
+				"sync-owner-install",
+				[{ ...repo, private: true }],
+				[],
+				orgId,
+			);
+			const [saved] = await db
+				.select()
+				.from(repos)
+				.where(eq(repos.externalId, repo.externalId));
+			expect(saved).toMatchObject({
+				id: original?.id,
+				orgId: "kept-org",
+				private: true,
+			});
+		}
+		await syncInstallationRepos(
+			db,
+			"sync-owner-install",
+			[repo],
+			[],
+			"moved-org",
+		);
+		const [moved] = await db
+			.select()
+			.from(repos)
+			.where(eq(repos.externalId, repo.externalId));
+		expect(moved).toMatchObject({
+			id: original?.id,
+			orgId: "moved-org",
+			private: false,
+		});
 	});
 
 	test("unclaimed installs sync repos with NULL org — invisible, never auto-attached", async () => {

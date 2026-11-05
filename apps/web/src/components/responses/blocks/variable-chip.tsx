@@ -1,8 +1,8 @@
 import type { ResponseVariable } from "@tripwire/contracts";
 import type { MouseEvent } from "react";
-import { Hide, Icon } from "#/components/glaze/icon";
 import { VARIABLE_LABELS } from "#/components/responses/blocks/block-catalog";
-import { cn } from "#/lib/glaze/utils";
+import { Hide, Icon } from "#/design-system/icon";
+import { cn } from "#/design-system/lib/utils";
 
 export const VARIABLE_CHIP_CLASS =
 	"inline-flex h-5.5 items-center gap-1 rounded-pill border border-line bg-field px-1.75 align-middle type-label-sm text-text-1";

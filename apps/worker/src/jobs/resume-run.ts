@@ -50,10 +50,10 @@ import {
 export function resolveResumeOutcome(
 	decision: "approve" | "deny",
 	graph: { verdict: Verdict; actions: readonly { action: string }[] },
-): { verdict: Verdict; floorBlock: boolean } {
+) {
 	if (decision === "deny") {
 		return {
-			verdict: "block",
+			verdict: "block" as const,
 			floorBlock: !graph.actions.some((action) => action.action === "block"),
 		};
 	}

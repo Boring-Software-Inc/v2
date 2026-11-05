@@ -9,7 +9,12 @@
 export type { RerunChangeRequestJob } from "@tripwire/contracts";
 export { type BackfillReport, backfillOrgs } from "./backfill-orgs.ts";
 export type { Db } from "./client.ts";
-export { createDb, createDirectPool, schema } from "./client.ts";
+export {
+	createDb,
+	createDirectPool,
+	requirePostgresPool,
+	schema,
+} from "./client.ts";
 export { applyMigrations } from "./migrate.ts";
 export {
 	applyPgliteMigrations,

@@ -333,3 +333,227 @@ describe("scan transform", () => {
 		).toThrow("malformed");
 	});
 });
+
+describe("raw input compatibility", () => {
+	test("rejected values and numeric arguments never read object metadata for diagnostics", () => {
+		const reads: string[] = [];
+		const values = [
+			Object.create({
+				get constructor() {
+					reads.push("constructor");
+					throw new Error("constructor read");
+				},
+			}),
+			new Proxy(
+				{},
+				{
+					getPrototypeOf() {
+						reads.push("getPrototypeOf");
+						throw new Error("prototype read");
+					},
+				},
+			),
+		];
+		for (const value of values) {
+			expect(() => evaluateComparison("number", value, under(1), "s")).toThrow(
+				new SignalEvaluationError(
+					"signal s declared number but produced object",
+				),
+			);
+			expect(() => evaluateComparison("text", value, equals("x"), "s")).toThrow(
+				new SignalEvaluationError("signal s declared text but produced object"),
+			);
+			expect(() =>
+				evaluateComparison("boolean", value, equals(true), "s"),
+			).toThrow(
+				new SignalEvaluationError(
+					"signal s declared boolean but produced object",
+				),
+			);
+			expect(() =>
+				evaluateComparison("number", 1, { kind: "under", args: [value] }, "s"),
+			).toThrow(
+				new SignalEvaluationError("comparison under needs a number argument"),
+			);
+			expect(() =>
+				evaluateComparison(
+					"number",
+					1,
+					{ kind: "between", args: [0, value] },
+					"s",
+				),
+			).toThrow(
+				new SignalEvaluationError("comparison between needs a number argument"),
+			);
+		}
+		expect(reads).toEqual([]);
+	});
+
+	test("nonfinite values and arguments retain their distinct number policies", () => {
+		expect(evaluateComparison("number", Infinity, equals(Infinity), "s")).toBe(
+			true,
+		);
+		expect(evaluateComparison("number", -Infinity, under(0), "s")).toBe(true);
+		expect(evaluateComparison("number", 1, under(NaN), "s")).toBe(false);
+		expect(() => evaluateComparison("number", NaN, under(0), "s")).toThrow(
+			"signal s declared number but produced number",
+		);
+	});
+
+	test("wrong primitive values retain exact diagnostic labels without coercion", () => {
+		const cases = [
+			{ value: undefined, label: "undefined" },
+			{ value: null, label: "object" },
+			{ value: {}, label: "object" },
+			{ value: [], label: "object" },
+			{ value: "1", label: "string" },
+			{ value: true, label: "boolean" },
+			{ value: 1n, label: "bigint" },
+			{ value: Symbol("value"), label: "symbol" },
+			{ value: () => 1, label: "function" },
+		];
+		for (const { value, label } of cases) {
+			expect(() => evaluateComparison("number", value, under(0), "s")).toThrow(
+				`signal s declared number but produced ${label}`,
+			);
+		}
+		expect(() => evaluateComparison("text", 1, equals("1"), "s")).toThrow(
+			"signal s declared text but produced number",
+		);
+		expect(() =>
+			evaluateComparison("boolean", "true", equals(true), "s"),
+		).toThrow("signal s declared boolean but produced string");
+	});
+
+	test("between and empty list comparisons keep validation lazy", () => {
+		const args = [10];
+		Object.defineProperty(args, "1", {
+			get() {
+				throw new Error("second bound was read");
+			},
+		});
+		expect(
+			evaluateComparison("number", 1, { kind: "between", args }, "s"),
+		).toBe(false);
+		expect(() =>
+			evaluateComparison("number", 12, { kind: "between", args }, "s"),
+		).toThrow("second bound was read");
+		expect(
+			evaluateComparison("textList", [], { kind: "noneMatch", args: [] }, "s"),
+		).toBe(true);
+		expect(() =>
+			evaluateComparison(
+				"textList",
+				["x"],
+				{ kind: "noneMatch", args: [] },
+				"s",
+			),
+		).toThrow("comparison noneMatch needs a list of glob patterns");
+		expect(
+			evaluateComparison(
+				"scanMatches",
+				[],
+				{ kind: "empty", args: [null] },
+				"s",
+			),
+		).toBe(true);
+	});
+
+	test("mixed membership and substring lists are not narrowed to homogeneous lists", () => {
+		const args = [[null, 7, "hello", false]];
+		expect(
+			evaluateComparison("text", "hello", { kind: "containsAny", args }, "s"),
+		).toBe(true);
+		expect(
+			evaluateComparison("text", "7", { kind: "containsAny", args }, "s"),
+		).toBe(false);
+		expect(evaluateComparison("number", 7, { kind: "oneOf", args }, "s")).toBe(
+			true,
+		);
+		expect(
+			evaluateComparison("textList", ["hello"], { kind: "anyIn", args }, "s"),
+		).toBe(true);
+	});
+
+	test("sparse lists and inherited or array comparison envelopes remain accepted", () => {
+		const sparse = new Array<string>(2);
+		expect(evaluateComparison("textList", sparse, noneMatch(["*"]), "s")).toBe(
+			true,
+		);
+		expect(evaluateComparison("scanMatches", sparse, empty(), "s")).toBe(false);
+		const inherited = Object.create({ kind: "under", args: [10] });
+		const arrayEnvelope = Object.assign([], { kind: "under", args: [10] });
+		for (const inner of [inherited, arrayEnvelope]) {
+			expect(
+				evaluateComparison("number", 1, { kind: "not", args: [inner] }, "s"),
+			).toBe(false);
+		}
+		const proxyEnvelope = new Proxy(
+			{},
+			{
+				get(_target, property) {
+					return property === "kind" ? "under" : [10];
+				},
+			},
+		);
+		expect(
+			evaluateComparison(
+				"number",
+				1,
+				{ kind: "not", args: [proxyEnvelope] },
+				"s",
+			),
+		).toBe(false);
+	});
+
+	test("scan match validation preserves inherited fields, arrays, and original resolved values", () => {
+		const fields = { kind: "word", value: "x", location: "comment" };
+		const matches = [Object.create(fields), Object.assign([], fields)];
+		expect(evaluateComparison("scanMatches", matches, empty(), "s")).toBe(
+			false,
+		);
+		const result = evaluateSignalRule(
+			{
+				name: "paths",
+				signal: { id: "pr.changedPaths" },
+				comparison: anyIn(["a"]),
+			},
+			{ value: ["a"], now: NOW },
+		);
+		expect(result).toEqual({ passed: true, resolvedValue: ["a"] });
+		const raw = { arbitrary: Symbol("raw") };
+		expect(
+			resolveSignalValue({ id: "pr.title" }, { value: raw, now: NOW }).value,
+		).toBe(raw);
+	});
+
+	test("malformed comparison arguments retain exact errors and validation precedence", () => {
+		for (const { comparison, message } of [
+			{
+				comparison: { kind: "under", args: ["1"] },
+				message: "comparison under needs a number argument",
+			},
+			{
+				comparison: { kind: "not", args: [null] },
+				message: "comparison not needs an inner comparison argument",
+			},
+			{
+				comparison: { kind: "oneOf", args: [null] },
+				message: "comparison oneOf needs a list argument",
+			},
+		]) {
+			expect(() => evaluateComparison("number", 1, comparison, "s")).toThrow(
+				new SignalEvaluationError(message),
+			);
+		}
+		expect(() =>
+			evaluateComparison("number", "bad", { kind: "not", args: [] }, "s"),
+		).toThrow("signal s declared number but produced string");
+		expect(() =>
+			evaluateComparison("text", "x", { kind: "equals", args: [1] }, "s"),
+		).toThrow("comparison equals needs a text argument");
+		expect(() =>
+			evaluateComparison("boolean", true, { kind: "equals", args: [1] }, "s"),
+		).toThrow("comparison equals needs a boolean argument");
+	});
+});

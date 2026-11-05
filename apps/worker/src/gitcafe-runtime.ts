@@ -25,6 +25,7 @@ import {
 	organizationInstallations,
 	repoServices,
 	repos,
+	requirePostgresPool,
 	runServices,
 } from "@tripwire/db";
 import type {
@@ -72,7 +73,7 @@ export function buildGitCafeRuntime(
 	db: Db,
 	credentials: GitCafeAppCredentials,
 	fetch?: GitCafeInstallationClientOptions["fetch"],
-	actionPool: Pool = db.$client,
+	actionPool: Pool = requirePostgresPool(db),
 ): GitCafeRuntime {
 	const selfActors = new Set<string>();
 	const bind = async (repoFullName: string, context?: ForgeActionContext) => {

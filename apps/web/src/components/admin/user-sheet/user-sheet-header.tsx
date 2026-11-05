@@ -7,24 +7,25 @@ import {
 	unwrapStaffAction,
 	useStaffAction,
 } from "#/components/admin/user-sheet/use-staff-action";
-import { Check, Failed, Icon, More, Time } from "#/components/glaze/icon";
-import { Avatar } from "#/components/glaze/ui/avatar";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
+import { Check, Failed, Icon, More, Time } from "#/design-system/icon";
+import { Avatar } from "#/design-system/ui/avatar";
+import { Badge } from "#/design-system/ui/badge";
+import { Button } from "#/design-system/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "#/components/glaze/ui/dropdown-menu";
-import { SheetTitle } from "#/components/glaze/ui/sheet";
-import { toast } from "#/components/glaze/ui/toast";
+} from "#/design-system/ui/dropdown-menu";
+import { SheetTitle } from "#/design-system/ui/sheet";
+import { toast } from "#/design-system/ui/toast";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "#/components/glaze/ui/tooltip";
+} from "#/design-system/ui/tooltip";
+import { SupportingText } from "#/design-system/ui/typography";
 import {
 	type AdminUserView,
 	impersonateAdminUser,
@@ -92,7 +93,7 @@ export function UserSheetHeader({
 	const guarded = self || user.isPlatformAdmin;
 	const impersonateButton = (
 		<Button
-			className="flex-1 sm:flex-none"
+			data-layout-role="user-sheet-leading-action"
 			disabled={!view.impersonation.ok || impersonate.isPending}
 			onClick={() => impersonate.mutate()}
 			pending={impersonate.isPending}
@@ -104,34 +105,36 @@ export function UserSheetHeader({
 		</Button>
 	);
 	return (
-		<div className="flex flex-col gap-4 border-line-faint border-b px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-			<div className="flex min-w-0 items-center gap-3">
+		<header data-layout-role="user-sheet-header">
+			<div data-layout-role="user-sheet-identity">
 				<Avatar
 					decorative
 					name={user.name}
 					size="lg"
 					src={user.image ?? undefined}
 				/>
-				<div className="flex min-w-0 flex-col gap-0.5">
-					<div className="flex flex-wrap items-center gap-2">
-						<SheetTitle className="type-heading-sm">{user.name}</SheetTitle>
+				<div data-layout-role="user-sheet-identity-copy">
+					<div data-layout-role="user-sheet-title-row">
+						<SheetTitle>{user.name}</SheetTitle>
 						<AccessBadge status={user.accessStatus} />
 						{user.banned ? <Badge variant="fail">Banned</Badge> : null}
 						{user.isPlatformAdmin ? (
 							<Badge variant="outline">Staff</Badge>
 						) : null}
 					</div>
-					<div className="flex min-w-0 flex-col type-body-sm text-text-2 sm:flex-row sm:gap-3">
-						{user.login ? <span className="truncate">{user.login}</span> : null}
-						<span className="truncate">{user.email}</span>
+					<div data-layout-role="user-sheet-contact">
+						{user.login ? (
+							<SupportingText as="span">{user.login}</SupportingText>
+						) : null}
+						<SupportingText as="span">{user.email}</SupportingText>
 					</div>
 				</div>
 			</div>
-			<div className="flex shrink-0 items-center gap-2">
+			<div data-layout-role="user-sheet-header-actions">
 				{pending ? (
 					<>
 						<Button
-							className="flex-1 sm:flex-none"
+							data-layout-role="user-sheet-leading-action"
 							disabled={review.isPending}
 							onClick={() => review.mutate("reject")}
 							size="sm"
@@ -140,7 +143,7 @@ export function UserSheetHeader({
 							Decline
 						</Button>
 						<Button
-							className="flex-1 sm:flex-none"
+							data-layout-role="user-sheet-leading-action"
 							disabled={review.isPending}
 							onClick={() => review.mutate("approve")}
 							size="sm"
@@ -153,7 +156,7 @@ export function UserSheetHeader({
 				) : (
 					<Tooltip>
 						<TooltipTrigger
-							render={<span className="flex flex-1 sm:flex-none" />}
+							render={<span data-layout-role="user-sheet-action-tooltip" />}
 						>
 							{impersonateButton}
 						</TooltipTrigger>
@@ -205,6 +208,6 @@ export function UserSheetHeader({
 					</DropdownMenuContent>
 				</DropdownMenu>
 			</div>
-		</div>
+		</header>
 	);
 }

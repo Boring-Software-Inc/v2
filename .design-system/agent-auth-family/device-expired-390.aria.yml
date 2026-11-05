@@ -1,0 +1,4 @@
+- text: Tripwire
+- banner:
+  - heading "This code expired. Run the sign-in command again." [level=1]
+- region "Notifications"

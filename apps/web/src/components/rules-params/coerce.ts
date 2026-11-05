@@ -1,8 +1,8 @@
-import type { RuleParam } from "@tripwire/contracts";
+import type { JsonValue, RuleParam } from "@tripwire/contracts";
 
 /** Result of coercing a raw text input into a typed, in-range param value. */
 export type Coerced =
-	| { ok: true; value: unknown }
+	| { ok: true; value: JsonValue }
 	| { ok: false; error: string };
 
 /**

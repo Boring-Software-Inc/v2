@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { z } from "zod";
 import { writeLatencyCookie } from "#/components/dev/use-dev-scenario";
-import { toast } from "#/components/glaze/ui/toast";
+import { toast } from "#/design-system/ui/toast";
 import type { DevAppliedState } from "#/lib/dev/scenario-panel";
 import type { DevScenario } from "#/lib/dev/scenarios";
 

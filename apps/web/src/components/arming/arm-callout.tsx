@@ -6,16 +6,16 @@ import {
 	AlertAction,
 	AlertDescription,
 	AlertTitle,
-} from "#/components/glaze/ui/alert";
-import { Button } from "#/components/glaze/ui/button";
+} from "#/design-system/ui/alert";
+import { Button } from "#/design-system/ui/button";
 import {
 	Card,
 	CardDescription,
 	CardFooter,
 	CardHeader,
 	CardTitle,
-} from "#/components/glaze/ui/card";
-import { toast } from "#/components/glaze/ui/toast";
+} from "#/design-system/ui/card";
+import { toast } from "#/design-system/ui/toast";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { armRepo } from "#/lib/arm.functions";
 import { orgContextQueryOptions } from "#/lib/org.query";

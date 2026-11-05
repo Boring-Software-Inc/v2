@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export interface RepoTab {
 	/** `org/repo` — stable identity and the visible label. */
 	id: string;
@@ -44,37 +46,38 @@ export function repoTabsReducer(
 	}
 }
 
+const storedRepoTabSchema = z.object({
+	org: z.string(),
+	repo: z.string(),
+	path: z.string().optional().catch(undefined),
+});
+const storedRepoTabsSchema = z
+	.array(storedRepoTabSchema.optional().catch(undefined))
+	.catch([]);
+
 /**
  * Tolerates anything in storage: a shape change ships a shorter strip rather
  * than throwing on read and losing the whole set.
  */
 export function parseStoredRepoTabs(raw: string): RepoTab[] {
-	let parsed: unknown;
+	let stored: ReturnType<typeof storedRepoTabsSchema.parse>;
 	try {
-		parsed = JSON.parse(raw);
+		stored = storedRepoTabsSchema.parse(JSON.parse(raw));
 	} catch {
 		return [];
 	}
-	if (!Array.isArray(parsed)) {
-		return [];
-	}
-	const tabs: RepoTab[] = [];
-	for (const item of parsed) {
-		if (!item || typeof item !== "object") {
-			continue;
-		}
-		const { org, repo, path } = item as Record<string, unknown>;
-		if (typeof org !== "string" || typeof repo !== "string") {
-			continue;
-		}
-		tabs.push({
-			id: `${org}/${repo}`,
-			org,
-			repo,
-			path: resolveRepoTabPath(org, repo, typeof path === "string" ? path : ""),
-		});
-	}
-	return tabs;
+	return stored.flatMap((item) =>
+		item
+			? [
+					{
+						id: `${item.org}/${item.repo}`,
+						org: item.org,
+						repo: item.repo,
+						path: resolveRepoTabPath(item.org, item.repo, item.path ?? ""),
+					},
+				]
+			: [],
+	);
 }
 
 /** True when `pathname` is the repo's own root or a page under it. */

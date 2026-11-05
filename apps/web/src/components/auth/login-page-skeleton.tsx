@@ -1,6 +1,6 @@
 import { BrandLockup } from "#/components/auth/brand-lockup";
-import { Card, CardContent } from "#/components/glaze/ui/card";
-import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
+import { Card, CardContent } from "#/design-system/ui/card";
+import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 
 const CELL_SLOTS = ["a", "b", "c", "d"] as const;
 
@@ -8,26 +8,27 @@ const CELL_SLOTS = ["a", "b", "c", "d"] as const;
  * disclosure row — so nothing reflows when the real buttons land. */
 export function LoginPageSkeleton() {
 	return (
-		<div className="flex min-h-dvh flex-col items-center justify-start bg-page px-4 pt-[max(2.5rem,calc(50svh-13rem))] pb-40">
-			<div
-				aria-hidden
-				className="flex w-full max-w-sm flex-col items-center gap-6"
-			>
+		<div data-layout-role="login-shell">
+			<div aria-hidden data-layout-role="login-content">
 				<BrandLockup />
 
-				<div className="flex flex-col items-center gap-1">
-					<SkeletonText className="w-56" type="heading" />
-					<SkeletonText className="w-64" type="body" />
+				<div data-layout-role="login-skeleton-header">
+					<SkeletonText data-layout-size="wide" type="heading" />
+					<SkeletonText data-layout-size="wider" type="body" />
 				</div>
 
-				<Card className="w-full">
+				<Card data-layout-role="login-card">
 					<CardContent>
-						<div className="grid grid-cols-2 gap-2">
+						<div data-layout-role="login-skeleton-grid">
 							{CELL_SLOTS.map((slot) => (
-								<Skeleton className="h-(--control) rounded-pill" key={slot} />
+								<div key={slot}>
+									<Skeleton />
+								</div>
 							))}
 						</div>
-						<Skeleton className="h-(--control-sm) w-44 rounded-pill" />
+						<div data-layout-role="login-skeleton-disclosure">
+							<Skeleton />
+						</div>
 					</CardContent>
 				</Card>
 			</div>

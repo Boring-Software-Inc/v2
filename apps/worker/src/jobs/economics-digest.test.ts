@@ -97,8 +97,8 @@ describe("buildAlerts", () => {
 		};
 		const alerts = buildAlerts(hot, TH);
 		expect(alerts).toHaveLength(3);
-		expect(alerts[0]).toContain(
-			"OpenRouter spend hit $1.1200 today, over the $1.00 cap",
+		expect(alerts[0]).toBe(
+			"[ALERT] OpenRouter spend hit $1.1200 today, over the $1.00 cap.",
 		);
 		expect(alerts[1]).toContain("Billing drifted 14.8% from actual");
 		expect(alerts[1]).toContain("over the 10% limit");

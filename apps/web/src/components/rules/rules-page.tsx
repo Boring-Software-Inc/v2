@@ -1,26 +1,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
-import { ruleUiSchema } from "@tripwire/contracts";
+import { type JsonValue, ruleUiSchema } from "@tripwire/contracts";
 import { useMemo, useState } from "react";
 import { ArmCallout } from "#/components/arming/arm-callout";
 import { Collection } from "#/components/collection/collection";
 import { ShaderDither } from "#/components/dither/shader-dither";
-import { Add, Icon } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
-import {
-	Empty,
-	EmptyContent,
-	EmptyDescription,
-	EmptyHeader,
-	EmptyRetry,
-	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
-import {
-	SegmentedControl,
-	SegmentedControlItem,
-} from "#/components/glaze/ui/segmented-control";
-import { toast } from "#/components/glaze/ui/toast";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Page, PageBody, PageHeader } from "#/components/layouts/page";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import {
 	CustomRuleBuilder,
@@ -40,8 +26,25 @@ import { useInstallRules } from "#/components/rules/use-install-rules";
 import {
 	type SaveQueueCommit,
 	SaveQueueProvider,
+	type SaveQueueValue,
+	type SaveQueueValues,
 	UnsavedChangesBar,
 } from "#/components/save-queue";
+import { Add, Icon } from "#/design-system/icon";
+import { Button } from "#/design-system/ui/button";
+import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyRetry,
+	EmptyTitle,
+} from "#/design-system/ui/empty-state";
+import {
+	SegmentedControl,
+	SegmentedControlItem,
+} from "#/design-system/ui/segmented-control";
+import { toast } from "#/design-system/ui/toast";
 import { useCollection } from "#/hooks/use-collection";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import {
@@ -67,12 +70,16 @@ const routeApi = getRouteApi("/$org/$repo/rules");
 
 /** Deep equality for the queue's noop-clearing — rule param values include
  * arrays (honeypot paths), where ordering IS a real change. */
-function jsonEqual(a: unknown, b: unknown): boolean {
+function jsonEqual(a: SaveQueueValue, b: SaveQueueValue): boolean {
 	return JSON.stringify(a) === JSON.stringify(b);
 }
 
-const asObject = (c: unknown): Record<string, unknown> =>
-	typeof c === "object" && c !== null ? (c as Record<string, unknown>) : {};
+function asObject(config: JsonValue): Record<string, JsonValue> {
+	if (config === null || Array.isArray(config) || Object(config) !== config) {
+		return {};
+	}
+	return config as Record<string, JsonValue>;
+}
 
 /**
  * The queue's saved baseline: per STANDALONE rule, `${ruleId}:enabled`, one
@@ -80,10 +87,8 @@ const asObject = (c: unknown): Record<string, unknown> =>
  * sentence displays), and `${ruleId}:upgrade` (false) when an update is held.
  * Managed rules contribute no keys — their cards are read-only.
  */
-function ruleSavedValues(
-	rules: RuleConfigView[] | undefined,
-): Record<string, unknown> {
-	const values: Record<string, unknown> = {};
+function ruleSavedValues(rules: RuleConfigView[] | undefined): SaveQueueValues {
+	const values: SaveQueueValues = {};
 	for (const rule of rules ?? []) {
 		if (rule.management !== "standalone") {
 			continue;
@@ -91,8 +96,14 @@ function ruleSavedValues(
 		values[`${rule.ruleId}:enabled`] = rule.enabled;
 		const config = asObject(rule.config);
 		for (const param of ruleUiSchema(rule.ruleId)?.params ?? []) {
+			const fallback =
+				"default" in param
+					? param.kind === "string-list"
+						? [...param.default]
+						: param.default
+					: undefined;
 			values[`${rule.ruleId}:param:${param.key}`] =
-				config[param.key] ?? ("default" in param ? param.default : undefined);
+				config[param.key] ?? fallback;
 		}
 		if (rule.held) {
 			values[`${rule.ruleId}:upgrade`] = false;
@@ -207,12 +218,20 @@ export function RulesPage() {
 					const config = { ...asObject(view.config) };
 					for (const key of paramKeys) {
 						const paramKey = key.split(":param:")[1] ?? "";
-						config[paramKey] = pending[key];
+						const value = pending[key];
+						if (value !== undefined) {
+							config[paramKey] = value;
+						}
 					}
+					const queuedEnabled = pending[enabledKey];
 					const enabled =
-						(pending[enabledKey] as boolean | undefined) ?? view.enabled;
+						queuedEnabled === true
+							? true
+							: queuedEnabled === false
+								? false
+								: view.enabled;
 					const result = await saveRuleConfig({
-						data: { org, repoId, ruleId, enabled, config: config as never },
+						data: { org, repoId, ruleId, enabled, config },
 					});
 					if (result && "error" in result) {
 						fail();
@@ -291,24 +310,10 @@ export function RulesPage() {
 			savedValues={useMemo(() => ruleSavedValues(rules), [rules])}
 		>
 			<DashboardLayout counts={{}}>
-				<div className="px-4 py-6 md:px-8 md:py-10">
-					<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-						<header className="flex items-start justify-between gap-4">
-							<div className="flex flex-col gap-1">
-								<h1 className="type-title">Rules</h1>
-								{starting ? null : (
-									<p className="type-body text-text-2">
-										Requirements that every contributor outside your org must
-										meet on every change request.
-									</p>
-								)}
-								{orgContext && !isAdmin ? (
-									<p className="type-body-sm text-text-2">
-										Your role can view rules but not change them.
-									</p>
-								) : null}
-							</div>
-							{isAdmin ? (
+				<Page purpose="task">
+					<PageHeader
+						actions={
+							isAdmin ? (
 								<Button
 									onClick={() => setBuilderOpen(true)}
 									variant="secondary"
@@ -316,8 +321,18 @@ export function RulesPage() {
 									<Icon icon={Add} />
 									Create rule
 								</Button>
-							) : null}
-						</header>
+							) : null
+						}
+						description={
+							starting
+								? undefined
+								: orgContext && !isAdmin
+									? "Requirements that every contributor outside your org must meet. Your role can view rules but not change them."
+									: "Requirements that every contributor outside your org must meet on every change request."
+						}
+						title="Rules"
+					/>
+					<PageBody>
 						<CustomRuleBuilder
 							onClose={() => setBuilderOpen(false)}
 							onSave={saveDraft}
@@ -505,8 +520,8 @@ export function RulesPage() {
 								)}
 							</>
 						)}
-					</div>
-				</div>
+					</PageBody>
+				</Page>
 				<UnsavedChangesBar />
 			</DashboardLayout>
 		</SaveQueueProvider>

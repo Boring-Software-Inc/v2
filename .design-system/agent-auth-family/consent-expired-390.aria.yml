@@ -1,0 +1,4 @@
+- text: Tripwire
+- banner:
+  - heading "This sign-in link expired. Start again from your agent." [level=1]
+- region "Notifications"

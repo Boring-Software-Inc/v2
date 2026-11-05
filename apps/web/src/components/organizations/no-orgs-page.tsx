@@ -1,21 +1,21 @@
 import { useMutation } from "@tanstack/react-query";
 import { orgSlugSchema, slugifyOrgName } from "@tripwire/contracts";
 import { useId, useState } from "react";
-import { Button } from "#/components/glaze/ui/button";
+import { OrgAvatar } from "#/components/organizations/org-avatar";
+import { Button } from "#/design-system/ui/button";
 import {
 	Card,
 	CardContent,
 	CardFooter,
 	CardMeta,
-} from "#/components/glaze/ui/card";
+} from "#/design-system/ui/card";
 import {
 	Field,
 	FieldDescription,
 	FieldError,
 	FieldLabel,
-} from "#/components/glaze/ui/field";
-import { Input } from "#/components/glaze/ui/input";
-import { OrgAvatar } from "#/components/organizations/org-avatar";
+} from "#/design-system/ui/field";
+import { Input } from "#/design-system/ui/input";
 import { createOrg } from "#/lib/org.functions";
 
 /**

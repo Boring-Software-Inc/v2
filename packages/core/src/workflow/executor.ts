@@ -45,7 +45,7 @@ export interface ExecutionResult {
 	actions: {
 		nodeId: string;
 		action: string;
-		params: Record<string, unknown>;
+		params: NonNullable<Extract<WorkflowNode, { type: "action" }>["params"]>;
 	}[];
 	/** Node outcomes, persisted for resume. */
 	outcomes: Record<string, NodeOutcome>;
@@ -55,7 +55,10 @@ export interface ExecuteWorkflowOptions {
 	definition: WorkflowDefinition;
 	event: NormalizedEvent;
 	/** Injected: evaluates `ref` with `config` over the pre-built RuleContext. */
-	evaluateRuleRef: (ref: string, config: unknown) => Promise<RuleResult>;
+	evaluateRuleRef: (
+		ref: string,
+		config: Extract<WorkflowNode, { type: "rule" }>["config"],
+	) => Promise<RuleResult>;
 	/** Injected clock for step timings. */
 	now: () => string;
 	/**
@@ -149,8 +152,8 @@ export async function executeWorkflow(
 	const record = async (
 		node: WorkflowNode,
 		status: StepRecord["status"],
-		input: unknown,
-		output: unknown,
+		input: StepRecord["input"],
+		output: StepRecord["output"],
 		startedAt: string,
 	): Promise<void> => {
 		const finishedAt = now();

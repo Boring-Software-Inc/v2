@@ -5,6 +5,11 @@
  * harness a gate (exit non-zero on any failure) and its output a readable diff.
  */
 
+import {
+	jsonSerializationSchema,
+	thrownStringSchema,
+} from "@tripwire/contracts";
+
 export interface AssertionResult {
 	label: string;
 	expected: string;
@@ -12,14 +17,22 @@ export interface AssertionResult {
 	ok: boolean;
 }
 
-const show = (value: unknown): string =>
-	typeof value === "string" ? value : JSON.stringify(value);
+function show(
+	value: Parameters<typeof jsonSerializationSchema.parse>[0],
+): string {
+	const text = thrownStringSchema.safeParse(value);
+	return text.success ? text.data : jsonSerializationSchema.parse(value);
+}
 
 export class Asserter {
 	readonly results: AssertionResult[] = [];
 
 	/** Record an equality check; returns whether it held (for early branching). */
-	equals(label: string, expected: unknown, actual: unknown): boolean {
+	equals(
+		label: string,
+		expected: Parameters<typeof show>[0],
+		actual: Parameters<typeof show>[0],
+	): boolean {
 		const ok = show(expected) === show(actual);
 		this.results.push({
 			label,

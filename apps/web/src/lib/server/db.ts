@@ -6,6 +6,7 @@ import {
 	createDb,
 	createGitCafeConnectionBoss,
 	createPgliteDb,
+	type Db,
 	type PgliteHandle,
 	repoServices,
 } from "@tripwire/db";
@@ -13,8 +14,8 @@ import { generateId } from "@tripwire/utils";
 import type { PgBoss } from "pg-boss";
 import pino from "pino";
 
-type DbBundle = ReturnType<typeof createDb>;
-type DbPool = DbBundle["pool"];
+type DbPool = ReturnType<typeof createDb>["pool"];
+type DbBundle = { db: Db; pool: DbPool };
 
 /**
  * Server-only database access for TanStack server functions. Import this
@@ -37,16 +38,13 @@ export function isDemoMode(): boolean {
 }
 
 // Any attempt to use a pg pool in demo mode is a bug — fail loudly, never hang.
-const DEMO_POOL = new Proxy(
-	{},
-	{
-		get() {
-			throw new Error(
-				"No Postgres pool in demo mode. The web app runs alone, with no worker or queue.",
-			);
-		},
+const DEMO_POOL = new Proxy<DbPool>({} as DbPool, {
+	get() {
+		throw new Error(
+			"No Postgres pool in demo mode. The web app runs alone, with no worker or queue.",
+		);
 	},
-) as unknown as DbPool;
+});
 
 export function getDb() {
 	if (instance) {

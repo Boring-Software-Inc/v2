@@ -3,10 +3,14 @@
 	"private": true,
 	"type": "module",
 	"imports": {
+		"#/design-system/icon": "./src/components/glaze/icon.tsx",
+		"#/design-system/ui/typography": "./src/design-system/ui/typography.tsx",
+		"#/design-system/ui/*": "./src/components/glaze/ui/*",
+		"#/design-system/lib/*": "./src/lib/glaze/*",
 		"#/*": "./src/*"
 	},
 	"scripts": {
-		"dev": "bun --env-file=../../.env vite dev --port 3000",
+		"dev": "bun --env-file=../../.env vite dev --port 3000 --host 0.0.0.0",
 		"build": "vite build && bun run build:instrument",
 		"build:instrument": "bun build instrument.server.mjs --production --target=node --outfile=.output/server/instrument.server.mjs && bun build node_modules/@sentry/server-runtime-injection/build/esm/hook.js --production --target=node --outfile=.output/server/hook.js",
 		"preview": "vite preview",
@@ -42,6 +46,7 @@
 		"@tripwire/contracts": "workspace:*",
 		"@tripwire/db": "workspace:*",
 		"@tripwire/sdk": "workspace:*",
+		"@tripwire/ui": "workspace:*",
 		"@xyflow/react": "^12.11.2",
 		"better-auth": "^1.7.12",
 		"class-variance-authority": "^0.7.1",

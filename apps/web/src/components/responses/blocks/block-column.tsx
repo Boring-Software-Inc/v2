@@ -1,11 +1,11 @@
 import type { BlockOutcome } from "@tripwire/contracts";
 import type { ComponentProps } from "react";
-import { ChevronLeft, ChevronRight, Icon } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "#/components/glaze/ui/tabs";
 import { BlockPalette } from "#/components/responses/blocks/block-palette";
 import { BlockSettings } from "#/components/responses/blocks/block-settings";
 import type { BlockBuilder } from "#/components/responses/blocks/use-block-builder";
+import { ChevronLeft, ChevronRight, Icon } from "#/design-system/icon";
+import { Button } from "#/design-system/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "#/design-system/ui/tabs";
 
 export interface BlockColumnProps {
 	builder: BlockBuilder;

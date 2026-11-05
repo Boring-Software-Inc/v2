@@ -3,12 +3,8 @@ import { getRouteApi } from "@tanstack/react-router";
 import type { RedactionPolicy } from "@tripwire/contracts";
 import { OPEN_REDACTION, resolveRedaction } from "@tripwire/contracts";
 import { useMemo, useState } from "react";
-import {
-	SegmentedControl,
-	SegmentedControlItem,
-} from "#/components/glaze/ui/segmented-control";
-import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Page, PageBody, PageHeader } from "#/components/layouts/page";
 import { ResponseBuilder } from "#/components/responses/blocks/response-builder";
 import { PreviewLinkProvider } from "#/components/responses/preview-link";
 import { RedactionSettings } from "#/components/responses/redaction-settings";
@@ -26,6 +22,11 @@ import {
 	SaveQueueProvider,
 	useSaveQueue,
 } from "#/components/save-queue";
+import {
+	SegmentedControl,
+	SegmentedControlItem,
+} from "#/design-system/ui/segmented-control";
+import { SkeletonSwap } from "#/design-system/ui/skeleton";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { orgRepoQueryOptions } from "#/lib/org.query";
 import { pickValue } from "#/lib/pick-value";
@@ -131,57 +132,63 @@ function ResponsesView({
 
 	return (
 		<DashboardLayout counts={{}}>
-			<div className="flex h-full min-h-0 flex-col overflow-y-auto">
-				<header className="flex flex-wrap items-center gap-x-10 gap-y-3 px-4 pt-4 pb-3 md:px-6 lg:min-h-18 lg:px-8 lg:py-3">
-					<h1 className="me-auto type-title lg:type-heading">Responses</h1>
-					<SaveState
-						canEdit={canEdit}
-						error={saveError}
-						onDiscard={onDiscard}
-					/>
-				</header>
-				<div className="px-4 pb-4 md:px-6 lg:px-8">
-					<SegmentedControl
-						aria-label="Outcome"
-						className="max-w-full overflow-x-auto"
-						onValueChange={setScope}
-						value={scope}
-					>
-						{OUTCOMES.map((option) => (
-							<SegmentedControlItem key={option.value} value={option.value}>
-								{option.label}
-							</SegmentedControlItem>
-						))}
-					</SegmentedControl>
-				</div>
-				<SkeletonSwap
-					fallback={<BuilderSkeleton />}
-					label="Loading response settings"
-					loading={!(config && policy)}
-				>
-					{config && policy ? (
-						<div className="grid min-h-0 flex-1 grid-cols-1 gap-4 px-4 pb-6 md:px-6 lg:grid-cols-[auto_minmax(0,1fr)] lg:px-8 xl:grid-cols-[auto_minmax(0,1fr)_--spacing(96)]">
-							<ResponseBuilder
+			<div data-layout-role="responses-shell">
+				<Page>
+					<PageHeader
+						actions={
+							<SaveState
 								canEdit={canEdit}
-								config={config}
-								key={`${outcome.value}-${epoch}`}
-								org={org}
-								outcome={outcome}
-								policy={policy}
-								setField={setField}
+								error={saveError}
+								onDiscard={onDiscard}
 							/>
-							<div className="lg:col-span-2 xl:col-span-1">
-								<RedactionSettings
-									canEdit={canEdit}
-									config={config}
-									effective={policy}
-									orgPolicy={orgPolicy}
-									setField={setField}
-								/>
-							</div>
+						}
+						description="Choose what Tripwire does after each workflow outcome."
+						title="Responses"
+					/>
+					<PageBody>
+						<div data-layout-role="response-scopes">
+							<SegmentedControl
+								aria-label="Outcome"
+								onValueChange={setScope}
+								value={scope}
+							>
+								{OUTCOMES.map((option) => (
+									<SegmentedControlItem key={option.value} value={option.value}>
+										{option.label}
+									</SegmentedControlItem>
+								))}
+							</SegmentedControl>
 						</div>
-					) : null}
-				</SkeletonSwap>
+						<SkeletonSwap
+							fallback={<BuilderSkeleton />}
+							label="Loading response settings"
+							loading={!(config && policy)}
+						>
+							{config && policy ? (
+								<div data-layout-role="response-workspace">
+									<ResponseBuilder
+										canEdit={canEdit}
+										config={config}
+										key={`${outcome.value}-${epoch}`}
+										org={org}
+										outcome={outcome}
+										policy={policy}
+										setField={setField}
+									/>
+									<div data-layout-role="response-redaction">
+										<RedactionSettings
+											canEdit={canEdit}
+											config={config}
+											effective={policy}
+											orgPolicy={orgPolicy}
+											setField={setField}
+										/>
+									</div>
+								</div>
+							) : null}
+						</SkeletonSwap>
+					</PageBody>
+				</Page>
 			</div>
 		</DashboardLayout>
 	);

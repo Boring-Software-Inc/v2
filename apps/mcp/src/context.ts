@@ -9,6 +9,7 @@ import {
 	type Forge,
 	type ForgeId,
 	type OrgPermission,
+	prettyJsonSerializationSchema,
 } from "@tripwire/contracts";
 import type { Db, OrgWithRole, RepoLite } from "@tripwire/db";
 import { orgServices } from "@tripwire/db";
@@ -49,9 +50,13 @@ export class ToolError extends Error {
 	}
 }
 
-export function ok(data: unknown): CallToolResult {
+export function ok(
+	data: Parameters<typeof prettyJsonSerializationSchema.parse>[0],
+): CallToolResult {
 	return {
-		content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+		content: [
+			{ type: "text", text: prettyJsonSerializationSchema.parse(data) },
+		],
 	};
 }
 

@@ -6,42 +6,30 @@ import {
 	useNodeConnections,
 } from "@xyflow/react";
 import { z } from "zod";
-import { Add, Close, Except, Icon, Rules } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
+import type { TripwireFlowNode } from "#/components/workflows/editor/node-card";
+import { useCustomRuleName } from "#/components/workflows/editor/node-issues";
+import {
+	type RuleChoice,
+	useRuleGroups,
+} from "#/components/workflows/editor/rule-groups-context";
+import { ruleIcon, stepName } from "#/components/workflows/editor/step-meta";
+import { WorkflowNodeFrame } from "#/components/workflows/editor/workflow-node-frame";
+import { Add, Close, Except, Icon, Rules } from "#/design-system/icon";
+import { Button } from "#/design-system/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "#/components/glaze/ui/dropdown-menu";
+} from "#/design-system/ui/dropdown-menu";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "#/components/glaze/ui/select";
-import { StatusMark } from "#/components/glaze/ui/status";
-import {
-	NodeAgentOutline,
-	NodeEnterDissolve,
-} from "#/components/workflows/editor/agent-work-context";
-import type { TripwireFlowNode } from "#/components/workflows/editor/node-card";
-import {
-	useCustomRuleName,
-	useNodeProblems,
-	useProblems,
-} from "#/components/workflows/editor/node-issues";
-import {
-	ProblemPeek,
-	severityStatus,
-} from "#/components/workflows/editor/problems-list";
-import {
-	type RuleChoice,
-	useRuleGroups,
-} from "#/components/workflows/editor/rule-groups-context";
-import { ruleIcon, stepName } from "#/components/workflows/editor/step-meta";
-import { cn } from "#/lib/glaze/utils";
+} from "#/design-system/ui/select";
+import { Label } from "#/design-system/ui/typography";
 import type { SkipMode } from "#/lib/rule-groups";
 
 export const GROUP_TITLE = "If any of these rules fail";
@@ -53,48 +41,6 @@ const MODE_ITEMS = [
 ] satisfies { value: SkipMode; label: string }[];
 
 const skipModeSchema = z.enum(["all-of", "any-of"]);
-
-function CardFrame({
-	id,
-	selected,
-	children,
-}: {
-	id: string;
-	selected: boolean;
-	children: React.ReactNode;
-}) {
-	const problems = useNodeProblems(id);
-	const { onFix } = useProblems();
-	const status = problems.length > 0 ? severityStatus(problems) : null;
-	return (
-		<>
-			<div
-				className={cn(
-					"relative w-56 rounded-panel border border-line-faint bg-paper px-3 py-2 text-text-1 transition-colors duration-(--dur-state)",
-					selected && "border-ink",
-					status === "fail" && !selected && "border-fail",
-					status === "warn" && !selected && "border-warn",
-				)}
-			>
-				<NodeAgentOutline nodeId={id} />
-				{status ? (
-					<ProblemPeek
-						className="absolute -top-2 -right-2 flex rounded-pill bg-paper"
-						onFix={onFix}
-						problems={problems}
-					>
-						<StatusMark
-							label={problems.map((problem) => problem.message).join(". ")}
-							status={status}
-						/>
-					</ProblemPeek>
-				) : null}
-				{children}
-			</div>
-			<NodeEnterDissolve nodeId={id} />
-		</>
-	);
-}
 
 function InputPort({ title }: { title: string }) {
 	const look = inputLook("rule");
@@ -153,16 +99,19 @@ function MemberRow({
 	}
 	const name = stepName(node, customName);
 	return (
-		<li className="nodrag nopan flex min-w-0 items-center gap-1">
+		<li className="nodrag nopan" data-layout-role="rule-card-member">
 			<Button
 				aria-label={`Edit ${name}`}
-				className="h-auto min-h-7 min-w-0 flex-1 justify-start gap-2 whitespace-normal py-1 text-start"
+				data-layout-role="rule-card-member-select"
 				onClick={() => select(nodeId)}
 				size="sm"
 				variant="ghost"
 			>
-				<Icon className="shrink-0" icon={ruleIcon(node.ref)} />
-				<span className="min-w-0 [overflow-wrap:anywhere]">{name}</span>
+				<Icon
+					data-layout-role="rule-card-member-icon"
+					icon={ruleIcon(node.ref)}
+				/>
+				<span data-layout-role="rule-card-member-name">{name}</span>
 			</Button>
 			{removable && !readOnly ? (
 				<Button
@@ -197,7 +146,8 @@ function AddRuleMenu({
 			<DropdownMenuTrigger
 				render={
 					<Button
-						className="nodrag nopan mt-1 self-start"
+						className="nodrag nopan"
+						data-layout-role="rule-card-add"
 						size="sm"
 						variant="ghost"
 					/>
@@ -238,13 +188,13 @@ export function RuleGroupNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 	}
 	const removable = card.ruleIds.length > 1;
 	return (
-		<CardFrame id={id} selected={selected}>
+		<WorkflowNodeFrame nodeId={id} selected={selected}>
 			<InputPort title={GROUP_TITLE} />
-			<div className="flex items-center gap-2">
-				<Icon className="-ms-1.5 shrink-0 text-text-1" icon={Rules} />
-				<span className="min-w-0 type-label">{GROUP_TITLE}</span>
+			<div data-layout-role="rule-card-header">
+				<Icon data-layout-role="rule-card-icon" icon={Rules} />
+				<Label data-layout-role="rule-card-title">{GROUP_TITLE}</Label>
 			</div>
-			<ul className="mt-2 flex flex-col border-line-faint border-t pt-1">
+			<ul data-layout-role="rule-card-members">
 				{card.ruleIds.map((ruleId) => (
 					<MemberRow
 						key={ruleId}
@@ -254,7 +204,7 @@ export function RuleGroupNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 					/>
 				))}
 			</ul>
-			<div className="flex flex-wrap items-center gap-1">
+			<div data-layout-role="rule-card-actions">
 				<AddRuleMenu
 					exclude={refsOf(api.nodes, card.ruleIds)}
 					label="Add rule"
@@ -262,7 +212,8 @@ export function RuleGroupNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 				/>
 				{card.skipId === null && !api.readOnly ? (
 					<Button
-						className="nodrag nopan mt-1"
+						className="nodrag nopan"
+						data-layout-role="rule-card-attach-skip"
 						onClick={() => api.attachSkip(id)}
 						size="sm"
 						variant="ghost"
@@ -273,7 +224,7 @@ export function RuleGroupNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 				) : null}
 			</div>
 			<OutputPort port="fail" />
-		</CardFrame>
+		</WorkflowNodeFrame>
 	);
 }
 
@@ -284,15 +235,16 @@ export function SkipWhenNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 		return null;
 	}
 	return (
-		<CardFrame id={id} selected={selected}>
+		<WorkflowNodeFrame nodeId={id} selected={selected}>
 			<InputPort title={SKIP_TITLE} />
-			<div className="flex items-center gap-2">
-				<Icon className="-ms-1.5 shrink-0 text-text-1" icon={Except} />
-				<span className="min-w-0 type-label">{SKIP_TITLE}</span>
+			<div data-layout-role="rule-card-header">
+				<Icon data-layout-role="rule-card-icon" icon={Except} />
+				<Label data-layout-role="rule-card-title">{SKIP_TITLE}</Label>
 				{api.readOnly ? null : (
 					<Button
 						aria-label="Remove Skip when"
-						className="nodrag nopan ms-auto"
+						className="nodrag nopan"
+						data-layout-role="rule-card-remove-skip"
 						onClick={() => api.removeSkip(id)}
 						size="icon-sm"
 						variant="ghost"
@@ -302,7 +254,7 @@ export function SkipWhenNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 				)}
 			</div>
 			{card.checkIds.length > 1 && card.gateId ? (
-				<div className="nodrag nopan mt-1">
+				<div className="nodrag nopan" data-layout-role="rule-card-mode">
 					<Select
 						disabled={api.readOnly}
 						items={MODE_ITEMS}
@@ -316,7 +268,7 @@ export function SkipWhenNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 					>
 						<SelectTrigger
 							aria-label="Skip when match"
-							className="w-auto"
+							data-layout-role="rule-card-mode-trigger"
 							size="sm"
 						>
 							<SelectValue />
@@ -332,7 +284,7 @@ export function SkipWhenNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 				</div>
 			) : null}
 			{card.checkIds.length > 0 ? (
-				<ul className="mt-2 flex flex-col border-line-faint border-t pt-1">
+				<ul data-layout-role="rule-card-members">
 					{card.checkIds.map((checkId) => (
 						<MemberRow
 							key={checkId}
@@ -349,6 +301,6 @@ export function SkipWhenNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 				onPick={(choice) => api.addCheck(id, choice)}
 			/>
 			<OutputPort port="pass" />
-		</CardFrame>
+		</WorkflowNodeFrame>
 	);
 }

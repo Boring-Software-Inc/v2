@@ -1,18 +1,18 @@
 import { DEV_CUSTOM_KEY } from "#/components/dev/use-dev-actions";
-import { Button } from "#/components/glaze/ui/button";
+import { Button } from "#/design-system/ui/button";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
-} from "#/components/glaze/ui/collapsible";
-import { Field, FieldLabel } from "#/components/glaze/ui/field";
+} from "#/design-system/ui/collapsible";
+import { Field, FieldLabel } from "#/design-system/ui/field";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "#/components/glaze/ui/select";
+} from "#/design-system/ui/select";
 import {
 	blockedReason,
 	DEV_AXES,

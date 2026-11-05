@@ -1,7 +1,82 @@
 import { describe, expect, test } from "bun:test";
-import { changeRequestAuthor } from "./activity.ts";
-import type { NormalizedEvent } from "./events.ts";
+import {
+	activityTimelineEntrySchema,
+	changeRequestAuthor,
+	storedNormalizedEventSchema,
+} from "./activity.ts";
+import { type NormalizedEvent, normalizedEventSchema } from "./events.ts";
 
+const fixture = normalizedEventSchema.parse(
+	await Bun.file(
+		new URL(
+			"../../core/fixtures/change-request.opened.event.json",
+			import.meta.url,
+		),
+	).json(),
+);
+
+describe("stored normalized history", () => {
+	test("retains valid event fields and nested additional JSON across the wire", () => {
+		const event = {
+			...fixture,
+			extra: [null, { retained: true }],
+			actor: { ...fixture.actor, extra: { original: "kept" } },
+		};
+		expect(storedNormalizedEventSchema.parse(event)).toEqual(event);
+		expect(
+			activityTimelineEntrySchema.parse({ eventId: event.id, event, run: null })
+				.event,
+		).toEqual(event);
+	});
+
+	test("invalid history is explicit, never a fabricated normalized event", () => {
+		for (const event of [
+			null,
+			false,
+			1,
+			"historical",
+			[],
+			{ kind: fixture.kind },
+			{ ...fixture, actor: null },
+		]) {
+			expect(storedNormalizedEventSchema.safeParse(event).success).toBe(false);
+		}
+		expect(
+			activityTimelineEntrySchema.parse({
+				eventId: fixture.id,
+				event: null,
+				run: null,
+				unavailableReason: "Historical event data is unavailable",
+			}),
+		).toMatchObject({
+			eventId: fixture.id,
+			event: null,
+			unavailableReason: "Historical event data is unavailable",
+		});
+	});
+});
+
+test("history preserves own __proto__ keys at both event and consumed nested fields", () => {
+	const extras = JSON.parse('{"__proto__":{"keep":"event"}}');
+	const actor = JSON.parse(
+		JSON.stringify({
+			...fixture.actor,
+			...JSON.parse('{"__proto__":{"keep":"actor"}}'),
+		}),
+	);
+	const event = { ...fixture, ...extras, actor };
+	const parsed = storedNormalizedEventSchema.parse(event);
+	expect(parsed).toBe(event);
+	expect(
+		JSON.stringify(
+			activityTimelineEntrySchema.parse({
+				eventId: fixture.id,
+				event,
+				run: null,
+			}).event,
+		),
+	).toBe(JSON.stringify(event));
+});
 const BASE = {
 	forge: "github",
 	repo: { owner: "acme", name: "scratch", fullName: "acme/scratch" },

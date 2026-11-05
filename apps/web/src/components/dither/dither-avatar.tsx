@@ -1,5 +1,4 @@
 import { useEffect, useRef } from "react";
-import { AvatarEyes } from "#/components/dither/avatar-eyes";
 import {
 	BAYER4,
 	clamp01,
@@ -10,7 +9,7 @@ import {
 	rgba,
 	xorshift32,
 } from "#/components/dither/pixel";
-import { cn } from "#/lib/glaze/utils";
+import { cn } from "#/design-system/lib/utils";
 
 const GRID = 8;
 const CELL_PX = 4;
@@ -107,7 +106,6 @@ export interface DitherAvatarProps {
 	animate?: boolean;
 	animationDuration?: number;
 	replayToken?: number;
-	eyes?: boolean;
 	label?: string;
 	className?: string;
 }
@@ -118,7 +116,6 @@ export function DitherAvatar({
 	animate = false,
 	animationDuration = 600,
 	replayToken = 0,
-	eyes = false,
 	label,
 	className,
 }: DitherAvatarProps) {
@@ -139,14 +136,12 @@ export function DitherAvatar({
 				role="img"
 			>
 				{canvas}
-				{eyes ? <AvatarEyes /> : null}
 			</span>
 		);
 	}
 	return (
 		<span aria-hidden className={cn("relative block", className)}>
 			{canvas}
-			{eyes ? <AvatarEyes /> : null}
 		</span>
 	);
 }

@@ -4,6 +4,7 @@ import {
 	AI_REVIEW_TRACE_STEP_CHARS,
 	aiReviewTraceSchema,
 	boundAiReviewTrace,
+	openRouterStepCostSchema,
 } from "./review.ts";
 
 /**
@@ -46,6 +47,47 @@ describe("boundAiReviewTrace", () => {
 		expect(t.steps[0]?.type).toBe("tool_call");
 		expect(t.steps[0]?.toolName).toBe("read_file");
 		expect(t.steps[0]?.excerpt).toContain("a.ts");
+	});
+
+	test("tool input serialization keeps raw strings and JSON fallback", () => {
+		const inputs = [
+			"",
+			"plain text",
+			null,
+			undefined,
+			3,
+			false,
+			["a", null, {}],
+		];
+		const trace = boundAiReviewTrace({
+			model: "m",
+			maxSteps: 12,
+			rawSteps: [
+				{ toolCalls: inputs.map((input) => ({ toolName: "tool", input })) },
+			],
+			usage: undefined,
+		});
+		expect(trace.steps.map((step) => step.excerpt)).toEqual([
+			"",
+			"plain text",
+			"{}",
+			"{}",
+			"3",
+			"false",
+			'["a",null,{}]',
+		]);
+	});
+
+	test("cached usage preserves zero and numeric values without coercion", () => {
+		for (const cachedInputTokens of [0, NaN, Infinity, -Infinity]) {
+			const trace = boundAiReviewTrace({
+				model: "m",
+				maxSteps: 12,
+				rawSteps: [],
+				usage: { cachedInputTokens },
+			});
+			expect(trace.usage.cached).toBe(cachedInputTokens);
+		}
 	});
 
 	test("display steps beyond the cap are dropped and trimmed is marked", () => {
@@ -97,5 +139,52 @@ describe("boundAiReviewTrace", () => {
 			usage: { inputTokens: 1, outputTokens: 1 },
 		});
 		expect(aiReviewTraceSchema.safeParse(t).success).toBe(true);
+	});
+});
+
+describe("openRouterStepCostSchema", () => {
+	test("preserves finite numbers without coercing or constraining their sign", () => {
+		for (const cost of [0, -0, -0.5, 0.125]) {
+			expect(
+				openRouterStepCostSchema.parse({
+					usage: { cost, tokens: 4 },
+					extra: true,
+				}).usage.cost,
+			).toBe(cost);
+		}
+	});
+
+	test("ignores absent, malformed and non-finite costs", () => {
+		for (const metadata of [
+			undefined,
+			null,
+			{},
+			[],
+			{ usage: null },
+			{ usage: {} },
+			...["0.2", null, NaN, Infinity, -Infinity].map((cost) => ({
+				usage: { cost },
+			})),
+		]) {
+			expect(openRouterStepCostSchema.safeParse(metadata).success).toBe(false);
+		}
+	});
+
+	test("reads inherited usage and cost like the provider property projection", () => {
+		const usage = Object.create({ cost: 0.25 });
+		expect(
+			openRouterStepCostSchema.parse(Object.create({ usage })).usage.cost,
+		).toBe(0.25);
+	});
+
+	test("invalid cost formatting does not inspect hostile values", () => {
+		const hostile = {
+			get toJSON() {
+				throw new Error("unexpected property read");
+			},
+		};
+		expect(
+			openRouterStepCostSchema.safeParse({ usage: { cost: hostile } }).success,
+		).toBe(false);
 	});
 });

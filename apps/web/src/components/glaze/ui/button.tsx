@@ -30,7 +30,7 @@ import {useSlowAfter} from '#/lib/glaze/waiting.ts';
 const buttonVariants = cva(
   [
     'group/button relative inline-flex max-w-full shrink-0 items-center justify-center gap-1.5 rounded-pill whitespace-nowrap select-none',
-    'disabled:cursor-not-allowed data-disabled:cursor-not-allowed aria-busy:cursor-progress',
+    'disabled:not-aria-busy:cursor-not-allowed data-disabled:not-aria-busy:cursor-not-allowed aria-busy:cursor-progress',
     '[&_svg]:pointer-events-none [&_svg]:shrink-0',
     '[&_svg[data-glyph=more]]:size-(--icon-lg)',
   ],

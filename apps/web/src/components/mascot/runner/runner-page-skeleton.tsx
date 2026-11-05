@@ -1,4 +1,4 @@
-import { Skeleton } from "#/components/glaze/ui/skeleton";
+import { Skeleton } from "#/design-system/ui/skeleton";
 
 export function RunnerPageSkeleton() {
 	return (

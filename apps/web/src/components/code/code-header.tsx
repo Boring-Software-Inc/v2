@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { FileCode, Icon } from "#/components/glaze/icon";
+import { FileCode, Icon } from "#/design-system/icon";
 
 export interface DiffStats {
 	added: number;

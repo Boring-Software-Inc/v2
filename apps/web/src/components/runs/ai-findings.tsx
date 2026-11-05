@@ -3,13 +3,13 @@ import type {
 	Finding,
 	FindingSeverity,
 } from "@tripwire/contracts";
-import { External, Icon } from "#/components/glaze/icon";
 import {
 	blobUrl,
 	FileIcon,
 	FilePath,
 	renderBackticks,
 } from "#/components/runs/evidence-parts";
+import { External, Icon } from "#/design-system/icon";
 import { cn } from "#/lib/utils";
 
 const SEVERITY = {
@@ -32,15 +32,16 @@ function FindingRow({
 		? blobUrl(repo, sha, finding.file, finding.line)
 		: null;
 	return (
-		<li className="flex flex-col gap-1 rounded-tag bg-paper px-2 py-2">
-			<div className="flex items-baseline gap-2">
+		<li className="rounded-tag" data-layout-role="ai-finding">
+			<div data-layout-role="ai-finding-heading">
 				<span className={cn("type-label-sm", severity.tone)}>
 					{severity.label}
 				</span>
 				{finding.line ? (
 					url ? (
 						<a
-							className="type-caption text-text-2 hover:text-text-1 hover:underline"
+							className="type-caption hover:underline"
+							data-layout-role="ai-finding-line"
 							href={url}
 							rel="noreferrer"
 							target="_blank"
@@ -48,13 +49,13 @@ function FindingRow({
 							Line {finding.line}
 						</a>
 					) : (
-						<span className="type-caption text-text-2">
+						<span className="type-caption" data-layout-role="ai-finding-line">
 							Line {finding.line}
 						</span>
 					)
 				) : null}
 			</div>
-			<p className="type-body-sm text-text-1 [overflow-wrap:anywhere]">
+			<p className="type-body-sm" data-layout-role="ai-finding-note">
 				{renderBackticks(finding.note)}
 			</p>
 		</li>
@@ -78,31 +79,40 @@ export function AiFindings({
 		byFile.set(finding.file, [...(byFile.get(finding.file) ?? []), finding]);
 	}
 	return (
-		<div className="flex flex-col gap-2">
+		<div data-layout-role="ai-findings">
 			{[...byFile.entries()].map(([file, findings]) => {
 				const fileUrl = blobUrl(repo, sha, file);
 				return (
 					<div
-						className="flex flex-col gap-1 rounded-panel well p-1"
+						className="rounded-panel well"
+						data-layout-role="ai-findings-file"
 						key={file}
 					>
-						<div className="flex min-w-0 items-center gap-1.5 px-2 py-1.5 type-code-sm">
+						<div
+							className="type-code-sm"
+							data-layout-role="ai-findings-file-heading"
+						>
 							<FileIcon />
 							{fileUrl ? (
 								<a
-									className="flex min-w-0 items-center gap-1 hover:underline"
+									className="hover:underline"
+									data-layout-role="ai-findings-file-link"
 									href={fileUrl}
 									rel="noreferrer"
 									target="_blank"
 								>
 									<FilePath file={file} />
-									<Icon className="text-text-3" icon={External} size={12} />
+									<Icon
+										data-layout-role="ai-findings-external"
+										icon={External}
+										size={12}
+									/>
 								</a>
 							) : (
 								<FilePath file={file} />
 							)}
 						</div>
-						<ul className="flex flex-col gap-1">
+						<ul data-layout-role="ai-findings-list">
 							{findings.map((finding, i) => (
 								<FindingRow
 									finding={finding}

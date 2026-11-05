@@ -1,0 +1,96 @@
+- main:
+  - heading "Responses" [level=1]
+  - paragraph: Choose what Tripwire does after each workflow outcome.
+  - status: Saved
+  - radiogroup "Outcome":
+    - radio "Block" [checked]
+    - radio "Ask author to fix"
+    - radio "Human review"
+    - radio "Note only"
+    - radio "Close"
+  - tablist "Blocks":
+    - tab "Blocks" [selected]
+    - tab "Settings" [disabled]
+  - button "Hide blocks"
+  - searchbox "Search blocks"
+  - heading "Text" [level=3]:
+    - button "Text" [expanded]
+  - region "Text":
+    - text: Headline
+    - button "Add Headline"
+    - text: Verdict line
+    - button "Add Verdict line"
+    - text: Instruction
+    - button "Add Instruction"
+    - text: Free text
+    - button "Add Free text"
+  - heading "Run details" [level=3]:
+    - button "Run details" [expanded]
+  - region "Run details":
+    - text: Failed rules
+    - button "Add Failed rules"
+    - text: Notes
+    - button "Add Notes"
+    - text: AI review skipped
+    - button "Add AI review skipped"
+    - text: Rerun note
+    - button "Add Rerun note"
+  - heading "Links" [level=3]:
+    - button "Links" [expanded]
+  - region "Links":
+    - text: View on Tripwire
+    - button "Add View on Tripwire"
+    - text: How do I fix this?
+    - button "Add How do I fix this?"
+  - region "Sample preview":
+    - heading "Sample preview" [level=2]
+    - radiogroup "Surface":
+      - radio "Check run"
+      - radio "PR comment" [checked]
+      - radio "GitHub review"
+      - radio "Run page"
+    - combobox "Viewer": Outsider
+    - paragraph: Uses your current edits and sample run data. Empty blocks have no content in this sample.
+    - article:
+      - text: tripwire bot commented just now
+      - switch "Post a comment" [checked]
+      - list "Comment blocks":
+        - listitem:
+          - paragraph: "@contributor, Tripwire blocked this change request."
+          - button "Headline"
+        - listitem:
+          - text: AI review skipped Empty in this sample
+          - button "AI review skipped"
+        - listitem:
+          - list:
+            - listitem:
+              - strong: "Account age:"
+              - text: Your account is too new for this repository.
+            - listitem:
+              - strong: "Crypto address:"
+              - text: This change request adds crypto wallet addresses. Remove them.
+          - button "Failed rules"
+        - listitem:
+          - text: Instruction Empty in this sample
+          - button "Instruction"
+        - listitem:
+          - text: Notes Empty in this sample
+          - button "Notes"
+        - listitem:
+          - text: Rerun note Empty in this sample
+          - button "Rerun note"
+        - listitem:
+          - img "View on Tripwire"
+          - button "View on Tripwire"
+  - status
+  - region "Redaction":
+    - heading "Redaction" [level=2]
+    - paragraph: What people outside your org see.
+    - checkbox "Use org defaults" [checked]
+    - text: Use org defaults Level Nothing hidden
+    - group:
+      - slider "Level" [disabled]: "0"
+    - list "Hidden from people outside the org"
+    - button "Where it applies 4 of 5"
+    - checkbox "Show how to fix it" [checked] [disabled]
+    - text: Show how to fix it How do I fix this?

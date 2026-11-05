@@ -1,33 +1,61 @@
 import { AdminOverviewStats } from "#/components/admin/admin-overview-stats";
-import { EntityCardSkeleton } from "#/components/common/entity-card-skeleton";
-import { SkeletonText } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Page, PageBody } from "#/components/layouts/page";
+import {
+	Section,
+	SectionBody,
+	SectionHeader,
+} from "#/components/layouts/section";
+import {
+	Item,
+	ItemContent,
+	ItemGroup,
+	ItemTitle,
+} from "#/design-system/ui/item";
+import { SkeletonText } from "#/design-system/ui/skeleton";
 
-const ROW_SLOTS = [
-	"users",
-	"orgs",
-	"repos",
-	"installations",
-	"economics",
-] as const;
+const ROW_SLOTS = ["users", "orgs", "repos", "installations"] as const;
 
 export function AdminHomePageSkeleton() {
 	return (
 		<DashboardLayout counts={{}}>
-			<div className="px-4 py-6 md:px-8 md:py-10">
-				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-					<header className="flex flex-col gap-1">
-						<SkeletonText className="w-24" type="heading" />
-						<SkeletonText className="w-64 max-w-full" type="body" />
-					</header>
-					<AdminOverviewStats overview={undefined} />
-					<div aria-hidden className="flex flex-col gap-3">
-						{ROW_SLOTS.map((slot) => (
-							<EntityCardSkeleton key={slot} />
-						))}
-					</div>
-				</div>
-			</div>
+			<Page purpose="task">
+				<header aria-hidden data-layout-role="admin-page-header-skeleton">
+					<SkeletonText data-layout-size="page-title" type="heading" />
+					<SkeletonText data-layout-size="page-description" type="body" />
+				</header>
+				<PageBody>
+					<Section id="admin-summary-skeleton">
+						<SectionHeader title="Product at a glance" />
+						<SectionBody>
+							<AdminOverviewStats overview={undefined} />
+						</SectionBody>
+					</Section>
+					<Section id="admin-sections-skeleton">
+						<SectionHeader title="Staff tools" />
+						<SectionBody>
+							<ItemGroup aria-hidden>
+								{ROW_SLOTS.map((slot) => (
+									<Item key={slot}>
+										<ItemContent>
+											<ItemTitle>
+												<SkeletonText
+													data-layout-size="section-title"
+													type="label"
+												/>
+											</ItemTitle>
+											<SkeletonText
+												data-layout-size="section-description"
+												type="body-sm"
+											/>
+										</ItemContent>
+									</Item>
+								))}
+							</ItemGroup>
+						</SectionBody>
+					</Section>
+				</PageBody>
+			</Page>
 		</DashboardLayout>
 	);
 }

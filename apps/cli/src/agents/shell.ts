@@ -24,9 +24,9 @@ export function configuredUrl(
 			return "";
 		}
 		for (const field of fields) {
-			const value = entry.data[field];
-			if (typeof value === "string") {
-				return value;
+			const value = z.string().safeParse(entry.data[field]);
+			if (value.success) {
+				return value.data;
 			}
 		}
 		return "";

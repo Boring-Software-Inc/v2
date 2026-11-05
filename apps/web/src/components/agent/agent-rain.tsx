@@ -1,6 +1,6 @@
 import { useMemo } from "react";
+import { cn } from "#/design-system/lib/utils";
 import type { AgentMotion } from "#/hooks/use-agent-motion";
-import { cn } from "#/lib/glaze/utils";
 
 const DOTS = 6;
 

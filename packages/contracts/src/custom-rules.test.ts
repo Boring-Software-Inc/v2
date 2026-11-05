@@ -96,6 +96,20 @@ describe("runtime catalog", () => {
 		expect(builtIn?.name).toBe("Account age");
 	});
 
+	test("changeNote stays absent unless the built-in owns one", () => {
+		const resolved = resolveCatalog([]);
+		for (const entry of RULE_CATALOG) {
+			const actual = resolved.find((item) => item.ruleId === entry.ruleId);
+			expect(actual).toBeDefined();
+			if (!actual) throw new Error(`missing catalog entry: ${entry.ruleId}`);
+			expect(Object.hasOwn(actual, "changeNote")).toBe("changeNote" in entry);
+			const wire = JSON.parse(JSON.stringify(actual));
+			expect(Object.hasOwn(wire, "changeNote")).toBe("changeNote" in entry);
+			if ("changeNote" in entry)
+				expect(actual.changeNote).toBe(entry.changeNote);
+		}
+	});
+
 	test("every consumer field a built-in entry carries exists on a custom entry", () => {
 		const custom = customCatalogEntry(forkRate);
 		const builtIn = resolveCatalog([])[0];

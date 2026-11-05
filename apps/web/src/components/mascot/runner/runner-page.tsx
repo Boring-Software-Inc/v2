@@ -1,10 +1,10 @@
+import { MascotArt } from "#/components/mascot/mascot-art";
 import {
 	Empty,
 	EmptyDescription,
 	EmptyHeader,
 	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
-import { MascotArt } from "#/components/mascot/mascot-art";
+} from "#/design-system/ui/empty-state";
 
 export function RunnerPage() {
 	return (

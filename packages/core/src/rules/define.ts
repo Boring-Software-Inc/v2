@@ -1,5 +1,6 @@
 import {
 	FORGE_BY_ID,
+	type JsonValue,
 	type RuleResult,
 	type RuleSkipCause,
 	ruleForgeBlockReason,
@@ -40,7 +41,7 @@ export interface RuleDefinition<
 	 * Optional so a rule with no public-safe evidence can opt out — but then it
 	 * must be listed in PUBLIC_VIEW_OPT_OUT with a reason (enforced by test).
 	 */
-	publicEvidence?: (evidence: z.infer<TEvidence>) => Record<string, unknown>;
+	publicEvidence?: (evidence: z.infer<TEvidence>) => Record<string, JsonValue>;
 	/** §10 plain-English outcome for the public view — constitution voice. */
 	summarize?: (evidence: z.infer<TEvidence>, passed: boolean) => string | null;
 	/**
@@ -93,7 +94,7 @@ export function ruleRef(rule: Pick<RuleDefinition, "id" | "version">): string {
 export async function evaluateRule(
 	rule: RuleDefinition,
 	ctx: RuleContext,
-	config: unknown,
+	config: z.input<RuleDefinition["configSchema"]>,
 ): Promise<RuleResult> {
 	const base = { ruleId: rule.id, version: rule.version, evaluatedAt: ctx.now };
 	// Forge support first — before config, before evaluate. A rule the forge

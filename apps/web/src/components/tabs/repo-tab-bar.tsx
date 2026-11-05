@@ -1,10 +1,10 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Close, Folder, Icon } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
 import { useRepoTabTarget } from "#/components/tabs/repo-tab-target";
 import { useRepoTabs } from "#/components/tabs/repo-tabs-provider";
 import type { RepoTab } from "#/components/tabs/repo-tabs-state";
-import { cn } from "#/lib/glaze/utils";
+import { Close, Folder, Icon } from "#/design-system/icon";
+import { cn } from "#/design-system/lib/utils";
+import { Button } from "#/design-system/ui/button";
 
 export function RepoTabBar({
 	className,

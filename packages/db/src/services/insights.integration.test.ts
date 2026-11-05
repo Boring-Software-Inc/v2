@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { DEFAULT_WORKFLOW } from "@tripwire/contracts";
-import { eq } from "drizzle-orm";
+import { DEFAULT_WORKFLOW, type RepoIdentity } from "@tripwire/contracts";
+import { eq, sql } from "drizzle-orm";
 import {
 	applyMigrations,
 	createDb,
@@ -135,6 +135,48 @@ describe("getRulesStats — repo-scoped, real stored data", () => {
 		});
 		expect(beta.matches24h.value).toBe(1);
 		expect(beta.actioned24h.value).toBe(2);
+	});
+
+	test("flow and rule stats retain rolling windows, prior deltas, and hourly row filtering", async () => {
+		const fullName = "acme/windows";
+		for (const hours of [1, 25, 49]) {
+			const eventId = await seedEvent(`window-${hours}`, fullName);
+			const runId = await seedRun(
+				eventId,
+				fullName,
+				["account-age@1"],
+				["block"],
+			);
+			await db.execute(
+				sql`UPDATE runs SET created_at = now() - make_interval(hours => ${hours}) WHERE id = ${runId}`,
+			);
+			await db.execute(
+				sql`UPDATE run_steps SET started_at = now() - make_interval(hours => ${hours}) WHERE run_id = ${runId}`,
+			);
+			await db.execute(
+				sql`UPDATE run_actions SET executed_at = now() - make_interval(hours => ${hours}) WHERE run_id = ${runId}`,
+			);
+		}
+		const repo = { forge: "github", fullName } satisfies RepoIdentity;
+		const home = await insightServices.getHomeStats(db, repo);
+		expect(home.blocked.value).toBe(1);
+		expect(home.blocked.delta).toBe(0);
+		expect(home.blocked.series).toHaveLength(24);
+		expect(home.blocked.series[22]).toBe(1);
+		expect(home.blocked.series.reduce((sum, value) => sum + value, 0)).toBe(1);
+		const rules = await insightServices.getRulesStats(db, repo);
+		expect(rules.matches24h.value).toBe(1);
+		expect(rules.matches24h.delta).toBe(0);
+		expect(rules.actioned24h.value).toBe(1);
+		expect(rules.actioned24h.delta).toBe(0);
+		expect(rules.matches24h.series[22]).toBe(1);
+		expect(rules.actioned24h.series[22]).toBe(1);
+		expect(rules.perRule).toHaveLength(1);
+		expect(rules.perRule[0]?.ref).toBe("account-age@1");
+		expect(rules.perRule[0]?.matches24h).toBe(1);
+		expect(
+			rules.perRule[0]?.series.reduce((sum, value) => sum + value, 0),
+		).toBe(1);
 	});
 
 	test("a repo with no runs reports honest zeros", async () => {

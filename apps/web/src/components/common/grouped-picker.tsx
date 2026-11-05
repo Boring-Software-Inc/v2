@@ -1,21 +1,21 @@
 import { type ComponentProps, type ReactNode, useState } from "react";
-import { type GlazeIcon, Icon } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
+import { type GlazeIcon, Icon } from "#/design-system/icon";
+import { cn } from "#/design-system/lib/utils";
+import { Button } from "#/design-system/ui/button";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleGroup,
 	CollapsibleTrigger,
-} from "#/components/glaze/ui/collapsible";
-import { Input } from "#/components/glaze/ui/input";
+} from "#/design-system/ui/collapsible";
+import { Input } from "#/design-system/ui/input";
 import {
 	Item,
 	ItemActions,
 	ItemContent,
 	ItemMedia,
 	ItemTitle,
-} from "#/components/glaze/ui/item";
-import { cn } from "#/lib/glaze/utils";
+} from "#/design-system/ui/item";
 
 export interface PickerGroup<T> {
 	key: string;

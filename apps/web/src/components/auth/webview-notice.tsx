@@ -1,11 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
-import {
-	Alert,
-	AlertDescription,
-	AlertTitle,
-} from "#/components/glaze/ui/alert";
-import { Input } from "#/components/glaze/ui/input";
+import { Alert, AlertDescription, AlertTitle } from "#/design-system/ui/alert";
+import { Input } from "#/design-system/ui/input";
 import { webviewHostQueryOptions } from "#/lib/webview.query";
 
 /**
@@ -28,18 +24,20 @@ export function WebviewNotice() {
 	return (
 		<Alert announce={false} status="warn">
 			<AlertTitle>Sign-in may not work in this app</AlertTitle>
-			<AlertDescription className="flex flex-col gap-2">
-				<p>
-					This app opened Tripwire in its built-in browser, which can block
-					sign-in. Copy this link and open it in Safari, Chrome or Firefox.
-				</p>
-				<Input
-					aria-label="Sign-in link"
-					mode="copy"
-					noun="sign-in link"
-					size="sm"
-					value={href}
-				/>
+			<AlertDescription>
+				<div data-layout-role="webview-notice-content">
+					<p>
+						This app opened Tripwire in its built-in browser, which can block
+						sign-in. Copy this link and open it in Safari, Chrome or Firefox.
+					</p>
+					<Input
+						aria-label="Sign-in link"
+						mode="copy"
+						noun="sign-in link"
+						size="sm"
+						value={href}
+					/>
+				</div>
 			</AlertDescription>
 		</Alert>
 	);

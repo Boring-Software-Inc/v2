@@ -1,20 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import {
-	ArrowUpRight,
-	Comment,
-	Document,
-	FailedMark,
-	type GlazeIcon,
-	Icon,
-	Pending,
-	Send,
-	Success,
-	Workflow,
-} from "#/components/glaze/icon";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
-import {
 	BranchCard,
 	type BranchContext,
 	BranchRow,
@@ -29,6 +15,20 @@ import {
 } from "#/components/runs/chain-mark";
 import { SupersededRunChain } from "#/components/runs/superseded-run-chain";
 import { ZonedTime } from "#/components/timezones/zoned-time";
+import {
+	ArrowUpRight,
+	Comment,
+	Document,
+	FailedMark,
+	type GlazeIcon,
+	Icon,
+	Pending,
+	Send,
+	Success,
+	Workflow,
+} from "#/design-system/icon";
+import { Badge } from "#/design-system/ui/badge";
+import { Button } from "#/design-system/ui/button";
 import {
 	type ChainBranch,
 	type ChainChecks,
@@ -77,8 +77,9 @@ function NodeTitle({
 	className?: string;
 }) {
 	return (
-		<div className="flex flex-wrap items-baseline gap-x-2">
+		<div data-layout-role="run-node-heading">
 			<h2
+				data-layout-role="run-node-title"
 				className={cn(
 					size === "outcome" ? "type-heading" : "type-label-lg",
 					className ?? "text-text-1",
@@ -326,7 +327,7 @@ export function RunChainView({
 			<ChainRow node={<ChainNode glyph={event.glyph} tone="neutral" />}>
 				<NodeTitle at={event.at} offsetMs={null} title={event.title} />
 				{event.detail ? (
-					<p className="type-body-sm text-text-2">{event.detail}</p>
+					<p data-layout-role="run-node-detail">{event.detail}</p>
 				) : null}
 				{eventHistory ? (
 					<SupersededRunChain

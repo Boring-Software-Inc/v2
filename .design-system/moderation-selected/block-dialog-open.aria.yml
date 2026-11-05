@@ -1,0 +1,6 @@
+- region "Notifications"
+- 'alertdialog "Block #2533"':
+  - 'heading "Block #2533" [level=2]'
+  - paragraph: Tripwire will fail its check and request changes on GitHub. The change request stays open. Block it?
+  - button "Cancel"
+  - button "Block"

@@ -1,0 +1,6 @@
+- text: Tripwire
+- banner:
+  - heading "You're signed in" [level=1]
+  - paragraph: Go back to your terminal. You can close this tab.
+- text: Tripwire CLI Signed in to Dev team admin for 30 days
+- region "Notifications"

@@ -1,5 +1,5 @@
 import { useRouterState } from "@tanstack/react-router";
-import { Progress } from "#/components/glaze/ui/progress";
+import { Progress } from "#/design-system/ui/progress";
 
 export function RouteProgress() {
 	const isLoading = useRouterState({ select: (state) => state.isLoading });

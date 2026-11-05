@@ -20,6 +20,7 @@ import {
 } from "@tripwire/db";
 import type { Pool } from "pg";
 import pino from "pino";
+import { z } from "zod";
 import { deliverWebhooks } from "./jobs/deliver-webhook.ts";
 
 /**
@@ -240,4 +241,142 @@ describe("webhook delivery — routes through the guard (real DB)", () => {
 		// The body is the Discord message shape, not the raw payload.
 		expect(captured["content-type"]).toBe("application/json");
 	});
+});
+
+test("invalid historical deliveries are audited without sending, while valid extra JSON still delivers", async () => {
+	const invalid = [
+		null,
+		false,
+		3,
+		"scalar",
+		[],
+		{ url: "https://hook.example/x", delivery: { version: 1 } },
+		{
+			url: "https://hook.example/x",
+			delivery: SAMPLE_PAYLOAD,
+			signingSecret: 23,
+		},
+		{
+			url: "https://hook.example/x",
+			delivery: SAMPLE_PAYLOAD,
+			signingSecret: "",
+		},
+		{
+			url: "https://hook.example/x",
+			delivery: SAMPLE_PAYLOAD,
+			deliveryAttempts: "bad",
+		},
+	];
+	const invalidIds: string[] = [];
+	for (const payload of invalid) {
+		const id = await seedDeliveryRow({ url: "https://hook.example/x" });
+		await pool.query(
+			"UPDATE run_actions SET payload = $2::jsonb WHERE id = $1",
+			[id, JSON.stringify(payload)],
+		);
+		invalidIds.push(id);
+	}
+	const valid = await seedDeliveryRow({
+		url: "https://hook.example/x",
+		signingSecret: "retained-secret",
+	});
+	const body = {
+		...SAMPLE_PAYLOAD,
+		changeRequest: {
+			...SAMPLE_PAYLOAD.changeRequest,
+			extra: [true],
+			...JSON.parse('{"__proto__":{"retained":"nested"}}'),
+		},
+		extra: { nested: null },
+		...JSON.parse('{"__proto__":{"retained":"root"}}'),
+	};
+	await pool.query(
+		"UPDATE run_actions SET payload = payload || $2::jsonb WHERE id = $1",
+		[valid, JSON.stringify({ delivery: body, extra: [null, { kept: true }] })],
+	);
+	const sent: { body: string; headers: Headers }[] = [];
+	const fetchImpl = Object.assign(
+		async (_input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+			sent.push({
+				body: z.string().parse(init?.body),
+				headers: new Headers(init?.headers),
+			});
+			return new Response(null, { status: 200 });
+		},
+		{ preconnect: fetch.preconnect },
+	);
+	const result = await deliverWebhooks({
+		db,
+		logger,
+		guardDeps: { lookupImpl: async () => [{ address: "8.8.8.8" }], fetchImpl },
+	});
+	expect(result).toEqual({
+		delivered: 1,
+		failed: 0,
+		abandoned: invalid.length,
+	});
+	expect(sent).toHaveLength(1);
+	expect(JSON.parse(sent[0]?.body ?? "null")).toEqual(body);
+	expect(Object.hasOwn(JSON.parse(sent[0]?.body ?? "{}"), "__proto__")).toBe(
+		true,
+	);
+	expect(
+		Object.hasOwn(JSON.parse(sent[0]?.body ?? "{}").changeRequest, "__proto__"),
+	).toBe(true);
+	expect(sent[0]?.headers.get("idempotency-key")).toBe(valid);
+	expect(sent[0]?.headers.get("x-webhook-signature")).toMatch(
+		/^t=\d+,v1=[0-9a-f]+$/,
+	);
+	for (const id of invalidIds) {
+		expect(await actionStatus(id)).toBe("superseded");
+		const row = await pool.query(
+			"SELECT payload FROM run_actions WHERE id = $1",
+			[id],
+		);
+		expect(row.rows[0]?.payload).toMatchObject({
+			actionFailure: "invalid-payload",
+		});
+	}
+	const row = await pool.query(
+		"SELECT payload FROM run_actions WHERE id = $1",
+		[valid],
+	);
+	expect(row.rows[0]?.payload).toMatchObject({
+		signingSecret: "retained-secret",
+		delivery: body,
+		extra: [null, { kept: true }],
+	});
+});
+
+test("Discord ignores an unconsumed signing-secret field and still sends no signature headers", async () => {
+	const id = await seedDeliveryRow({
+		url: "https://discord.example/x",
+		kind: "discord",
+	});
+	await pool.query(
+		"UPDATE run_actions SET payload = payload || '{\"signingSecret\": 23}'::jsonb WHERE id = $1",
+		[id],
+	);
+	const headers: Headers[] = [];
+	const fetchImpl = Object.assign(
+		async (_input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+			headers.push(new Headers(init?.headers));
+			return new Response(null, { status: 200 });
+		},
+		{ preconnect: fetch.preconnect },
+	);
+	expect(
+		await deliverWebhooks({
+			db,
+			logger,
+			guardDeps: {
+				lookupImpl: async () => [{ address: "8.8.8.8" }],
+				fetchImpl,
+			},
+		}),
+	).toEqual({ delivered: 1, failed: 0, abandoned: 0 });
+	expect(headers).toHaveLength(1);
+	expect(headers[0]?.has("x-webhook-signature")).toBe(false);
+	expect(headers[0]?.has("idempotency-key")).toBe(false);
+	expect(await actionStatus(id)).toBe("executed");
 });

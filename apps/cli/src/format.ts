@@ -154,11 +154,13 @@ const whoamiSchema = z.object({
 	),
 });
 
-const NEXT_STEPS: Record<string, string> = {
-	install_app: "Install the GitHub App",
-	sync_repos: "Wait for repos to sync, then run tripwire status again",
-	turn_on_gate: "Turn on the gate. Run tripwire gate on <repo>",
-};
+const NEXT_STEPS = new Map(
+	Object.entries({
+		install_app: "Install the GitHub App",
+		sync_repos: "Wait for repos to sync, then run tripwire status again",
+		turn_on_gate: "Turn on the gate. Run tripwire gate on <repo>",
+	}),
+);
 
 const statusSchema = z.object({
 	org: z.string(),
@@ -396,262 +398,270 @@ function using<T>(
 	};
 }
 
-const FORMATTERS: Record<string, Formatter> = {
-	whoami: using(whoamiSchema, (value, style) => {
-		const user = [value.user?.name, value.user?.email]
-			.filter(Boolean)
-			.join("  ");
-		const orgs = value.orgs.map((org) =>
-			org.agentAllowed === false
-				? `${org.slug} (${org.role}, not granted)`
-				: `${org.slug} (${org.role})`,
-		);
-		const rows: Row[] = [
-			["user", user || "-"],
-			...(value.user?.githubLogin
-				? [["github", `@${value.user.githubLogin}`] satisfies Row]
-				: []),
-			[
-				"access",
-				value.access.approved
-					? style.good("approved")
-					: style.next("not approved"),
-			],
-		];
-		if (!value.access.approved && value.access.requestAccessUrl) {
-			rows.push(["open", value.access.requestAccessUrl]);
-		}
-		rows.push(["orgs", orgs[0] ?? "none"]);
-		for (const org of orgs.slice(1)) {
-			rows.push(["", org]);
-		}
-		return pairs(rows, style);
-	}),
-	setup_status: using(statusSchema, (value, style) => {
-		const rows: Row[] = [["org", value.org]];
-		if (value.nextStep === "done") {
-			rows.push(["done", style.good("Tripwire checks pull requests")]);
-		} else if (value.nextStep === "install_app" && !value.installUrl) {
-			rows.push([
-				"next",
-				style.next(`Ask an admin of ${value.org} to install the GitHub App`),
-			]);
-		} else {
-			rows.push([
-				"next",
-				style.next(NEXT_STEPS[value.nextStep] ?? value.nextStep),
-			]);
-		}
-		if (value.installUrl) {
-			rows.push(["open", value.installUrl]);
-		}
-		return pairs(rows, style);
-	}),
-	list_repos: using(reposSchema, (repos, style) => {
-		if (repos.length === 0) {
-			return "No repos yet. Run tripwire status to see the next step.";
-		}
-		return table(
-			["REPO", "GATE", "TO REVIEW", "BLOCKED 24H"],
-			repos.map((repo) => [
-				repo.name,
-				onOff(repo.gateOn, style),
-				String(repo.toReview),
-				String(repo.blocked24h),
-			]),
-		);
-	}),
-	list_rule_catalog: using(catalogSchema, (rules) =>
-		table(
-			["RULE", "NAME", "OPT-IN"],
-			rules.map((rule) => [rule.ruleId, rule.name, rule.optIn ? "yes" : "no"]),
-		),
-	),
-	get_repo_rules: using(repoRulesSchema, (rules, style) => {
-		if (rules.length === 0) {
-			return "No rules installed on this repo.";
-		}
-		return table(
-			["RULE", "STATE", "MATCHES 24H", "NOTE"],
-			rules.map((rule) => [
-				rule.ruleId,
-				installed(rule.enabled, style),
-				String(rule.matches24h ?? 0),
-				rule.cannotRun ??
-					(rule.management === "managed"
-						? "set by a workflow"
-						: (rule.sentence ?? "")),
-			]),
-		);
-	}),
-	set_rule: using(setRuleSchema, (value, style) =>
-		pairs(
-			[["done", `${value.ruleId} is ${installed(value.enabled, style)}`]],
-			style,
-		),
-	),
-	save_custom_rule: using(customRuleSchema, (value, style) => {
-		const rows: Row[] = [
-			["done", `${value.created ? "Created" : "Saved"} ${value.id}`],
-			["rule", value.sentence],
-			["state", installed(value.enabled, style)],
-		];
-		if (value.use) {
-			rows.push(["use", value.use]);
-		}
-		if (value.url) {
-			rows.push(["open", value.url]);
-		}
-		return pairs(rows, style);
-	}),
-	delete_custom_rule: using(deletedRuleSchema, (value, style) =>
-		pairs([["done", `Deleted ${value.id}`]], style),
-	),
-	turn_on_gate: using(gateSchema, (value, style) => {
-		const rows: Row[] = [
-			["done", `Gate is ${style.good("on")} for ${value.repo}`],
-		];
-		if (value.url) {
-			rows.push(["open", value.url]);
-		}
-		return pairs(rows, style);
-	}),
-	list_workflows: using(workflowsSchema, (workflows, style) => {
-		if (workflows.length === 0) {
-			return "No workflows on this repo.";
-		}
-		return table(
-			["WORKFLOW", "ID", "STATE", "TRIGGERS"],
-			workflows.map((workflow) => [
-				workflow.name,
-				workflow.id,
-				workflowStateWord(workflow, style),
-				workflowTriggerWords(
-					workflow.triggerKinds ?? [],
-					workflow.schedules ?? [],
-				).join(", "),
-			]),
-		);
-	}),
-	set_workflow_enabled: using(workflowSetSchema, (value, style) => {
-		const rows: Row[] = [
-			["done", `Workflow is ${onOff(value.enabled, style)}`],
-		];
-		for (const warning of value.warnings ?? []) {
-			rows.push(["warning", warning.message]);
-		}
-		if (value.url) {
-			rows.push(["open", value.url]);
-		}
-		return pairs(rows, style);
-	}),
-	list_runs: using(runsSchema, (runs, style) => {
-		if (runs.length === 0) {
-			return "No runs yet.";
-		}
-		return table(
-			["RUN", "REPO", "PR", "STATUS", "VERDICT", "CREATED"],
-			runs.map((run) => [
-				run.id,
-				run.repo ? shortRepo(run.repo) : "-",
-				run.number ? `#${run.number}` : "-",
-				run.status,
-				verdictWord(run, style),
-				when(run.createdAt),
-			]),
-		);
-	}),
-	get_run: using(runSchema, (run, style) => {
-		const rows: Row[] = [
-			["run", run.id],
-			["repo", run.number ? `${run.repo} #${run.number}` : run.repo],
-			["status", run.status],
-			["verdict", verdictWord(run, style)],
-			["created", when(run.createdAt)],
-		];
-		if (run.url) {
-			rows.push(["open", run.url]);
-		}
-		const head = pairs(rows, style);
-		if (run.steps.length === 0) {
-			return head;
-		}
-		const steps = table(
-			["WORKFLOW", "STEP", "OUTCOME", "SUMMARY"],
-			run.steps.map((step) => {
-				const outcome = step.outcome ?? step.status;
-				return [
-					step.workflow ?? "-",
-					stepTitle(step),
-					step.status === "fail" ? style.bad(outcome) : outcome,
-					step.summary ?? "",
-				];
-			}),
-			0,
-		);
-		return `${head}\n\n${steps}`;
-	}),
-	list_moderation_queue: using(queueSchema, (queue) => {
-		if (queue.items.length === 0) {
-			return "Nothing to review.";
-		}
-		return table(
-			["ITEM", "REPO", "PR", "AUTHOR", "TITLE"],
-			queue.items.map((item) => [
-				item.itemId,
-				item.repo ? shortRepo(item.repo) : "-",
-				item.number ? `#${item.number}` : "-",
-				item.actor ?? "-",
-				item.title ?? "",
-			]),
-		);
-	}),
-	decide_moderation: using(decideSchema, (value, style) => {
-		if (value.confirmUrl) {
-			return pairs(
+const FORMATTERS = new Map(
+	Object.entries({
+		whoami: using(whoamiSchema, (value, style) => {
+			const user = [value.user?.name, value.user?.email]
+				.filter(Boolean)
+				.join("  ");
+			const orgs = value.orgs.map((org) =>
+				org.agentAllowed === false
+					? `${org.slug} (${org.role}, not granted)`
+					: `${org.slug} (${org.role})`,
+			);
+			const rows: Row[] = [
+				["user", user || "-"],
+				...(value.user?.githubLogin
+					? [["github", `@${value.user.githubLogin}`] satisfies Row]
+					: []),
 				[
-					["open", value.confirmUrl],
-					["", value.forUser ?? "Open this link to confirm."],
+					"access",
+					value.access.approved
+						? style.good("approved")
+						: style.next("not approved"),
 				],
-				style,
+			];
+			if (!value.access.approved && value.access.requestAccessUrl) {
+				rows.push(["open", value.access.requestAccessUrl]);
+			}
+			rows.push(["orgs", orgs[0] ?? "none"]);
+			for (const org of orgs.slice(1)) {
+				rows.push(["", org]);
+			}
+			return pairs(rows, style);
+		}),
+		setup_status: using(statusSchema, (value, style) => {
+			const rows: Row[] = [["org", value.org]];
+			if (value.nextStep === "done") {
+				rows.push(["done", style.good("Tripwire checks pull requests")]);
+			} else if (value.nextStep === "install_app" && !value.installUrl) {
+				rows.push([
+					"next",
+					style.next(`Ask an admin of ${value.org} to install the GitHub App`),
+				]);
+			} else {
+				rows.push([
+					"next",
+					style.next(NEXT_STEPS.get(value.nextStep) ?? value.nextStep),
+				]);
+			}
+			if (value.installUrl) {
+				rows.push(["open", value.installUrl]);
+			}
+			return pairs(rows, style);
+		}),
+		list_repos: using(reposSchema, (repos, style) => {
+			if (repos.length === 0) {
+				return "No repos yet. Run tripwire status to see the next step.";
+			}
+			return table(
+				["REPO", "GATE", "TO REVIEW", "BLOCKED 24H"],
+				repos.map((repo) => [
+					repo.name,
+					onOff(repo.gateOn, style),
+					String(repo.toReview),
+					String(repo.blocked24h),
+				]),
 			);
-		}
-		const target = decidedTarget(value);
-		if (!value.done) {
-			return pairs(
-				[["done", `${target.trim() || "This item"} was already decided`]],
-				style,
+		}),
+		list_rule_catalog: using(catalogSchema, (rules) =>
+			table(
+				["RULE", "NAME", "OPT-IN"],
+				rules.map((rule) => [
+					rule.ruleId,
+					rule.name,
+					rule.optIn ? "yes" : "no",
+				]),
+			),
+		),
+		get_repo_rules: using(repoRulesSchema, (rules, style) => {
+			if (rules.length === 0) {
+				return "No rules installed on this repo.";
+			}
+			return table(
+				["RULE", "STATE", "MATCHES 24H", "NOTE"],
+				rules.map((rule) => [
+					rule.ruleId,
+					installed(rule.enabled, style),
+					String(rule.matches24h ?? 0),
+					rule.cannotRun ??
+						(rule.management === "managed"
+							? "set by a workflow"
+							: (rule.sentence ?? "")),
+				]),
 			);
-		}
-		const word =
-			value.decision === "approve" || value.decision === "remove"
-				? DECIDED_WORDS[value.decision]
-				: "Decided";
-		return pairs([["done", style.good(`${word}${target}`)]], style);
+		}),
+		set_rule: using(setRuleSchema, (value, style) =>
+			pairs(
+				[["done", `${value.ruleId} is ${installed(value.enabled, style)}`]],
+				style,
+			),
+		),
+		save_custom_rule: using(customRuleSchema, (value, style) => {
+			const rows: Row[] = [
+				["done", `${value.created ? "Created" : "Saved"} ${value.id}`],
+				["rule", value.sentence],
+				["state", installed(value.enabled, style)],
+			];
+			if (value.use) {
+				rows.push(["use", value.use]);
+			}
+			if (value.url) {
+				rows.push(["open", value.url]);
+			}
+			return pairs(rows, style);
+		}),
+		delete_custom_rule: using(deletedRuleSchema, (value, style) =>
+			pairs([["done", `Deleted ${value.id}`]], style),
+		),
+		turn_on_gate: using(gateSchema, (value, style) => {
+			const rows: Row[] = [
+				["done", `Gate is ${style.good("on")} for ${value.repo}`],
+			];
+			if (value.url) {
+				rows.push(["open", value.url]);
+			}
+			return pairs(rows, style);
+		}),
+		list_workflows: using(workflowsSchema, (workflows, style) => {
+			if (workflows.length === 0) {
+				return "No workflows on this repo.";
+			}
+			return table(
+				["WORKFLOW", "ID", "STATE", "TRIGGERS"],
+				workflows.map((workflow) => [
+					workflow.name,
+					workflow.id,
+					workflowStateWord(workflow, style),
+					workflowTriggerWords(
+						workflow.triggerKinds ?? [],
+						workflow.schedules ?? [],
+					).join(", "),
+				]),
+			);
+		}),
+		set_workflow_enabled: using(workflowSetSchema, (value, style) => {
+			const rows: Row[] = [
+				["done", `Workflow is ${onOff(value.enabled, style)}`],
+			];
+			for (const warning of value.warnings ?? []) {
+				rows.push(["warning", warning.message]);
+			}
+			if (value.url) {
+				rows.push(["open", value.url]);
+			}
+			return pairs(rows, style);
+		}),
+		list_runs: using(runsSchema, (runs, style) => {
+			if (runs.length === 0) {
+				return "No runs yet.";
+			}
+			return table(
+				["RUN", "REPO", "PR", "STATUS", "VERDICT", "CREATED"],
+				runs.map((run) => [
+					run.id,
+					run.repo ? shortRepo(run.repo) : "-",
+					run.number ? `#${run.number}` : "-",
+					run.status,
+					verdictWord(run, style),
+					when(run.createdAt),
+				]),
+			);
+		}),
+		get_run: using(runSchema, (run, style) => {
+			const rows: Row[] = [
+				["run", run.id],
+				["repo", run.number ? `${run.repo} #${run.number}` : run.repo],
+				["status", run.status],
+				["verdict", verdictWord(run, style)],
+				["created", when(run.createdAt)],
+			];
+			if (run.url) {
+				rows.push(["open", run.url]);
+			}
+			const head = pairs(rows, style);
+			if (run.steps.length === 0) {
+				return head;
+			}
+			const steps = table(
+				["WORKFLOW", "STEP", "OUTCOME", "SUMMARY"],
+				run.steps.map((step) => {
+					const outcome = step.outcome ?? step.status;
+					return [
+						step.workflow ?? "-",
+						stepTitle(step),
+						step.status === "fail" ? style.bad(outcome) : outcome,
+						step.summary ?? "",
+					];
+				}),
+				0,
+			);
+			return `${head}\n\n${steps}`;
+		}),
+		list_moderation_queue: using(queueSchema, (queue) => {
+			if (queue.items.length === 0) {
+				return "Nothing to review.";
+			}
+			return table(
+				["ITEM", "REPO", "PR", "AUTHOR", "TITLE"],
+				queue.items.map((item) => [
+					item.itemId,
+					item.repo ? shortRepo(item.repo) : "-",
+					item.number ? `#${item.number}` : "-",
+					item.actor ?? "-",
+					item.title ?? "",
+				]),
+			);
+		}),
+		decide_moderation: using(decideSchema, (value, style) => {
+			if (value.confirmUrl) {
+				return pairs(
+					[
+						["open", value.confirmUrl],
+						["", value.forUser ?? "Open this link to confirm."],
+					],
+					style,
+				);
+			}
+			const target = decidedTarget(value);
+			if (!value.done) {
+				return pairs(
+					[["done", `${target.trim() || "This item"} was already decided`]],
+					style,
+				);
+			}
+			const word =
+				value.decision === "approve" || value.decision === "remove"
+					? DECIDED_WORDS[value.decision]
+					: "Decided";
+			return pairs([["done", style.good(`${word}${target}`)]], style);
+		}),
 	}),
-};
+);
 
 export function formatResult(
 	tool: string,
 	data: JsonValue | null,
 	style: Style = PLAIN,
 ): string | null {
-	const formatter = FORMATTERS[tool];
+	const formatter = FORMATTERS.get(tool);
 	if (!(formatter && data !== null)) {
 		return null;
 	}
 	return formatter(data, style);
 }
 
-const CLI_HINTS: Record<string, string> = {
-	list_orgs: "Run tripwire whoami to see your orgs.",
-	pick_org: "Pass --org <slug>, or run tripwire whoami to see them.",
-	list_repos: "Run tripwire repos to see them.",
-	list_runs: "Run tripwire runs list to see recent runs.",
-	list_queue: "Run tripwire queue list to see the items.",
-	list_rules: "Run tripwire rules list to see the rules.",
-	list_workflows: "Run tripwire workflows list <repo> to see them.",
-};
+const CLI_HINTS = new Map(
+	Object.entries({
+		list_orgs: "Run tripwire whoami to see your orgs.",
+		pick_org: "Pass --org <slug>, or run tripwire whoami to see them.",
+		list_repos: "Run tripwire repos to see them.",
+		list_runs: "Run tripwire runs list to see recent runs.",
+		list_queue: "Run tripwire queue list to see the items.",
+		list_rules: "Run tripwire rules list to see the rules.",
+		list_workflows: "Run tripwire workflows list <repo> to see them.",
+	}),
+);
 
 const toolErrorSchema = z.object({
 	error: z.string(),
@@ -663,7 +673,7 @@ function cliHint(hint: string | undefined, org: string | undefined) {
 	if (hint === "list_repos" && org) {
 		return `Run tripwire repos --org ${org} to see them.`;
 	}
-	return hint ? CLI_HINTS[hint] : undefined;
+	return hint ? CLI_HINTS.get(hint) : undefined;
 }
 
 const ARGUMENT_TYPES = new Map([

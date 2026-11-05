@@ -1,4 +1,16 @@
 import type { ReactNode } from "react";
+import {
+	HistoryBackControl,
+	useCanGoBack,
+} from "#/components/common/history-back-control";
+import { PageHeader } from "#/components/layouts/page";
+import {
+	Section,
+	SectionBody,
+	SectionHeader,
+} from "#/components/layouts/section";
+import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
+import { Label } from "#/design-system/ui/typography";
 
 export function SettingsFrame({
 	nav,
@@ -8,10 +20,10 @@ export function SettingsFrame({
 	children: ReactNode;
 }) {
 	return (
-		<div className="px-4 py-6 md:px-8 md:py-10">
-			<div className="mx-auto grid w-full max-w-260 grid-cols-1 gap-6 md:grid-cols-[--spacing(50)_minmax(0,1fr)] md:gap-12">
+		<div data-layout-role="settings-frame">
+			<div data-layout-role="settings-grid">
 				{nav}
-				<div className="flex min-w-0 flex-col gap-6">{children}</div>
+				<div data-layout-role="settings-page">{children}</div>
 			</div>
 		</div>
 	);
@@ -24,13 +36,13 @@ export function SettingsHeader({
 	title: string;
 	children?: ReactNode;
 }) {
+	const canGoBack = useCanGoBack();
 	return (
-		<header className="flex min-h-(--control-lg) flex-wrap items-center justify-between gap-3">
-			<h1 className="type-title">{title}</h1>
-			{children ? (
-				<div className="flex items-center gap-2">{children}</div>
-			) : null}
-		</header>
+		<PageHeader
+			actions={children}
+			navigation={canGoBack ? <HistoryBackControl /> : undefined}
+			title={title}
+		/>
 	);
 }
 
@@ -45,24 +57,61 @@ export function SettingsSection({
 	action?: ReactNode;
 	children: ReactNode;
 }) {
-	const headingId = `${id}-heading`;
 	return (
-		<section
-			aria-labelledby={headingId}
-			className="flex scroll-mt-6 flex-col gap-3"
-			id={id}
-		>
-			<div className="flex min-h-(--control) items-center justify-between gap-3">
-				<h2 className="type-heading-sm" id={headingId}>
-					{title}
-				</h2>
-				{action}
-			</div>
-			{children}
-		</section>
+		<Section id={id}>
+			<SectionHeader actions={action} title={title} />
+			<SectionBody>{children}</SectionBody>
+		</Section>
 	);
 }
 
 export function SettingsCard({ children }: { children: ReactNode }) {
-	return <div className="shell">{children}</div>;
+	return <div data-layout-role="settings-card">{children}</div>;
+}
+
+const SETTINGS_NAV_SLOTS = ["a", "b", "c", "d", "e", "f"] as const;
+
+export function SettingsNavSkeleton() {
+	return (
+		<div aria-hidden data-layout-role="settings-nav-skeleton">
+			{SETTINGS_NAV_SLOTS.map((slot) => (
+				<div data-layout-role="settings-nav-skeleton-item" key={slot}>
+					<SkeletonText data-layout-size="medium" type="label" />
+				</div>
+			))}
+		</div>
+	);
+}
+
+export function SettingsContentSkeleton() {
+	return (
+		<div aria-hidden data-layout-role="settings-page">
+			<div data-layout-role="settings-content-skeleton-heading">
+				<SkeletonText data-layout-size="wide" type="heading" />
+			</div>
+			<div data-layout-role="settings-content-skeleton-card">
+				<Skeleton />
+			</div>
+		</div>
+	);
+}
+
+export function SettingsDangerRow({
+	label,
+	action,
+	children,
+}: {
+	label: string;
+	action: ReactNode;
+	children?: ReactNode;
+}) {
+	return (
+		<div data-layout-role="settings-danger-row">
+			<div>
+				<Label>{label}</Label>
+			</div>
+			{action}
+			{children}
+		</div>
+	);
 }

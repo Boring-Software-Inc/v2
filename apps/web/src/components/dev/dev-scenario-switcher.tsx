@@ -1,11 +1,11 @@
 import { useRef } from "react";
 import { DevScenarioPanel } from "#/components/dev/dev-scenario-panel";
-import { Button } from "#/components/glaze/ui/button";
+import { Button } from "#/design-system/ui/button";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "#/components/glaze/ui/popover";
+} from "#/design-system/ui/popover";
 
 export function DevScenarioSwitcher() {
 	const searchRef = useRef<HTMLInputElement>(null);

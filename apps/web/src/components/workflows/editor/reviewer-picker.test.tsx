@@ -77,6 +77,15 @@ test("missing GitCafe suggestions do not assert that saved actors lost access", 
 	expect(html).not.toContain("can no longer review");
 });
 
+test("a saved GitHub reviewer missing from a known list retains its warning", () => {
+	const html = render("github", [], {
+		reviewers: [{ id: 42, login: "saved-reviewer" }],
+	});
+	expect(html).toContain("saved-reviewer");
+	expect(html).toContain('data-layout-role="workflow-reviewer-stale"');
+	expect(html).toContain("can no longer review this repo");
+});
+
 test("read-only reviewer selection keeps its disabled refresh control", () => {
 	const html = render("gitcafe", [], {}, true);
 	expect(html).toContain("disabled");

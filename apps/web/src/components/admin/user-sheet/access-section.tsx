@@ -5,9 +5,9 @@ import {
 	SheetSectionBlock,
 } from "#/components/admin/user-sheet/sheet-parts";
 import { useStaffAction } from "#/components/admin/user-sheet/use-staff-action";
-import { External, Icon } from "#/components/glaze/icon";
-import { Avatar } from "#/components/glaze/ui/avatar";
-import { Button } from "#/components/glaze/ui/button";
+import { External, Icon } from "#/design-system/icon";
+import { Avatar } from "#/design-system/ui/avatar";
+import { Button } from "#/design-system/ui/button";
 import { reviewUserAccess } from "#/lib/admin.functions";
 import { formatWait } from "#/lib/admin-user-sheet";
 import type { AdminUserView } from "#/lib/staff-users.functions";
@@ -73,7 +73,7 @@ export function AccessSection({
 				<FieldRow label="Requested">{formatStaffDateTime(requested)}</FieldRow>
 				{pending ? (
 					<FieldRow label="Waiting">
-						<span className="text-warn-text">
+						<span data-state-tone="warning">
 							{formatWait(now - new Date(requested).getTime())}
 						</span>
 					</FieldRow>
@@ -88,7 +88,7 @@ export function AccessSection({
 				{pending && user.login ? (
 					<FieldRow label="GitHub">
 						<a
-							className="inline-flex items-center gap-1 rounded-tag text-text-1 underline decoration-line-control underline-offset-3 hover:decoration-ink focus-visible:focus-ring"
+							data-layout-role="user-sheet-external-link"
 							href={`https://github.com/${user.login}`}
 							rel="noreferrer"
 							target="_blank"

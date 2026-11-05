@@ -68,6 +68,13 @@ describe("planScenario", () => {
 		expect(plan.workflows).toBe("none");
 	});
 
+	test("the platform admin profile receives the staff bit", () => {
+		const plan = planScenario(presetScenario("platform-admin"));
+		expect(plan.user?.email).toBe("platform-admin@tripwire.demo");
+		expect(plan.orgKind).toBe("personal");
+		expect(plan.platformAdmin).toBe(true);
+	});
+
 	test("anonymous has no user and seeds a public run", () => {
 		const plan = planScenario(presetScenario("anonymous"));
 		expect(plan.user).toBeNull();
@@ -105,6 +112,7 @@ describe("resolveLanding", () => {
 			"/dev-owner/settings/general",
 		);
 		expect(landingFor({ ...OWNER, landing: "public-run" })).toBe("/runs/run-1");
+		expect(landingFor(presetScenario("platform-admin"))).toBe("/admin");
 	});
 
 	test("the workflow editor falls back to the list without a workflow", () => {

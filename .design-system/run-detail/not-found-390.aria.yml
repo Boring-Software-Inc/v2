@@ -1,0 +1,5 @@
+- main:
+  - button "Poke the ghost"
+  - heading "Run not found" [level=1]
+  - paragraph: The link may be wrong, or the run is in an org you are not a member of.
+  - button "Go to dashboard"

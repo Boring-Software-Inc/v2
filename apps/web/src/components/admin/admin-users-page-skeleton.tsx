@@ -1,4 +1,6 @@
-import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Page, PageBody } from "#/components/layouts/page";
+import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -6,27 +8,31 @@ import {
 	TableHeader,
 	TableLoading,
 	TableRow,
-} from "#/components/glaze/ui/table";
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+} from "#/design-system/ui/table";
 
 export function AdminUsersPageSkeleton() {
 	return (
 		<DashboardLayout counts={{}}>
-			<div className="px-4 py-6 md:px-8 md:py-10">
-				<div className="mx-auto flex w-full max-w-312 flex-col gap-6">
-					<header className="flex flex-col gap-1">
-						<SkeletonText className="w-20" type="heading" />
-						<SkeletonText className="max-w-measure" lines={2} type="body" />
-					</header>
+			<Page>
+				<header aria-hidden data-layout-role="admin-page-header-skeleton">
+					<SkeletonText data-layout-size="page-title" type="heading" />
+					<SkeletonText
+						data-layout-size="page-description-long"
+						lines={2}
+						type="body"
+					/>
+				</header>
+				<PageBody>
 					<Table
 						aria-busy
 						aria-label="Users"
+						data-admin-table="users"
 						toolbar={
-							<>
-								<Skeleton className="h-(--control-sm) w-64 rounded-pill" />
-								<Skeleton className="h-(--control-sm) w-24 rounded-pill" />
-								<Skeleton className="ms-auto h-(--control-sm) w-56 rounded-pill" />
-							</>
+							<div aria-hidden data-layout-role="admin-table-toolbar-skeleton">
+								<Skeleton data-layout-size="filter-wide" />
+								<Skeleton data-layout-size="filter-short" />
+								<Skeleton data-layout-size="search" />
+							</div>
 						}
 					>
 						<TableHeader>
@@ -34,11 +40,17 @@ export function AdminUsersPageSkeleton() {
 								<TableHead />
 								<TableHead>User</TableHead>
 								<TableHead>Status</TableHead>
-								<TableHead>Personal org</TableHead>
-								<TableHead numeric>Orgs</TableHead>
-								<TableHead>Joined</TableHead>
-								<TableHead>Last seen</TableHead>
-								<TableHead>No cooldown</TableHead>
+								<TableHead data-admin-column="user-personal-org">
+									Personal org
+								</TableHead>
+								<TableHead data-admin-column="user-org-count" numeric>
+									Orgs
+								</TableHead>
+								<TableHead data-admin-column="user-joined">Joined</TableHead>
+								<TableHead data-admin-column="user-last-seen">
+									Last seen
+								</TableHead>
+								<TableHead>Skip cooldown</TableHead>
 								<TableHead />
 							</TableRow>
 						</TableHeader>
@@ -59,8 +71,8 @@ export function AdminUsersPageSkeleton() {
 							/>
 						</TableBody>
 					</Table>
-				</div>
-			</div>
+				</PageBody>
+			</Page>
 		</DashboardLayout>
 	);
 }

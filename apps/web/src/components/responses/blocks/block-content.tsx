@@ -1,10 +1,10 @@
 import type { BlockOutput, CloseGif, ResponseBlock } from "@tripwire/contracts";
-import { Hide } from "#/components/glaze/icon";
 import { BLOCK_META } from "#/components/responses/blocks/block-catalog";
 import { CollapsedBlockRow } from "#/components/responses/blocks/collapsed-block-row";
 import { GifBlockPopover } from "#/components/responses/blocks/gif-block-popover";
 import { TextBlockEditor } from "#/components/responses/blocks/text-block-editor";
 import { CommentMarkdown } from "#/components/responses/github-comment-mock";
+import { Hide } from "#/design-system/icon";
 
 export interface BlockContentProps {
 	output: BlockOutput;

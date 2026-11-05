@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { Icon, Search } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
-import { Kbd } from "#/components/glaze/ui/kbd";
+import { Icon, Search } from "#/design-system/icon";
+import { Button } from "#/design-system/ui/button";
+import { Kbd } from "#/design-system/ui/kbd";
 
 const CommandPalette = lazy(() =>
 	import("#/components/layouts/command-palette").then((m) => ({

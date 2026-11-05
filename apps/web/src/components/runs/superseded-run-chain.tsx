@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { ZonedTime } from "#/components/timezones/zoned-time";
 import {
 	Check,
 	ChevronDown,
@@ -6,13 +7,12 @@ import {
 	Icon,
 	Pending,
 	Undo,
-} from "#/components/glaze/icon";
+} from "#/design-system/icon";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
-} from "#/components/glaze/ui/collapsible";
-import { ZonedTime } from "#/components/timezones/zoned-time";
+} from "#/design-system/ui/collapsible";
 import type { RunLinkView } from "#/lib/runs.functions";
 import { cn } from "#/lib/utils";
 

@@ -4,11 +4,25 @@
 	"private": true,
 	"type": "module",
 	"exports": {
-		".": "./src/index.ts"
+		".": "./src/index.ts",
+		"./layouts": "./src/layouts.tsx",
+		"./styles/color.css": "./src/styles/color.css",
+		"./styles/layout.css": "./src/styles/layout.css",
+		"./styles/typography.css": "./src/styles/typography.css",
+		"./typography": "./src/typography.tsx"
 	},
 	"types": "./src/index.ts",
 	"scripts": {
 		"typecheck": "tsrs --noEmit --checkers 4 --fast false",
 		"typecheck:ts5": "tsc --noEmit"
+	},
+	"peerDependencies": {
+		"react": "^19.2.0"
+	},
+	"devDependencies": {
+		"@types/react": "^19.2.0",
+		"@types/react-dom": "^19.2.0",
+		"react": "^19.2.0",
+		"react-dom": "^19.2.0"
 	}
 }

@@ -6,13 +6,11 @@ import { ForgeMark } from "#/components/common/forge-marks";
 import { MetaRow } from "#/components/common/meta-row";
 import { ConnectForgeDialog } from "#/components/forges/connect-forge-dialog";
 import { OrganizationConnectionsPage } from "#/components/forges/organization-connections-page";
-import { Add, Icon } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
-import {
-	Empty,
-	EmptyHeader,
-	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import { SettingsHeader } from "#/components/settings/settings-frame";
+import { Add, Icon } from "#/design-system/icon";
+import { Button } from "#/design-system/ui/button";
+import { Empty, EmptyHeader, EmptyTitle } from "#/design-system/ui/empty-state";
 import {
 	Item,
 	ItemActions,
@@ -21,15 +19,13 @@ import {
 	ItemGroup,
 	ItemMedia,
 	ItemTitle,
-} from "#/components/glaze/ui/item";
+} from "#/design-system/ui/item";
 import {
 	Skeleton,
 	SkeletonSwap,
 	SkeletonText,
-} from "#/components/glaze/ui/skeleton";
-import { toast } from "#/components/glaze/ui/toast";
-import { MascotArt } from "#/components/mascot/mascot-art";
-import { SettingsHeader } from "#/components/settings/settings-frame";
+} from "#/design-system/ui/skeleton";
+import { toast } from "#/design-system/ui/toast";
 import { currentUserQueryOptions } from "#/lib/auth.query";
 import { disconnectForge } from "#/lib/connections.functions";
 import { connectionsQueryOptions } from "#/lib/connections.query";
