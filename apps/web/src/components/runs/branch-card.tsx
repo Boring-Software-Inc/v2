@@ -18,6 +18,7 @@ import {
 	type ChainBranch,
 	type ChainRule,
 	type ChainSkip,
+	formatDuration,
 	passedNote,
 	ruleReason,
 } from "#/lib/run-chain";
@@ -28,10 +29,6 @@ export interface BranchContext {
 	maintainer: boolean;
 	repo: string;
 	sha: string | null;
-}
-
-function joinNames(rules: readonly ChainRule[]): string {
-	return rules.map((rule) => rule.name).join(", ");
 }
 
 function PassedFold({
@@ -50,9 +47,6 @@ function PassedFold({
 						<span className="text-ok-text">{`${rules.length} passed`}</span>
 					</span>
 				</CollapsibleTrigger>
-				<span className="min-w-0 flex-1 pt-1 type-body-sm text-text-2">
-					{joinNames(rules)}
-				</span>
 			</div>
 			<CollapsibleContent hiddenUntilFound>
 				<ul className="flex flex-col gap-1 ps-2 pb-1">
@@ -72,9 +66,11 @@ function PassedFold({
 											{note.model}
 										</span>
 									) : null}
-									<span className="shrink-0 type-caption">
-										{rule.step.durationMs}ms
-									</span>
+									{formatDuration(rule.step.durationMs) ? (
+										<span className="shrink-0 type-caption">
+											{formatDuration(rule.step.durationMs)}
+										</span>
+									) : null}
 								</span>
 								{note ? (
 									<p className="[overflow-wrap:anywhere]">{note.summary}</p>
@@ -114,9 +110,11 @@ function FlaggedRule({
 					>
 						{failed ? "Did not pass" : "Skipped"}
 					</span>
-					<span className="type-caption text-text-2">
-						{rule.step.durationMs}ms
-					</span>
+					{formatDuration(rule.step.durationMs) ? (
+						<span className="type-caption text-text-2">
+							{formatDuration(rule.step.durationMs)}
+						</span>
+					) : null}
 				</div>
 				{reason ? (
 					<p className="type-body text-text-1 [overflow-wrap:anywhere]">

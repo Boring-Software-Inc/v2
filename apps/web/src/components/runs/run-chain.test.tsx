@@ -53,8 +53,10 @@ describe("run chain outcome node", () => {
 		expect(render(WITH_REVIEW, 8)).toContain("+2.7s");
 	});
 
-	test("shows each clock time with its zone", () => {
-		expect(render(WITH_REVIEW, 8)).toMatch(/\d{2}:\d{2}:\d{2} UTC/);
+	test("keeps the exact event time accessible behind the relative label", () => {
+		const html = render(WITH_REVIEW, 8);
+		expect(html).toContain('dateTime="2026-10-21T10:14:58.000Z"');
+		expect(html).toContain("10:14:58 AM UTC");
 	});
 
 	test("shows the offset of a run still waiting for review", () => {

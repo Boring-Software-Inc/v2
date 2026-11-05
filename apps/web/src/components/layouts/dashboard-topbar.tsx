@@ -127,6 +127,7 @@ export function UserMenu({
 				<Avatar
 					decorative
 					name={moderator.name}
+					size={showName ? "default" : "lg"}
 					src={moderator.image || undefined}
 				/>
 				{showName ? (

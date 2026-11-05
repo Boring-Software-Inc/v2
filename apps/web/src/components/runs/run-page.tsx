@@ -13,7 +13,7 @@ import { Page, PageBody, PageHeader } from "#/components/layouts/page";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { RunChainView, RunStatusMark } from "#/components/runs/run-chain";
 import { RunPageSkeleton } from "#/components/runs/run-page-skeleton";
-import { ZonedTime, ZoneOrgScope } from "#/components/timezones/zoned-time";
+import { ZoneOrgScope } from "#/components/timezones/zoned-time";
 import { GithubMark, Icon, Retry } from "#/design-system/icon";
 import { Button } from "#/design-system/ui/button";
 import { CopyButton } from "#/design-system/ui/copy-button";
@@ -136,15 +136,17 @@ function RunBody({ run }: { run: RunView }) {
 				<PageHeader
 					actions={
 						<>
-							<CopyButton
-								label="run as Markdown"
-								size="icon"
-								title="Copy run as Markdown"
-								value={() =>
-									runToMarkdown(run, formatRelativeTime(run.createdAt))
-								}
-								variant="ghost"
-							/>
+							{run.access !== "public" ? (
+								<CopyButton
+									label="run as Markdown"
+									showLabel
+									title="Copy run as Markdown"
+									value={() =>
+										runToMarkdown(run, formatRelativeTime(run.createdAt))
+									}
+									variant="ghost"
+								/>
+							) : null}
 							<ViewOnForgeButton run={run} />
 							{run.canRerun && run.orgSlug && run.repoName ? (
 								<RerunRunButton
@@ -163,7 +165,6 @@ function RunBody({ run }: { run: RunView }) {
 							{run.backfill ? <span>{BACKFILL_RUN_LABEL}</span> : null}
 							<span>{run.repoFullName}</span>
 							<span>{formatRelativeTime(run.createdAt)}</span>
-							<ZonedTime at={run.createdAt} format="date-time" />
 						</MetaRow>
 					}
 					title={run.subjectNumber ? `Run on #${run.subjectNumber}` : "Run"}

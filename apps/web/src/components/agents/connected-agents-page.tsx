@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
 import { MetaRow } from "#/components/common/meta-row";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import { SettingsHeader } from "#/components/settings/settings-frame";
 import { ZonedTime } from "#/components/timezones/zoned-time";
 import { Button } from "#/design-system/ui/button";
@@ -121,7 +122,11 @@ export function ConnectedAgentsPage() {
 						</ItemGroup>
 					</div>
 				) : (
-					<Empty size="sm" variant="plain">
+					<Empty
+						art={<MascotArt mood="admin-table-empty" size="compact" />}
+						size="sm"
+						variant="plain"
+					>
 						<EmptyHeader>
 							<EmptyTitle>No agents connected</EmptyTitle>
 						</EmptyHeader>

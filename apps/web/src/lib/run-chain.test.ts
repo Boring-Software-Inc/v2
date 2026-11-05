@@ -16,6 +16,7 @@ import {
 	branchSummary,
 	buildBranches,
 	buildRunChain,
+	formatDuration,
 	formatOffset,
 	outcomeChips,
 	passedNote,
@@ -145,6 +146,15 @@ describe("formatOffset", () => {
 		expect(formatOffset(2700)).toBe("+2.7s");
 		expect(formatOffset(30_000)).toBe("+30s");
 		expect(formatOffset(22 * 60_000)).toBe("+22m");
+	});
+});
+
+describe("formatDuration", () => {
+	test("hides implementation noise and formats useful elapsed time", () => {
+		expect(formatDuration(0)).toBeNull();
+		expect(formatDuration(45)).toBeNull();
+		expect(formatDuration(1234)).toBe("1.2s");
+		expect(formatDuration(62_000)).toBe("1m 2s");
 	});
 });
 
@@ -826,10 +836,10 @@ describe("re-runs and superseded runs", () => {
 		});
 	});
 
-	test("a manual re-run names the admin only for members", () => {
+	test("a manual re-run keeps the timeline title concise", () => {
 		const rerun = view({ rerun: true, rerunBy: "Grim" });
 		expect(buildRunChain(toFullRunView(rerun)).event.title).toBe(
-			"Grim re-ran the rules on #91",
+			"Rules re-run on #91",
 		);
 		expect(buildRunChain(toPublicRunView(rerun, 0)).event.title).toBe(
 			"Rules re-run on #91",

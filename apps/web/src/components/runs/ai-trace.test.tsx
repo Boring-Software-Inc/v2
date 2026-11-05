@@ -107,7 +107,7 @@ describe("AiTraceMeta", () => {
 		expect(html).toContain("anthropic/claude-haiku-4.5");
 		expect(html).toContain("1,234,567 tokens in");
 		expect(html).toContain("45,678 out");
-		expect(html).toContain("0ms");
+		expect(html).not.toContain("0ms");
 		expect(html).not.toContain("<button");
 		expect(html).not.toContain("<ol");
 		expect(html).not.toContain("Reasoning");
@@ -127,7 +127,7 @@ describe("AiTraceMeta", () => {
 		expect(trigger).toContain('aria-expanded="false"');
 		expect(panel).toContain('hidden=""');
 		expect(html).toContain("17 of 15 steps");
-		expect(html).toContain("1234ms");
+		expect(html).toContain("1.2s");
 		expect(html.match(/<ol(?:\s|>)/g)).toHaveLength(1);
 		expect(html.match(/<li(?:\s|>)/g)).toHaveLength(4);
 		expect(html).toContain("Trimmed to the first 3 steps.");

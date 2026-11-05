@@ -14,7 +14,6 @@ import {
 	TONE_WORD,
 } from "#/components/runs/chain-mark";
 import { SupersededRunChain } from "#/components/runs/superseded-run-chain";
-import { ZonedTime } from "#/components/timezones/zoned-time";
 import {
 	ArrowUpRight,
 	Comment,
@@ -29,6 +28,7 @@ import {
 } from "#/design-system/icon";
 import { Badge } from "#/design-system/ui/badge";
 import { Button } from "#/design-system/ui/button";
+import { RelativeTime } from "#/design-system/ui/relative-time";
 import {
 	type ChainBranch,
 	type ChainChecks,
@@ -41,7 +41,7 @@ import {
 import { cn } from "#/lib/utils";
 
 function ClockTime({ at }: { at: string }) {
-	return <ZonedTime at={at} format="clock" />;
+	return <RelativeTime date={at} />;
 }
 
 function When({
@@ -51,14 +51,15 @@ function When({
 	at: string | null;
 	offsetMs: number | null;
 }) {
-	if (!at && offsetMs === null) {
+	const showOffset = offsetMs !== null && offsetMs > 0;
+	if (!at && !showOffset) {
 		return null;
 	}
 	return (
 		<span className="type-caption text-text-2">
 			{at ? <ClockTime at={at} /> : null}
-			{at && offsetMs !== null ? ", " : null}
-			{offsetMs !== null ? formatOffset(offsetMs) : null}
+			{at && showOffset ? ", " : null}
+			{showOffset ? formatOffset(offsetMs) : null}
 		</span>
 	);
 }

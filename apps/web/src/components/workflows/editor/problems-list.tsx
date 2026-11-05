@@ -12,6 +12,11 @@ import {
 	PopoverTrigger,
 } from "#/design-system/ui/popover";
 import { Status } from "#/design-system/ui/status";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/design-system/ui/tooltip";
 import { Label } from "#/design-system/ui/typography";
 
 export function severityStatus(problems: readonly Problem[]): "fail" | "warn" {
@@ -125,25 +130,46 @@ export function ProblemsButton({
 		return null;
 	}
 	const blocking = severityStatus(problems) === "fail";
+	const explanation = problems
+		.filter((problem) => problem.severity === (blocking ? "error" : "warning"))
+		.slice(0, 3)
+		.map((problem) => ({
+			key: problem.key,
+			text: `${problem.step}: ${problem.message}`,
+		}));
 	return (
 		<Popover onOpenChange={onOpenChange} open={open}>
 			<div
 				data-layout-role="workflow-problems-trigger"
 				data-blocking={blocking || undefined}
 			>
-				<PopoverTrigger
-					render={
-						<Button size="sm" variant={blocking ? "ghost" : "secondary"} />
-					}
-				>
-					{blocking ? (
-						<Status size="sm" status="fail">
-							{problemCount(problems)}
-						</Status>
-					) : (
-						problemCount(problems)
-					)}
-				</PopoverTrigger>
+				<Tooltip>
+					<TooltipTrigger render={<span className="inline-flex" />}>
+						<PopoverTrigger
+							render={
+								<Button
+									size="sm"
+									variant={blocking ? "ghost" : "secondary"}
+								/>
+							}
+						>
+							{blocking ? (
+								<Status size="sm" status="fail">
+									{problemCount(problems)}
+								</Status>
+							) : (
+								problemCount(problems)
+							)}
+						</PopoverTrigger>
+					</TooltipTrigger>
+					<TooltipContent>
+						<span className="flex max-w-72 flex-col gap-1">
+							{explanation.map((line) => (
+								<span key={line.key}>{line.text}</span>
+							))}
+						</span>
+					</TooltipContent>
+				</Tooltip>
 			</div>
 			<PopoverContent
 				align="end"

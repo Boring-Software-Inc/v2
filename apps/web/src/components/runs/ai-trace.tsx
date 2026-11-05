@@ -4,6 +4,7 @@ import {
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "#/design-system/ui/collapsible";
+import { formatDuration } from "#/lib/run-chain";
 
 const count = new Intl.NumberFormat("en-US");
 
@@ -14,13 +15,14 @@ export function AiTraceMeta({
 	trace: AiReviewTrace;
 	durationMs: number;
 }) {
+	const duration = formatDuration(durationMs);
 	return (
 		<div data-layout-role="ai-trace">
 			<div className="type-caption" data-layout-role="ai-trace-counters">
 				<span className="type-code-sm">{trace.model}</span>
 				<span>{count.format(trace.usage.input)} tokens in</span>
 				<span>{count.format(trace.usage.output)} out</span>
-				<span>{durationMs}ms</span>
+				{duration ? <span>{duration}</span> : null}
 			</div>
 			{trace.steps.length > 0 ? (
 				<Collapsible data-layout-role="ai-trace-reasoning">

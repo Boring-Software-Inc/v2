@@ -18,6 +18,18 @@ import { ArrowRight, Icon } from "#/design-system/icon";
 import { Avatar } from "#/design-system/ui/avatar";
 import { Button } from "#/design-system/ui/button";
 import {
+	Dialog,
+	DialogAction,
+	DialogBody,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from "#/design-system/ui/dialog";
+import {
 	Item,
 	ItemActions,
 	ItemContent,
@@ -294,15 +306,32 @@ function SessionsSection() {
 		<SettingsSection
 			action={
 				others > 0 ? (
-					<Button
-						onClick={() => revokeOthers.mutate()}
-						pending={revokeOthers.isPending}
-						pendingLabel="Signing out"
-						size="sm"
-						variant="secondary"
-					>
-						Sign out everywhere else
-					</Button>
+					<Dialog>
+						<DialogTrigger render={<Button size="sm" variant="destructive" />}>
+							Sign out everywhere else
+						</DialogTrigger>
+						<DialogContent role="alertdialog">
+							<DialogHeader>
+								<DialogTitle>Sign out everywhere else?</DialogTitle>
+								<DialogDescription>
+									This keeps this device signed in and ends {others} other {others === 1 ? "session" : "sessions"}.
+								</DialogDescription>
+							</DialogHeader>
+							<DialogBody>
+								<p className="type-body-sm text-text-2">You will need to sign in again on those devices.</p>
+							</DialogBody>
+							<DialogFooter>
+								<DialogClose>Cancel</DialogClose>
+								<DialogAction
+									onAction={() => revokeOthers.mutateAsync()}
+									pendingLabel="Signing out"
+									variant="destructive"
+								>
+									Sign out
+								</DialogAction>
+							</DialogFooter>
+						</DialogContent>
+					</Dialog>
 				) : null
 			}
 			id="sessions"
@@ -401,7 +430,7 @@ function PreferencesSection() {
 									disabled={!signedIn || saveTimezone.isPending}
 									labelledBy="timezone-label"
 									onChange={(next) => saveTimezone.mutate(next)}
-									unsetLabel={`Org timezone, or this device (${device})`}
+									unsetLabel={`Organization timezone · ${device}`}
 									value={session?.user?.timezone ?? null}
 								/>
 							</div>

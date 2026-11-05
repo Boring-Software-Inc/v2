@@ -172,30 +172,29 @@ function RenameCard({
 					{slugError ? <FieldError>{slugError}</FieldError> : null}
 				</Field>
 			</div>
-			{dirty ? (
-				<div className="shell-foot justify-end">
-					<Button
-						onClick={() => {
-							setName(orgContext.name);
-							setSlug(orgContext.slug);
-						}}
-						size="sm"
-						type="button"
-						variant="secondary"
-					>
-						Discard
-					</Button>
-					<Button
-						disabled={slugError !== null || nameError !== null}
-						pending={saveMutation.isPending}
-						pendingLabel="Saving"
-						size="sm"
-						type="submit"
-					>
-						Save changes
-					</Button>
-				</div>
-			) : null}
+			<div className="shell-foot justify-end">
+				<Button
+					disabled={!dirty}
+					onClick={() => {
+						setName(orgContext.name);
+						setSlug(orgContext.slug);
+					}}
+					size="sm"
+					type="button"
+					variant="secondary"
+				>
+					Discard
+				</Button>
+				<Button
+					disabled={!dirty || slugError !== null || nameError !== null}
+					pending={saveMutation.isPending}
+					pendingLabel="Saving"
+					size="sm"
+					type="submit"
+				>
+					Save changes
+				</Button>
+			</div>
 		</form>
 	);
 }
@@ -226,7 +225,7 @@ function TimezoneSection({
 					disabled={!canManage || save.isPending}
 					labelledBy="org-timezone-heading"
 					onChange={(next) => save.mutate(next)}
-					unsetLabel="UTC, the default"
+					unsetLabel="UTC"
 					value={timezone}
 				/>
 			</div>

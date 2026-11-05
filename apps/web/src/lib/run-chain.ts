@@ -187,6 +187,20 @@ export function formatOffset(ms: number): string {
 	return `+${Math.round(ms / 3_600_000)}h`;
 }
 
+/** Compact elapsed time for the UI. Sub-second timings are implementation noise. */
+export function formatDuration(ms: number): string | null {
+	if (!Number.isFinite(ms) || ms < 1000) {
+		return null;
+	}
+	if (ms < 60_000) {
+		const seconds = ms / 1000;
+		return `${Number.isInteger(seconds) ? seconds : seconds.toFixed(1)}s`;
+	}
+	const minutes = Math.floor(ms / 60_000);
+	const seconds = Math.round((ms % 60_000) / 1000);
+	return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+}
+
 function eventChain(run: RunView): ChainEvent {
 	const event = run.event;
 	const actor = event?.actor ?? "Someone";
@@ -194,9 +208,7 @@ function eventChain(run: RunView): ChainEvent {
 	let title: string;
 	let glyph: ChainGlyph = "opened";
 	if (run.rerun) {
-		title = run.rerunBy
-			? `${run.rerunBy} re-ran the rules on ${on}`
-			: `Rules re-run on ${on}`;
+		title = `Rules re-run on ${on}`;
 		glyph = "rerun";
 	} else if (event?.kind === "schedule.matched") {
 		title = "Matched by schedule";
