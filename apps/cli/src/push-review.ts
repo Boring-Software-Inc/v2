@@ -84,7 +84,7 @@ export function pushRefusalText(view: WorkflowPushView, repo: string): string {
 		case "expired":
 			return "The review link expired. Nothing was saved. Push again.";
 		case "stale":
-			return `These workflows changed on the server after the push. Nothing was saved. Run tripwire workflows diff ${repo}, then push again.`;
+			return `These workflows changed on the server after the push. Nothing was saved. Run tripwire workflows diff --repo ${repo}, then push again.`;
 		default:
 			return "The push was not accepted. Nothing was saved.";
 	}

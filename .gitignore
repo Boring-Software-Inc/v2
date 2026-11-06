@@ -13,7 +13,10 @@ coverage/
 .demo/
 .tests/
 .turbo/
-/docs
+/docs/*
+!/docs/research/
+/docs/research/*
+!/docs/research/workflow-authoring-sdk-cli.md
 /repo_docs
 /plans/
 /PLAN.md

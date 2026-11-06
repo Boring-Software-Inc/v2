@@ -46,6 +46,16 @@ function source(over: Partial<PushReviewSource> = {}): PushReviewSource {
 }
 
 describe("pushReviewWorkflow", () => {
+	test("shows original TypeScript alongside the graph that will run", () => {
+		const before = { ...gate(7), authoredSource: "// First comment\n" };
+		const after = { ...gate(30), authoredSource: "// Edited comment\r\n" };
+		const view = pushReviewWorkflow(source({ before, after }));
+		if (view.code.kind !== "code") throw new Error("expected code");
+		expect(view.code.before.startsWith(before.authoredSource)).toBe(true);
+		expect(view.code.after.startsWith(after.authoredSource)).toBe(true);
+		expect(view.code.after).toContain('"minDays": 30');
+		expect(view.code.after).not.toContain('"authoredSource"');
+	});
 	test("both sides are the code pull writes", () => {
 		const view = pushReviewWorkflow(source());
 		if (view.code.kind !== "code") {

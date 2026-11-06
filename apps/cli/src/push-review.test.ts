@@ -144,7 +144,7 @@ describe("copy", () => {
 			);
 		}
 		expect(pushRefusalText(view({ status: "stale" }), "scratch")).toContain(
-			"tripwire workflows diff scratch",
+			"tripwire workflows diff --repo scratch",
 		);
 	});
 

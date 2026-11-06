@@ -750,3 +750,28 @@ dependency.
 **Supersedes:** the temporary pilot constraint in the application-owned boundary
 decision and semantic UI plan that deferred package ownership until the API was
 proven.
+
+## 2026-11-05: TypeScript SDK lives in its own repository
+
+**Decision (founder):** the public TypeScript SDK is approved as the standalone
+`tripwire-typescript-sdk` repository and the npm package `@tripwire-sh/sdk`.
+This is the first language SDK. It does not live as a new top-level package in
+the product monorepo. The existing private `@tripwire/sdk` workspace keeps its
+internal signal and forge role until a deliberate migration removes or renames
+it.
+
+The first public surface is typed workflow authoring and compilation. Pulled
+definitions live in `.tripwire/workflows/<slug>.ts`, default-export one workflow,
+and import the SDK rather than a copied runtime. Stable slugs remain mapped to
+remote workflow IDs in `.tripwire/project.json`.
+
+`apps/cli` may depend on `@tripwire-sh/sdk` in addition to
+`@tripwire/contracts`. The CLI and SDK must share compilation behavior; the CLI
+must not grow a second workflow engine. The product server still validates the
+canonical JSON definition and repository capabilities at its boundary.
+
+The package root is reserved for the authenticated resource client and
+`@tripwire-sh/sdk/workflows` owns pure authoring. Programmatic preview waits for
+an approved server capability and must not invent an endpoint. Publishing the
+package, creating a remote repository, changing production flags, or deploying
+still requires separate authorization.

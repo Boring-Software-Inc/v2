@@ -1,52 +1,46 @@
 import { describe, expect, test } from "bun:test";
-import { route } from "#/program";
+import { CommanderError } from "commander";
+import { buildProgram } from "#/program";
+import { realSystem } from "#/system";
 
-describe("route", () => {
-	test("runs install only when the first command is install", () => {
-		expect(route(["install"])).toEqual({ kind: "run", argv: ["install"] });
-		expect(route(["install", "acme#abcde12345"])).toEqual({
-			kind: "run",
-			argv: ["install", "acme#abcde12345"],
-		});
+const system = realSystem({}, "linux");
+
+describe("program parsing", () => {
+	test("Commander rejects unknown commands", async () => {
+		const program = buildProgram(system).exitOverride();
+		program.configureOutput({ writeErr: () => undefined });
+		const error = await program
+			.parseAsync(["instal"], { from: "user" })
+			.catch((caught: unknown) => caught);
+		expect(error).toBeInstanceOf(CommanderError);
+		expect((error as CommanderError).code).toBe("commander.unknownCommand");
 	});
 
-	test("unknown commands never fall through to install", () => {
-		expect(route(["list_repos"])).toEqual({
-			kind: "unknown",
-			command: "list_repos",
-		});
-		expect(route(["acme#abcde12345"])).toEqual({
-			kind: "unknown",
-			command: "acme#abcde12345",
-		});
-		expect(route(["--json", "instal"])).toEqual({
-			kind: "unknown",
-			command: "instal",
-		});
+	test("Commander rejects invalid flags instead of swallowing them", async () => {
+		const program = buildProgram(system).exitOverride();
+		program.configureOutput({ writeErr: () => undefined });
+		const error = await program
+			.parseAsync(["--no-interactive"], { from: "user" })
+			.catch((caught: unknown) => caught);
+		expect(error).toBeInstanceOf(CommanderError);
+		expect((error as CommanderError).code).toBe("commander.unknownOption");
 	});
 
-	test("no command shows help", () => {
-		expect(route([])).toEqual({ kind: "help" });
-		expect(route(["--no-interactive"])).toEqual({ kind: "help" });
-	});
-
-	test("keeps known commands after global options", () => {
-		expect(route(["--json", "whoami"])).toEqual({
-			kind: "run",
-			argv: ["--json", "whoami"],
-		});
-		expect(route(["--org", "acme", "repos"])).toEqual({
-			kind: "run",
-			argv: ["--org", "acme", "repos"],
-		});
-		expect(route(["rules", "list"])).toEqual({
-			kind: "run",
-			argv: ["rules", "list"],
-		});
-	});
-
-	test("leaves help and version alone", () => {
-		expect(route(["--help"])).toEqual({ kind: "run", argv: ["--help"] });
-		expect(route(["-V"])).toEqual({ kind: "run", argv: ["-V"] });
+	test("command groups print their own help and complete successfully", async () => {
+		for (const group of ["rules", "gate", "workflows", "runs", "queue"]) {
+			let stdout = "";
+			const program = buildProgram(system).exitOverride();
+			const groupCommand = program.commands.find(
+				(command) => command.name() === group,
+			);
+			expect(groupCommand).toBeDefined();
+			groupCommand?.configureOutput({
+				writeOut: (value) => {
+					stdout += value;
+				},
+			});
+			await program.parseAsync([group], { from: "user" });
+			expect(stdout).toContain(`Usage: tripwire ${group}`);
+		}
 	});
 });

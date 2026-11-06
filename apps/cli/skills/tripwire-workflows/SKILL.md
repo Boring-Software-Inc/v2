@@ -1,47 +1,32 @@
 ---
 name: tripwire-workflows
-description: Write and change Tripwire workflows as tripwire.ts code. Use when the user wants a workflow, a gate, a schedule or an automation added, changed or explained, or mentions tripwire.ts.
+description: Write and change Tripwire workflows as TypeScript. Use when the user wants to add, change, or understand a workflow, gate, schedule, or automation.
 ---
 
 # Tripwire workflows as code
 
-A workflow is typed code in `tripwire.ts`. It is a finite graph: triggers,
-rule checks, gates (all of, any of, not) and actions. It always finishes, and
-the compiler checks it before anything runs.
+Each workflow has a TypeScript file under `.tripwire/workflows/`. The filename
+is its slug. Tripwire checks the code before sending the workflow for review.
 
 ## Steps
 
-1. **Pull.** `npx @tripwire-sh/cli workflows pull <repo>`. This writes
-   `tripwire.ts`, the typed helpers in `.tripwire/workflow.ts` and the link in
-   `.tripwire/project.json`. Done when the files exist. Read `tripwire.ts`
-   before you change it: the canvas and other people edit the same workflows.
-   To pull only some, name them: `workflows pull <repo> <key> <key>`. Workflows
-   already in the file that you did not name stay as they are.
+1. **Pull.** Run `tripwire workflows pull --repo acme/widgets`. To pull one
+   workflow, pass its slug, for example `tripwire workflows pull new-contributors`.
+   After the first pull, `.tripwire/project.json` records the repo and maps
+   filenames to remote workflow IDs. Keep the filename when renaming a workflow.
+2. **Edit.** Install `@tripwire-sh/sdk` and TypeScript in the project. During
+   SDK development, install from a local build. Pull generates
+   `defineWorkflow(...)` files to preserve the saved graph. Use `workflow(...)`
+   and the SDK helpers when authoring a workflow from scratch.
+3. **Validate and compare.** Run `tripwire workflows validate new-contributors`
+   and `tripwire workflows diff new-contributors`. Show the user the diff before
+   pushing. Omit the slug to select every workflow file.
+4. **Push.** Run `tripwire workflows push new-contributors`. It checks TypeScript
+   and sends the compiled workflow for review. Give the user the review link.
+   New workflows start off. Use `--force` to save without review only when the
+   user asks.
 
-   The link holds the repo, the org and each workflow's id, no secrets, so
-   commit it.
-   Anywhere under that folder, `diff`, `push`, `list`, `enable` and the other
-   commands can leave out `<repo>` and `--org`. An explicit `<repo>`, `--org`
-   or `TRIPWIRE_ORG` wins over the link. `tripwire link <repo>` and
-   `tripwire unlink` set and clear it; `tripwire status` shows it.
-2. **Write.** Edit `tripwire.ts` with the reference below. Each workflow's key
-   is its name as a slug, and `.tripwire/project.json` maps it to the
-   workflow's id. Keep the key when you rename a workflow. A new key makes a
-   new workflow.
-3. **Validate until clean.** `npx @tripwire-sh/cli workflows validate --repo
-   <repo>`. Every message names the step and, for a wrong id, the right one.
-   Fix and rerun. Done when every workflow says `can be turned on` and each
-   `runs` line reads back the schedule the user asked for, timezone included.
-4. **Diff.** `npx @tripwire-sh/cli workflows diff <repo>`. Show the user the
-   lines and ask before you push.
-5. **Push.** `npx @tripwire-sh/cli workflows push <repo>`. It opens a review
-   page in the user's browser and waits until they accept or reject it. Give
-   the user the `review` link it prints. Exit 0 means accepted; on exit 1 tell
-   the user why and stop. `--force` saves without review: use it only when the
-   user asks. New workflows start off. Turn one on only when the user says so:
-   `npx @tripwire-sh/cli workflows enable <repo> <id>`.
-
-Loading `tripwire.ts` needs Bun or Node 22.18+. On older Node, use
+Loading workflow files needs Bun or Node 22.18+. On older Node, use
 `bunx @tripwire-sh/cli`. If `npx` stops with `EBADDEVENGINES`, the repo's
 `package.json` has a `devEngines` field that npm enforces. Use
 `bunx @tripwire-sh/cli`, or `npx --prefix ~ @tripwire-sh/cli`, which runs in
@@ -53,7 +38,22 @@ you stop. A draft never runs. An accepted push or an apply saves the draft.
 If the MCP cannot see the repo, call `whoami`. If its GitHub login is the
 wrong account, call `switch_account` and give the user the reconnect step.
 
-## Reference
+## SDK example
+
+```ts
+import { accountAge, block, changeRequest, workflow } from "@tripwire-sh/sdk/workflows";
+
+export default workflow({
+  when: changeRequest.opened,
+  require: accountAge({ minDays: 30 }),
+  otherwise: block(),
+});
+```
+
+## Legacy collection reference
+
+Use the examples below only when maintaining a legacy collection. Pass
+`--file tripwire.ts` explicitly to pull, validate, diff, or push it.
 
 ```ts
 import { anyOf, block, check, requestReview, workflow, workflows } from "./.tripwire/workflow.ts";

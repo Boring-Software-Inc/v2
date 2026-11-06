@@ -9,7 +9,9 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const CLI_ENTRY = join(import.meta.dir, "..", "src", "index.ts");
+const CLI_ENTRY =
+	process.env.TRIPWIRE_TEST_CLI_ENTRY ??
+	join(import.meta.dir, "..", "src", "index.ts");
 
 export interface Sandbox {
 	root: string;

@@ -46,7 +46,8 @@ export function workflowKeys(
 		const base = workflowSlug(workflow.name || workflow.id);
 		let key = base;
 		for (let n = 2; used.has(key); n++) {
-			key = `${base}-${n}`;
+			const suffix = `-${n}`;
+			key = base.slice(0, MAX_SLUG - suffix.length).replace(/-+$/, "") + suffix;
 		}
 		used.add(key);
 		keys.set(workflow.id, key);
@@ -76,7 +77,9 @@ export function matchWorkflowIds(
 	const claimed = new Set<string>();
 	const found = new Map<string, WorkflowMatch>();
 	for (const definition of compiled) {
-		const mapped = mapping[definition.id];
+		const mapped = Object.hasOwn(mapping, definition.id)
+			? mapping[definition.id]
+			: undefined;
 		if (mapped && !claimed.has(mapped)) {
 			claimed.add(mapped);
 			found.set(definition.id, {

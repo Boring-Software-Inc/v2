@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import * as p from "@clack/prompts";
 import {
 	type CompileIssue,
@@ -7,12 +7,11 @@ import {
 	type MatchedWorkflows,
 	matchWorkflowIds,
 	type NamedWorkflow,
-	pushExitCode,
 	reportWorkflows,
 	WORKFLOW_PUSH_STATUS_LABELS,
 	type WorkflowDefinition,
 	type WorkflowPushView,
-	type WorkflowState,
+	workflowDefinitionSchema,
 	workflowKeys,
 	workflowPushProposalResultSchema,
 	workflowPushViewSchema,
@@ -40,12 +39,10 @@ import {
 	warnLine,
 } from "#/format";
 import { callTool, type ToolArgs, type ToolOutput } from "#/mcp-client";
-import { runPicker } from "#/picker";
 import {
 	type FoundLink,
 	findProjectLink,
 	InvalidProjectLinkError,
-	linkedWorkflowFile,
 	type ProjectLink,
 	removeProjectLink,
 	resolveOrg,
@@ -64,21 +61,21 @@ import {
 } from "#/push-review";
 import type { System } from "#/system";
 import {
-	DEFAULT_WORKFLOW_FILE,
+	DEFAULT_WORKFLOW_DIRECTORY,
+	discoverWorkflowFiles,
 	formatReports,
-	initialPicks,
-	type ListedWorkflow,
 	type LocalWorkflows,
-	loadWorkflowFile,
+	loadWorkflowFileWithFormat,
 	localCatalog,
-	type PulledWorkflow,
 	pulledCountText,
 	pulledWorkflows,
 	type ReportView,
 	readLocalWorkflows,
 	selectPulled,
-	workflowChoices,
+	selectWorkflowSources,
+	typecheckSdkWorkflow,
 	writePulled,
+	writeSdkWorkflows,
 } from "#/workflows-code";
 
 export interface ManageDeps {
@@ -171,11 +168,19 @@ function render(
 	options: GlobalOptions,
 ): number {
 	if (options.json) {
-		const body = output.isError
-			? { error: friendlyError(output.text, output.data) }
-			: (output.data ?? { text: output.text });
-		out(JSON.stringify(body, null, 2));
-		return output.isError ? 1 : 0;
+		if (output.isError) {
+			err(
+				JSON.stringify({
+					error: {
+						code: "OPERATION_FAILED",
+						message: friendlyError(output.text, output.data),
+					},
+				}),
+			);
+			return 1;
+		}
+		out(JSON.stringify(output.data ?? { text: output.text }));
+		return 0;
 	}
 	if (output.isError) {
 		err(errorLine(friendlyError(output.text, output.data), options.errStyle));
@@ -190,7 +195,14 @@ function render(
 
 function fail(error: Error, options: GlobalOptions): number {
 	if (options.json) {
-		out(JSON.stringify({ error: friendlyError(error.message) }, null, 2));
+		err(
+			JSON.stringify({
+				error: {
+					code: "OPERATION_FAILED",
+					message: friendlyError(error.message),
+				},
+			}),
+		);
 	} else {
 		err(errorLine(friendlyError(error.message), options.errStyle));
 	}
@@ -232,15 +244,6 @@ function linkRows(found: FoundLink): [string, string][] {
 		["linked", org ? `${repo} in org ${org}` : repo],
 		["file", found.path],
 	];
-}
-
-function linkedFile(deps: ManageDeps, command: Command, file: string): string {
-	return linkedWorkflowFile(
-		file,
-		command.getOptionValueSource("file") === "default",
-		process.cwd(),
-		globals(command, deps.system).link,
-	);
 }
 
 function withLink(
@@ -303,16 +306,18 @@ async function login(deps: ManageDeps, command: Command): Promise<void> {
 	try {
 		const code = await requestDeviceCode(deps.auth, base, resource);
 		const link = code.verification_uri_complete ?? code.verification_uri;
-		err(
-			pairs(
-				[
-					["code", formatUserCode(code.user_code)],
-					["open", link],
-					["", "Waiting for you to allow it in the browser"],
-				],
-				options.errStyle,
-			),
-		);
+		if (!options.json) {
+			err(
+				pairs(
+					[
+						["code", formatUserCode(code.user_code)],
+						["open", link],
+						["", "Waiting for you to allow it in the browser"],
+					],
+					options.errStyle,
+				),
+			);
+		}
 		if (browser && deps.openUrl) {
 			await deps.openUrl(link).catch(() => undefined);
 		}
@@ -410,10 +415,6 @@ async function logout(deps: ManageDeps, command: Command): Promise<void> {
 	}
 }
 
-interface WorkflowFileOptions {
-	file: string;
-}
-
 const changeListSchema = z.object({
 	workflows: z.array(
 		z.object({
@@ -506,17 +507,121 @@ function compileIssueLines(
 async function compileFile(
 	file: string,
 	options: GlobalOptions,
-): Promise<WorkflowDefinition[] | null> {
-	const compiled = await loadWorkflowFile(file);
-	if (compiled.ok) {
-		return compiled.definitions;
+	retainSource = false,
+): Promise<{
+	definitions: WorkflowDefinition[];
+	format: "legacy" | "sdk";
+} | null> {
+	const loaded = await loadWorkflowFileWithFormat(file);
+	if (loaded.result.ok) {
+		const source = retainSource ? loaded.source : undefined;
+		const definitions =
+			source === undefined
+				? loaded.result.definitions
+				: loaded.result.definitions.map((definition) =>
+						workflowDefinitionSchema.parse({
+							...definition,
+							authoredSource: source,
+						}),
+					);
+		return { definitions, format: loaded.format };
 	}
 	if (options.json) {
-		out(JSON.stringify({ valid: false, issues: compiled.issues }, null, 2));
+		err(
+			JSON.stringify({
+				error: {
+					code: "INVALID_WORKFLOW",
+					message: "The workflow file did not compile.",
+					details: { issues: loaded.result.issues },
+				},
+			}),
+		);
 	} else {
-		err(compileIssueLines(compiled.issues, options));
+		err(compileIssueLines(loaded.result.issues, options));
 	}
 	return null;
+}
+
+interface CompiledWorkflowSources {
+	definitions: WorkflowDefinition[];
+	files: string[];
+	format: "legacy" | "sdk";
+	context: string;
+}
+
+function defaultWorkflowDirectory(options: GlobalOptions): string {
+	const root = options.link
+		? dirname(dirname(options.link.path))
+		: process.cwd();
+	return join(root, DEFAULT_WORKFLOW_DIRECTORY);
+}
+
+async function compileWorkflowSources(
+	wanted: readonly string[],
+	file: string | undefined,
+	options: GlobalOptions,
+	retainSource = false,
+): Promise<CompiledWorkflowSources | null> {
+	if (file !== undefined) {
+		const compiled = await compileFile(file, options, retainSource);
+		if (!compiled) {
+			return null;
+		}
+		const definitions =
+			wanted.length === 0
+				? compiled.definitions
+				: compiled.definitions.filter((definition) =>
+						wanted.includes(definition.id),
+					);
+		const unknown = wanted.filter(
+			(slug) =>
+				!compiled.definitions.some((definition) => definition.id === slug),
+		);
+		if (unknown.length > 0) {
+			throw new Error(
+				`No workflow ${unknown.join(", ")} in ${file}. Available workflows: ${compiled.definitions.map(({ id }) => id).join(", ") || "none"}.`,
+			);
+		}
+		return {
+			definitions,
+			files: [file],
+			format: compiled.format,
+			context: file,
+		};
+	}
+	const directory = defaultWorkflowDirectory(options);
+	const sources = selectWorkflowSources(
+		discoverWorkflowFiles(directory),
+		wanted,
+	);
+	if (sources.length === 0) {
+		throw new Error(
+			`No workflows in ${directory}. Run tripwire workflows pull --repo <repo> first.`,
+		);
+	}
+	const definitions: WorkflowDefinition[] = [];
+	for (const source of sources) {
+		const loaded = await compileFile(source.file, options, retainSource);
+		if (!loaded) return null;
+		if (loaded.format !== "sdk" || loaded.definitions.length !== 1) {
+			throw new Error(
+				`${source.file} must default-export exactly one @tripwire-sh/sdk workflow. Use --file for legacy tripwire.ts collections.`,
+			);
+		}
+		const [definition] = loaded.definitions;
+		if (!definition || definition.id !== source.slug) {
+			throw new Error(
+				`${source.file} compiled as ${definition?.id ?? "nothing"}; its workflow id must match the filename slug ${source.slug}.`,
+			);
+		}
+		definitions.push(definition);
+	}
+	return {
+		definitions,
+		files: sources.map(({ file: source }) => source),
+		format: "sdk",
+		context: directory,
+	};
 }
 
 async function callForData(
@@ -545,10 +650,9 @@ async function workflowAction(
 	}
 }
 
-interface PullOptions extends WorkflowFileOptions {
+interface PullOptions {
+	file?: string;
 	force?: boolean;
-	all?: boolean;
-	yes?: boolean;
 	link: boolean;
 }
 
@@ -672,69 +776,6 @@ function keyed(
 	});
 }
 
-const WORKFLOW_STATES = [
-	"on",
-	"off",
-	"cant-run",
-	"needs-fixes",
-	"cant-turn-on",
-] as const satisfies readonly WorkflowState[];
-
-const listedWorkflowsSchema = z.array(
-	z.looseObject({
-		id: z.string(),
-		state: z.enum(WORKFLOW_STATES).optional(),
-		schedules: z.array(z.string()).optional(),
-	}),
-);
-
-async function listedWorkflows(
-	deps: ManageDeps,
-	options: GlobalOptions,
-	repo: string,
-): Promise<Map<string, ListedWorkflow>> {
-	const output = await callForData(deps, options, "list_workflows", { repo });
-	const parsed = listedWorkflowsSchema.safeParse(output.data);
-	return new Map(
-		(parsed.success ? parsed.data : []).map((entry) => [
-			entry.id,
-			{ state: entry.state, schedules: entry.schedules },
-		]),
-	);
-}
-
-function localIds(local: LocalWorkflows): string[] | null {
-	return local.kind === "code"
-		? local.definitions.map((definition) => definition.id)
-		: null;
-}
-
-async function pickWorkflows(
-	deps: ManageDeps,
-	options: GlobalOptions,
-	repo: string,
-	workflows: PulledWorkflow[],
-	local: LocalWorkflows,
-): Promise<PulledWorkflow[] | null> {
-	const choices = workflowChoices(
-		workflows,
-		await listedWorkflows(deps, options, repo),
-	);
-	if (choices.filter((choice) => !choice.disabled).length < 2) {
-		return workflows;
-	}
-	const ids = await runPicker(
-		{ message: "Pick workflows to pull", items: choices, maxVisible: 12 },
-		initialPicks(choices, localIds(local)),
-		{
-			input: process.stdin,
-			write: (text) => process.stdout.write(text),
-			columns: () => process.stdout.columns || 80,
-		},
-	);
-	return ids ? workflows.filter((workflow) => ids.includes(workflow.id)) : null;
-}
-
 function keptText(kept: readonly string[]): string {
 	const names =
 		kept.length === 1
@@ -745,7 +786,7 @@ function keptText(kept: readonly string[]): string {
 		: `${names}, not pulled and left as they were`;
 }
 
-function pullWorkflows(
+function pullSdkWorkflows(
 	deps: ManageDeps,
 	command: Command,
 	repo: string,
@@ -753,13 +794,134 @@ function pullWorkflows(
 	opts: PullOptions,
 ): Promise<void> {
 	return workflowAction(command, deps, async (options) => {
+		if (options.link && options.link.link.repo !== repo) {
+			throw new Error(
+				`This project is linked to ${options.link.link.repo}, not ${repo}. Run tripwire unlink, then tripwire link ${repo} before pulling another repository here.`,
+			);
+		}
 		const output = await callForData(deps, options, "get_workflow", { repo });
 		if (output.isError) {
 			return render("get_workflow", output, options);
 		}
 		const workflows = pulledWorkflows(output.data);
-		const read = await readLocalWorkflows(opts.file);
-		const { mapping } = projectKeys(opts.file, repo);
+		const mapping =
+			options.link?.link.repo === repo
+				? (options.link.link.workflows ?? {})
+				: {};
+		const savedKeys = new Map(
+			Object.entries(mapping).map(([key, id]): [string, string] => [id, key]),
+		);
+		const directory = defaultWorkflowDirectory(options);
+		const localSlugs = new Set(
+			discoverWorkflowFiles(directory).map(({ slug }) => slug),
+		);
+		const remoteIds = new Set(workflows.map(({ id }) => id));
+		const stale = Object.entries(mapping)
+			.filter(([key, id]) => localSlugs.has(key) && !remoteIds.has(id))
+			.map(([key, id]) => ({ id, name: key }));
+		const allKeys = workflowKeys(
+			[...workflows.map(({ definition }) => definition), ...stale],
+			savedKeys,
+		);
+		const keys = new Map(
+			workflows.map(({ id }) => [id, allKeys.get(id) ?? id]),
+		);
+		const requested = new Set(wanted);
+		const available = new Set(keys.values());
+		const unknown = [...requested].filter((slug) => !available.has(slug));
+		if (unknown.length > 0) {
+			throw new Error(
+				`No workflow ${unknown.join(", ")} on ${repo}. Available workflows: ${[...available].join(", ") || "none"}.`,
+			);
+		}
+		const picked = workflows.filter(
+			({ id }) => requested.size === 0 || requested.has(keys.get(id) ?? ""),
+		);
+		const written = writeSdkWorkflows(
+			directory,
+			picked.map(({ definition }) => definition),
+			keys,
+			opts.force === true,
+			options.link?.link.workflowPullHashes,
+		);
+		let link: string | null = null;
+		if (opts.link) {
+			const root = options.link
+				? dirname(dirname(options.link.path))
+				: process.cwd();
+			const next: ProjectLink = {
+				org: options.org,
+				repo,
+				workflows: {
+					...Object.fromEntries(
+						stale.map(({ id }) => [allKeys.get(id) ?? id, id]),
+					),
+					...workflowMapping(keys),
+				},
+			};
+			next.workflowPullHashes = {
+				...Object.fromEntries(
+					Object.entries(options.link?.link.workflowPullHashes ?? {}).filter(
+						([slug]) => next.workflows?.[slug] === mapping[slug],
+					),
+				),
+				...written.hashes,
+			};
+			link =
+				options.link && sameLink(options.link.link, next)
+					? options.link.path
+					: writeProjectLink(root, next);
+		}
+		if (options.json) {
+			out(
+				JSON.stringify({
+					directory,
+					files: written.files,
+					unchanged: written.unchanged,
+					link,
+					keys: Object.fromEntries(keys),
+				}),
+			);
+			return 0;
+		}
+		out(
+			pairs(
+				[
+					[
+						"wrote",
+						`${written.files.length} workflow file${written.files.length === 1 ? "" : "s"}`,
+					],
+					["kept", `${written.unchanged.length} unchanged`],
+					...(link
+						? ([["linked", `${repo} in ${link}`]] as [string, string][])
+						: []),
+				],
+				options.style,
+			),
+		);
+		return 0;
+	});
+}
+
+function pullWorkflows(
+	deps: ManageDeps,
+	command: Command,
+	repo: string,
+	wanted: string[],
+	opts: PullOptions,
+): Promise<void> {
+	if (opts.file === undefined) {
+		return pullSdkWorkflows(deps, command, repo, wanted, opts);
+	}
+	const file = opts.file;
+	return workflowAction(command, deps, async (options) => {
+		const output = await callForData(deps, options, "get_workflow", { repo });
+		if (output.isError) {
+			return render("get_workflow", output, options);
+		}
+		const workflows = pulledWorkflows(output.data);
+		const read = await readLocalWorkflows(file);
+		const { mapping } = projectKeys(file, repo);
 		const matched =
 			read.kind === "code"
 				? matchWorkflowIds(
@@ -795,27 +957,16 @@ function pullWorkflows(
 				);
 			}
 			picked = selection.picked;
-		} else if (
-			process.stdin.isTTY &&
-			process.stdout.isTTY &&
-			!(options.json || opts.all || opts.yes)
-		) {
-			const chosen = await pickWorkflows(deps, options, repo, workflows, local);
-			if (!chosen) {
-				p.cancel("Pull cancelled");
-				return 0;
-			}
-			picked = chosen;
 		}
 		const written = writePulled(
-			opts.file,
+			file,
 			picked.map((workflow) => workflow.definition),
 			opts.force === true,
 			local,
 			localKeys,
 		);
 		const linked = opts.link
-			? savePullLink(opts.file, {
+			? savePullLink(file, {
 					org: options.org,
 					repo,
 					workflows: workflowMapping(written.keys),
@@ -856,11 +1007,13 @@ function pullWorkflows(
 function validateWorkflows(
 	deps: ManageDeps,
 	command: Command,
-	opts: WorkflowFileOptions & { repo?: string },
+	wanted: string[],
+	opts: { file?: string; repo?: string },
 ): Promise<void> {
 	return workflowAction(command, deps, async (options) => {
-		const compiled = await loadWorkflowFile(opts.file);
-		const issues = compiled.ok ? [] : compiled.issues;
+		const compiled = await compileWorkflowSources(wanted, opts.file, options);
+		if (!compiled) return 1;
+		const issues: CompileIssue[] = [];
 		let { definitions } = compiled;
 		let reports: ReportView[] = [];
 		let remote: JsonValue | null = null;
@@ -869,7 +1022,7 @@ function validateWorkflows(
 				deps,
 				options,
 				opts.repo,
-				opts.file,
+				compiled.context,
 				definitions,
 			);
 			const output = await callForData(deps, options, "validate_workflow", {
@@ -912,7 +1065,7 @@ function validateWorkflows(
 					2,
 				),
 			);
-			return valid ? 0 : 1;
+			return 0;
 		}
 		if (issues.length > 0) {
 			err(compileIssueLines(issues, options));
@@ -920,7 +1073,7 @@ function validateWorkflows(
 		if (reports.length > 0) {
 			out(formatReports(reports, options.style));
 		}
-		return valid ? 0 : 1;
+		return 0;
 	});
 }
 
@@ -928,19 +1081,18 @@ function diffWorkflows(
 	deps: ManageDeps,
 	command: Command,
 	repo: string,
-	opts: WorkflowFileOptions,
+	wanted: string[],
+	opts: { file?: string },
 ): Promise<void> {
 	return workflowAction(command, deps, async (options) => {
-		const compiled = await compileFile(opts.file, options);
-		if (!compiled) {
-			return 1;
-		}
+		const compiled = await compileWorkflowSources(wanted, opts.file, options);
+		if (!compiled) return 1;
 		const matched = await withServerIds(
 			deps,
 			options,
 			repo,
-			opts.file,
-			compiled,
+			compiled.context,
+			compiled.definitions,
 		);
 		const raw = await callForData(deps, options, "validate_workflow", {
 			repo,
@@ -976,7 +1128,8 @@ function diffWorkflows(
 	});
 }
 
-interface PushOptions extends WorkflowFileOptions {
+interface PushOptions {
+	file?: string;
 	force?: boolean;
 	browser: boolean;
 	wait?: boolean;
@@ -1006,7 +1159,7 @@ async function applyDirect(
 		: [];
 	if (options.json) {
 		out(JSON.stringify(output.data ?? { text: output.text }, null, 2));
-		return refused.length > 0 ? 1 : 0;
+		return 0;
 	}
 	out(
 		changeLines(output.data, options.style, (entry) =>
@@ -1016,7 +1169,7 @@ async function applyDirect(
 	for (const entry of refused) {
 		err(errorLine(refusalText(entry, repo), options.errStyle));
 	}
-	return refused.length > 0 ? 1 : 0;
+	return 0;
 }
 
 async function readPush(
@@ -1067,22 +1220,42 @@ function pushWorkflows(
 	deps: ManageDeps,
 	command: Command,
 	repo: string,
+	wanted: string[],
 	opts: PushOptions,
 ): Promise<void> {
 	return workflowAction(command, deps, async (options) => {
-		const compiled = await compileFile(opts.file, options);
-		if (!compiled) {
-			return 1;
+		const compiled = await compileWorkflowSources(
+			wanted,
+			opts.file,
+			options,
+			true,
+		);
+		if (!compiled) return 1;
+		if (compiled.format === "sdk") {
+			for (const [index, file] of compiled.files.entries()) {
+				const checked = await typecheckSdkWorkflow(file, deps.system);
+				if (!checked.ok) {
+					return fail(new Error(checked.message), options);
+				}
+				if (
+					compiled.definitions[index]?.authoredSource !==
+					readFileSync(file, "utf8")
+				) {
+					throw new Error(
+						`${file} changed during compilation. Run push again.`,
+					);
+				}
+			}
 		}
 		const matched = await withServerIds(
 			deps,
 			options,
 			repo,
-			opts.file,
-			compiled,
+			compiled.context,
+			compiled.definitions,
 		);
 		if (opts.force) {
-			return await applyDirect(deps, options, repo, opts.file, matched);
+			return await applyDirect(deps, options, repo, compiled.context, matched);
 		}
 		const output = await callForData(deps, options, "propose_workflow_push", {
 			repo,
@@ -1093,7 +1266,7 @@ function pushWorkflows(
 		}
 		const proposal = workflowPushProposalResultSchema.parse(output.data);
 		if (proposal.result === "unchanged") {
-			rememberIds(opts.file, repo, matched);
+			rememberIds(compiled.context, repo, matched);
 			if (options.json) {
 				out(JSON.stringify(proposal, null, 2));
 			} else {
@@ -1107,7 +1280,7 @@ function pushWorkflows(
 			} else {
 				err(blockedText(proposal.workflows, options.errStyle));
 			}
-			return 1;
+			return 0;
 		}
 		const { push } = proposal;
 		if (options.json && !opts.wait) {
@@ -1126,16 +1299,26 @@ function pushWorkflows(
 		}
 		const final = await awaitReview(deps, options, push);
 		if (final.status === "accepted") {
-			rememberIds(opts.file, repo, matched);
+			rememberIds(compiled.context, repo, matched);
 		}
-		if (options.json) {
-			out(JSON.stringify(final, null, 2));
+		if (options.json && ["accepted", "rejected"].includes(final.status)) {
+			out(JSON.stringify(final));
+		} else if (options.json) {
+			err(
+				JSON.stringify({
+					error: {
+						code: "PUSH_NOT_COMPLETED",
+						message: pushRefusalText(final, repo),
+						details: final,
+					},
+				}),
+			);
 		} else if (final.status === "accepted") {
 			out(outcomeText(final, options.style));
 		} else {
 			err(errorLine(pushRefusalText(final, repo), options.errStyle));
 		}
-		return pushExitCode(final.status);
+		return final.status === "accepted" || final.status === "rejected" ? 0 : 1;
 	});
 }
 
@@ -1394,7 +1577,10 @@ export function registerManageCommands(program: Command, deps: ManageDeps) {
 			runTool(deps, command, "list_repos", {}),
 		);
 
-	const rules = program.command("rules").description("Read and change rules");
+	const rules = program
+		.command("rules")
+		.description("Read and change rules")
+		.action((_options, command: Command) => command.outputHelp());
 	rules
 		.command("list [repo]")
 		.description(
@@ -1548,9 +1734,11 @@ export function registerManageCommands(program: Command, deps: ManageDeps) {
 			},
 		);
 
-	program
+	const gate = program
 		.command("gate")
 		.description("Control the Tripwire gate on a repo")
+		.action((_options, command: Command) => command.outputHelp());
+	gate
 		.command("on [repo]")
 		.description("Turn the gate on for a repo")
 		.action((repo: string | undefined, _options, command: Command) =>
@@ -1561,78 +1749,88 @@ export function registerManageCommands(program: Command, deps: ManageDeps) {
 
 	const workflows = program
 		.command("workflows")
-		.description(
-			"Manage workflows as tripwire.ts code: pull, validate, diff and push",
-		);
+		.description("Manage typed workflow files: pull, validate, diff and push")
+		.action((_options, command: Command) => command.outputHelp());
 	workflows
-		.command("pull [repo] [workflows...]")
-		.description(
-			"Write a repo's workflows to tripwire.ts, with the typed helpers and the repo link in .tripwire/",
-		)
-		.option("--file <path>", "Where to write the code", DEFAULT_WORKFLOW_FILE)
-		.option("--all", "Pull every workflow without asking")
-		.option("-y, --yes", "Skip the picker")
-		.option("--force", "Overwrite workflows that differ from the server")
+		.command("pull [workflows...]")
+		.description("Write one SDK file per workflow in .tripwire/workflows")
+		.option("--file <path>", "Explicit legacy tripwire.ts collection output")
+		.option("--repo <repo>", "Repository to pull; defaults to the project link")
+		.option("--force", "Replace selected files that have local edits")
 		.option("--no-link", "Do not save the repo to .tripwire/project.json")
 		.action(
 			(
-				repo: string | undefined,
 				wanted: string[],
-				opts: PullOptions,
+				opts: PullOptions & { repo?: string },
 				command: Command,
 			) =>
-				withRepo(deps, command, repo, (target) =>
-					pullWorkflows(deps, command, target, wanted, {
-						...opts,
-						file: linkedFile(deps, command, opts.file),
-					}),
+				withRepo(deps, command, opts.repo, (target) =>
+					pullWorkflows(deps, command, target, wanted, opts),
 				),
 		);
 	workflows
-		.command("validate")
+		.command("validate [workflows...]")
 		.description(
-			"Compile tripwire.ts and check it; with --repo, against that repo's rules",
+			"Compile workflow files and optionally check them against a repository",
 		)
-		.option("--file <path>", "The workflow file", DEFAULT_WORKFLOW_FILE)
+		.option(
+			"--file <path>",
+			"One SDK workflow file, or an explicit legacy tripwire.ts",
+		)
 		.option(
 			"--repo <repo>",
 			"Also check against this repo, custom rules included",
 		)
-		.action((opts: WorkflowFileOptions & { repo?: string }, command: Command) =>
-			validateWorkflows(deps, command, {
-				...opts,
-				file: linkedFile(deps, command, opts.file),
-			}),
+		.action(
+			(
+				wanted: string[],
+				opts: { file?: string; repo?: string },
+				command: Command,
+			) => validateWorkflows(deps, command, wanted, opts),
 		);
 	workflows
-		.command("diff [repo]")
-		.description("Show what a push of tripwire.ts would change on the repo")
-		.option("--file <path>", "The workflow file", DEFAULT_WORKFLOW_FILE)
+		.command("diff [workflows...]")
+		.description("Show what selected workflow files would change")
+		.option(
+			"--file <path>",
+			"One SDK workflow file, or an explicit legacy tripwire.ts",
+		)
+		.option(
+			"--repo <repo>",
+			"Repository to compare; defaults to the project link",
+		)
 		.action(
-			(repo: string | undefined, opts: WorkflowFileOptions, command: Command) =>
-				withRepo(deps, command, repo, (target) =>
-					diffWorkflows(deps, command, target, {
-						...opts,
-						file: linkedFile(deps, command, opts.file),
-					}),
+			(
+				wanted: string[],
+				opts: { file?: string; repo?: string },
+				command: Command,
+			) =>
+				withRepo(deps, command, opts.repo, (target) =>
+					diffWorkflows(deps, command, target, wanted, opts),
 				),
 		);
 	workflows
-		.command("push [repo]")
+		.command("push [workflows...]")
 		.description(
-			"Send tripwire.ts for review in the browser, then save it once accepted. New workflows start off",
+			"Send selected workflow files for review. New workflows start off",
 		)
-		.option("--file <path>", "The workflow file", DEFAULT_WORKFLOW_FILE)
+		.option(
+			"--file <path>",
+			"One SDK workflow file, or an explicit legacy tripwire.ts",
+		)
+		.option("--repo <repo>", "Repository to push; defaults to the project link")
 		.option("--force", "Save without review")
 		.option("--no-browser", "Print the review link without opening a browser")
 		.option("--wait", "With --json, wait for the review")
-		.action((repo: string | undefined, opts: PushOptions, command: Command) =>
-			withRepo(deps, command, repo, (target) =>
-				pushWorkflows(deps, command, target, {
-					...opts,
-					file: linkedFile(deps, command, opts.file),
-				}),
-			),
+		.action(
+			(
+				wanted: string[],
+				opts: PushOptions & { repo?: string },
+				command: Command,
+			) =>
+				withRepo(deps, command, opts.repo, (target) =>
+					pushWorkflows(deps, command, target, wanted, opts),
+				),
 		);
 	workflows
 		.command("list [repo]")
@@ -1667,7 +1865,10 @@ export function registerManageCommands(program: Command, deps: ManageDeps) {
 			);
 	}
 
-	const runs = program.command("runs").description("Inspect runs");
+	const runs = program
+		.command("runs")
+		.description("Inspect runs")
+		.action((_options, command: Command) => command.outputHelp());
 	runs
 		.command("list")
 		.description("List recent runs")
@@ -1694,7 +1895,8 @@ export function registerManageCommands(program: Command, deps: ManageDeps) {
 
 	const queue = program
 		.command("queue")
-		.description("Work the human review queue");
+		.description("Work the human review queue")
+		.action((_options, command: Command) => command.outputHelp());
 	queue
 		.command("list")
 		.description("List items waiting for human review")

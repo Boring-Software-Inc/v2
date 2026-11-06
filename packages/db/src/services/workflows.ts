@@ -221,7 +221,10 @@ export async function updateWorkflowDefinition(
 		definition: WorkflowDefinition;
 	},
 ): Promise<{ ok: boolean }> {
-	const valid = workflowDefinitionSchema.parse(input.definition);
+	const valid = workflowDefinitionSchema.parse({
+		...input.definition,
+		authoredSource: undefined,
+	});
 	const rows = await db
 		.update(workflowDefinitions)
 		.set({ definition: valid, name: valid.name, updatedAt: new Date() })
@@ -290,7 +293,10 @@ export async function saveWorkflowDefinition(
 		definition: WorkflowDefinition;
 	},
 ): Promise<SaveWorkflowResult> {
-	const definition = workflowDefinitionSchema.parse(input.definition);
+	const definition = workflowDefinitionSchema.parse({
+		...input.definition,
+		authoredSource: undefined,
+	});
 	const catalog = await repoRuleCatalog(db, input.repoId);
 	return await db.transaction(async (tx): Promise<SaveWorkflowResult> => {
 		const row = await lockWorkflowRow(tx, input);
@@ -349,7 +355,11 @@ export async function renameWorkflow(
 		.update(workflowDefinitions)
 		.set({
 			name,
-			definition: { ...definition, name },
+			definition: workflowDefinitionSchema.parse({
+				...definition,
+				name,
+				authoredSource: undefined,
+			}),
 			updatedAt: new Date(),
 		})
 		.where(eq(workflowDefinitions.id, input.workflowId));
@@ -372,6 +382,7 @@ export async function duplicateWorkflow(
 		name,
 		definition: {
 			...source.definition,
+			authoredSource: undefined,
 			id: generateId(), // a fresh wire identity — snapshots must not alias
 			name,
 		},

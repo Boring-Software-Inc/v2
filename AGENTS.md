@@ -29,7 +29,8 @@ auth          ← web, api, mcp         (./server sessions + posture guard,
 forge-github  ← worker, api           (api uses webhook verify only)
 forge-gitcafe ← worker, api           (GitCafe protocol; activation remains gated)
 ui            ← web                   (primitives; no app logic, no data fetching)
-apps/cli      → contracts only        (npm @tripwire-sh/cli, bin `tripwire`; one ESM
+apps/cli      → contracts + @tripwire-sh/sdk
+                                      (npm @tripwire-sh/cli, bin `tripwire`; one ESM
                                        file for Node. Talks to the MCP server over HTTP)
 ```
 apps import packages; packages NEVER import apps; nothing imports core except
@@ -114,7 +115,8 @@ files from it.** It contains the scope creep that killed v1.
   different procedure than the one that created them.
 
 ## The cut list (append, never delete)
-GitLab / any second forge adapter · SDK publishing · public OpenAPI surface ·
+GitLab / any second forge adapter · ~~SDK publishing~~ (lifted 2026-11-05 for
+the standalone `@tripwire-sh/sdk` TypeScript SDK only) · public OpenAPI surface ·
 ~~`apps/mcp` implementation~~ (lifted 2026-10-22) · ML layer · org-level features · billing ·
 email/password auth · deep observability beyond pino · deployment automation ·
 content classifiers (profanity / harassment / NSFW) ·

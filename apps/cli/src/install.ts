@@ -6,6 +6,7 @@ import { formatCommand } from "#/agents/shell";
 import type { LoginCommand } from "#/agents/types";
 import { copyToClipboard } from "#/clipboard";
 import { mcpUrl, SERVER_NAME } from "#/config";
+import { errorLine, styleFor } from "#/format";
 import type { MergeOutcome } from "#/json-config";
 import { buildPrompt } from "#/prompt";
 import {
@@ -21,11 +22,39 @@ export interface InstallOptions {
 	interactive: boolean;
 	json: boolean;
 	instruction?: string;
+	agentIds: string[];
+	all: boolean;
+	yes: boolean;
 }
 
 interface AgentReport {
 	agent: Agent;
 	result: InstallResult;
+}
+
+/** Returns the usage error before installation can touch any agent configuration. */
+export function installSelectionError(
+	options: Pick<InstallOptions, "agentIds" | "all" | "yes" | "interactive">,
+	detectedIds?: readonly string[],
+): string | null {
+	if (options.agentIds.length > 0 && options.all) {
+		return "Use --agent or --all, not both.";
+	}
+	if (options.all && !options.yes) {
+		return "--all requires --yes.";
+	}
+	if (!options.interactive && options.agentIds.length === 0 && !options.all) {
+		return "Non-interactive installation requires --agent <id> or --all --yes.";
+	}
+	if (detectedIds === undefined) {
+		return null;
+	}
+	const unknown = [...new Set(options.agentIds)].filter(
+		(id) => !detectedIds.includes(id),
+	);
+	return unknown.length > 0
+		? `No detected agent matches: ${unknown.join(", ")}.`
+		: null;
 }
 
 const LIST = new Intl.ListFormat("en", { style: "long", type: "conjunction" });
@@ -55,6 +84,33 @@ function describe(system: System, report: AgentReport): string {
 
 function banner(): string {
 	return pc.bgRed(pc.black(pc.bold(" tripwire ")));
+}
+
+function jsonError(
+	code: "USAGE_ERROR" | "INSTALL_FAILED",
+	message: string,
+	details?: unknown,
+): void {
+	process.stderr.write(
+		`${JSON.stringify({ error: { code, message, ...(details === undefined ? {} : { details }) } })}\n`,
+	);
+}
+
+function installError(
+	system: System,
+	options: InstallOptions,
+	code: "USAGE_ERROR" | "INSTALL_FAILED",
+	message: string,
+	details?: unknown,
+): number {
+	if (options.json) {
+		jsonError(code, message, details);
+	} else {
+		process.stderr.write(
+			`${errorLine(message, styleFor(process.stderr.isTTY === true, system.env))}\n`,
+		);
+	}
+	return code === "USAGE_ERROR" ? 2 : 1;
 }
 
 async function selectAgents(
@@ -178,46 +234,53 @@ export async function runInstall(
 	const prompt = buildPrompt(options.instruction);
 	const host = hostAgentId(system.env);
 	const interactive = options.interactive && !options.json && host === null;
+	const selectionOptions = { ...options, interactive };
+	const syntaxError = installSelectionError(selectionOptions);
+	if (syntaxError) {
+		return installError(system, options, "USAGE_ERROR", syntaxError);
+	}
 	const detections = await detectAgents(buildAgents(system));
 	const written = new Map<string, MergeOutcome>();
-
-	if (options.json) {
-		const reports = await Promise.all(
-			detections.map(async ({ agent }) => ({
-				agent,
-				result: await installAgent(agent, url, written),
-			})),
-		);
-		const agents = reports.map(({ agent, result }) => ({
-			id: agent.id,
-			name: agent.name,
-			thisSession: agent.id === host,
-			signIn: agent.signInHint,
-			...result,
-		}));
-		process.stdout.write(
-			`${JSON.stringify({ mcpUrl: url, agents, prompt }, null, 2)}\n`,
-		);
-		return reports.every(({ result }) => result.kind === "done") ? 0 : 1;
+	const selectionError = installSelectionError(
+		selectionOptions,
+		detections.map(({ agent }) => agent.id),
+	);
+	if (selectionError) {
+		return installError(system, options, "USAGE_ERROR", selectionError);
 	}
+	const requested = new Set(options.agentIds);
 
-	process.stdout.write(`\n${banner()}\n\n`);
-	p.intro(pc.dim("Setting up Tripwire in your coding agents"));
 	if (detections.length === 0) {
+		if (options.json) {
+			return installError(
+				system,
+				options,
+				"INSTALL_FAILED",
+				"No supported coding agents were detected.",
+			);
+		}
+		process.stdout.write(`\n${banner()}\n\n`);
+		p.intro(pc.dim("Setting up Tripwire in your coding agents"));
 		p.log.warn("No AI coding tools found");
 		p.outro("Install a supported coding agent, then run this again.");
 		return 1;
 	}
-	p.log.step(
-		`Detected ${LIST.format(detections.map(({ agent }) => agent.name))}`,
-	);
+	if (!options.json) {
+		process.stdout.write(`\n${banner()}\n\n`);
+		p.intro(pc.dim("Setting up Tripwire in your coding agents"));
+		p.log.step(
+			`Detected ${LIST.format(detections.map(({ agent }) => agent.name))}`,
+		);
+	}
 
-	let selected = detections;
-	if (interactive) {
+	let selected = options.all
+		? detections
+		: detections.filter(({ agent }) => requested.has(agent.id));
+	if (interactive && options.agentIds.length === 0 && !options.all) {
 		const picked = await selectAgents(detections);
 		if (picked === null) {
 			p.cancel("Cancelled");
-			return 1;
+			return 130;
 		}
 		selected = picked;
 	}
@@ -234,6 +297,28 @@ export async function runInstall(
 			result: await installAgent(agent, url, written),
 		})),
 	);
+	if (options.json) {
+		const agents = reports.map(({ agent, result }) => ({
+			id: agent.id,
+			name: agent.name,
+			thisSession: agent.id === host,
+			signIn: agent.signInHint,
+			...result,
+		}));
+		if (reports.some(({ result }) => result.kind === "failed")) {
+			return installError(
+				system,
+				options,
+				"INSTALL_FAILED",
+				"Tripwire was not installed in every selected agent.",
+				{ agents },
+			);
+		}
+		process.stdout.write(
+			`${JSON.stringify({ mcpUrl: url, agents, prompt })}\n`,
+		);
+		return 0;
+	}
 	spin?.stop("Installed the Tripwire MCP and skill");
 	if (!spin) {
 		p.log.step("Installed the Tripwire MCP and skill");
