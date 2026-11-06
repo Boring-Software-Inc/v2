@@ -61,12 +61,11 @@ export function BlockRow({
 			ref={mergeRefs(drag.setNodeRef, drop.setNodeRef)}
 		>
 			{children}
-			{readOnly || selected ? null : (
+			{readOnly ? null : (
 				<button
-					aria-hidden
+					aria-label={`Edit ${label}`}
 					className="absolute inset-0 cursor-pointer rounded-panel"
 					onClick={select}
-					tabIndex={-1}
 					type="button"
 				/>
 			)}

@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { setResponseStatus } from "@tanstack/react-start/server";
 import type { Forge, ForgeConnection } from "@tripwire/contracts";
 import {
 	type OrganizationForgeConnections,
@@ -22,12 +23,17 @@ export const listOrganizationForgeConnections = createServerFn({
 	.handler(async ({ context }): Promise<OrganizationForgeConnections> => {
 		const { getDb } = await import("#/lib/server/db");
 		const { repositoryConnectionServices } = await import("@tripwire/db");
-		return organizationForgeConnectionsSchema.parse(
+		const connections =
 			await repositoryConnectionServices.listOrganizationForgeConnections(
 				getDb().db,
 				context.org.id,
-			),
-		);
+			);
+		const parsed = organizationForgeConnectionsSchema.safeParse(connections);
+		if (!parsed.success) {
+			setResponseStatus(500, "Invalid forge connection data");
+			throw new Error(parsed.error.message);
+		}
+		return parsed.data;
 	});
 
 /**

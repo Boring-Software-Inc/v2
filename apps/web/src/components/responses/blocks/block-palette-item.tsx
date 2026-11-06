@@ -29,19 +29,26 @@ export function BlockPaletteItem({
 	const add = () => onAdd(meta.type);
 	return (
 		<PickerRow
+			aria-label={`Add ${meta.label}`}
 			action={
 				<PickerRowAction
 					aria-label={`Add ${meta.label}`}
 					disabled={disabled}
 					glyph={Add}
-					onClick={add}
 					reveal="hover"
 				/>
 			}
-			className={cn(!disabled && "cursor-grab", isDragging && "opacity-40")}
+			className={cn(
+				!disabled &&
+					"cursor-grab hover:bg-hover-row focus-visible:focus-ring-row",
+				isDragging && "opacity-40",
+			)}
+			description={meta.description}
 			disabled={disabled}
 			icon={meta.icon}
+			inset
 			name={meta.label}
+			onClick={add}
 			ref={setNodeRef}
 			{...listeners}
 		/>

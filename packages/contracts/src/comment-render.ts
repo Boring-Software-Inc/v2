@@ -17,6 +17,7 @@ import {
 	blockOutcomeFor,
 	type CloseGif,
 	commentOverrideFor,
+	DEFAULT_HELP_SUMMARY,
 	DEFAULT_RESPONSE_CONFIG,
 	isGiphyMediaUrl,
 	type ResponseBlock,
@@ -209,7 +210,10 @@ const FIX_NONE = `A new commit will not fix this.\n\n${APPEAL_ANYWAY}`;
 const FIX_MIXED = `Fix what you can and push. Some problems will not clear with a new commit.\n\n${APPEAL_ANYWAY}`;
 const FIX_HIDDEN = `Push a new commit to run the checks again.\n\n${APPEAL_WRONG}`;
 
-function fixBody(reasons: CommentReason[], level: number): string {
+export function defaultHelpContent(
+	reasons: CommentReason[],
+	level: number,
+): string {
 	if (redactionHides(level, "rule-names")) {
 		return FIX_HIDDEN;
 	}
@@ -218,9 +222,13 @@ function fixBody(reasons: CommentReason[], level: number): string {
 	return anyRevise ? (anyNonRevise ? FIX_MIXED : FIX_REVISE) : FIX_NONE;
 }
 
-export function howDoIFix(reasons: CommentReason[], level = 0): string {
-	const body = fixBody(reasons, level);
-	return `<details><summary>How do I fix this?</summary>\n\n${body}\n</details>`;
+export function howDoIFix(
+	reasons: CommentReason[],
+	level = 0,
+	content?: string,
+): string {
+	const body = content ?? defaultHelpContent(reasons, level);
+	return `<details><summary>${DEFAULT_HELP_SUMMARY}</summary>\n\n${body}\n</details>`;
 }
 
 export const RUN_LINK_TEXT = "View on Tripwire";
@@ -617,7 +625,7 @@ function blockBody(
 		case "run-link":
 			return runButton(input.runUrl);
 		case "help":
-			return howDoIFix(input.reasons, level);
+			return howDoIFix(input.reasons, level, block.content);
 		case "gif":
 			return gifMarkdown(block.gif) ?? "";
 	}

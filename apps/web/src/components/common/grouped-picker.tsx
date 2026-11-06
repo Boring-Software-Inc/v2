@@ -13,6 +13,7 @@ import {
 	Item,
 	ItemActions,
 	ItemContent,
+	ItemDescription,
 	ItemMedia,
 	ItemTitle,
 } from "#/design-system/ui/item";
@@ -115,13 +116,15 @@ export type PickerRowProps = Omit<
 > & {
 	icon: GlazeIcon;
 	name: string;
+	description?: string;
 	muted?: boolean;
-	action: ReactNode;
+	action?: ReactNode;
 };
 
 export function PickerRow({
 	icon,
 	name,
+	description,
 	muted = false,
 	action,
 	...props
@@ -138,8 +141,11 @@ export function PickerRow({
 				<ItemTitle>
 					<span className="truncate">{name}</span>
 				</ItemTitle>
+				{description ? <ItemDescription>{description}</ItemDescription> : null}
 			</ItemContent>
-			<ItemActions className="static -me-3">{action}</ItemActions>
+			{action ? (
+				<ItemActions className="static -me-3">{action}</ItemActions>
+			) : null}
 		</Item>
 	);
 }

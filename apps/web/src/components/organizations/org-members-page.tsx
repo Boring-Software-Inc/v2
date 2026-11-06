@@ -3,6 +3,7 @@ import type { OrgRole } from "@tripwire/contracts";
 import { useState } from "react";
 import { Collection } from "#/components/collection/collection";
 import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import {
 	CollectionRow,
 	InviteRowActions,
@@ -17,6 +18,7 @@ import {
 	INVITES_COLLECTION,
 	MEMBERS_COLLECTION,
 } from "#/components/organizations/org-members-collection";
+import { DeleteOrgDialog } from "#/components/organizations/delete-org-dialog";
 import {
 	SettingsCard,
 	SettingsDangerRow,
@@ -55,7 +57,11 @@ import { Caption, SupportingText } from "#/design-system/ui/typography";
 import { useCollection } from "#/hooks/use-collection";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
-import type { InviteLinkView, OrgMemberView } from "#/lib/org.functions";
+import type {
+	InviteLinkView,
+	OrgMemberView,
+	OrgWithRole,
+} from "#/lib/org.functions";
 import {
 	createOrgInvite,
 	leaveOrg,
@@ -103,6 +109,16 @@ export function inviteExpiryLabel(
 	return days <= 1 ? "Expires today" : `Expires in ${days} days`;
 }
 
+export function shouldDeleteInsteadOfLeave(
+	role: string | undefined,
+	members: readonly Pick<OrgMemberView, "role">[] | undefined,
+): boolean {
+	return (
+		role === "admin" &&
+		members?.filter((member) => member.role === "admin").length === 1
+	);
+}
+
 export function OrgMembersPage({ org }: { org: string }) {
 	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
 	const membersQuery = useQuery(orgMembersQueryOptions(org));
@@ -126,6 +142,13 @@ export function OrgMembersPage({ org }: { org: string }) {
 	const isPersonal = orgContext?.isPersonal ?? true;
 	const canInvite = isAdmin && !isPersonal;
 	const callerUserId = session?.user?.id ?? null;
+	const currentRoleIsAdmin = orgContext?.role === "admin";
+	const onlyAdmin = shouldDeleteInsteadOfLeave(
+		orgContext?.role,
+		membersQuery.data,
+	);
+	const canResolveAdminExit =
+		!currentRoleIsAdmin || membersQuery.data !== undefined;
 	const [inviting, setInviting] = useState(false);
 	const [createdToken, setCreatedToken] = useState<string | null>(null);
 
@@ -178,8 +201,14 @@ export function OrgMembersPage({ org }: { org: string }) {
 
 			{canInvite ? <InviteLinksSection org={org} /> : null}
 
-			{isPersonal || !orgContext ? null : (
-				<LeaveOrgRow name={orgContext.name} org={org} />
+			{isPersonal || !orgContext || !canResolveAdminExit ? null : onlyAdmin ? (
+				<DeleteOrgMembershipRow org={org} orgContext={orgContext} />
+			) : (
+				<LeaveOrgRow
+					isAdmin={currentRoleIsAdmin}
+					name={orgContext.name}
+					org={org}
+				/>
 			)}
 		</>
 	);
@@ -329,7 +358,15 @@ function MemberRow({
 	);
 }
 
-function LeaveOrgRow({ org, name }: { org: string; name: string }) {
+function LeaveOrgRow({
+	org,
+	name,
+	isAdmin,
+}: {
+	org: string;
+	name: string;
+	isAdmin: boolean;
+}) {
 	const queryClient = useQueryClient();
 	const [open, setOpen] = useState(false);
 	const leaveMutation = useMutation({
@@ -355,7 +392,7 @@ function LeaveOrgRow({ org, name }: { org: string; name: string }) {
 	return (
 		<SettingsDangerRow
 			action={
-				<Button onClick={() => setOpen(true)} size="sm" variant="secondary">
+				<Button onClick={() => setOpen(true)} size="sm" variant="destructive">
 					Leave org
 				</Button>
 			}
@@ -363,12 +400,44 @@ function LeaveOrgRow({ org, name }: { org: string; name: string }) {
 		>
 			<ConfirmDeleteDialog
 				actionLabel="Leave org"
-				description="An admin has to invite you back."
+				confirmText={name}
+				description={
+					isAdmin
+						? "You'll lose access. Another admin can invite you back."
+						: "You'll lose access. An admin can invite you back."
+				}
 				onConfirm={() => leaveMutation.mutateAsync()}
 				onOpenChange={setOpen}
 				open={open}
 				pendingLabel="Leaving"
 				title={`Leave ${name}?`}
+			/>
+		</SettingsDangerRow>
+	);
+}
+
+function DeleteOrgMembershipRow({
+	org,
+	orgContext,
+}: {
+	org: string;
+	orgContext: OrgWithRole;
+}) {
+	const [open, setOpen] = useState(false);
+	return (
+		<SettingsDangerRow
+			action={
+				<Button onClick={() => setOpen(true)} size="sm" variant="destructive">
+					Delete org
+				</Button>
+			}
+			label={`Delete ${orgContext.name}`}
+		>
+			<DeleteOrgDialog
+				onOpenChange={setOpen}
+				open={open}
+				org={org}
+				orgContext={orgContext}
 			/>
 		</SettingsDangerRow>
 	);
@@ -385,7 +454,11 @@ function InviteLinksSection({ org }: { org: string }) {
 			<Collection
 				collection={invites}
 				empty={
-					<Empty size="sm" variant="plain">
+					<Empty
+						art={<MascotArt mood="invites-empty" size="compact" />}
+						size="sm"
+						variant="plain"
+					>
 						<EmptyHeader>
 							<EmptyTitle>No invite links yet</EmptyTitle>
 						</EmptyHeader>
@@ -394,7 +467,12 @@ function InviteLinksSection({ org }: { org: string }) {
 				error={invitesQuery.isError}
 				noResults={
 					invites.filtered ? undefined : (
-						<Empty reason="no-results" size="sm" variant="plain">
+						<Empty
+							art={<MascotArt mood="invites-empty" size="compact" />}
+							reason="no-results"
+							size="sm"
+							variant="plain"
+						>
 							<EmptyHeader>
 								<EmptyTitle>No active invite links</EmptyTitle>
 							</EmptyHeader>

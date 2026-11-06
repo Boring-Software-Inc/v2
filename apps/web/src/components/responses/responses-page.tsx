@@ -38,7 +38,12 @@ import {
 
 const routeApi = getRouteApi("/$org/$repo/responses");
 
-export function ResponsesPage() {
+export interface ResponsesPageProps {
+	title: string;
+	description: string;
+}
+
+export function ResponsesPage({ title, description }: ResponsesPageProps) {
 	const { org, repo: repoName } = routeApi.useParams();
 	const { data: repo } = useQuery(orgRepoQueryOptions(org, repoName));
 	const canEdit = useOrgPermission(org, "responses:manage");
@@ -71,12 +76,14 @@ export function ResponsesPage() {
 			<PreviewLinkProvider>
 				<ResponsesView
 					canEdit={canEdit}
+					description={description}
 					loaded={Boolean(savedConfig && orgDefaults)}
 					onDiscarded={saveConfig.reset}
 					org={org}
 					orgPolicy={orgDefaults?.defaults.redaction ?? OPEN_REDACTION}
 					saveError={saveConfig.error?.message ?? null}
 					savedValues={savedValues}
+					title={title}
 				/>
 			</PreviewLinkProvider>
 		</SaveQueueProvider>
@@ -85,22 +92,26 @@ export function ResponsesPage() {
 
 interface ResponsesViewProps {
 	canEdit: boolean;
+	description: string;
 	org: string;
 	loaded: boolean;
 	orgPolicy: RedactionPolicy;
 	saveError: string | null;
 	savedValues: Parameters<SaveQueueCommit>[0];
 	onDiscarded: () => void;
+	title: string;
 }
 
 function ResponsesView({
 	canEdit,
+	description,
 	org,
 	loaded,
 	orgPolicy,
 	saveError,
 	savedValues,
 	onDiscarded,
+	title,
 }: ResponsesViewProps) {
 	const { pending, setField, discard } = useSaveQueue();
 	const { scope } = routeApi.useSearch();
@@ -142,8 +153,8 @@ function ResponsesView({
 								onDiscard={onDiscard}
 							/>
 						}
-						description="Choose what Tripwire does after each workflow outcome."
-						title="Responses"
+						description={description}
+						title={title}
 					/>
 					<PageBody>
 						<div data-layout-role="response-scopes">
@@ -160,6 +171,7 @@ function ResponsesView({
 							</SegmentedControl>
 						</div>
 						<SkeletonSwap
+							className="min-h-0 flex-1"
 							fallback={<BuilderSkeleton />}
 							label="Loading response settings"
 							loading={!(config && policy)}

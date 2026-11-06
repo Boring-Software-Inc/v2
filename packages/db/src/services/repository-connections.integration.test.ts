@@ -11,7 +11,7 @@ import {
 	type TestDatabase,
 } from "@tripwire/db";
 import { generateId } from "@tripwire/utils";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { listOrganizationForgeConnections } from "./repository-connections.ts";
 
 let container: TestDatabase;
@@ -22,6 +22,7 @@ const otherOrgId = generateId();
 const activeInstallation = generateId();
 const revokedInstallation = generateId();
 const repoId = generateId();
+const staleRepoId = generateId();
 
 beforeAll(async () => {
 	container = await createTestDatabase();
@@ -122,7 +123,18 @@ beforeAll(async () => {
 			orgId: otherOrgId,
 			installationId: generateId(),
 		},
+		{
+			id: staleRepoId,
+			externalId: generateId(),
+			forge: "github",
+			owner: "legacy",
+			name: "stale",
+			fullName: "legacy/stale",
+			orgId,
+			installationId: null,
+		},
 	]);
+	await db.execute(sql`UPDATE repos SET forge = 'legacy' WHERE id = ${staleRepoId}`);
 }, 120_000);
 
 afterAll(async () => {
@@ -152,6 +164,7 @@ test("organization connections use scoped installations without any linked sign-
 	expect(JSON.stringify(result)).not.toContain("private-tenant");
 	expect(JSON.stringify(result)).not.toContain("boring/removed");
 	expect(JSON.stringify(result)).not.toContain("boring/revoked");
+	expect(JSON.stringify(result)).not.toContain("legacy/stale");
 });
 
 test("empty and unrelated organizations cannot see another tenant's connections", async () => {

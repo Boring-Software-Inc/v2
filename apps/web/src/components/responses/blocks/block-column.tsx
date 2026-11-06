@@ -3,20 +3,34 @@ import type { ComponentProps } from "react";
 import { BlockPalette } from "#/components/responses/blocks/block-palette";
 import { BlockSettings } from "#/components/responses/blocks/block-settings";
 import type { BlockBuilder } from "#/components/responses/blocks/use-block-builder";
-import { ChevronLeft, ChevronRight, Icon } from "#/design-system/icon";
-import { Button } from "#/design-system/ui/button";
+import { Icon, TrashCan } from "#/design-system/icon";
+import {
+	SheetAction,
+	SheetBody,
+	SheetFooter,
+	SheetHeader,
+	SheetTitle,
+} from "#/design-system/ui/sheet";
 import { Tabs, TabsList, TabsTrigger } from "#/design-system/ui/tabs";
 
 export interface BlockColumnProps {
 	builder: BlockBuilder;
 	outcome: BlockOutcome;
 	readOnly: boolean;
+	org: string;
+	rulesHidden: boolean;
+	helpDefaultContent: string;
 }
 
-export function BlockColumn({ builder, outcome, readOnly }: BlockColumnProps) {
-	const { selected, paletteOpen } = builder;
-	const expand = () => builder.showPalette(true);
-	const collapse = () => builder.showPalette(false);
+export function BlockColumn({
+	builder,
+	outcome,
+	readOnly,
+	org,
+	rulesHidden,
+	helpDefaultContent,
+}: BlockColumnProps) {
+	const { selected } = builder;
 	const showTab: NonNullable<ComponentProps<typeof Tabs>["onValueChange"]> = (
 		tab,
 	) => {
@@ -25,25 +39,11 @@ export function BlockColumn({ builder, outcome, readOnly }: BlockColumnProps) {
 		}
 	};
 
-	if (!(paletteOpen || selected)) {
-		return (
-			<div className="flex lg:flex-col">
-				<Button
-					aria-label="Show blocks"
-					onClick={expand}
-					size="icon-sm"
-					variant="secondary"
-				>
-					<Icon icon={ChevronRight} />
-				</Button>
-			</div>
-		);
-	}
-
 	return (
-		<div className="shell flex min-h-0 flex-col lg:w-66" data-block-column="">
-			<div className="panel flex min-h-0 flex-1 flex-col overflow-hidden">
-				<div className="flex shrink-0 items-center justify-between gap-2 border-line-faint border-b px-2 py-1.5">
+		<>
+			<SheetHeader>
+				<SheetTitle>{selected ? "Block settings" : "Add block"}</SheetTitle>
+				<div className="flex items-center">
 					<Tabs
 						onValueChange={showTab}
 						value={selected ? "settings" : "blocks"}
@@ -55,22 +55,18 @@ export function BlockColumn({ builder, outcome, readOnly }: BlockColumnProps) {
 							</TabsTrigger>
 						</TabsList>
 					</Tabs>
-					<Button
-						aria-label="Hide blocks"
-						onClick={collapse}
-						size="icon-sm"
-						variant="ghost"
-					>
-						<Icon icon={ChevronLeft} />
-					</Button>
 				</div>
+			</SheetHeader>
+			<SheetBody>
 				{selected ? (
 					<BlockSettings
 						block={selected}
+						helpDefaultContent={helpDefaultContent}
 						key={selected.id}
-						onRemove={builder.remove}
 						onUpdate={builder.update}
+						org={org}
 						readOnly={readOnly}
+						rulesHidden={rulesHidden}
 					/>
 				) : (
 					<BlockPalette
@@ -79,7 +75,18 @@ export function BlockColumn({ builder, outcome, readOnly }: BlockColumnProps) {
 						outcome={outcome}
 					/>
 				)}
-			</div>
-		</div>
+			</SheetBody>
+			{selected && !readOnly ? (
+				<SheetFooter>
+					<SheetAction
+						onAction={() => builder.remove(selected.id)}
+						variant="destructive"
+					>
+						<Icon icon={TrashCan} />
+						Remove block
+					</SheetAction>
+				</SheetFooter>
+			) : null}
+		</>
 	);
 }

@@ -16,7 +16,7 @@ export interface BlockPaletteProps {
 const OPEN_BY_DEFAULT = ["text", "run", "links", "media"];
 
 function matches(meta: BlockMeta, needle: string): boolean {
-	return meta.label.toLowerCase().includes(needle);
+	return `${meta.label} ${meta.description}`.toLowerCase().includes(needle);
 }
 
 export function BlockPalette({ outcome, disabled, onAdd }: BlockPaletteProps) {

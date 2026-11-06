@@ -1,5 +1,11 @@
 import { expect, test } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+	createMemoryHistory,
+	createRootRoute,
+	createRouter,
+	RouterProvider,
+} from "@tanstack/react-router";
 import type { OrganizationForgeConnection } from "@tripwire/contracts";
 import { renderToString } from "react-dom/server";
 import { GitCafeRepositorySelection } from "#/components/forges/gitcafe-repository-selection";
@@ -29,7 +35,9 @@ const connection: OrganizationForgeConnection = {
 };
 
 function createClient(canManage: boolean) {
-	const client = new QueryClient();
+	const client = new QueryClient({
+		defaultOptions: { queries: { retry: false, retryOnMount: false } },
+	});
 	client.setQueryData(providerAvailabilityQueryOptions().queryKey, {
 		available: ["gitcafe"],
 	});
@@ -49,23 +57,33 @@ function createClient(canManage: boolean) {
 	return client;
 }
 
-function renderPage(client: QueryClient) {
-	return renderToString(
-		<QueryClientProvider client={client}>
-			<OrganizationConnectionsPage org="team" />
-		</QueryClientProvider>,
-	);
+async function renderPage(client: QueryClient) {
+	const rootRoute = createRootRoute({
+		component: () => (
+			<QueryClientProvider client={client}>
+				<OrganizationConnectionsPage org="team" />
+			</QueryClientProvider>
+		),
+	});
+	const router = createRouter({
+		history: createMemoryHistory({ initialEntries: ["/"] }),
+		isServer: true,
+		origin: "http://localhost",
+		routeTree: rootRoute,
+	});
+	await router.load();
+	return renderToString(<RouterProvider router={router} />);
 }
 
-function page(canManage: boolean) {
+async function page(canManage: boolean) {
 	const client = createClient(canManage);
-	const markup = renderPage(client);
+	const markup = await renderPage(client);
 	client.clear();
 	return markup;
 }
 
-test("organization managers see installation repositories without an OAuth account or expiry warning", () => {
-	const markup = page(true);
+test("organization managers see installation repositories without an OAuth account or expiry warning", async () => {
+	const markup = await page(true);
 	expect(markup).toContain("boring/scratch");
 	expect(markup).toContain(
 		'aria-label="Disconnect boring/scratch from GitCafe"',
@@ -76,8 +94,8 @@ test("organization managers see installation repositories without an OAuth accou
 	expect(markup).not.toContain("Reconnect GitCafe");
 });
 
-test("a non-manager cannot see cached repository names or disconnect controls", () => {
-	const markup = page(false);
+test("a non-manager cannot see cached repository names or disconnect controls", async () => {
+	const markup = await page(false);
 	expect(markup).toContain("Ask an admin of this org");
 	expect(markup).not.toContain("boring/scratch");
 	expect(markup).not.toContain("Disconnect");
@@ -128,7 +146,7 @@ test("a failed access refresh keeps the cached repository list and its controls"
 				},
 			}),
 		).rejects.toThrow("Controlled refresh outage");
-		const markup = renderPage(client);
+		const markup = await renderPage(client);
 		expect(markup).toContain("boring/scratch");
 		expect(markup).toContain(
 			'aria-label="Disconnect boring/scratch from GitCafe"',
@@ -139,8 +157,32 @@ test("a failed access refresh keeps the cached repository list and its controls"
 	}
 });
 
-test("an existing GitCafe installation can change and sync its repository selection", () => {
-	const markup = page(true);
+test("a first-load failure uses the actionable error state", async () => {
+	const client = createClient(true);
+	client.removeQueries({
+		queryKey: organizationConnectionsQueryOptions("team").queryKey,
+	});
+	try {
+		await expect(
+			client.fetchQuery({
+				...organizationConnectionsQueryOptions("team"),
+				retry: false,
+				queryFn: async () => {
+					throw new Error("Unsupported saved forge");
+				},
+			}),
+		).rejects.toThrow("Unsupported saved forge");
+		const markup = await renderPage(client);
+		expect(markup).toContain("Couldn&#x27;t load connections");
+		expect(markup).toContain("saved forge connections");
+		expect(markup).toContain("Try again");
+	} finally {
+		client.clear();
+	}
+});
+
+test("an existing GitCafe installation can change and sync its repository selection", async () => {
+	const markup = await page(true);
 	expect(markup).toContain("Manage repositories on GitCafe");
 	expect(markup).toContain(
 		"https://git.cafe/orgs/boring/settings/apps/installation-one",
@@ -186,7 +228,7 @@ test("sync shares provider availability while native repository management stays
 	}
 });
 
-test("same-owner installations identify the current repository selection separately from the empty one", () => {
+test("same-owner installations identify the current repository selection separately from the empty one", async () => {
 	const client = createClient(true);
 	client.setQueryData(organizationConnectionsQueryOptions("team").queryKey, [
 		{
@@ -209,7 +251,7 @@ test("same-owner installations identify the current repository selection separat
 			],
 		},
 	]);
-	const markup = renderPage(client);
+	const markup = await renderPage(client);
 	expect(markup).toContain(
 		'aria-label="Sync GitCafe repositories for boring, 0 connected repos"',
 	);

@@ -25,6 +25,7 @@ function state(extra: Partial<BuilderState> = {}): BuilderState {
 		selectedId: null,
 		drag: null,
 		paletteOpen: true,
+		insertIndex: null,
 		view: OPEN_VIEW,
 		...extra,
 	};
@@ -40,6 +41,7 @@ describe("add", () => {
 		});
 		expect(ids(next)).toEqual(["a", "n", "b", "c"]);
 		expect(next.selectedId).toBe("n");
+		expect(next.paletteOpen).toBe(true);
 	});
 
 	test("goes to the end with nothing selected", () => {
@@ -138,10 +140,10 @@ describe("update, remove, select", () => {
 		).toBe("a");
 	});
 
-	test("select sets and clears", () => {
-		expect(reduceBuilder(state(), { type: "select", id: "c" }).selectedId).toBe(
-			"c",
-		);
+	test("select opens the block properties sheet", () => {
+		const selected = reduceBuilder(state(), { type: "select", id: "c" });
+		expect(selected.selectedId).toBe("c");
+		expect(selected.paletteOpen).toBe(true);
 		expect(
 			reduceBuilder(state({ selectedId: "c" }), { type: "select", id: null })
 				.selectedId,
@@ -242,7 +244,7 @@ describe("keyboard steps", () => {
 });
 
 describe("palette and preview", () => {
-	test("hiding the palette clears the selection, showing keeps it", () => {
+	test("closing the sheet clears the selected block", () => {
 		const hidden = reduceBuilder(state({ selectedId: "b" }), {
 			type: "palette",
 			open: false,
@@ -259,16 +261,24 @@ describe("palette and preview", () => {
 		expect(shown.selectedId).toBe("b");
 	});
 
-	test("browsing clears the selection and opens the palette", () => {
+	test("browsing clears the selection and remembers the insertion slot", () => {
 		const next = reduceBuilder(state({ selectedId: "b", paletteOpen: false }), {
 			type: "browse",
+			index: 1,
 		});
 		expect(next.selectedId).toBeNull();
 		expect(next.paletteOpen).toBe(true);
+		expect(next.insertIndex).toBe(1);
+		expect(ids(reduceBuilder(next, { type: "add", block: NEW }))).toEqual([
+			"a",
+			"n",
+			"b",
+			"c",
+		]);
 	});
 
 	test("the ui reducer keeps its object when nothing changes", () => {
-		const { blocks, ...ui } = state({ selectedId: "a" });
+		const { blocks, ...ui } = state({ selectedId: "a", paletteOpen: true });
 		expect(
 			reduceBuilderUi(ui, { blocks, action: { type: "select", id: "a" } }),
 		).toBe(ui);

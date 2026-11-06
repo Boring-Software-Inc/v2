@@ -6,6 +6,15 @@ import { SettingsHeader } from "#/components/settings/settings-frame";
 import { Add, Icon } from "#/design-system/icon";
 import { Button } from "#/design-system/ui/button";
 import { CollapsibleGroup } from "#/design-system/ui/collapsible";
+import {
+	Empty,
+	EmptyCode,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyRetry,
+	EmptyTitle,
+} from "#/design-system/ui/empty-state";
 import { SkeletonText } from "#/design-system/ui/skeleton";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { organizationConnectionsQueryOptions } from "#/lib/connections.query";
@@ -19,6 +28,10 @@ export function OrganizationConnectionsPage({ org }: { org: string }) {
 		...organizationConnectionsQueryOptions(org),
 		enabled: canManage,
 	});
+	const errorDetail =
+		import.meta.env.DEV && query.error instanceof Error
+			? query.error.message
+			: null;
 	return (
 		<>
 			<SettingsHeader title="Connections">
@@ -39,17 +52,24 @@ export function OrganizationConnectionsPage({ org }: { org: string }) {
 					<SkeletonText className="w-20" type="body-sm" />
 				</div>
 			) : query.isError && query.data === undefined ? (
-				<div className="flex flex-wrap items-center gap-2">
-					<p className="type-body text-text-2">Couldn't load connections.</p>
-					<Button
-						onClick={() => {
-							void query.refetch();
-						}}
-						variant="secondary"
-					>
-						Try again
-					</Button>
-				</div>
+				<Empty reason="error" size="sm" variant="plain">
+					<EmptyHeader>
+						<EmptyTitle>Couldn't load connections</EmptyTitle>
+						<EmptyDescription>
+							Tripwire couldn't read this org's saved forge connections.
+						</EmptyDescription>
+						{errorDetail ? <EmptyCode>{errorDetail}</EmptyCode> : null}
+					</EmptyHeader>
+					<EmptyContent>
+						<EmptyRetry
+							onRetry={async () => {
+								await query.refetch({ throwOnError: true });
+							}}
+						>
+							Try again
+						</EmptyRetry>
+					</EmptyContent>
+				</Empty>
 			) : (
 				<>
 					{query.isError ? (

@@ -1,8 +1,6 @@
-import { useFlag } from "@databuddy/sdk/react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
-import { FLAGS } from "@tripwire/auth/databuddy";
-import { type ReactNode, useEffect, useMemo, useRef } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { DevScenarioSwitcher } from "#/components/dev/dev-scenario-switcher";
 import {
 	FeedbackPanel,
@@ -12,7 +10,10 @@ import {
 import { ShellNav } from "#/components/layouts/shell-nav";
 import { cn } from "#/design-system/lib/utils";
 import { useMediaQuery } from "#/hooks/use-media-query";
-import { currentUserQueryOptions } from "#/lib/auth.query";
+import {
+	currentUserQueryOptions,
+	sessionInfoQueryOptions,
+} from "#/lib/auth.query";
 import { CommandPaletteLauncher } from "./command-palette-launcher";
 import { DashboardRail } from "./dashboard-rail";
 import {
@@ -48,11 +49,12 @@ function DashboardShell({
 	children,
 }: DashboardLayoutProps) {
 	const { data: user } = useQuery(currentUserQueryOptions());
-	const sidebar = useFlag(FLAGS.showSidebar);
+	const { data: session } = useQuery(sessionInfoQueryOptions());
+	const [sidebarEnabled] = useState(() => session?.sidebarEnabled ?? false);
 	const { content, collapsed } = useSidePanel();
 	const isDesktop = useMediaQuery("(min-width: 768px)");
 	const showPanel = isDesktop && Boolean(content) && !collapsed;
-	const rail = isDesktop && !sidebar.loading && sidebar.on;
+	const rail = isDesktop && sidebarEnabled;
 	const params = useParams({ strict: false });
 	const inset = Boolean(params.repo);
 

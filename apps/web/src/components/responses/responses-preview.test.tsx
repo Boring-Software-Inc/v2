@@ -89,20 +89,15 @@ describe("Responses surface context", () => {
 		expect(html).toContain("Changes needed. Change the target to main.");
 	});
 
-	test("empty sample blocks are distinguished from redacted blocks", () => {
+	test("empty sample blocks stay editable without looking redacted", () => {
 		const content = (body: string | null) =>
 			renderToStaticMarkup(
 				<BlockContent
-					editing={false}
-					onUpdate={() => undefined}
-					org="sample"
 					output={{ block: { id: "ai", type: "ai-notice" }, body }}
-					rulesHidden={false}
 				/>,
 			);
-		expect(content("")).toContain("Empty in this sample");
+		expect(content("")).toContain("AI review not run");
 		expect(content("")).not.toContain("Hidden from outsiders");
 		expect(content(null)).toContain("Hidden from outsiders");
-		expect(content(null)).not.toContain("Empty in this sample");
 	});
 });

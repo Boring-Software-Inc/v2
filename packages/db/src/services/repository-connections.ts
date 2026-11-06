@@ -100,15 +100,17 @@ export async function listOrganizationForgeConnections(
 		grouped.set(forge.data, group);
 	}
 	for (const repo of repositories) {
+		const forge = forgeSchema.safeParse(repo.forge);
 		if (
-			repo.forge === "gitcafe" &&
+			!forge.success ||
+			(forge.data === "gitcafe" &&
 			repo.lifecycle !== null &&
 			repo.lifecycle !== "active" &&
-			repo.lifecycle !== "reconcile-required"
+			repo.lifecycle !== "reconcile-required")
 		)
 			continue;
-		const group = grouped.get(repo.forge) ?? {
-			forge: repo.forge,
+		const group = grouped.get(forge.data) ?? {
+			forge: forge.data,
 			installations: [],
 			repositories: [],
 		};
@@ -117,7 +119,7 @@ export async function listOrganizationForgeConnections(
 			fullName: repo.fullName,
 			installationId: repo.installationId,
 		});
-		grouped.set(repo.forge, group);
+		grouped.set(forge.data, group);
 	}
 	for (const group of grouped.values())
 		group.repositories.sort((a, b) => a.fullName.localeCompare(b.fullName));
