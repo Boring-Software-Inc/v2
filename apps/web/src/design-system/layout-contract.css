@@ -867,6 +867,15 @@
 	font: var(--type-body-sm);
 }
 
+[data-layout-role="section"]:has(
+		> [data-layout-role="section-body"] > [data-review-diff="collapsed"]
+	) {
+	position: sticky;
+	top: 0;
+	z-index: 9;
+	background-color: var(--tw-surface-page);
+}
+
 [data-layout-role="workflow-review-actions"] {
 	position: sticky;
 	z-index: var(--z-sticky);

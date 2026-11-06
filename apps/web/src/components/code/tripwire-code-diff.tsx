@@ -1,8 +1,10 @@
-import { lazy, type ReactNode, Suspense, useState } from "react";
+import { lazy, type ReactNode, Suspense, useId, useState } from "react";
 import { useCodeDark, WrapToggle } from "#/components/code/code-controls";
 import { CodeHeader, type DiffStats } from "#/components/code/code-header";
 import { PlainCode } from "#/components/code/plain-code";
+import { ChevronDown, ChevronRight, Icon } from "#/design-system/icon";
 import { cn } from "#/design-system/lib/utils";
+import { Button } from "#/design-system/ui/button";
 import { CopyButton } from "#/design-system/ui/copy-button";
 import {
 	SegmentedControl,
@@ -25,6 +27,7 @@ export interface TripwireCodeDiffProps {
 	layout?: CodeDiffLayout;
 	actions?: ReactNode;
 	className?: string;
+	review?: boolean;
 }
 
 export function TripwireCodeDiff({
@@ -34,13 +37,37 @@ export function TripwireCodeDiff({
 	layout = "unified",
 	actions,
 	className,
+	review = false,
 }: TripwireCodeDiffProps) {
 	const { mounted, dark } = useCodeDark();
 	const [wrap, setWrap] = useState(false);
 	const [shown, setShown] = useState<CodeDiffLayout>(layout);
+	const [expanded, setExpanded] = useState(true);
+	const contentId = useId();
 	const narrow = useMediaQuery("(max-width: 639.98px)");
 	const header = (stats?: DiffStats) => (
-		<CodeHeader name={name} stats={stats}>
+		<CodeHeader
+			className={
+				review ? "sticky top-0 z-10 bg-code-surface ps-1.5" : undefined
+			}
+			leading={
+				review ? (
+					<Button
+						aria-controls={contentId}
+						aria-expanded={expanded}
+						aria-label={`${expanded ? "Collapse" : "Expand"} ${name} diff`}
+						onClick={() => setExpanded(!expanded)}
+						size="icon-sm"
+						type="button"
+						variant="ghost"
+					>
+						<Icon icon={expanded ? ChevronDown : ChevronRight} />
+					</Button>
+				) : undefined
+			}
+			name={name}
+			stats={stats}
+		>
 			{actions}
 			<SegmentedControl
 				aria-label="Diff layout"
@@ -63,16 +90,22 @@ export function TripwireCodeDiff({
 	const plain = (
 		<>
 			{header()}
-			<PlainCode code={after} />
+			<div hidden={!expanded} id={contentId}>
+				<PlainCode code={after} />
+			</div>
 		</>
 	);
 	return (
 		<div
 			className={cn(
-				"min-w-0 overflow-hidden rounded-lg border border-line-faint bg-code-surface",
+				"min-w-0 rounded-lg border border-line-faint bg-code-surface",
+				review ? "overflow-clip rounded-xl" : "overflow-hidden",
 				className,
 			)}
 			data-slot="tripwire-code-diff"
+			data-review-diff={
+				review ? (expanded ? "expanded" : "collapsed") : undefined
+			}
 		>
 			{mounted ? (
 				<Suspense fallback={plain}>
@@ -80,6 +113,8 @@ export function TripwireCodeDiff({
 						after={after}
 						before={before}
 						dark={dark}
+						contentId={contentId}
+						hidden={!expanded}
 						name={name}
 						renderHeader={header}
 						split={!narrow && shown === "split"}

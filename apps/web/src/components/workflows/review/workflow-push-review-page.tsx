@@ -294,6 +294,7 @@ function WorkflowSection({ workflow }: { workflow: PushReviewWorkflow }) {
 						after={workflow.code.after}
 						before={workflow.code.before}
 						name="tripwire.ts"
+						review
 					/>
 				) : (
 					<p data-layout-role="workflow-review-code-note">
