@@ -525,6 +525,12 @@ export const workflowDefinitionSchema = z.object({
 	version: z.number().int().min(1),
 	nodes: z.array(workflowNodeSchema).min(1),
 	edges: z.array(workflowEdgeSchema),
+	/** Original TypeScript submitted with this graph. The worker executes the graph. */
+	authoredSource: z
+		.string()
+		.min(1)
+		.max(128 * 1024)
+		.optional(),
 });
 export type WorkflowDefinition = z.infer<typeof workflowDefinitionSchema>;
 

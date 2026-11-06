@@ -193,6 +193,42 @@ describe("propose", () => {
 		).toEqual({ ok: true, kind: "unchanged" });
 	});
 
+	test("review and acceptance preserve a source-only edit until an editor save", async () => {
+		const repoId = await newRepo();
+		const original = {
+			...gate("gate", "Gate"),
+			authoredSource: "// Original\n",
+		};
+		const saved = await seeded(repoId, original);
+		const authoredSource = "// Edited source\r\n";
+		const push = await propose(repoId, [{ ...original, authoredSource }]);
+		const review = await reviewWorkflowPush(db, {
+			orgId,
+			repoId,
+			pushId: push.id,
+		});
+		expect(review?.workflows[0]?.before?.authoredSource).toBe(
+			original.authoredSource,
+		);
+		expect(review?.workflows[0]?.after.authoredSource).toBe(authoredSource);
+		await decideWorkflowPush(db, {
+			orgId,
+			pushId: push.id,
+			userId: reviewerId,
+			decision: "accept",
+		});
+		const stored = await getWorkflow(db, { repoId, workflowId: saved.id });
+		expect(stored?.definition.authoredSource).toBe(authoredSource);
+		if (!stored) throw new Error("accepted workflow not found");
+		await saveWorkflowDefinition(db, {
+			repoId,
+			workflowId: saved.id,
+			definition: { ...stored.definition, name: "Editor update" },
+		});
+		const edited = await getWorkflow(db, { repoId, workflowId: saved.id });
+		expect(edited?.definition.authoredSource).toBeUndefined();
+	});
+
 	test("refuses errors on a workflow that is on, and names them", async () => {
 		const repoId = await newRepo();
 		const saved = await seeded(repoId, gate("half", "Half"));
