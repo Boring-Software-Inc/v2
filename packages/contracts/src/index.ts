@@ -49,7 +49,6 @@ export * from "./org-roles.ts";
 export * from "./redact.ts";
 export * from "./redaction.ts";
 export * from "./repo.ts";
-export * from "./repo-content.ts";
 export * from "./response.ts";
 export * from "./review.ts";
 export * from "./rule-exception.ts";
