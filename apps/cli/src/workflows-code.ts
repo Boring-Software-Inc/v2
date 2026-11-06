@@ -22,6 +22,7 @@ import {
 	type ValidationCatalogEntry,
 	WORKFLOW_STATE_LABELS,
 	type WorkflowDefinition,
+	type WorkflowNode,
 	type WorkflowState,
 	workflowDefinitionSchema,
 	workflowKeys,
@@ -131,10 +132,156 @@ export function sdkWorkflowSource(definition: WorkflowDefinition): string {
 			`Workflow ${definition.id} contains a __proto__ key that cannot be represented safely as TypeScript source.`,
 		);
 	}
-	return (
-		sdkHelperSource(safe) ??
-		`import { defineWorkflow } from "@tripwire-sh/sdk/workflows";\n\nexport default defineWorkflow(${JSON.stringify(safe, null, "\t")});\n`
+	return sdkHelperSource(safe) ?? sdkGraphSource(safe);
+}
+
+const SDK_EVENTS: Partial<
+	Record<Extract<WorkflowNode, { type: "trigger" }>["kinds"][number], string>
+> = {
+	"change-request.opened": "changeRequest.opened",
+	"change-request.updated": "changeRequest.updated",
+	"change-request.closed": "changeRequest.closed",
+	"comment.created": "comment.created",
+	push: "repository.pushed",
+};
+
+const SDK_ACTIONS = {
+	block: "block",
+	close: "closeConversation",
+	lock: "lockConversation",
+	note: "note",
+	webhook: "webhook",
+	discord: "discord",
+	"send-to-moderation": "humanReview",
+};
+
+const SDK_RULES = {
+	"account-age@1": "accountAge",
+	"max-files-changed@1": "maxFilesChanged",
+	"english-only@1": "englishOnly",
+	"honeypot@1": "honeypot",
+	"profile-readme@1": "profileReadme",
+	"min-merged-prs@2": "mergedChangeRequests",
+	"ai-review@3": "aiReview",
+} satisfies Record<string, string>;
+
+const SDK_RULE_CONFIGS = {
+	"account-age@1": z.strictObject({ minDays: z.int().min(0) }),
+	"max-files-changed@1": z.strictObject({ max: z.int().min(1) }),
+	"english-only@1": z.strictObject({
+		maxNonLatinRatio: z.number().min(0).max(1),
+	}),
+	"honeypot@1": z.strictObject({ paths: z.array(z.string().min(1)).min(1) }),
+	"profile-readme@1": z.strictObject({ minLength: z.int().min(1) }),
+	"min-merged-prs@2": z.strictObject({
+		min: z.int().min(0),
+		trustedAfter: z.int().min(1),
+	}),
+	"ai-review@3": z.strictObject({
+		maxSteps: z.int().min(1).max(15),
+		model: z.string().min(1).optional(),
+	}),
+} satisfies Record<keyof typeof SDK_RULES, z.ZodType>;
+
+function sdkGraphSource(definition: WorkflowDefinition): string {
+	const imports = new Set(["graphNode", "workflowGraph"]);
+	const call = (helper: string, ...args: string[]) => {
+		imports.add(helper);
+		return `${helper}(${args.join(", ")})`;
+	};
+	const json = (value: unknown) => JSON.stringify(value);
+	const step = (node: WorkflowNode): string => {
+		switch (node.type) {
+			case "trigger": {
+				const events = node.kinds.map((kind) => {
+					const event = SDK_EVENTS[kind];
+					if (!event) return json(kind);
+					imports.add(event.slice(0, event.indexOf(".")));
+					return event;
+				});
+				return call(
+					"on",
+					`[${events.join(", ")}]`,
+					...(node.schedule ? [json(node.schedule)] : []),
+				);
+			}
+			case "gate":
+				return call("gate", json(node.mode));
+			case "rule": {
+				const entry = Object.entries(SDK_RULES).find(
+					([ref]) => ref === node.ref,
+				);
+				if (
+					entry &&
+					SDK_RULE_CONFIGS[entry[0] as keyof typeof SDK_RULE_CONFIGS].safeParse(
+						node.config,
+					).success
+				)
+					return call(entry[1], json(node.config));
+				if (node.ref === "crypto-address@2" && json(node.config) === "{}")
+					return call("cryptoAddress");
+				return call("rule", json(node.ref), json(node.config));
+			}
+			case "action": {
+				const helper = Object.entries(SDK_ACTIONS).find(
+					([kind]) => kind === node.action,
+				)?.[1];
+				if (helper && node.params === undefined) return call(helper);
+				const { params } = node;
+				const labels = z
+					.strictObject({ labels: z.array(z.string().min(1)).min(1) })
+					.safeParse(params);
+				if (
+					labels.success &&
+					labels.data.labels.every((label) => label.trim() === label) &&
+					(node.action === "label" || node.action === "remove-label")
+				)
+					return call(
+						node.action === "label" ? "label" : "removeLabel",
+						...labels.data.labels.map(json),
+					);
+				const message = z
+					.strictObject({ message: z.string().min(1).max(500) })
+					.safeParse(params);
+				if (
+					message.success &&
+					message.data.message.trim() === message.data.message
+				) {
+					if (node.action === "note")
+						return call("note", json(message.data.message));
+					if (node.action === "post-comment")
+						return call("postComment", json(message.data.message));
+					if (node.action === "request-fix")
+						return call("requestFix", json(message.data.message));
+				}
+				return call(
+					"action",
+					json(node.action),
+					...(params === undefined ? [] : [json(params)]),
+				);
+			}
+		}
+	};
+	const nodes = definition.nodes.map((node) =>
+		call(
+			"graphNode",
+			json(node.id),
+			step(node),
+			...(node.position ? [json(node.position)] : []),
+		),
 	);
+	const edges = definition.edges.map(({ id, from, to, ...options }) =>
+		call(
+			"connect",
+			json(id),
+			json(from),
+			json(to),
+			...(Object.keys(options).length ? [json(options)] : []),
+		),
+	);
+	const array = (items: string[]) =>
+		items.length ? `[\n\t\t${items.join(",\n\t\t")},\n\t]` : "[]";
+	return `import { ${[...imports].sort().join(", ")} } from "@tripwire-sh/sdk/workflows";\n\nexport default workflowGraph({\n\tname: ${json(definition.name)},\n\tversion: ${definition.version},\n\tnodes: ${array(nodes)},\n\tedges: ${array(edges)},\n});\n`;
 }
 
 function sdkHelperSource(definition: WorkflowDefinition): string | undefined {
@@ -146,22 +293,7 @@ function sdkHelperSource(definition: WorkflowDefinition): string | undefined {
 		!definition.name
 	)
 		return;
-	const events = trigger.kinds.map((kind) => {
-		switch (kind) {
-			case "change-request.opened":
-				return "changeRequest.opened";
-			case "change-request.updated":
-				return "changeRequest.updated";
-			case "change-request.closed":
-				return "changeRequest.closed";
-			case "comment.created":
-				return "comment.created";
-			case "push":
-				return "repository.pushed";
-			default:
-				return undefined;
-		}
-	});
+	const events = trigger.kinds.map((kind) => SDK_EVENTS[kind]);
 	if (events.length === 0 || events.some((event) => event === undefined))
 		return;
 	const imports = new Set(events.map((event) => event?.split(".")[0] ?? ""));
@@ -181,15 +313,7 @@ function sdkHelperSource(definition: WorkflowDefinition): string | undefined {
 	const edges: Record<string, { id: string; explicitPass?: boolean }> = {};
 	if (definition.nodes.length === 2 && rule?.type === "action") {
 		const [edge] = definition.edges;
-		const helper = {
-			block: "block",
-			close: "closeConversation",
-			lock: "lockConversation",
-			note: "note",
-			webhook: "webhook",
-			discord: "discord",
-		};
-		const name = Object.entries(helper).find(
+		const name = Object.entries(SDK_ACTIONS).find(
 			([kind]) => kind === rule.action,
 		)?.[1];
 		if (
@@ -214,9 +338,9 @@ function sdkHelperSource(definition: WorkflowDefinition): string | undefined {
 		};
 	} else if (definition.nodes.length !== 1 || definition.edges.length !== 0) {
 		const [check, failure] = definition.edges;
-		const config = z
-			.strictObject({ minDays: z.number().int().min(0) })
-			.safeParse(rule?.type === "rule" ? rule.config : null);
+		const config = SDK_RULE_CONFIGS["account-age@1"].safeParse(
+			rule?.type === "rule" ? rule.config : null,
+		);
 		if (
 			definition.nodes.length !== 3 ||
 			definition.edges.length !== 2 ||

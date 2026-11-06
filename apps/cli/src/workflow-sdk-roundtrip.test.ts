@@ -43,7 +43,7 @@ test.skipIf(!sdkPath && !(sdkArchive && cliArchive))(
 		const root = await mkdtemp(join(tmpdir(), "tripwire-sdk-roundtrip-"));
 		const cwd = process.cwd();
 		const exitCode = process.exitCode;
-		const definition = {
+		const definition: WorkflowDefinition = {
 			id: "remote-workflow-id",
 			name: "  Contributor review  ",
 			version: 7,
@@ -60,12 +60,38 @@ test.skipIf(!sdkPath && !(sdkArchive && cliArchive))(
 					ref: "account-age@1",
 					config: { minDays: 30 },
 				},
+				{
+					id: "max-files",
+					type: "rule",
+					ref: "max-files-changed@1",
+					config: { max: 50 },
+				},
+				{
+					id: "unless",
+					type: "gate",
+					mode: "unless",
+					position: { x: 100, y: 40 },
+				},
 				{ id: "review", type: "action", action: "send-to-moderation" },
 				{ id: "denied", type: "action", action: "block" },
 			],
 			edges: [
 				{ id: "edge-a", from: "opened", to: "age" },
-				{ id: "edge-b", from: "age", to: "review", when: "fail" },
+				{ id: "edge-b", from: "unless", to: "review", when: "fail" },
+				{
+					id: "exception",
+					from: "max-files",
+					to: "unless",
+					input: "exception",
+				},
+				{
+					id: "requirement",
+					from: "age",
+					to: "unless",
+					when: "pass",
+					input: "requirement",
+				},
+				{ id: "check-files", from: "opened", to: "max-files" },
 				{ id: "edge-c", from: "review", to: "denied", when: "deny" },
 			],
 		} satisfies WorkflowDefinition;
@@ -80,7 +106,9 @@ test.skipIf(!sdkPath && !(sdkArchive && cliArchive))(
 			...definition,
 			id: "simple-remote-id",
 			name: "Simple gate",
-			nodes: definition.nodes.filter((node) => node.id !== "review"),
+			nodes: definition.nodes.filter((node) =>
+				["opened", "age", "denied"].includes(node.id),
+			),
 			edges: [
 				{ id: "pass-edge", from: "opened", to: "age", when: "pass" },
 				{ id: "fail-edge", from: "age", to: "denied", when: "fail" },
@@ -301,9 +329,13 @@ test.skipIf(!sdkPath && !(sdkArchive && cliArchive))(
 			});
 			const file = join(directory, "contributor-review.ts");
 			const original = await readFile(file, "utf8");
+			expect(original).toContain("workflowGraph({");
+			expect(original).toContain('gate("unless")');
+			expect(original).toContain("humanReview()");
+			expect(original).not.toContain("defineWorkflow");
 			const authored = (
 				"// Preserve this comment and newline style.\n" +
-				original.replace('"minDays": 30', '"minDays": 45')
+				original.replace('"minDays":30', '"minDays":45')
 			).replaceAll("\n", "\r\n");
 			await writeFile(file, authored);
 			expect(
@@ -338,7 +370,7 @@ test.skipIf(!sdkPath && !(sdkArchive && cliArchive))(
 			remote = { ...definition, version: 8 };
 			expect(await run(pull)).toBe(0);
 			const updated = await readFile(file, "utf8");
-			expect(updated).toContain('"version": 8');
+			expect(updated).toContain("version: 8");
 
 			const edited = `${updated}\n// Local edit\n`;
 			await writeFile(file, edited);
