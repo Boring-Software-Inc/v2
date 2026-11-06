@@ -1,0 +1,27 @@
+apps/cli/src/manage.ts
+  s_6e1ad5c5659a43::t_917a00965779d0 59,1292
+apps/cli/src/program.ts
+  s_6e1ad5c5659a43::t_63b41a263bec36 42,44,46-56
+apps/cli/src/push-review.ts
+  s_6e1ad5c5659a43::t_1db8788c9c4c52 30-38
+apps/cli/src/workflow-sdk-roundtrip.test.ts
+  s_6e1ad5c5659a43::t_75e8f7d81818d6 117-144,232,319,339-348,351-353
+apps/cli/test/push.test.ts
+  s_6e1ad5c5659a43::t_ba28687bb39f8a 80,99-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2fdfa77ff79eb11dc5289669eba0f03195b8521c",
+  "prompts": {},
+  "sessions": {
+    "s_6e1ad5c5659a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1af78-de88-77e0-ad66-c3d9b2fc3c4e",
+        "model": "unknown"
+      },
+      "human_author": "grim <75869731+ripgrim@users.noreply.github.com>"
+    }
+  }
+}
