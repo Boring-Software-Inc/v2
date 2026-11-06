@@ -99,7 +99,7 @@ export function TripwireCodeDiff({
 		<div
 			className={cn(
 				"min-w-0 rounded-lg border border-line-faint bg-code-surface",
-				review ? "overflow-clip rounded-xl" : "overflow-hidden",
+				review ? "overflow-clip rounded-shell" : "overflow-hidden",
 				className,
 			)}
 			data-slot="tripwire-code-diff"
