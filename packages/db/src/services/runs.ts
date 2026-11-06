@@ -185,14 +185,6 @@ export async function beginRunEvaluation(
 		.where(eq(runs.id, runId));
 }
 
-/** @deprecated Prefer beginRunEvaluation (writes snapshot + head). */
-export async function markRunRunning(db: Db, runId: string): Promise<void> {
-	await db
-		.update(runs)
-		.set({ status: "running" })
-		.where(and(eq(runs.id, runId), eq(runs.status, "queued")));
-}
-
 /**
  * Fail a pre-materialized re-run that never evaluated (unarmed, no event,
  * exempt, worker error). Leaves the row visible so the activity card is not
@@ -937,17 +929,6 @@ export async function getActiveBlockReviewId(
 	return dismissed.length > 0 ? null : reviewId;
 }
 
-export async function completeRun(
-	db: Db,
-	runId: string,
-	verdict: Verdict,
-): Promise<void> {
-	await db
-		.update(runs)
-		.set({ status: "completed", verdict, completedAt: new Date() })
-		.where(eq(runs.id, runId));
-}
-
 type Queryable = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 export async function getRunStanding(
@@ -1123,13 +1104,6 @@ export async function closedOnHead(
 	return rows.length > 0;
 }
 
-export async function pauseRun(db: Db, runId: string): Promise<void> {
-	await db
-		.update(runs)
-		.set({ status: "paused", verdict: "needs_review" })
-		.where(eq(runs.id, runId));
-}
-
 export async function getRunWithSteps(db: DbLike, runId: string) {
 	const runRows = await db.select().from(runs).where(eq(runs.id, runId));
 	const run = runRows[0];
@@ -1146,13 +1120,6 @@ export async function getRunWithSteps(db: DbLike, runId: string) {
 		.from(runActions)
 		.where(eq(runActions.runId, runId));
 	return { run, steps, actions };
-}
-
-export async function listRuns(
-	db: Db,
-	{ limit = 50 }: { limit?: number } = {},
-) {
-	return await db.select().from(runs).orderBy(desc(runs.id)).limit(limit);
 }
 
 export async function listRepoRuns(
