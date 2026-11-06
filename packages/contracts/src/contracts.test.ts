@@ -3,7 +3,6 @@ import {
 	contributorSummarySchema,
 	githubIntegrationSchema,
 	moderationItemSchema,
-	repoContentSchema,
 	repoInsightsSchema,
 	ruleSchema,
 	runLogEntrySchema,
@@ -141,7 +140,7 @@ describe("contracts parse demo shapes", () => {
 		).not.toThrow();
 	});
 
-	test("githubIntegration, repoInsights, repoContent parse minimal shapes", () => {
+	test("githubIntegration, repoInsights parse minimal shapes", () => {
 		expect(() =>
 			githubIntegrationSchema.parse({
 				accounts: [],
@@ -154,15 +153,6 @@ describe("contracts parse demo shapes", () => {
 				blockedByRule: [],
 				activeThreads: [],
 				threads: {},
-			}),
-		).not.toThrow();
-		expect(() =>
-			repoContentSchema.parse({
-				repos: [],
-				issues: [],
-				pulls: [],
-				issueDetails: {},
-				pullDetails: {},
 			}),
 		).not.toThrow();
 	});
