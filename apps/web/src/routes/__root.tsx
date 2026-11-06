@@ -1,5 +1,4 @@
-import { FlagsProvider } from "@databuddy/sdk/react";
-import type { QueryClient } from "@tanstack/react-query";
+import { type QueryClient, useQuery } from "@tanstack/react-query";
 import {
 	createRootRouteWithContext,
 	HeadContent,
@@ -12,6 +11,7 @@ import { ThemeProvider, useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { type SkulletMode, together } from "skullet";
 import { SkulletProvider } from "skullet/react";
+import { AccountFlagsProvider } from "#/components/common/account-flags-provider";
 import { AnalyticsIdentity } from "#/components/common/analytics-identity";
 import { DatabuddyAnalytics } from "#/components/common/databuddy-analytics";
 import { ImpersonationBanner } from "#/components/common/impersonation-banner";
@@ -24,7 +24,10 @@ import {
 } from "#/design-system/root";
 import { useSlowWait } from "#/design-system/ui/slow-notice";
 import { Toaster } from "#/design-system/ui/toast";
-import { sessionInfoQueryOptions } from "#/lib/auth.query";
+import {
+	currentUserQueryOptions,
+	sessionInfoQueryOptions,
+} from "#/lib/auth.query";
 import { getPublicDatabuddyConfig } from "#/lib/databuddy.functions";
 import { isPublicPath } from "#/lib/run-access";
 import { siteConfig } from "#/lib/site-config";
@@ -147,6 +150,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
 	const { databuddyWebsiteId } = Route.useLoaderData();
+	const { data: user, isPending: identityPending } = useQuery(
+		currentUserQueryOptions(),
+	);
 	useSlowWait(useRouterState({ select: (state) => state.isLoading }));
 	return (
 		<ThemeProvider
@@ -160,11 +166,15 @@ function RootComponent() {
 				    layout wrap, so a provider down there would remount — and re-read
 				    storage — on every navigation. */}
 				<ImpersonationBanner />
-				<FlagsProvider clientId={databuddyWebsiteId}>
+				<AccountFlagsProvider
+					clientId={databuddyWebsiteId}
+					isPending={identityPending}
+					user={user}
+				>
 					<RepoTabsProvider>
 						<Outlet />
 					</RepoTabsProvider>
-				</FlagsProvider>
+				</AccountFlagsProvider>
 				<Toaster />
 				{/* Global product analytics — one mount covers every route (pageviews,
 			    interactions, outgoing links, hash changes, web vitals). */}

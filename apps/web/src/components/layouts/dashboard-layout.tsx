@@ -1,4 +1,4 @@
-import { useFlag, useFlags } from "@databuddy/sdk/react";
+import { useFlag } from "@databuddy/sdk/react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
 import { FLAGS } from "@tripwire/auth/databuddy";
@@ -49,20 +49,6 @@ function DashboardShell({
 }: DashboardLayoutProps) {
 	const { data: user } = useQuery(currentUserQueryOptions());
 	const sidebar = useFlag(FLAGS.showSidebar);
-	const { updateUser } = useFlags();
-	const flaggedUser = useRef<string | null>(null);
-	useEffect(() => {
-		const id = user?.id;
-		if (!id || flaggedUser.current === id) {
-			return;
-		}
-		flaggedUser.current = id;
-		updateUser({
-			userId: id,
-			email: user.email ?? undefined,
-			properties: { login: user.login },
-		});
-	}, [updateUser, user?.id, user?.email, user?.login]);
 	const { content, collapsed } = useSidePanel();
 	const isDesktop = useMediaQuery("(min-width: 768px)");
 	const showPanel = isDesktop && Boolean(content) && !collapsed;
