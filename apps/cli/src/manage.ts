@@ -56,6 +56,7 @@ import {
 	canOpenBrowser,
 	outcomeText,
 	pushRefusalText,
+	reviewLink,
 	waitForDecision,
 	waitingText,
 } from "#/push-review";
@@ -1288,7 +1289,7 @@ function pushWorkflows(
 			return 0;
 		}
 		if (!options.json) {
-			err(pairs([["review", push.url]], options.errStyle));
+			err(reviewLink(push.url, process.stderr.isTTY === true));
 		}
 		if (
 			opts.browser &&

@@ -114,6 +114,34 @@ test.skipIf(!sdkPath && !(sdkArchive && cliArchive))(
 				{ id: "fail-edge", from: "age", to: "denied", when: "fail" },
 			],
 		} satisfies WorkflowDefinition;
+		const scheduled: WorkflowDefinition = {
+			id: "scheduled-lock",
+			name: "Scheduled lock",
+			version: 1,
+			nodes: [
+				{
+					id: "trigger",
+					type: "trigger",
+					kinds: ["schedule.matched"],
+					schedule: {
+						every: { n: 12, unit: "hours" },
+						match: {
+							subjects: ["issue", "change-request"],
+							state: "closed",
+							inactiveFor: { n: 15, unit: "days" },
+							skipLocked: true,
+						},
+					},
+				},
+				{
+					id: "lock",
+					type: "action",
+					action: "lock",
+					params: { reason: "resolved" },
+				},
+			],
+			edges: [{ id: "e1", from: "trigger", to: "lock" }],
+		};
 		let remote: WorkflowDefinition = definition;
 		let stopServer: (() => Promise<void>) | undefined;
 		try {
@@ -201,6 +229,7 @@ test.skipIf(!sdkPath && !(sdkArchive && cliArchive))(
 											{ id: remote.id, definition: remote },
 											{ id: second.id, definition: second },
 											{ id: simple.id, definition: simple },
+											{ id: scheduled.id, definition: scheduled },
 										],
 									},
 								};
@@ -287,6 +316,7 @@ test.skipIf(!sdkPath && !(sdkArchive && cliArchive))(
 			expect(await run(["workflows", "pull", "--json"])).toBe(0);
 			expect((await readdir(directory)).sort()).toEqual([
 				"contributor-review.ts",
+				"scheduled-lock.ts",
 				"second-review.ts",
 				"simple-gate.ts",
 			]);
@@ -306,9 +336,21 @@ test.skipIf(!sdkPath && !(sdkArchive && cliArchive))(
 			const draft = await loadWorkflowFile(draftPath);
 			expect(draft.ok).toBe(true);
 			expect(draft.definitions[0]).toEqual({ ...second, id: "second-review" });
+			const schedulePath = join(directory, "scheduled-lock.ts");
+			const scheduleSource = await readFile(schedulePath, "utf8");
+			expect(scheduleSource).toContain("when: schedule({");
+			expect(scheduleSource).toContain(
+				'run: lockConversation({ reason: "resolved" })',
+			);
+			expect(scheduleSource).not.toContain("workflowGraph");
+			const compiledSchedule = await loadWorkflowFile(schedulePath);
+			expect(compiledSchedule.ok).toBe(true);
+			expect(compiledSchedule.definitions[0]).toEqual(scheduled);
 			const simplePath = join(directory, "simple-gate.ts");
 			const simpleSource = await readFile(simplePath, "utf8");
-			expect(simpleSource).toContain("require: accountAge({ minDays: 30 })");
+			expect(simpleSource).toContain(
+				"require: accountAge({\n\t\tminDays: 30,\n\t})",
+			);
 			expect(simpleSource).toContain("otherwise: block()");
 			const simpleCompiled = await loadWorkflowFile(simplePath);
 			expect(simpleCompiled.ok).toBe(true);

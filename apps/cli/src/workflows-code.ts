@@ -15,7 +15,9 @@ import {
 	authoringModuleText,
 	type CompileResult,
 	compileWorkflowModule,
+	completeSchedule,
 	type WorkflowValue as LegacyWorkflowValue,
+	lockParamsSchema,
 	RULE_CATALOG,
 	type SettingValue,
 	stripWorkflowSecrets,
@@ -284,28 +286,74 @@ function sdkGraphSource(definition: WorkflowDefinition): string {
 	return `import { ${[...imports].sort().join(", ")} } from "@tripwire-sh/sdk/workflows";\n\nexport default workflowGraph({\n\tname: ${json(definition.name)},\n\tversion: ${definition.version},\n\tnodes: ${array(nodes)},\n\tedges: ${array(edges)},\n});\n`;
 }
 
+const DURATION_SUFFIX = { hours: "h", days: "d", weeks: "w", months: "mo" };
+
+function sdkScheduleSource(
+	trigger: Extract<WorkflowNode, { type: "trigger" }>,
+): string | undefined {
+	const schedule = completeSchedule(trigger.schedule);
+	if (
+		trigger.kinds.length !== 1 ||
+		trigger.kinds[0] !== "schedule.matched" ||
+		!schedule ||
+		!("n" in schedule.every) ||
+		trigger.schedule?.match.skipLocked === undefined
+	)
+		return;
+	const { every, match, timezone } = schedule;
+	const duration = ({ n, unit }: typeof match.inactiveFor) =>
+		JSON.stringify(`${n}${DURATION_SUFFIX[unit]}`);
+	const find = [
+		`types: ${JSON.stringify(match.subjects.map((subject) => (subject === "change-request" ? "pull-request" : subject)))}`,
+		`state: ${JSON.stringify(match.state)}`,
+		`inactiveFor: ${duration(match.inactiveFor)}`,
+	];
+	if (match.labels !== undefined)
+		find.push(`labels: ${JSON.stringify(match.labels)}`);
+	if (match.excludeLabels !== undefined)
+		find.push(`excludeLabels: ${JSON.stringify(match.excludeLabels)}`);
+	if (!match.skipLocked) find.push("conversationLocked: true");
+	const options = [`every: ${duration(every)}`];
+	if (timezone !== undefined)
+		options.push(`timezone: ${JSON.stringify(timezone)}`);
+	options.push(`find: {\n\t\t\t${find.join(",\n\t\t\t")},\n\t\t}`);
+	return `schedule({\n\t\t${options.join(",\n\t\t")},\n\t})`;
+}
+
 function sdkHelperSource(definition: WorkflowDefinition): string | undefined {
 	const [trigger, rule, action] = definition.nodes;
 	if (
 		trigger?.type !== "trigger" ||
-		trigger.schedule ||
 		definition.name.trim() !== definition.name ||
 		!definition.name
 	)
 		return;
+	const scheduled = sdkScheduleSource(trigger);
 	const events = trigger.kinds.map((kind) => SDK_EVENTS[kind]);
-	if (events.length === 0 || events.some((event) => event === undefined))
+	if (
+		!scheduled &&
+		(trigger.schedule ||
+			events.length === 0 ||
+			events.some((event) => event === undefined))
+	)
 		return;
-	const imports = new Set(events.map((event) => event?.split(".")[0] ?? ""));
+	const triggerKey = scheduled ? "schedule" : "trigger";
+	const imports = new Set(
+		scheduled
+			? ["schedule"]
+			: events.map((event) => event?.split(".")[0] ?? ""),
+	);
 	const spec = [
-		`name: ${JSON.stringify(definition.name)}`,
-		`when: ${events.length === 1 ? events[0] : `[${events.join(", ")}]`}`,
+		...(definition.name === definition.id
+			? []
+			: [`name: ${JSON.stringify(definition.name)}`]),
+		`when: ${scheduled ?? (events.length === 1 ? events[0] : `[${events.join(", ")}]`)}`,
 	];
 	const nodes: Record<
 		string,
 		{ id: string; position?: { x: number; y: number } }
 	> = {
-		trigger: {
+		[triggerKey]: {
 			id: trigger.id,
 			...(trigger.position ? { position: trigger.position } : {}),
 		},
@@ -316,9 +364,18 @@ function sdkHelperSource(definition: WorkflowDefinition): string | undefined {
 		const name = Object.entries(SDK_ACTIONS).find(
 			([kind]) => kind === rule.action,
 		)?.[1];
+		const lock = lockParamsSchema.safeParse(rule.params);
+		const reason =
+			rule.action === "lock" &&
+			lock.success &&
+			Object.keys(rule.params ?? {}).length === 1
+				? lock.data.reason
+				: undefined;
 		if (
 			!name ||
-			rule.params !== undefined ||
+			(rule.params !== undefined && reason === undefined) ||
+			(scheduled &&
+				(rule.action === "block" || rule.action === "send-to-moderation")) ||
 			definition.edges.length !== 1 ||
 			edge?.from !== trigger.id ||
 			edge.to !== rule.id ||
@@ -327,12 +384,14 @@ function sdkHelperSource(definition: WorkflowDefinition): string | undefined {
 		)
 			return;
 		imports.add(name);
-		spec.push(`run: ${name}()`);
+		spec.push(
+			`run: ${name}(${reason ? `{ reason: ${JSON.stringify(reason)} }` : ""})`,
+		);
 		nodes[rule.action] = {
 			id: rule.id,
 			...(rule.position ? { position: rule.position } : {}),
 		};
-		edges[`trigger-pass-${rule.action}`] = {
+		edges[`${triggerKey}-pass-${rule.action}`] = {
 			id: edge.id,
 			...(edge.when ? { explicitPass: true } : {}),
 		};
@@ -342,6 +401,7 @@ function sdkHelperSource(definition: WorkflowDefinition): string | undefined {
 			rule?.type === "rule" ? rule.config : null,
 		);
 		if (
+			scheduled ||
 			definition.nodes.length !== 3 ||
 			definition.edges.length !== 2 ||
 			rule?.type !== "rule" ||
@@ -363,7 +423,7 @@ function sdkHelperSource(definition: WorkflowDefinition): string | undefined {
 		imports.add("accountAge");
 		imports.add("block");
 		spec.push(
-			`require: accountAge({ minDays: ${config.data.minDays} })`,
+			`require: accountAge({\n\t\tminDays: ${config.data.minDays},\n\t})`,
 			"otherwise: block()",
 		);
 		nodes["account-age"] = {
@@ -381,13 +441,23 @@ function sdkHelperSource(definition: WorkflowDefinition): string | undefined {
 		edges["account-age-fail-block"] = { id: failure.id };
 	}
 	imports.add("workflow");
-	imports.add("workflowIdentityVersion");
-	const identity = {
-		version: definition.version,
-		nodes,
-		...(Object.keys(edges).length ? { edges } : {}),
-	};
-	return `import { ${[...imports].sort().join(", ")} } from "@tripwire-sh/sdk/workflows";\n\nexport default workflow({\n\t${spec.join(",\n\t")},\n}, {\n\tformat: workflowIdentityVersion,${JSON.stringify(identity, null, "\t").slice(1)});\n`;
+	const savedNodes = Object.entries(nodes).filter(
+		([key, node]) => key !== node.id || node.position,
+	);
+	const savedEdges = Object.entries(edges).filter(
+		([key, edge]) => key !== edge.id || edge.explicitPass,
+	);
+	let identityArg = "";
+	if (definition.version !== 1 || savedNodes.length || savedEdges.length) {
+		imports.add("workflowIdentityVersion");
+		const identity = {
+			version: definition.version,
+			nodes: Object.fromEntries(savedNodes),
+			...(savedEdges.length ? { edges: Object.fromEntries(savedEdges) } : {}),
+		};
+		identityArg = `, {\n\tformat: workflowIdentityVersion,${JSON.stringify(identity, null, "\t").slice(1)}`;
+	}
+	return `import { ${[...imports].sort().join(", ")} } from "@tripwire-sh/sdk/workflows";\n\nexport default workflow({\n\t${spec.join(",\n\t")},\n}${identityArg});\n`;
 }
 
 export interface SdkPullWrite {

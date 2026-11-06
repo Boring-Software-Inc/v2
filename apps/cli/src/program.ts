@@ -39,16 +39,21 @@ export async function main(system: System, argv: string[]): Promise<void> {
 }
 
 async function openUrl(system: System, url: string): Promise<void> {
-	const opener =
+	const openers =
 		system.platform === "darwin"
-			? ["open", url]
+			? [["open", url]]
 			: system.platform === "win32"
-				? ["cmd", "/c", "start", "", url]
-				: ["xdg-open", url];
-	const [command, ...args] = opener;
-	const binary = command ? system.which(command) : null;
-	if (binary) {
-		await system.run(binary, args);
+				? [["cmd", "/c", "start", "", url]]
+				: system.env.WSL_INTEROP
+					? [
+							["wslview", url],
+							["rundll32.exe", "url.dll,FileProtocolHandler", url],
+							["xdg-open", url],
+						]
+					: [["xdg-open", url]];
+	for (const [command, ...args] of openers) {
+		const binary = command ? system.which(command) : null;
+		if (binary && (await system.run(binary, args)).ok) return;
 	}
 }
 

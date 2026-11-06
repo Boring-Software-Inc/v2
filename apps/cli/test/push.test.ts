@@ -77,7 +77,7 @@ describe("workflows push sends tripwire.ts for review", () => {
 			env(),
 		);
 		expect(result.code).toBe(0);
-		expect(result.stderr).toContain(`review    ${REVIEW_URL}`);
+		expect(result.stderr).toContain(`Open review in browser  ${REVIEW_URL}`);
 		expect(result.stderr).toContain(
 			"Waiting for someone to accept 1 workflow on grim/scratch",
 		);
@@ -95,6 +95,27 @@ describe("workflows push sends tripwire.ts for review", () => {
 			{ org: "grim", push: "push-1", waitSeconds: 25 },
 		]);
 	});
+
+	test.skipIf(process.platform !== "linux")(
+		"opens the Windows browser from WSL without a display",
+		async () => {
+			await pulled();
+			sandbox.addBinary("rundll32.exe", 'printf "%s\\n" "$*" >> "$ARGV_LOG"');
+			const result = await runCli(
+				["workflows", "push", "--repo", "scratch", "--file", file()],
+				env({
+					DISPLAY: "",
+					WAYLAND_DISPLAY: "",
+					WSL_INTEROP: "/run/WSL/1_interop",
+				}),
+			);
+			expect(result.code).toBe(0);
+			expect(result.stderr).toContain(`Open review in browser  ${REVIEW_URL}`);
+			expect(sandbox.argv()).toEqual([
+				`url.dll,FileProtocolHandler ${REVIEW_URL}`,
+			]);
+		},
+	);
 
 	test("--no-browser prints the link and opens nothing", async () => {
 		await pulled();

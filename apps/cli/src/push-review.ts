@@ -27,7 +27,15 @@ export function canOpenBrowser(
 	if (platform === "darwin" || platform === "win32") {
 		return true;
 	}
-	return display;
+	return display || (platform === "linux" && Boolean(env.WSL_INTEROP));
+}
+
+export function reviewLink(url: string, tty: boolean): string {
+	const text = `Open review in browser  ${url}`;
+	if (!tty || !/^https?:\/\/[^\s\p{Cc}]+$/u.test(url)) {
+		return text;
+	}
+	return `\u001b]8;;${url}\u001b\\${text}\u001b]8;;\u001b\\`;
 }
 
 export interface WaitDeps {
