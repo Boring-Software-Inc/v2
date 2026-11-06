@@ -1,0 +1,27 @@
+apps/web/src/components/code/code-header.tsx
+  s_6e1ad5c5659a43::t_b37a18d60963bb 3,14-15,18-24,26-32
+apps/web/src/components/code/pierre-code.tsx
+  s_6e1ad5c5659a43::t_6b60ec6a787cca 70-71,83-84,119-125
+apps/web/src/components/code/tripwire-code-diff.tsx
+  s_6e1ad5c5659a43::t_177489e13e4123 1,5,7,30,40,45-46,49-70,93-95,101-102,106-108,116-117
+apps/web/src/components/workflows/review/workflow-push-review-page.tsx
+  s_6e1ad5c5659a43::t_139ebeff6708dc 297
+apps/web/src/design-system/layout-contract.css
+  s_6e1ad5c5659a43::t_c5bb8414685374 870-878
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f3f62d819fb04bb85b141b38800d6012a48a1d28",
+  "prompts": {},
+  "sessions": {
+    "s_6e1ad5c5659a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1af78-de88-77e0-ad66-c3d9b2fc3c4e",
+        "model": "unknown"
+      },
+      "human_author": "grim <75869731+ripgrim@users.noreply.github.com>"
+    }
+  }
+}
