@@ -262,7 +262,7 @@ function WorkflowSection({ workflow }: { workflow: PushReviewWorkflow }) {
 	return (
 		<section
 			aria-labelledby={`push-${workflow.id}`}
-			className="flex min-w-0 flex-col gap-3"
+			className="flex min-w-0 flex-col gap-3 has-[>[data-review-diff=collapsed]]:sticky has-[>[data-review-diff=collapsed]]:top-0 has-[>[data-review-diff=collapsed]]:z-[9] has-[>[data-review-diff=collapsed]]:bg-paper"
 		>
 			<div className="flex flex-wrap items-center gap-2">
 				<h2 className="type-heading-sm" id={`push-${workflow.id}`}>
@@ -282,6 +282,7 @@ function WorkflowSection({ workflow }: { workflow: PushReviewWorkflow }) {
 					after={workflow.code.after}
 					before={workflow.code.before}
 					name="tripwire.ts"
+					review
 				/>
 			) : (
 				<p className="type-body-sm text-text-2">{workflow.code.reason}</p>

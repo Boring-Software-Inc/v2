@@ -67,6 +67,8 @@ export interface PierreDiffProps {
 	dark: boolean;
 	wrap: boolean;
 	split: boolean;
+	contentId: string;
+	hidden: boolean;
 	renderHeader: (stats: DiffStats) => ReactNode;
 }
 
@@ -78,6 +80,8 @@ export function PierreDiff({
 	wrap,
 	split,
 	renderHeader,
+	contentId,
+	hidden,
 }: PierreDiffProps) {
 	const fileDiff = useMemo(
 		() =>
@@ -112,11 +116,13 @@ export function PierreDiff({
 	return (
 		<>
 			{renderHeader(stats)}
-			<FileDiff
-				fileDiff={fileDiff}
-				options={options}
-				style={codeSurfaceStyle}
-			/>
+			<div hidden={hidden} id={contentId}>
+				<FileDiff
+					fileDiff={fileDiff}
+					options={options}
+					style={codeSurfaceStyle}
+				/>
+			</div>
 		</>
 	);
 }

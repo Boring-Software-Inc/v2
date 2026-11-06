@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { FileCode, Icon } from "#/components/glaze/icon";
+import { cn } from "#/lib/glaze/utils";
 
 export interface DiffStats {
 	added: number;
@@ -10,11 +11,25 @@ export interface CodeHeaderProps {
 	name: string;
 	stats?: DiffStats;
 	children: ReactNode;
+	leading?: ReactNode;
+	className?: string;
 }
 
-export function CodeHeader({ name, stats, children }: CodeHeaderProps) {
+export function CodeHeader({
+	name,
+	stats,
+	children,
+	leading,
+	className,
+}: CodeHeaderProps) {
 	return (
-		<div className="flex h-10 min-w-0 items-center gap-2 border-line-faint border-b ps-3.5 pe-1.5">
+		<div
+			className={cn(
+				"flex h-10 min-w-0 items-center gap-2 border-line-faint border-b ps-3.5 pe-1.5",
+				className,
+			)}
+		>
+			{leading}
 			<Icon className="text-text-2" icon={FileCode} />
 			<span className="min-w-0 truncate type-code-block text-text-1">
 				{name}
