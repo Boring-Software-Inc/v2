@@ -1,0 +1,19 @@
+apps/web/src/components/code/tripwire-code-diff.tsx
+  s_6e1ad5c5659a43::t_3fc763bad7241c 102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "665642195d3d919b8490cb1cac1f5820dbc3ce49",
+  "prompts": {},
+  "sessions": {
+    "s_6e1ad5c5659a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1af78-de88-77e0-ad66-c3d9b2fc3c4e",
+        "model": "unknown"
+      },
+      "human_author": "grim <75869731+ripgrim@users.noreply.github.com>"
+    }
+  }
+}
