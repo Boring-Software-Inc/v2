@@ -1,0 +1,129 @@
+apps/web/src/components/responses/blocks/block-row.tsx
+  s_bab54381f7211a::t_05334eba8b9a7c 64,66
+apps/web/src/components/responses/blocks/block-column.tsx
+  s_bab54381f7211a::t_89841db041478a 7,9,11-13,33,43-46,59,78,90
+  s_bab54381f7211a::t_0c38abbc26eb86 22,31,64
+  s_bab54381f7211a::t_51bb426cd3449e 6,8,10,20-21,25-30,32,60,67,69,79-89
+apps/web/src/components/responses/blocks/response-builder.tsx
+  s_bab54381f7211a::t_6ce8abcdd27847 61,78,147,150
+  s_bab54381f7211a::t_0c38abbc26eb86 7-11,62-65,146
+  s_bab54381f7211a::t_cd4713619218ca 12,66,82,108
+  s_bab54381f7211a::t_d4fd4a522d20f7 26
+  s_bab54381f7211a::t_89841db041478a 31,33,79-81,109-110,142,144-145,148-149,152-154
+  s_bab54381f7211a::t_bbe390c3edd3da 83
+  s_bab54381f7211a::t_ed84ab6686521e 111-131,133-141
+  s_bab54381f7211a::t_f15ae8dc583f35 84-93
+  s_bab54381f7211a::t_f29b2be93d15ea 94-107,143
+packages/contracts/src/response.ts
+  s_bab54381f7211a::t_460d27694aad53 114-115,144-146,148
+  s_bab54381f7211a::t_0c38abbc26eb86 147
+apps/web/src/components/responses/blocks/block-palette-item.tsx
+  s_bab54381f7211a::t_be705fafa78c6d 49
+  s_bab54381f7211a::t_7e759390f77d1e 46
+  s_bab54381f7211a::t_f15ae8dc583f35 32,41-45,51
+apps/web/src/components/responses/blocks/block-catalog.ts
+  s_bab54381f7211a::t_460d27694aad53 80
+  s_bab54381f7211a::t_7e759390f77d1e 30,39,46,53,57-63,67,71-77,81,88,95,102,106-112
+apps/web/src/lib/block-builder.ts
+  s_bab54381f7211a::t_05334eba8b9a7c 108,128,134
+  s_bab54381f7211a::t_be705fafa78c6d 29,42,105,109,131-133,135-136,142,145-150,242-243,255
+apps/web/src/components/responses/blocks/block-settings.tsx
+  s_bab54381f7211a::t_460d27694aad53 10,21-30,56,58-59,68-96,98-99,105-106,108-109
+  s_bab54381f7211a::t_79f9dcb8fbb099 8
+  s_bab54381f7211a::t_0c38abbc26eb86 17,38,55,57,97,100-104,107
+  s_bab54381f7211a::t_51bb426cd3449e 1,5-7,15-16,36-37,50-54,62,110-119
+apps/web/src/routes/$org.$repo.responses.tsx
+  s_bab54381f7211a::t_7e759390f77d1e 11-26,36,42
+apps/web/src/components/glaze/ui/collapsible.test.tsx
+  s_bab54381f7211a::t_858448eae5ba10 1-37
+apps/web/src/components/responses/blocks/block-palette.tsx
+  s_bab54381f7211a::t_7e759390f77d1e 19
+apps/web/src/components/responses/blocks/insert-block-line.tsx
+  s_bab54381f7211a::t_f15ae8dc583f35 11-14,17,19-22,25,31
+  s_bab54381f7211a::t_89841db041478a 1,3-10,24,26,29,33-35
+  s_bab54381f7211a::t_cd4713619218ca 2,15-16,18,23,27-28,30,32
+apps/web/src/components/layouts/dashboard-layout.tsx
+  s_bab54381f7211a::t_dd26a56849aec0 3,13-16,52-53,57
+apps/web/src/lib/block-builder.test.ts
+  s_bab54381f7211a::t_f7b4a9fd94a6e2 28,144-145,264,267,271-277
+  s_bab54381f7211a::t_6ce8abcdd27847 44,143,146,247,281
+apps/web/src/components/responses/blocks/block-catalog.test.ts
+  s_bab54381f7211a::t_3c44e4cf4e3068 1,6-7,9-12,19-20
+  s_bab54381f7211a::t_7e759390f77d1e 13-18
+  s_bab54381f7211a::t_ee2c97b22f5bdf 2-5
+  s_bab54381f7211a::t_0c38abbc26eb86 8
+apps/web/src/components/responses/responses-preview.test.tsx
+  s_bab54381f7211a::t_c2760f99fc9161 99
+  s_bab54381f7211a::t_6ce8abcdd27847 92
+packages/contracts/src/comment-render.ts
+  s_bab54381f7211a::t_460d27694aad53 20,225-227,229
+  s_bab54381f7211a::t_0c38abbc26eb86 213-216,228,230-231,628
+apps/web/src/components/responses/blocks/collapsed-block-row.tsx
+  s_bab54381f7211a::t_89841db041478a 18-19,23,25
+apps/web/src/lib/auth.functions.ts
+  s_bab54381f7211a::t_ec8a99e5dbe798 38
+  s_bab54381f7211a::t_dd26a56849aec0 39,56,68,79-82,94,97-106,145
+apps/web/src/components/responses/blocks/block-canvas.tsx
+  s_bab54381f7211a::t_05334eba8b9a7c 22
+  s_bab54381f7211a::t_be705fafa78c6d 7,17,26,34,37-39,49,53-55
+apps/web/src/components/glaze/ui/collapsible.tsx
+  s_bab54381f7211a::t_858448eae5ba10 101-105
+  s_bab54381f7211a::t_49822ac4ffa42b 99-100
+apps/web/src/components/responses/responses-preview.tsx
+  s_bab54381f7211a::t_cd4713619218ca 146
+  s_bab54381f7211a::t_89841db041478a 51,63
+  s_bab54381f7211a::t_be705fafa78c6d 93-108,110-126
+  s_bab54381f7211a::t_f15ae8dc583f35 148-149
+apps/web/src/components/responses/blocks/use-block-builder.ts
+  s_bab54381f7211a::t_be705fafa78c6d 43,50
+apps/web/src/components/responses/responses-page.tsx
+  s_bab54381f7211a::t_7e759390f77d1e 41-46,79,86,95,102,107,114,156-157
+  s_bab54381f7211a::t_cd4713619218ca 174
+apps/web/src/components/common/grouped-picker.tsx
+  s_bab54381f7211a::t_f15ae8dc583f35 121,147-148
+  s_bab54381f7211a::t_7e759390f77d1e 16,119,127,144
+  s_bab54381f7211a::t_e1a1915e0a939d 146
+packages/contracts/src/response-blocks.test.ts
+  s_bab54381f7211a::t_0c38abbc26eb86 182-184
+apps/web/src/components/responses/blocks/block-content.tsx
+  s_bab54381f7211a::t_f15ae8dc583f35 24
+  s_bab54381f7211a::t_51bb426cd3449e 1,11
+apps/web/src/design-system/layout-contract.css
+  s_bab54381f7211a::t_89841db041478a 697,707-708
+  s_bab54381f7211a::t_cd4713619218ca 665,677-678,681-688,691,693-696,701-703
+  s_bab54381f7211a::t_bc6e90acddc85a 709-710
+apps/web/src/components/forges/organization-connections-page.test.tsx
+  s_bab54381f7211a::t_dc772686ca3dfa 3-8,38-40,60-75,78,80,85-86,97-98,149,160-185,231,254
+apps/web/src/components/forges/organization-connections-page.tsx
+  s_bab54381f7211a::t_46a369c7950292 9-17,31-34,55-72
+apps/web/src/components/organizations/delete-org-dialog.tsx
+  s_bab54381f7211a::t_80b0e957510fb1 1-76
+apps/web/src/components/organizations/org-general-settings-page.tsx
+  s_bab54381f7211a::t_6f51e44f27c38f 5,23,155-161,163-171,256,259,262-263
+apps/web/src/components/organizations/org-members-page.test.ts
+  s_bab54381f7211a::t_12f7a577dac759 2-5,31-54
+apps/web/src/components/organizations/org-members-page.tsx
+  s_bab54381f7211a::t_1fd52f50479c49 6,21,60-64,112-121,145-151,204-211,361-369,395,403-408,419-445,457-461,470-475
+apps/web/src/lib/connections.functions.ts
+  s_bab54381f7211a::t_949e4b61a9e649 2,26,30-36
+packages/db/src/services/repository-connections.integration.test.ts
+  s_bab54381f7211a::t_d5f28375cb6608 14,25,126-135,137,167
+packages/db/src/services/repository-connections.ts
+  s_bab54381f7211a::t_eefe2ca0cec69c 103,105-106,109,112-113,122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2ecf9787bc99981db0629b657df1cbbd909c6fd1",
+  "prompts": {},
+  "sessions": {
+    "s_bab54381f7211a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18f3d-7434-7f62-9a7b-bf3706772769",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "grim <75869731+ripgrim@users.noreply.github.com>"
+    }
+  }
+}
