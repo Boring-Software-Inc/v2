@@ -369,7 +369,11 @@ function sdkScheduleSource(
 	return `schedule({\n\t\t${options.join(",\n\t\t")},\n\t})`;
 }
 
-function sdkHelperSource(definition: WorkflowDefinition): string | undefined {
+function sdkHelperSource(
+	definition: WorkflowDefinition,
+	legacy?: "full-identity" | "otherwise",
+): string | undefined {
+	const fullIdentity = legacy === "full-identity";
 	const [trigger, rule, action] = definition.nodes;
 	if (
 		trigger?.type !== "trigger" ||
@@ -393,7 +397,7 @@ function sdkHelperSource(definition: WorkflowDefinition): string | undefined {
 			: events.map((event) => event?.split(".")[0] ?? ""),
 	);
 	const spec = [
-		...(definition.name === definition.id
+		...(!fullIdentity && definition.name === definition.id
 			? []
 			: [`name: ${JSON.stringify(definition.name)}`]),
 		`when: ${scheduled ?? (events.length === 1 ? events[0] : `[${events.join(", ")}]`)}`,
@@ -480,8 +484,10 @@ function sdkHelperSource(definition: WorkflowDefinition): string | undefined {
 		imports.add("accountAge");
 		imports.add(elseAction);
 		spec.push(
-			`require: accountAge({\n\t\tminDays: ${config.data.minDays},\n\t})`,
-			`else: ${elseAction}()`,
+			fullIdentity
+				? `require: accountAge({ minDays: ${config.data.minDays} })`
+				: `require: accountAge({\n\t\tminDays: ${config.data.minDays},\n\t})`,
+			`${legacy ? "otherwise" : "else"}: ${elseAction}()`,
 		);
 		nodes["account-age"] = {
 			id: rule.id,
@@ -501,10 +507,10 @@ function sdkHelperSource(definition: WorkflowDefinition): string | undefined {
 	}
 	imports.add("workflow");
 	const savedNodes = Object.entries(nodes).filter(
-		([key, node]) => key !== node.id || node.position,
+		([key, node]) => fullIdentity || key !== node.id || node.position,
 	);
 	const savedEdges = Object.entries(edges).filter(
-		([key, edge]) => key !== edge.id || edge.explicitPass,
+		([key, edge]) => fullIdentity || key !== edge.id || edge.explicitPass,
 	);
 	let identityArg = "";
 	if (definition.version !== 1 || savedNodes.length || savedEdges.length) {
@@ -517,6 +523,17 @@ function sdkHelperSource(definition: WorkflowDefinition): string | undefined {
 		identityArg = `, {\n\tformat: workflowIdentityVersion,${JSON.stringify(identity, null, "\t").slice(1)}`;
 	}
 	return `import { ${[...imports].sort().join(", ")} } from "@tripwire-sh/sdk/workflows";\n\nexport default workflow({\n\t${spec.join(",\n\t")},\n}${identityArg});\n`;
+}
+
+/** Match the complete old export so authored edits and comments keep their original source. */
+function isLegacyGeneratedSource(definition: WorkflowDefinition): boolean {
+	const source = definition.authoredSource?.replaceAll("\r\n", "\n");
+	if (!source?.includes("\n\totherwise: ")) return false;
+	const safe = stripWorkflowSecrets(definition);
+	return (
+		source === sdkHelperSource(safe, "full-identity") ||
+		source === sdkHelperSource(safe, "otherwise")
+	);
 }
 
 export interface SdkPullWrite {
@@ -570,9 +587,12 @@ export function writeSdkWorkflows(
 		if (dirname(resolve(file)) !== root) {
 			throw new Error(`Workflow ${slug} resolves outside ${directory}.`);
 		}
+		const localDefinition = { ...definition, id: slug };
+		const migrate = isLegacyGeneratedSource(localDefinition);
 		const source =
-			definition.authoredSource ??
-			sdkWorkflowSource({ ...definition, id: slug });
+			definition.authoredSource !== undefined && !migrate
+				? definition.authoredSource
+				: sdkWorkflowSource(localDefinition);
 		const hash = workflowSourceHash(source);
 		if (existsSync(file)) {
 			const stat = lstatSync(file);
@@ -584,7 +604,10 @@ export function writeSdkWorkflows(
 			if (current === source) {
 				return { file, source, slug, hash, unchanged: true };
 			}
-			if (!force && currentHash !== baselines[slug]) {
+			const matchesSavedExport =
+				migrate &&
+				currentHash === workflowSourceHash(definition.authoredSource ?? "");
+			if (!force && !matchesSavedExport && currentHash !== baselines[slug]) {
 				throw new Error(
 					`${file} has local edits. Run tripwire workflows diff ${slug} first, or pass --force to replace that file.`,
 				);

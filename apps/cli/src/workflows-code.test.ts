@@ -3,6 +3,7 @@ import {
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
+	readFileSync,
 	rmSync,
 	symlinkSync,
 	writeFileSync,
@@ -159,6 +160,73 @@ describe("loading one SDK workflow", () => {
 });
 
 describe("SDK workflow directory", () => {
+	test("pull refreshes an exact older export but preserves authored edits", () => {
+		const root = mkdtempSync(join(tmpdir(), "tripwire-legacy-export-"));
+		SDK_PROJECTS.push(root);
+		const file = join(root, "clean-workflow.ts");
+		const identity = {
+			version: 1,
+			nodes: {
+				trigger: { id: "trigger" },
+				"account-age": { id: "account-age" },
+				block: { id: "block" },
+			},
+			edges: {
+				"trigger-pass-account-age": { id: "trigger-pass-account-age" },
+				"account-age-fail-block": { id: "account-age-fail-block" },
+			},
+		};
+		const old = `import { accountAge, block, changeRequest, workflow, workflowIdentityVersion } from "@tripwire-sh/sdk/workflows";
+
+export default workflow({
+	name: "Renamed workflow",
+	when: changeRequest.opened,
+	require: accountAge({ minDays: 30 }),
+	otherwise: block(),
+}, {
+	format: workflowIdentityVersion,${JSON.stringify(identity, null, "\t").slice(1)});
+`;
+		const definition = workflowDefinitionSchema.parse({
+			id: "clean-workflow",
+			name: "Renamed workflow",
+			version: 1,
+			nodes: [
+				{ id: "trigger", type: "trigger", kinds: ["change-request.opened"] },
+				{
+					id: "account-age",
+					type: "rule",
+					ref: "account-age@1",
+					config: { minDays: 30 },
+				},
+				{ id: "block", type: "action", action: "block" },
+			],
+			edges: [
+				{ id: "trigger-pass-account-age", from: "trigger", to: "account-age" },
+				{
+					id: "account-age-fail-block",
+					from: "account-age",
+					to: "block",
+					when: "fail",
+				},
+			],
+			authoredSource: old,
+		});
+		writeFileSync(file, old);
+		const pulled = writeSdkWorkflows(root, [definition], new Map(), false);
+		const source = readFileSync(file, "utf8");
+		expect(source).toContain("else: block()");
+		expect(source).not.toContain("workflowIdentityVersion");
+		const authoredSource = `// Keep this comment.\n${old}`;
+		writeSdkWorkflows(
+			root,
+			[{ ...definition, authoredSource }],
+			new Map(),
+			false,
+			pulled.hashes,
+		);
+		expect(readFileSync(file, "utf8")).toBe(authoredSource);
+	});
+
 	test("discovers canonical slugs in stable order and selects explicitly", () => {
 		const root = mkdtempSync(join(tmpdir(), "tripwire-sdk-discovery-"));
 		SDK_PROJECTS.push(root);
