@@ -134,6 +134,7 @@ export class GithubInstallations {
 	): Promise<GithubInstallationRepo[]> {
 		const token = await this.tokens.getToken(installationId);
 		const found: GithubInstallationRepo[] = [];
+		let totalCount = 0;
 		for (let page = 1; page <= MAX_PAGES; page++) {
 			const res = await this.get(
 				`/installation/repositories?per_page=${PAGE_SIZE}&page=${page}`,
@@ -143,6 +144,7 @@ export class GithubInstallations {
 				throw new Error(`GET /installation/repositories failed: ${res.status}`);
 			}
 			const body = repositoryPageSchema.parse(await res.json());
+			totalCount = body.total_count;
 			for (const repo of body.repositories) {
 				found.push({
 					externalId: String(repo.id),
@@ -159,6 +161,11 @@ export class GithubInstallations {
 				break;
 			}
 		}
+		if (found.length < totalCount) {
+			throw new Error(
+				`installation repositories truncated: fetched ${found.length} of ${totalCount} (page cap ${MAX_PAGES} x ${PAGE_SIZE})`,
+			);
+		}
 		return found;
 	}
 
@@ -168,6 +175,7 @@ export class GithubInstallations {
 	): Promise<UserInstallationAccess> {
 		const repositories: UserInstallationRepo[] = [];
 		const path = `/user/installations/${encodeURIComponent(installationId)}/repositories`;
+		let totalCount = 0;
 		for (let page = 1; page <= MAX_PAGES; page++) {
 			const res = await this.get(
 				`${path}?per_page=${PAGE_SIZE}&page=${page}`,
@@ -188,6 +196,7 @@ export class GithubInstallations {
 				);
 			}
 			const body = userInstallationRepositoryPageSchema.parse(await res.json());
+			totalCount = body.total_count;
 			for (const repo of body.repositories) {
 				repositories.push({
 					externalId: String(repo.id),
@@ -200,6 +209,11 @@ export class GithubInstallations {
 			) {
 				break;
 			}
+		}
+		if (repositories.length < totalCount) {
+			throw new Error(
+				`user installation repositories truncated: fetched ${repositories.length} of ${totalCount} (page cap ${MAX_PAGES} x ${PAGE_SIZE})`,
+			);
 		}
 		return { status: "listed", repositories };
 	}
