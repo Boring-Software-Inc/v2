@@ -13,10 +13,22 @@ For TypeScript workflows, install the SDK in your project with
 `npm install @tripwire-sh/sdk@latest`. Workflow commands require SDK 0.1.2 or
 later and use the version resolved from each workflow file.
 
-Staging: `npx @tripwire-sh/cli@staging login`, then
-`npx @tripwire-sh/cli@staging status` or `npx @tripwire-sh/cli@staging --help`.
-Sign in with the staging account in the browser. To set up coding agents, run
-`npx @tripwire-sh/cli@staging install`.
+Install the staging release with `npm install -g @tripwire-sh/cli@staging`,
+then run `tripwire-staging login` and sign in with your staging account.
+Use `tripwire-staging status` to check your session and
+`tripwire-staging install` to set up coding agents.
+
+To keep both releases on macOS or Linux, install staging to a separate npm
+prefix and add its bin directory to your shell's PATH:
+
+```sh
+npm install -g --prefix "$HOME/.local/tripwire-staging" @tripwire-sh/cli@staging
+export PATH="$HOME/.local/tripwire-staging/bin:$PATH"
+tripwire-staging --version
+```
+
+For a one-off run, use `npx @tripwire-sh/cli@staging login`. Both CLI channels
+use the same `@tripwire-sh/sdk` package in your project.
 
 The staging release defaults to MCP at
 `https://tripwire-mcp-preview-tripwire.unkey.app/mcp` and auth at
@@ -70,4 +82,4 @@ without dispatching.
 For a local package, run `bun run scripts/cli-release/prepare.ts bump patch staging`,
 then `bun run --cwd apps/cli build` and `npm pack ./apps/cli`. The prepare step
 changes the local package version; restore it after packing. The tarball runs with
-`npx --package /absolute/path/to/tripwire-sh-cli-VERSION.tgz tripwire login`.
+`npx --package /absolute/path/to/tripwire-sh-cli-VERSION.tgz tripwire-staging login`.

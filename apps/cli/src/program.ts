@@ -1,6 +1,6 @@
 import { Command, CommanderError } from "commander";
 import { realAuthDeps } from "#/auth/device";
-import { IS_STAGING, VERSION } from "#/config";
+import { IS_STAGING, SERVER_NAME, VERSION } from "#/config";
 import { runInstall } from "#/install";
 import { type ManageDeps, registerManageCommands } from "#/manage";
 import type { System } from "#/system";
@@ -62,7 +62,7 @@ export function buildProgram(
 	overrides: Partial<ManageDeps> = {},
 ) {
 	const program = new Command()
-		.name("tripwire")
+		.name(SERVER_NAME)
 		.description(
 			IS_STAGING
 				? "Set up and manage Tripwire staging"

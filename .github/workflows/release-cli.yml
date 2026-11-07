@@ -89,6 +89,9 @@ jobs:
           bun run build
           test "$(node dist/tripwire.js --version)" = "$VERSION"
           npm pack --dry-run
+          expected_bin=tripwire
+          if [[ "$VERSION" == *-staging.* ]]; then expected_bin=tripwire-staging; fi
+          test "$(node -p 'Object.keys(require("./package.json").bin).join(",")')" = "$expected_bin"
 
       - name: Publish to npm
         working-directory: apps/cli

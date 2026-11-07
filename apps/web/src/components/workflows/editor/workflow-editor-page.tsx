@@ -157,7 +157,7 @@ export function WorkflowEditorPage() {
 					}
 					headerNote={
 						draftId && canManage
-							? "Save the draft to edit or move steps."
+							? `This preview is read-only. Click “${workflow.enabled ? "Save over live version" : "Save workflow"}” to unlock editing and move nodes.`
 							: undefined
 					}
 					headerLeading={

@@ -202,7 +202,9 @@ describe("workflow activation follows the loaded repository capability", () => {
 			draft: true,
 		});
 		expect(html).toContain("Draft preview");
-		expect(html).toContain("Save the draft to edit or move steps.");
+		expect(html).toContain(
+			"This preview is read-only. Click “Save workflow” to unlock editing and move nodes.",
+		);
 		expect(control(html, "Save workflow")).not.toContain('disabled=""');
 		expect(html).not.toContain("Auto-arrange");
 	});
