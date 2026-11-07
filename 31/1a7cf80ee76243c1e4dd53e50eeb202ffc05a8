@@ -1,0 +1,29 @@
+apps/cli/README.md
+  s_6e1ad5c5659a43::t_5637f975d170a7 3-14
+apps/cli/package.json
+  s_6e1ad5c5659a43::t_97cfa6408bd7ad 3
+apps/cli/src/manage.ts
+  s_6e1ad5c5659a43::t_84bec615f89a81 75,835-837
+apps/cli/src/workflows-code.test.ts
+  s_6e1ad5c5659a43::t_3a5a2d741e1e7c 40,50,117-124
+apps/cli/src/workflows-code.ts
+  s_6e1ad5c5659a43::t_973cfceddf9e8a 658-666,668-669,673,676-710,776-778
+bun.lock
+  s_6e1ad5c5659a43::t_6581df3d14c8f8 56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "311a7cf80ee76243c1e4dd53e50eeb202ffc05a8",
+  "prompts": {},
+  "sessions": {
+    "s_6e1ad5c5659a43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1af78-de88-77e0-ad66-c3d9b2fc3c4e",
+        "model": "unknown"
+      },
+      "human_author": "grim <75869731+ripgrim@users.noreply.github.com>"
+    }
+  }
+}
