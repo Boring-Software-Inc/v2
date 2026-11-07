@@ -31,7 +31,20 @@ export async function syncRepoReviewers(
 		return;
 	}
 	try {
-		const reviewers = await listRepoReviewers(http, repo.fullName);
+		const { reviewers, truncated } = await listRepoReviewers(
+			http,
+			repo.fullName,
+		);
+		if (truncated) {
+			logger.warn(
+				{
+					repo: repo.fullName,
+					reviewers: reviewers.length,
+				},
+				"reviewer sync skipped: collaborator list truncated at the page cap; kept the last set",
+			);
+			return;
+		}
 		await reviewerServices.replaceRepoReviewers(db, repo.id, reviewers);
 		logger.info(
 			{ repo: repo.fullName, reviewers: reviewers.length },
