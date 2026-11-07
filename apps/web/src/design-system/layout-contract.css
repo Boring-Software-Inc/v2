@@ -3172,6 +3172,16 @@
 	white-space: nowrap;
 }
 
+[data-layout-role="public-blocklist-account"] {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-2);
+}
+
+[data-layout-role="public-blocklist-account"] span {
+	min-inline-size: 0;
+}
+
 [data-layout-role="public-blocklist"]
 	a:not([data-layout-role="public-blocklist-brand"], [data-slot="button"]),
 [data-layout-role="admin-blocklist-form"] a {

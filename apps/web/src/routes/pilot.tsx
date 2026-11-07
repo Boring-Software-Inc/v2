@@ -6,6 +6,7 @@ import {
 import { TripwireLogo } from "#/components/common/tripwire-logo";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { GithubMark, Icon } from "#/design-system/icon";
+import { Avatar } from "#/design-system/ui/avatar";
 import { Button, buttonVariants } from "#/design-system/ui/button";
 import {
 	Empty,
@@ -151,9 +152,16 @@ function PublicBlocklist() {
 									<tr key={entry.accountId}>
 										<td>
 											<a
+												data-layout-role="public-blocklist-account"
 												href={`https://github.com/${encodeURIComponent(entry.login)}`}
 											>
-												@{entry.login}
+												<Avatar
+													decorative
+													name={entry.login}
+													size="sm"
+													src={`https://avatars.githubusercontent.com/u/${entry.accountId}?s=40&v=4`}
+												/>
+												<span>@{entry.login}</span>
 											</a>
 										</td>
 										<td>{entry.reason}</td>
