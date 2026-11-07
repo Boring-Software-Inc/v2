@@ -21,6 +21,8 @@ import {
 	resolveEffectiveRuleConfig,
 	ruleIdOf,
 	ruleResultSchema,
+	SHARED_BLOCKLIST_RULE_ID,
+	sharedBlocklistAvailable,
 	unrunnableIssues,
 } from "@tripwire/contracts";
 import {
@@ -66,6 +68,10 @@ import {
 	customRuleSource,
 	evaluateCustomRule,
 } from "./custom-rules.ts";
+import {
+	loadSharedBlocklist,
+	sharedBlocklistReviewWorkflow,
+} from "./shared-blocklist.ts";
 
 /**
  * §5.7–5.12: match enabled workflows by trigger → build RuleContext (reads
@@ -327,14 +333,16 @@ async function runWorkflowsInner(
 	// id, so a held old version replaces — never doubles — the baseline.
 	const derived = deriveDefaultWorkflow(
 		[
-			...ruleConfigs.map((config) =>
-				resolveEffectiveRuleConfig({
-					ruleId: config.ruleId,
-					version: config.version,
-					enabled: config.enabled,
-					config: config.config as JsonValue,
-				}),
-			),
+			...ruleConfigs
+				.filter((config) => config.ruleId !== SHARED_BLOCKLIST_RULE_ID)
+				.map((config) =>
+					resolveEffectiveRuleConfig({
+						ruleId: config.ruleId,
+						version: config.version,
+						enabled: config.enabled,
+						config: config.config as JsonValue,
+					}),
+				),
 			// Custom rules join the toggle set like any non-baseline rule: they
 			// run when enabled, and workflow ownership excludes them like any id.
 			...customRows.map((row) => ({
@@ -356,6 +364,24 @@ async function runWorkflowsInner(
 				? [...custom, derived]
 				: custom
 			: [derived];
+	if (
+		event.kind === "change-request.opened" &&
+		(!event.repoExternalId || event.repoExternalId === repo.externalId) &&
+		sharedBlocklistAvailable(
+			process.env.TRIPWIRE_SHARED_BLOCKLIST_PILOT_REPOSITORY_ID,
+			repo,
+		) &&
+		ruleConfigs.some(
+			(config) => config.ruleId === SHARED_BLOCKLIST_RULE_ID && config.enabled,
+		)
+	) {
+		const pilot = sharedBlocklistReviewWorkflow(
+			event,
+			await loadSharedBlocklist(logger),
+			Date.now(),
+		);
+		if (pilot) definitions.push(pilot);
+	}
 	const triggeredBy = (def: WorkflowDefinition) =>
 		def.nodes.some(
 			(node) => node.type === "trigger" && node.kinds.includes(event.kind),

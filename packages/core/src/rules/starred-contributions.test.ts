@@ -26,7 +26,7 @@ test("complete history below the minimum fails with the requested ownership filt
 	const config = {
 		minRepoStars: 50_000,
 		min: 5,
-		repoOwnership: "exclude-author",
+		repoOwnership: "exclude-author" as const,
 	};
 	const ctx = await fixtureContext({
 		countStarredContributions: async (query) => {

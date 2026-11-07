@@ -1,3 +1,4 @@
+import { DashboardNews } from "#/components/layouts/dashboard-news";
 import { ShellNav } from "#/components/layouts/shell-nav";
 import { SetupPill } from "#/components/setup/setup-pill";
 import { useActiveScope } from "#/hooks/use-active-scope";
@@ -32,6 +33,7 @@ export function DashboardRail({
 			</div>
 			<CommandPaletteButton wide />
 			<ShellNav counts={counts} variant="rail" />
+			<DashboardNews />
 			<div className="mt-auto">
 				<UserMenu showName user={user} />
 			</div>

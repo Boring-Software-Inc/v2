@@ -25,6 +25,11 @@ const SAMPLE_EVIDENCE = {
 		min: 5,
 		trustedAfter: 3,
 	},
+	"shared-spam-blocklist": {
+		accountId: "123",
+		reason: "fixture match",
+		revision: 1,
+	},
 	"owned-repo-stars": {
 		matchingCount: 2,
 		complete: false,

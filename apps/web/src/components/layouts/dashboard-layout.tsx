@@ -7,6 +7,7 @@ import {
 	FeedbackPicker,
 	FeedbackProvider,
 } from "#/components/feedback";
+import { DashboardNews } from "#/components/layouts/dashboard-news";
 import { ShellNav } from "#/components/layouts/shell-nav";
 import { cn } from "#/design-system/lib/utils";
 import { useMediaQuery } from "#/hooks/use-media-query";
@@ -103,6 +104,7 @@ function DashboardShell({
 					<>
 						<DashboardTopbar user={user ?? null} />
 						{nav ? <ShellNav counts={counts} /> : null}
+						{nav ? <DashboardNews /> : null}
 					</>
 				)}
 				<RouteProgress />

@@ -775,3 +775,12 @@ The package root is reserved for the authenticated resource client and
 an approved server capability and must not invent an endpoint. Publishing the
 package, creating a remote repository, changing production flags, or deploying
 still requires separate authorization.
+
+## 2026-11-07 · Shared spam blocklist review pilot
+
+Approved in #189 for the configured staging GitHub repository. A maintainer
+opts in per repo. A verified match on a fresh snapshot adds a Human review
+workflow with no automatic block or close action. Missing, expired, or invalid
+snapshots add no review. The feature stays off without an explicit repository
+ID in the web and worker environments. Automatic blocking and production
+rollout require separate approval.

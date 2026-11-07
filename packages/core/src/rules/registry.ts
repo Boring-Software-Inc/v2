@@ -13,6 +13,7 @@ import { maxFilesChanged } from "./max-files-changed.ts";
 import { minMergedPrs, minMergedPrsV2 } from "./min-merged-prs.ts";
 import { prRateLimit } from "./pr-rate-limit.ts";
 import { profileReadme } from "./profile-readme.ts";
+import { sharedSpamBlocklist } from "./shared-spam-blocklist.ts";
 import { mergedPrRepoStars, ownedRepoStars } from "./starred-contributions.ts";
 
 /**
@@ -35,6 +36,7 @@ register(accountAge);
 register(minMergedPrs);
 register(minMergedPrsV2);
 register(ownedRepoStars);
+register(sharedSpamBlocklist);
 register(mergedPrRepoStars);
 register(prRateLimit);
 register(maxFilesChanged);

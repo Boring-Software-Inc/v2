@@ -106,6 +106,8 @@ export const SERVER_FN_CLASSIFICATION: ServerFnClassification = {
 	getRepoSuggestions: "permission:rules:read",
 	getRuleLibrary: "permission:rules:read",
 	saveRuleConfig: "permission:rules:manage",
+	getSharedBlocklistPilot: "permission:rules:manage",
+	setSharedBlocklistPilot: "permission:rules:manage",
 	setRulesEnabled: "permission:rules:manage",
 	upgradeRuleConfig: "permission:rules:manage",
 	saveCustomRule: "permission:rules:manage",

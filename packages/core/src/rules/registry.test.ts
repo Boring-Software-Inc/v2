@@ -24,6 +24,7 @@ describe("registry", () => {
 				"min-merged-prs@1",
 				"min-merged-prs@2",
 				"owned-repo-stars@1",
+				"shared-spam-blocklist@1",
 				"merged-pr-repo-stars@1",
 				"pr-rate-limit@1",
 				"profile-readme@1",
