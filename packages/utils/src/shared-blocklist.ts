@@ -1,5 +1,6 @@
 import {
 	SHARED_BLOCKLIST_MAX_AGE_MS,
+	SHARED_BLOCKLIST_REPOSITORY,
 	SHARED_BLOCKLIST_SOURCE,
 	SHARED_BLOCKLIST_STAGING_SOURCE,
 	type SharedBlocklistSnapshot,
@@ -30,26 +31,11 @@ export function isSharedBlocklistEntryActive(
 	return expiresAt === null || Date.parse(expiresAt) > now;
 }
 
-async function readSnapshot(): Promise<SharedBlocklistSnapshot> {
-	const isStaging = sharedBlocklistTarget() === "staging";
-	const source = new URL(
-		isStaging ? SHARED_BLOCKLIST_STAGING_SOURCE : SHARED_BLOCKLIST_SOURCE,
-	);
-	if (isStaging) {
-		source.searchParams.set(
-			"preview",
-			String(Math.floor(Date.now() / REFRESH_MS)),
-		);
-	}
-	const response = await fetch(source, {
-		redirect: "error",
-		signal: AbortSignal.timeout(3_000),
-	});
+async function readBoundedBody(response: Response): Promise<Uint8Array> {
 	if (!response.ok || !response.body) throw new Error("Snapshot unavailable");
 	const reader = response.body.getReader();
-	const decoder = new TextDecoder();
+	const chunks: Uint8Array[] = [];
 	let size = 0;
-	let json = "";
 	for (;;) {
 		const chunk = await reader.read();
 		if (chunk.done) break;
@@ -58,11 +44,57 @@ async function readSnapshot(): Promise<SharedBlocklistSnapshot> {
 			await reader.cancel();
 			throw new Error("Snapshot exceeds size limit");
 		}
-		json += decoder.decode(chunk.value, { stream: true });
+		chunks.push(chunk.value);
 	}
-	return sharedBlocklistSnapshotSchema.parse(
-		JSON.parse(json + decoder.decode()),
+	const body = new Uint8Array(size);
+	let offset = 0;
+	for (const chunk of chunks) {
+		body.set(chunk, offset);
+		offset += chunk.byteLength;
+	}
+	return body;
+}
+
+function findPublishedCommit(body: Uint8Array, branch: string): string {
+	const decoder = new TextDecoder();
+	let offset = 0;
+	while (offset + 4 <= body.length) {
+		const length = decoder.decode(body.subarray(offset, offset + 4));
+		if (!/^[0-9a-f]{4}$/.test(length)) break;
+		const size = Number.parseInt(length, 16);
+		if (size === 0) {
+			offset += 4;
+			continue;
+		}
+		if (size < 4 || offset + size > body.length) break;
+		const packet = decoder.decode(body.subarray(offset + 4, offset + size));
+		const ref = /^([0-9a-f]{40}) refs\/heads\/([^\n\0]+)(?:\0[^\n]*)?\n?$/.exec(
+			packet,
+		);
+		if (ref?.[1] && ref[2] === branch) return ref[1];
+		offset += size;
+	}
+	throw new Error("Published blocklist branch unavailable");
+}
+
+async function readSnapshot(): Promise<SharedBlocklistSnapshot> {
+	const isStaging = sharedBlocklistTarget() === "staging";
+	const branch = isStaging ? "published-staging" : "published";
+	const source = isStaging
+		? SHARED_BLOCKLIST_STAGING_SOURCE
+		: SHARED_BLOCKLIST_SOURCE;
+	const signal = AbortSignal.timeout(3_000);
+	const refs = await fetch(
+		`${SHARED_BLOCKLIST_REPOSITORY}.git/info/refs?service=git-upload-pack`,
+		{ headers: { "Cache-Control": "no-cache" }, redirect: "error", signal },
 	);
+	const commit = findPublishedCommit(await readBoundedBody(refs), branch);
+	const response = await fetch(new URL(`../${commit}/snapshot.json`, source), {
+		redirect: "error",
+		signal,
+	});
+	const json = new TextDecoder().decode(await readBoundedBody(response));
+	return sharedBlocklistSnapshotSchema.parse(JSON.parse(json));
 }
 
 let cached: SharedBlocklistSnapshot | null = null;
