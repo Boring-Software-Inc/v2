@@ -116,7 +116,16 @@ jobs:
               sdk_tag=staging
             fi
           fi
-          sdk_archive="$(npm pack "@tripwire-sh/sdk@$sdk_tag" --pack-destination "$smoke" --quiet)"
+          for attempt in {1..12}; do
+            if sdk_archive="$(npm pack "@tripwire-sh/sdk@$sdk_tag" --prefer-online --pack-destination "$smoke" --quiet)"; then
+              break
+            fi
+            if [[ "$attempt" == 12 ]]; then
+              echo "::error::Could not download @tripwire-sh/sdk@$sdk_tag. Check the SDK release before publishing the CLI."
+              exit 1
+            fi
+            sleep 20
+          done
           export TRIPWIRE_TEST_SDK_ARCHIVE="$smoke/$sdk_archive"
           npm install --prefix "$smoke" "$TRIPWIRE_TEST_CLI_ARCHIVE"
           test "$("$smoke/node_modules/.bin/$bin" --version)" = "$VERSION"

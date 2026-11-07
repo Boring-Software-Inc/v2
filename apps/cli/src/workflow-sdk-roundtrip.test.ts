@@ -11,6 +11,7 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
+	type JsonValue,
 	type WorkflowDefinition,
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
@@ -142,6 +143,49 @@ test.skipIf(!sdkPath && !(sdkArchive && cliArchive))(
 			],
 			edges: [{ id: "e1", from: "trigger", to: "lock" }],
 		};
+		const starCases: {
+			slug: string;
+			ref: string;
+			config: JsonValue;
+			expression: string;
+		}[] = [
+			{
+				slug: "star-owned",
+				ref: "owned-repo-stars@1",
+				config: { minStars: 50_000, min: 1 },
+				expression:
+					"repositories().ownedBy(prAuthor).withMinStars(50_000).atLeast(1)",
+			},
+			{
+				slug: "star-merged",
+				ref: "merged-pr-repo-stars@1",
+				config: {
+					minRepoStars: 50_000,
+					min: 5,
+					repoOwnership: "exclude-author",
+				},
+				expression:
+					"mergedChangeRequests().authoredBy(prAuthor).excludeReposOwnedBy(prAuthor).withMinRepoStars(50_000).atLeast(5)",
+			},
+		];
+		const starWorkflows = starCases.map(({ slug, ref, config, expression }) => {
+			const star: WorkflowDefinition = {
+				id: `remote-${slug}`,
+				name: slug,
+				version: 1,
+				nodes: [
+					{ id: "when", type: "trigger", kinds: ["change-request.opened"] },
+					{ id: "stars", type: "rule", ref, config },
+					{ id: "block", type: "action", action: "block" },
+				],
+				edges: [
+					{ id: "pass-edge", from: "when", to: "stars" },
+					{ id: "fail-edge", from: "stars", to: "block", when: "fail" },
+				],
+			};
+			return { slug, star, expression };
+		});
+
 		let remote: WorkflowDefinition = definition;
 		let stopServer: (() => Promise<void>) | undefined;
 		try {
@@ -230,6 +274,10 @@ test.skipIf(!sdkPath && !(sdkArchive && cliArchive))(
 											{ id: second.id, definition: second },
 											{ id: simple.id, definition: simple },
 											{ id: scheduled.id, definition: scheduled },
+											...starWorkflows.map(({ star }) => ({
+												id: star.id,
+												definition: star,
+											})),
 										],
 									},
 								};
@@ -319,7 +367,19 @@ test.skipIf(!sdkPath && !(sdkArchive && cliArchive))(
 				"scheduled-lock.ts",
 				"second-review.ts",
 				"simple-gate.ts",
+				"star-merged.ts",
+				"star-owned.ts",
 			]);
+			for (const { slug, star, expression } of starWorkflows) {
+				const path = join(directory, `${slug}.ts`);
+				expect(await readFile(path, "utf8")).toContain(
+					`require: ${expression}`,
+				);
+				expect((await loadWorkflowFile(path)).definitions[0]).toEqual({
+					...star,
+					id: slug,
+				});
+			}
 			const mapping = z
 				.object({ workflows: z.record(z.string(), z.string()) })
 				.parse(
