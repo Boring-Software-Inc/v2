@@ -434,7 +434,7 @@ async function emitThreadActions(
 			null,
 	);
 	for (const row of input.pendingActionRows) {
-		if (row.kind !== "webhook") {
+		if (row.kind !== "webhook" && row.kind !== "discord") {
 			continue;
 		}
 		const delivery: WebhookPayload = {
@@ -464,7 +464,7 @@ async function emitThreadActions(
 		return;
 	}
 	for (const row of input.pendingActionRows) {
-		if (row.kind === "webhook") {
+		if (row.kind === "webhook" || row.kind === "discord") {
 			continue;
 		}
 		if (VERDICT_ONLY_KINDS.has(row.kind)) {
@@ -735,6 +735,11 @@ export function toForgeAction(
 				teamReviewers: targets.success ? targets.data.teamReviewers : [],
 			};
 		}
+		case "webhook":
+		case "discord":
+			throw new Error(
+				`delivery kind "${row.kind}" must not reach forge execution — it is handled by the deliver-webhook job`,
+			);
 		default: {
 			const reason = (row.payload.reason as string | undefined) ?? reviewText;
 			return activeReviewId

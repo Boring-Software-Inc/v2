@@ -181,6 +181,42 @@ describe("commentRows: one row per comment plan", () => {
 	});
 });
 
+describe("toForgeAction: delivery kinds never become a forge block", () => {
+	test("a webhook row throws instead of falling through to block", () => {
+		expect(() =>
+			toForgeAction(
+				{ kind: "webhook", payload: { url: "https://hook.example/x" } },
+				"a/b",
+				7,
+				"Blocked. See the comment.",
+			),
+		).toThrow(/delivery kind/);
+	});
+
+	test("a discord row throws instead of falling through to block", () => {
+		expect(() =>
+			toForgeAction(
+				{ kind: "discord", payload: { url: "https://discord.example/x" } },
+				"a/b",
+				7,
+				"Blocked. See the comment.",
+			),
+		).toThrow(/delivery kind/);
+	});
+
+	test("a discord row throws even with a live review id", () => {
+		expect(() =>
+			toForgeAction(
+				{ kind: "discord", payload: { url: "https://discord.example/x" } },
+				"a/b",
+				7,
+				"Blocked. See the comment.",
+				"rev-91",
+			),
+		).toThrow(/delivery kind/);
+	});
+});
+
 describe("toForgeAction: lock and close never become a block", () => {
 	test("lock carries its reason", () => {
 		expect(
