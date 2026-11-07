@@ -1,12 +1,19 @@
 import {
 	SHARED_BLOCKLIST_MAX_AGE_MS,
 	SHARED_BLOCKLIST_SOURCE,
+	SHARED_BLOCKLIST_STAGING_SOURCE,
 	type SharedBlocklistSnapshot,
 	sharedBlocklistSnapshotSchema,
 } from "@tripwire/contracts";
 
 const REFRESH_MS = 60_000;
 const MAX_SNAPSHOT_BYTES = 4 * 1024 * 1024;
+
+export function sharedBlocklistTarget(
+	environment = process.env.UNKEY_ENVIRONMENT_SLUG,
+) {
+	return environment === "preview" ? "staging" : "production";
+}
 
 export function isSharedBlocklistFresh(
 	snapshot: SharedBlocklistSnapshot,
@@ -24,7 +31,11 @@ export function isSharedBlocklistEntryActive(
 }
 
 async function readSnapshot(): Promise<SharedBlocklistSnapshot> {
-	const response = await fetch(SHARED_BLOCKLIST_SOURCE, {
+	const source =
+		sharedBlocklistTarget() === "staging"
+			? SHARED_BLOCKLIST_STAGING_SOURCE
+			: SHARED_BLOCKLIST_SOURCE;
+	const response = await fetch(source, {
 		redirect: "error",
 		signal: AbortSignal.timeout(3_000),
 	});

@@ -3,10 +3,12 @@ import { z } from "zod";
 export const SHARED_BLOCKLIST_RULE_ID = "shared-spam-blocklist";
 export const SHARED_BLOCKLIST_RULE_REF = "shared-spam-blocklist@1";
 export const SHARED_BLOCKLIST_REPOSITORY =
-	"https://github.com/Boring-Software-Inc/tripwire-shared-blocklist";
+	"https://github.com/Boring-Software-Inc/Pilot";
 export const SHARED_BLOCKLIST_API_PATH = "/api/blocklist";
 export const SHARED_BLOCKLIST_SOURCE =
-	"https://raw.githubusercontent.com/Boring-Software-Inc/tripwire-shared-blocklist/published/snapshot.json";
+	"https://raw.githubusercontent.com/Boring-Software-Inc/Pilot/published/snapshot.json";
+export const SHARED_BLOCKLIST_STAGING_SOURCE =
+	"https://raw.githubusercontent.com/Boring-Software-Inc/Pilot/published-staging/snapshot.json";
 export const SHARED_BLOCKLIST_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 const accountId = z.string().regex(/^[1-9][0-9]*$/);

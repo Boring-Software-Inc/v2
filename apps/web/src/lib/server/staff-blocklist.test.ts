@@ -27,16 +27,20 @@ test("queues the verified GitHub account and links to its publishing run", async
 		),
 	).toEqual({
 		status: "queued",
-		url: "https://github.com/Boring-Software-Inc/tripwire-shared-blocklist/actions/runs/42",
+		url: "https://github.com/Boring-Software-Inc/Pilot/actions/runs/42",
 	});
 	expect(requests).toEqual([
 		{ url: "https://api.github.com/users/ripgrim", body: null },
 		{
-			url: "https://api.github.com/repos/Boring-Software-Inc/tripwire-shared-blocklist/actions/workflows/publish-snapshot.yml/dispatches",
+			url: "https://api.github.com/repos/Boring-Software-Inc/Pilot/actions/workflows/publish-snapshot.yml/dispatches",
 			body: {
 				ref: "main",
 				inputs: {
 					...entry,
+					target:
+						process.env.UNKEY_ENVIRONMENT_SLUG === "preview"
+							? "staging"
+							: "production",
 					expiresAt: "",
 					accountId: "75869731",
 					operation: "add",

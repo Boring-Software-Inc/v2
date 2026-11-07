@@ -4,6 +4,7 @@ import {
 	SHARED_BLOCKLIST_REPOSITORY,
 	type staffBlocklistAdditionSchema,
 } from "@tripwire/contracts";
+import { sharedBlocklistTarget } from "@tripwire/utils/shared-blocklist";
 import pino from "pino";
 import type { z } from "zod";
 
@@ -43,6 +44,7 @@ export async function queueSharedBlocklistAddition(
 					ref: "main",
 					inputs: {
 						...input,
+						target: sharedBlocklistTarget(),
 						expiresAt: input.expiresAt ?? "",
 						login: account.login,
 						accountId: String(account.id),
