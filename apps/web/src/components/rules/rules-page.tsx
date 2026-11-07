@@ -1,6 +1,10 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
-import { type JsonValue, ruleUiSchema } from "@tripwire/contracts";
+import {
+	type JsonValue,
+	ruleUiSchema,
+	SHARED_BLOCKLIST_RULE_ID,
+} from "@tripwire/contracts";
 import { useMemo, useState } from "react";
 import { ArmCallout } from "#/components/arming/arm-callout";
 import { Collection } from "#/components/collection/collection";
@@ -22,7 +26,11 @@ import {
 	type RulesTab,
 } from "#/components/rules/rules-collection";
 import { RuleGridSkeleton } from "#/components/rules/rules-page-skeleton";
-import { SharedBlocklistRuleCard } from "#/components/rules/shared-blocklist-rule-card";
+import {
+	PILOT_DESCRIPTION,
+	PilotLibraryRow,
+	SharedBlocklistRuleCard,
+} from "#/components/rules/shared-blocklist-rule-card";
 import { useInstallRules } from "#/components/rules/use-install-rules";
 import {
 	type SaveQueueCommit,
@@ -48,6 +56,8 @@ import {
 import { toast } from "#/design-system/ui/toast";
 import { useCollection } from "#/hooks/use-collection";
 import { useOrgPermission } from "#/hooks/use-org-permission";
+import { useSharedBlocklistPilot } from "#/hooks/use-shared-blocklist-pilot";
+import { useTimedHighlight } from "#/hooks/use-timed-highlight";
 import {
 	deleteCustomRule,
 	saveCustomRule,
@@ -130,24 +140,59 @@ export function RulesPage() {
 	const { tab } = routeApi.useSearch();
 	const navigate = routeApi.useNavigate();
 	const { install, pending } = useInstallRules(org, repoId);
+	const {
+		pilot,
+		save: savePilot,
+		saving: savingPilot,
+		installedAt,
+	} = useSharedBlocklistPilot();
+	const pilotHighlighted = useTimedHighlight(installedAt, 5_000);
 
 	const installedRules = (rules ?? []).filter((r) => r.enabled);
 	const customRules = (rules ?? []).filter((r) => r.source === "custom");
 	const offered = libraryRules(rules ?? []);
+	const pilotOffered = pilot?.enabled === false;
+	const libraryCount = offered.length + Number(pilotOffered);
+	const installed = pilot?.enabled
+		? [
+				...installedRules,
+				{
+					kind: "pilot" as const,
+					ruleId: SHARED_BLOCKLIST_RULE_ID,
+					name: "Pilot",
+					blurb: PILOT_DESCRIPTION,
+					sentence: null,
+					matches24h: 0,
+				},
+			]
+		: installedRules;
 	const starting =
 		rules !== undefined &&
 		tab === undefined &&
-		installedRules.length === 0 &&
+		installed.length === 0 &&
 		customRules.length === 0;
 	const activeTab: RulesTab =
 		tab ??
-		(installedRules.length > 0
+		(installed.length > 0
 			? "installed"
 			: customRules.length > 0
 				? "custom"
 				: "library");
 	const showTab = (next: RulesTab) =>
 		navigate({ to: ".", search: (prev) => ({ ...prev, tab: next }) });
+	const setPilotInstalled = (enabled: boolean) =>
+		savePilot.mutate(enabled, {
+			onError: () => toast.fail("Couldn’t save Pilot. Try again."),
+			onSuccess: () => {
+				if (enabled) {
+					void navigate({
+						to: ".",
+						search: { tab: "installed" },
+						hash: SHARED_BLOCKLIST_RULE_ID,
+					});
+				}
+			},
+		});
 
 	const collection = useCollection(
 		RULES_COLLECTION,
@@ -155,7 +200,7 @@ export function RulesPage() {
 			? undefined
 			: activeTab === "custom"
 				? customRules
-				: installedRules,
+				: installed,
 	);
 
 	/**
@@ -334,7 +379,6 @@ export function RulesPage() {
 						title="Rules"
 					/>
 					<PageBody>
-						<SharedBlocklistRuleCard />
 						<CustomRuleBuilder
 							onClose={() => setBuilderOpen(false)}
 							onSave={saveDraft}
@@ -386,12 +430,12 @@ export function RulesPage() {
 									value={activeTab}
 								>
 									<SegmentedControlItem
-										count={installedRules.length}
+										count={installed.length}
 										value="installed"
 									>
 										Installed
 									</SegmentedControlItem>
-									<SegmentedControlItem count={offered.length} value="library">
+									<SegmentedControlItem count={libraryCount} value="library">
 										Library
 									</SegmentedControlItem>
 									<SegmentedControlItem
@@ -425,7 +469,7 @@ export function RulesPage() {
 										) : (
 											<RuleGridSkeleton />
 										)
-									) : offered.length === 0 ? (
+									) : libraryCount === 0 ? (
 										<Empty art={<MascotArt mood="rules-empty" />}>
 											<EmptyHeader>
 												<EmptyTitle>
@@ -439,6 +483,14 @@ export function RulesPage() {
 											mostUsed={library?.mostUsed ?? []}
 											onInstall={install}
 											pending={pending}
+											pilot={
+												pilotOffered ? (
+													<PilotLibraryRow
+														pending={savingPilot}
+														onInstall={() => setPilotInstalled(true)}
+													/>
+												) : null
+											}
 											preview={preview}
 											rules={rules}
 										/>
@@ -505,16 +557,25 @@ export function RulesPage() {
 										>
 											{(visible) => (
 												<div className="grid items-stretch gap-3 sm:grid-cols-2">
-													{visible.map((rule) => (
-														<RuleCard
-															canEdit={isAdmin}
-															key={rule.ruleId}
-															onDelete={removeCustomRule}
-															org={org}
-															repo={repoName}
-															rule={rule}
-														/>
-													))}
+													{visible.map((rule) =>
+														"kind" in rule ? (
+															<SharedBlocklistRuleCard
+																key={rule.ruleId}
+																highlighted={pilotHighlighted}
+																pending={savingPilot}
+																onUninstall={() => setPilotInstalled(false)}
+															/>
+														) : (
+															<RuleCard
+																canEdit={isAdmin}
+																key={rule.ruleId}
+																onDelete={removeCustomRule}
+																org={org}
+																repo={repoName}
+																rule={rule}
+															/>
+														),
+													)}
 												</div>
 											)}
 										</Collection>

@@ -1,4 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	useIsMutating,
+	useMutation,
+	useMutationState,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { useActiveScope } from "#/hooks/use-active-scope";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import {
@@ -13,6 +19,7 @@ export function useSharedBlocklistPilot() {
 	const canManage = useOrgPermission(org, "rules:manage");
 	const queryClient = useQueryClient();
 	const queryKey = ["shared-blocklist-pilot", org, repo] as const;
+	const saving = useIsMutating({ mutationKey: queryKey, exact: true }) > 0;
 	const pilot = useQuery({
 		queryKey,
 		queryFn: () => getSharedBlocklistPilot({ data: { org, repo } }),
@@ -20,9 +27,33 @@ export function useSharedBlocklistPilot() {
 		retry: false,
 	});
 	const save = useMutation({
-		mutationFn: (enabled: boolean) =>
-			setSharedBlocklistPilot({ data: { org, repo, enabled } }),
-		onSuccess: (result) => queryClient.setQueryData(queryKey, result),
+		mutationKey: queryKey,
+		mutationFn: async (enabled: boolean) => {
+			const result = await setSharedBlocklistPilot({
+				data: { org, repo, enabled },
+			});
+			return { ...result, savedAt: Date.now() };
+		},
+		onSuccess: ({ enabled }) => queryClient.setQueryData(queryKey, { enabled }),
 	});
-	return { org, repo, pilot: canManage ? pilot.data : null, save };
+	const saves = useMutationState({
+		filters: { mutationKey: queryKey, exact: true, status: "success" },
+		select: ({ state: { data } }) =>
+			data &&
+			typeof data === "object" &&
+			"enabled" in data &&
+			data.enabled === true &&
+			"savedAt" in data &&
+			typeof data.savedAt === "number"
+				? data.savedAt
+				: undefined,
+	});
+	return {
+		org,
+		repo,
+		pilot: canManage ? pilot.data : null,
+		save,
+		saving,
+		installedAt: saves.at(-1),
+	};
 }

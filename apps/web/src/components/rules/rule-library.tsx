@@ -3,6 +3,7 @@ import {
 	type RulePreview,
 	ruleUiSchema,
 } from "@tripwire/contracts";
+import type { ReactNode } from "react";
 import { CaughtCount, caughtLabel } from "#/components/rules/caught-count";
 import { rulesCaught, turnableRuleIds } from "#/components/rules/rule-packs";
 import { ParamSentence } from "#/components/rules-params/param-sentence";
@@ -42,6 +43,7 @@ export function RuleLibrary({
 	canEdit,
 	pending,
 	onInstall,
+	pilot,
 }: {
 	rules: readonly RuleConfigView[];
 	preview: RulePreview | null;
@@ -49,6 +51,7 @@ export function RuleLibrary({
 	canEdit: boolean;
 	pending: string | null;
 	onInstall: (key: string, label: string, ruleIds: string[]) => void;
+	pilot?: ReactNode;
 }) {
 	const available = libraryRules(rules);
 	const ids = libraryGroups(
@@ -58,9 +61,9 @@ export function RuleLibrary({
 	const pick = (list: readonly string[]) =>
 		list.flatMap((id) => available.filter((rule) => rule.ruleId === id));
 	const groups = [
-		{ title: "Recommended", rules: pick(ids.recommended) },
-		{ title: "Most used", rules: pick(ids.mostUsed) },
-	].filter((group) => group.rules.length > 0);
+		{ title: "Recommended", rules: pick(ids.recommended), extra: pilot },
+		{ title: "Most used", rules: pick(ids.mostUsed), extra: null },
+	].filter((group) => group.rules.length > 0 || group.extra);
 
 	return (
 		<div className="flex flex-col gap-6">
@@ -70,6 +73,7 @@ export function RuleLibrary({
 					<Card>
 						<CardContent flush>
 							<ul>
+								{group.extra}
 								{group.rules.map((rule) => (
 									<LibraryRow
 										canEdit={canEdit}

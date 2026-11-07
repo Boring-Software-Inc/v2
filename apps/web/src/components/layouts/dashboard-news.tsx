@@ -1,9 +1,10 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "#/design-system/ui/button";
 import { useSharedBlocklistPilot } from "#/hooks/use-shared-blocklist-pilot";
 
 export function DashboardNews() {
-	const { org, repo, pilot, save } = useSharedBlocklistPilot();
+	const { org, repo, pilot, save, saving } = useSharedBlocklistPilot();
+	const navigate = useNavigate();
 	if (!pilot) return null;
 
 	return (
@@ -23,6 +24,7 @@ export function DashboardNews() {
 							<Link
 								to="/$org/$repo/rules"
 								params={{ org, repo }}
+								search={{ tab: "installed" }}
 								hash="shared-spam-blocklist"
 							/>
 						}
@@ -31,8 +33,19 @@ export function DashboardNews() {
 					</Button>
 				) : (
 					<Button
-						disabled={save.isPending}
-						onClick={() => save.mutate(true)}
+						disabled={saving}
+						onClick={() =>
+							save.mutate(true, {
+								onSuccess: () => {
+									void navigate({
+										to: "/$org/$repo/rules",
+										params: { org, repo },
+										search: { tab: "installed" },
+										hash: "shared-spam-blocklist",
+									});
+								},
+							})
+						}
 						size="sm"
 						variant="secondary"
 					>
