@@ -72,6 +72,7 @@ import {
 	pulledWorkflows,
 	type ReportView,
 	readLocalWorkflows,
+	resolveWorkflowSdk,
 	selectPulled,
 	selectWorkflowSources,
 	typecheckSdkWorkflow,
@@ -831,6 +832,9 @@ function pullSdkWorkflows(
 		const picked = workflows.filter(
 			({ id }) => requested.size === 0 || requested.has(keys.get(id) ?? ""),
 		);
+		for (const { id } of picked) {
+			resolveWorkflowSdk(join(directory, `${keys.get(id)}.ts`));
+		}
 		const written = writeSdkWorkflows(
 			directory,
 			picked.map(({ definition }) =>

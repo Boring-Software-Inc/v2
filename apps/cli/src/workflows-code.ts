@@ -655,21 +655,59 @@ const sdkCompileResultSchema = z.discriminatedUnion("ok", [
 	}),
 ]);
 
+const SDK_PACKAGE = "@tripwire-sh/sdk";
+const MIN_WORKFLOW_SDK = "0.1.2";
+const sdkPackageManifest = z.object({ name: z.string(), version: z.string() });
+
+/** Resolve from the workflow so a global CLI checks the SDK the project actually uses. */
+export function resolveWorkflowSdk(file: string): string {
+	const path = resolve(file);
+	const install = `Run npm install ${SDK_PACKAGE}@latest in your project.`;
+	let entry: string;
+	try {
+		entry = createRequire(pathToFileURL(path)).resolve(
+			`${SDK_PACKAGE}/workflows`,
+		);
+	} catch {
+		throw new Error(
+			`Workflow commands need ${SDK_PACKAGE} ${MIN_WORKFLOW_SDK} or later. ${install}`,
+		);
+	}
+	for (let directory = dirname(entry); ; directory = dirname(directory)) {
+		const manifest = join(directory, "package.json");
+		if (existsSync(manifest)) {
+			const parsed = sdkPackageManifest.safeParse(
+				JSON.parse(readFileSync(manifest, "utf8")),
+			);
+			if (parsed.success && parsed.data.name === SDK_PACKAGE) {
+				const { version } = parsed.data;
+				const release = /^(\d+)\.(\d+)\.(\d+)(?:\+[^\s]+)?$/.exec(version);
+				if (
+					release &&
+					(Number(release[1]) > 0 ||
+						Number(release[2]) > 1 ||
+						(Number(release[2]) === 1 && Number(release[3]) >= 2))
+				) {
+					return entry;
+				}
+				throw new Error(
+					`This project uses ${SDK_PACKAGE}@${version}. Workflow commands need ${MIN_WORKFLOW_SDK} or later. ${install}`,
+				);
+			}
+		}
+		if (dirname(directory) === directory) break;
+	}
+	throw new Error(
+		`Cannot determine the version of ${SDK_PACKAGE} in this project. ${install}`,
+	);
+}
+
 async function compileSdkWorkflow(
 	path: string,
 	value: z.infer<typeof sdkWorkflowSchema>,
 ): Promise<CompileResult> {
 	const slug = basename(path, extname(path));
-	let sdkPath: string;
-	try {
-		sdkPath = createRequire(pathToFileURL(path)).resolve(
-			"@tripwire-sh/sdk/workflows",
-		);
-	} catch {
-		throw new Error(
-			`Cannot load @tripwire-sh/sdk/workflows from ${path}. Install @tripwire-sh/sdk in this project.`,
-		);
-	}
+	const sdkPath = resolveWorkflowSdk(path);
 	const sdk: unknown = await import(pathToFileURL(sdkPath).href);
 	if (
 		typeof sdk !== "object" ||
@@ -734,6 +772,9 @@ export async function loadWorkflowFileWithFormat(
 	const source = readFileSync(path, "utf8");
 	if (source.includes(AUTHORING_MODULE_PATH) && !existsSync(moduleText)) {
 		writeAuthoringModule(path);
+	}
+	if (/["']@tripwire-sh\/sdk(?:\/workflows)?["']/.test(source)) {
+		resolveWorkflowSdk(path);
 	}
 	const url = `${pathToFileURL(path).href}?at=${Date.now()}`;
 	const workflowModule: unknown = await import(url);

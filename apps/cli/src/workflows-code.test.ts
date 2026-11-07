@@ -37,6 +37,7 @@ const TYPESCRIPT_PACKAGE = dirname(
 function sdkWorkflowProject(
 	validDefinition: boolean,
 	typeError = false,
+	version = "0.1.2",
 ): string {
 	const root = mkdtempSync(join(tmpdir(), "tripwire-sdk-workflow-"));
 	SDK_PROJECTS.push(root);
@@ -46,6 +47,7 @@ function sdkWorkflowProject(
 		join(packageDir, "package.json"),
 		JSON.stringify({
 			name: "@tripwire-sh/sdk",
+			version,
 			type: "module",
 			exports: {
 				"./workflows": {
@@ -110,6 +112,14 @@ describe("loading one SDK workflow", () => {
 		expect(
 			workflowDefinitionSchema.safeParse(compiled.definitions[0]).success,
 		).toBe(true);
+	});
+
+	test("rejects an outdated project SDK with the upgrade command", async () => {
+		await expect(
+			loadWorkflowFile(sdkWorkflowProject(true, false, "0.1.1")),
+		).rejects.toThrow(
+			"This project uses @tripwire-sh/sdk@0.1.1. Workflow commands need 0.1.2 or later. Run npm install @tripwire-sh/sdk@latest in your project.",
+		);
 	});
 
 	test("rejects SDK output that does not satisfy contracts", async () => {

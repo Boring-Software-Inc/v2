@@ -53,7 +53,7 @@
     },
     "apps/cli": {
       "name": "@tripwire-sh/cli",
-      "version": "0.1.19",
+      "version": "0.1.20",
       "bin": {
         "tripwire": "dist/tripwire.js",
       },

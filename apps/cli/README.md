@@ -1,6 +1,17 @@
 # Tripwire CLI
 
-Production: `npx @tripwire-sh/cli@latest login`.
+Install globally with npm to run `tripwire` from your terminal.
+
+```sh
+npm install -g @tripwire-sh/cli
+tripwire login
+```
+
+You can also run `npx @tripwire-sh/cli@latest login` without a global install.
+
+For TypeScript workflows, install the SDK in your project with
+`npm install @tripwire-sh/sdk@latest`. Workflow commands require SDK 0.1.2 or
+later and use the version resolved from each workflow file.
 
 Staging: `npx @tripwire-sh/cli@staging login`, then
 `npx @tripwire-sh/cli@staging status` or `npx @tripwire-sh/cli@staging --help`.
