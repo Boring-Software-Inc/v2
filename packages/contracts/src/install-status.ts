@@ -14,6 +14,14 @@ export type InstallAccessResult = z.infer<typeof installAccessResultSchema>;
 
 export const INSTALL_ACCESS_CHECK_TTL_SECONDS = 600;
 
+/**
+ * How long `installation_access_checks` rows are kept before a scheduled prune
+ * deletes them. The freshness window above only governs SELECT filters; without
+ * a retention prune, distinct attacker-supplied ids permanently grow the table.
+ * A week is long enough for audit/debugging and short enough to bound growth.
+ */
+export const INSTALL_ACCESS_CHECK_RETENTION_DAYS = 7;
+
 const installStatusBase = {
 	installationId: z.string(),
 	forge: forgeSchema,

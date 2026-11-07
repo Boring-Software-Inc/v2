@@ -57,6 +57,11 @@ import { deliverWebhooks } from "./jobs/deliver-webhook.ts";
 import { economicsDigest } from "./jobs/economics-digest.ts";
 import { economicsRollup } from "./jobs/economics-rollup.ts";
 import { processEvent } from "./jobs/process-event.ts";
+import {
+	PRUNE_INSTALLATION_ACCESS_CHECKS_CRON,
+	PRUNE_INSTALLATION_ACCESS_CHECKS_QUEUE,
+	pruneInstallationAccessChecks,
+} from "./jobs/prune-installation-access-checks.ts";
 import { pullProviderCosts } from "./jobs/pull-provider-costs.ts";
 import { recoverInstallation } from "./jobs/recover-installation.ts";
 import { syncRepoBranches } from "./jobs/refresh-suggestions.ts";
@@ -453,6 +458,20 @@ if (import.meta.main) {
 			});
 		});
 
+		await boss.createQueue(PRUNE_INSTALLATION_ACCESS_CHECKS_QUEUE);
+		await boss.schedule(
+			PRUNE_INSTALLATION_ACCESS_CHECKS_QUEUE,
+			PRUNE_INSTALLATION_ACCESS_CHECKS_CRON,
+			{},
+			{},
+		);
+		await work(PRUNE_INSTALLATION_ACCESS_CHECKS_QUEUE, async () => {
+			await pruneInstallationAccessChecks({
+				db,
+				logger: logger.child({ job: PRUNE_INSTALLATION_ACCESS_CHECKS_QUEUE }),
+			});
+		});
+
 		await boss.createQueue(SWEEP_FLAG_REMOVALS_QUEUE);
 		await boss.schedule(
 			SWEEP_FLAG_REMOVALS_QUEUE,
@@ -610,6 +629,7 @@ if (import.meta.main) {
 				RECOVER_INSTALLATION_QUEUE,
 				"rollup",
 				AUDIT_INSTALLATION_CLAIMS_QUEUE,
+				PRUNE_INSTALLATION_ACCESS_CHECKS_QUEUE,
 				"sweep-actions",
 				SCHEDULE_TICK_QUEUE,
 				"deliver-webhook",
