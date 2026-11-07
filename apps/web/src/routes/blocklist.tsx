@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import {
 	SHARED_BLOCKLIST_API_PATH,
 	SHARED_BLOCKLIST_REPOSITORY,
@@ -112,17 +112,21 @@ function PublicBlocklist() {
 								data-layout-role="public-blocklist-search"
 							>
 								{snapshot.page > 1 ? (
-									<Link to="/blocklist" search={{ q, page: snapshot.page - 1 }}>
+									<a
+										href={`/blocklist?${new URLSearchParams({ q, page: String(snapshot.page - 1) })}`}
+									>
 										Previous
-									</Link>
+									</a>
 								) : null}
 								<SupportingText as="span">
 									Page {snapshot.page} of {snapshot.pageCount}
 								</SupportingText>
 								{snapshot.page < snapshot.pageCount ? (
-									<Link to="/blocklist" search={{ q, page: snapshot.page + 1 }}>
+									<a
+										href={`/blocklist?${new URLSearchParams({ q, page: String(snapshot.page + 1) })}`}
+									>
 										Next
-									</Link>
+									</a>
 								) : null}
 							</nav>
 						) : null}

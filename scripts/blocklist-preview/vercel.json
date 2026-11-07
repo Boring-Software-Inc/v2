@@ -1,0 +1,20 @@
+{
+	"$schema": "https://openapi.vercel.sh/vercel.json",
+	"redirects": [
+		{ "source": "/", "destination": "/blocklist", "permanent": false }
+	],
+	"rewrites": [
+		{
+			"source": "/blocklist",
+			"destination": "https://staging.tripwire.sh/blocklist"
+		},
+		{
+			"source": "/api/blocklist",
+			"destination": "https://staging.tripwire.sh/api/blocklist"
+		},
+		{
+			"source": "/assets/:path*",
+			"destination": "https://staging.tripwire.sh/assets/:path*"
+		}
+	]
+}
