@@ -709,7 +709,7 @@ async function emitThreadActions(
 			null,
 	);
 	for (const row of input.pendingActionRows) {
-		if (row.kind !== "webhook") {
+		if (row.kind !== "webhook" && row.kind !== "discord") {
 			continue;
 		}
 		const delivery: WebhookPayload = {
@@ -739,7 +739,7 @@ async function emitThreadActions(
 		return;
 	}
 	for (const row of input.pendingActionRows) {
-		if (row.kind === "webhook") {
+		if (row.kind === "webhook" || row.kind === "discord") {
 			continue;
 		}
 		if (VERDICT_ONLY_KINDS.has(row.kind)) {
