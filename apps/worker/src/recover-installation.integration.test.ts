@@ -70,6 +70,7 @@ function lookup(input: {
 	account?: string;
 	repoCount?: number;
 	calls?: string[];
+	listReposThrows?: boolean;
 }): InstallationLookup {
 	return {
 		getInstallation: (id) => {
@@ -86,6 +87,13 @@ function lookup(input: {
 		},
 		listRepositories: (id) => {
 			input.calls?.push(`repos:${id}`);
+			if (input.listReposThrows) {
+				return Promise.reject(
+					new Error(
+						"installation repositories truncated: fetched 5000 of 6000",
+					),
+				);
+			}
 			return Promise.resolve(
 				Array.from({ length: input.repoCount ?? 1 }, (_, n) => repo(id, n)),
 			);
@@ -345,6 +353,28 @@ describe("recover-installation", () => {
 			status: "missing",
 			recoverable: false,
 		});
+	});
+
+	test("a truncated repository list fails closed and does not grant", async () => {
+		const job = run(
+			lookup({
+				found: true,
+				repoCount: 2,
+				access: visible("516", [true, true]),
+				listReposThrows: true,
+			}),
+			"admin",
+			"516",
+		);
+		expect(await job.result).toBe("failed");
+		expect(job.reports.map((r) => r.state)).toEqual(["recovery-failed"]);
+		expect(
+			await orgServices.userCanClaimInstallation(db, {
+				userId: "admin",
+				forge: "github",
+				installationId: "516",
+			}),
+		).toBe(false);
 	});
 
 	test("running twice is idempotent", async () => {
