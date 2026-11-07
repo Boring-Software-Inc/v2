@@ -111,10 +111,7 @@ jobs:
           if [[ "$CHANNEL" == staging ]]; then
             export TRIPWIRE_ENV=staging
             bin=tripwire-staging
-            tags="$(npm view @tripwire-sh/sdk dist-tags --json)"
-            if node -e 'process.exit(JSON.parse(process.argv[1]).staging ? 0 : 1)' "$tags"; then
-              sdk_tag=staging
-            fi
+            sdk_tag=staging
           fi
           for attempt in {1..12}; do
             if sdk_archive="$(npm pack "@tripwire-sh/sdk@$sdk_tag" --prefer-online --pack-destination "$smoke" --quiet)"; then
@@ -126,6 +123,7 @@ jobs:
             fi
             sleep 20
           done
+          echo "Testing with $sdk_archive"
           export TRIPWIRE_TEST_SDK_ARCHIVE="$smoke/$sdk_archive"
           npm install --prefix "$smoke" "$TRIPWIRE_TEST_CLI_ARCHIVE"
           test "$("$smoke/node_modules/.bin/$bin" --version)" = "$VERSION"
