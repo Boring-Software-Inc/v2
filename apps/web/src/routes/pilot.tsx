@@ -26,12 +26,21 @@ import {
 	blocklistSearchSchema,
 	getPublicSharedBlocklist,
 } from "#/lib/public-blocklist.functions";
+import { buildSeo, formatPageTitle } from "#/lib/seo";
+
+const PILOT_DESCRIPTION =
+	"A public list of GitHub accounts reported for spam and reviewed by maintainers.";
 
 export const Route = createFileRoute("/pilot")({
 	validateSearch: blocklistSearchSchema,
 	loaderDeps: ({ search }) => search,
 	loader: ({ deps }) => getPublicSharedBlocklist({ data: deps }),
-	head: () => ({ meta: [{ title: "Pilot | Tripwire" }] }),
+	head: () =>
+		buildSeo({
+			path: "/pilot",
+			title: formatPageTitle("Pilot"),
+			description: PILOT_DESCRIPTION,
+		}),
 	pendingComponent: () => (
 		<main data-layout-role="public-blocklist">
 			<Body role="status">Loading the blocklist…</Body>
@@ -96,10 +105,7 @@ function PublicBlocklist() {
 			</nav>
 			<header data-layout-role="public-blocklist-stack">
 				<PageTitle>Pilot</PageTitle>
-				<SupportingText>
-					A public list of GitHub accounts reported for spam and reviewed by
-					maintainers.
-				</SupportingText>
+				<SupportingText>{PILOT_DESCRIPTION}</SupportingText>
 			</header>
 			<section className="shell" aria-labelledby="blocklist-accounts">
 				<div className="panel" data-layout-role="public-blocklist-directory">
