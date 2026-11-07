@@ -26,7 +26,7 @@ import {
 	getPublicSharedBlocklist,
 } from "#/lib/public-blocklist.functions";
 
-export const Route = createFileRoute("/blocklist")({
+export const Route = createFileRoute("/pilot")({
 	validateSearch: blocklistSearchSchema,
 	loaderDeps: ({ search }) => search,
 	loader: ({ deps }) => getPublicSharedBlocklist({ data: deps }),
@@ -117,7 +117,7 @@ function PublicBlocklist() {
 								) : null}
 							</div>
 							<form
-								action="/blocklist"
+								action="/pilot"
 								method="get"
 								data-layout-role="public-blocklist-search"
 							>
@@ -199,7 +199,7 @@ function PublicBlocklist() {
 									<a
 										data-slot="button"
 										className={buttonVariants({ variant: "secondary" })}
-										href="/blocklist"
+										href="/pilot"
 									>
 										Clear search
 									</a>
@@ -228,7 +228,7 @@ function PublicBlocklist() {
 							>
 								{snapshot.page > 1 ? (
 									<a
-										href={`/blocklist?${new URLSearchParams({ q, page: String(snapshot.page - 1) })}`}
+										href={`/pilot?${new URLSearchParams({ q, page: String(snapshot.page - 1) })}`}
 									>
 										Previous
 									</a>
@@ -238,7 +238,7 @@ function PublicBlocklist() {
 								</SupportingText>
 								{snapshot.page < snapshot.pageCount ? (
 									<a
-										href={`/blocklist?${new URLSearchParams({ q, page: String(snapshot.page + 1) })}`}
+										href={`/pilot?${new URLSearchParams({ q, page: String(snapshot.page + 1) })}`}
 									>
 										Next
 									</a>

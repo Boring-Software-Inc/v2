@@ -31,7 +31,7 @@ export function SharedBlocklistRuleCard() {
 				>
 					{pilot.enabled ? "Turn off" : "Turn on"}
 				</Button>
-				<Link to="/blocklist">Browse the public list</Link>
+				<Link to="/pilot">Browse the public list</Link>
 			</div>
 			{save.isError ? (
 				<SupportingText role="alert">Couldn’t save. Try again.</SupportingText>

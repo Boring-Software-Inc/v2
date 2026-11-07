@@ -21,8 +21,13 @@ const authRequestMiddleware = createMiddleware({ type: "request" }).server(
 			);
 			return handlePublicBlocklist(request);
 		}
+		if (url.pathname === "/blocklist" || url.pathname === "/blocklist/") {
+			url.pathname = "/pilot";
+			return Response.redirect(url, 308);
+		}
 		if (url.pathname === "/" && url.hostname === "blocklist.tripwire.sh") {
-			return Response.redirect(new URL("/blocklist", url), 307);
+			url.pathname = "/pilot";
+			return Response.redirect(url, 307);
 		}
 		// DEV persona switcher (§13). `import.meta.env.DEV` is a compile-time
 		// constant, so this whole branch is dead-code-eliminated from the

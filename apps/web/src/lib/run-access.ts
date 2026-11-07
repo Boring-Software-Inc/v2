@@ -41,15 +41,15 @@ export function resolveRunAccess({
 const PUBLIC_RUN_PATH = /^\/runs\/[^/]+\/?$/;
 
 /**
- * Routes reachable without a session: /login and the single run page. Run
+ * Routes reachable without a session include /login, /pilot, and single run pages. Run
  * LISTS and every other index route stay behind the root redirect — a
  * crawlable index of verdicts must not exist (§10).
  */
 export function isPublicPath(pathname: string): boolean {
 	return (
 		pathname === "/login" ||
-		pathname === "/blocklist" ||
-		pathname === "/blocklist/" ||
+		pathname === "/pilot" ||
+		pathname === "/pilot/" ||
 		PUBLIC_RUN_PATH.test(pathname) ||
 		(import.meta.env.DEV === true &&
 			(pathname === "/mascot" || pathname === "/game"))
