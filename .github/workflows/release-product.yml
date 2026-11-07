@@ -1,0 +1,86 @@
+name: Publish product release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Product version, without the v prefix
+        required: true
+        type: string
+      promotion_pr:
+        description: Merged staging-to-main pull request number
+        required: true
+        type: string
+      smoke_run_id:
+        description: Public run ID from a smoke test of the merged production deployment
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: product-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ inputs.version }}
+      PROMOTION_PR: ${{ inputs.promotion_pr }}
+      SMOKE_RUN_ID: ${{ inputs.smoke_run_id }}
+      APP_URL: https://app.tripwire.sh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify promotion and release draft
+        run: |
+          [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          [[ "$PROMOTION_PR" =~ ^[1-9][0-9]*$ ]]
+          [[ "$SMOKE_RUN_ID" =~ ^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$ ]]
+          test -s "docs/releases/v$VERSION.md"
+          commit="$(gh pr view "$PROMOTION_PR" --json state,baseRefName,headRefName,mergeCommit \
+            --jq 'select(.state == "MERGED" and .baseRefName == "main" and .headRefName == "staging") | .mergeCommit.oid')"
+          test "$commit" = "$GITHUB_SHA"
+          test "$(gh run list --workflow ci.yml --branch main --commit "$commit" --event push \
+            --json conclusion --jq 'any(.[]; .conclusion == "success")')" = true
+          test "$(gh release view "v$VERSION" --json isDraft --jq '.isDraft')" = true
+      - name: Verify public production surfaces
+        run: |
+          curl --fail --silent --show-error --max-time 15 "$APP_URL/login" >/dev/null
+          bun run scripts/smoke-deploy.ts
+      - name: Verify stable SDK and CLI
+        run: |
+          smoke="$(mktemp -d)"
+          cd "$smoke"
+          npm install @tripwire-sh/sdk@latest @tripwire-sh/cli@latest
+          node --input-type=module <<'JS'
+          import assert from "node:assert/strict";
+          import { execFileSync } from "node:child_process";
+          import { block, changeRequest, compileWorkflow, mergedChangeRequests, prAuthor, repositories, workflow } from "@tripwire-sh/sdk/workflows";
+          const version = execFileSync("./node_modules/.bin/tripwire", ["--version"], { encoding: "utf8" }).trim();
+          assert.match(version, /^\d+\.\d+\.\d+$/);
+          const [major, minor, patch] = version.split(".").map(Number);
+          assert.ok(major > 0 || minor > 1 || (minor === 1 && patch >= 23));
+          for (const require of [
+            repositories().ownedBy(prAuthor).withMinStars(50_000).atLeast(1),
+            mergedChangeRequests().authoredBy(prAuthor).excludeReposOwnedBy(prAuthor).withMinRepoStars(50_000).atLeast(1),
+          ]) {
+            const result = compileWorkflow("release-smoke", workflow({ when: changeRequest.opened, require, else: block() }));
+            assert.equal(result.ok, true);
+          }
+          JS
+      - name: Publish GitHub release
+        run: |
+          gh release edit "v$VERSION" --target "$GITHUB_SHA" --notes-file "docs/releases/v$VERSION.md" --draft=false --latest

@@ -147,10 +147,7 @@ export function ProblemsButton({
 					<TooltipTrigger render={<span className="inline-flex" />}>
 						<PopoverTrigger
 							render={
-								<Button
-									size="sm"
-									variant={blocking ? "ghost" : "secondary"}
-								/>
+								<Button size="sm" variant={blocking ? "ghost" : "secondary"} />
 							}
 						>
 							{blocking ? (

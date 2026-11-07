@@ -134,7 +134,9 @@ beforeAll(async () => {
 			installationId: null,
 		},
 	]);
-	await db.execute(sql`UPDATE repos SET forge = 'legacy' WHERE id = ${staleRepoId}`);
+	await db.execute(
+		sql`UPDATE repos SET forge = 'legacy' WHERE id = ${staleRepoId}`,
+	);
 }, 120_000);
 
 afterAll(async () => {

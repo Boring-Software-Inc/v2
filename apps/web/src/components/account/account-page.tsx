@@ -314,11 +314,14 @@ function SessionsSection() {
 							<DialogHeader>
 								<DialogTitle>Sign out everywhere else?</DialogTitle>
 								<DialogDescription>
-									This keeps this device signed in and ends {others} other {others === 1 ? "session" : "sessions"}.
+									This keeps this device signed in and ends {others} other{" "}
+									{others === 1 ? "session" : "sessions"}.
 								</DialogDescription>
 							</DialogHeader>
 							<DialogBody>
-								<p className="type-body-sm text-text-2">You will need to sign in again on those devices.</p>
+								<p className="type-body-sm text-text-2">
+									You will need to sign in again on those devices.
+								</p>
 							</DialogBody>
 							<DialogFooter>
 								<DialogClose>Cancel</DialogClose>

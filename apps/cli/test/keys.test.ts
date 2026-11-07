@@ -108,14 +108,7 @@ function sentIds(tool: string): string[] {
 async function pullTwins() {
 	serve(TWINS);
 	const result = await runCli(
-		[
-			"workflows",
-			"pull",
-			"--repo",
-			"scratch",
-			"--file",
-			file(),
-		],
+		["workflows", "pull", "--repo", "scratch", "--file", file()],
 		env(),
 		project,
 	);

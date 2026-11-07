@@ -104,9 +104,9 @@ export async function listOrganizationForgeConnections(
 		if (
 			!forge.success ||
 			(forge.data === "gitcafe" &&
-			repo.lifecycle !== null &&
-			repo.lifecycle !== "active" &&
-			repo.lifecycle !== "reconcile-required")
+				repo.lifecycle !== null &&
+				repo.lifecycle !== "active" &&
+				repo.lifecycle !== "reconcile-required")
 		)
 			continue;
 		const group = grouped.get(forge.data) ?? {

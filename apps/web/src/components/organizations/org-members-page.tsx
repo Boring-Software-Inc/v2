@@ -3,7 +3,6 @@ import type { OrgRole } from "@tripwire/contracts";
 import { useState } from "react";
 import { Collection } from "#/components/collection/collection";
 import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
-import { MascotArt } from "#/components/mascot/mascot-art";
 import {
 	CollectionRow,
 	InviteRowActions,
@@ -14,11 +13,12 @@ import {
 	MemberRowsSkeleton,
 } from "#/components/layouts/collection-row";
 import { FormActions, FormSection } from "#/components/layouts/section";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import { DeleteOrgDialog } from "#/components/organizations/delete-org-dialog";
 import {
 	INVITES_COLLECTION,
 	MEMBERS_COLLECTION,
 } from "#/components/organizations/org-members-collection";
-import { DeleteOrgDialog } from "#/components/organizations/delete-org-dialog";
 import {
 	SettingsCard,
 	SettingsDangerRow,
