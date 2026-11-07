@@ -1,0 +1,76 @@
+import {
+	blocklistDispatchResponseSchema,
+	blocklistGitHubAccountSchema,
+	SHARED_BLOCKLIST_REPOSITORY,
+	type staffBlocklistAdditionSchema,
+} from "@tripwire/contracts";
+import pino from "pino";
+import type { z } from "zod";
+
+const logger = pino({ name: "staff-blocklist" });
+const repoPath = new URL(SHARED_BLOCKLIST_REPOSITORY).pathname;
+
+export async function queueSharedBlocklistAddition(
+	input: z.infer<typeof staffBlocklistAdditionSchema>,
+	actorId: string,
+	token = process.env.TRIPWIRE_SHARED_BLOCKLIST_ACTIONS_TOKEN,
+	request: (url: string, init: RequestInit) => Promise<Response> = fetch,
+) {
+	if (!token) return { status: "unavailable" } as const;
+	if (Date.parse(input.expiresAt) <= Date.now()) {
+		return { status: "invalid-expiry" } as const;
+	}
+	try {
+		const headers = {
+			Accept: "application/vnd.github+json",
+			Authorization: `Bearer ${token}`,
+			"X-GitHub-Api-Version": "2026-03-10",
+		};
+		const profile = await request(
+			`https://api.github.com/users/${encodeURIComponent(input.login)}`,
+			{ headers, redirect: "error", signal: AbortSignal.timeout(5_000) },
+		);
+		if (profile.status === 404) return { status: "missing-account" } as const;
+		if (!profile.ok)
+			throw new Error(`GitHub lookup returned ${profile.status}`);
+		const account = blocklistGitHubAccountSchema.parse(await profile.json());
+		const response = await request(
+			`https://api.github.com/repos${repoPath}/actions/workflows/publish-snapshot.yml/dispatches`,
+			{
+				method: "POST",
+				headers: { ...headers, "Content-Type": "application/json" },
+				body: JSON.stringify({
+					ref: "main",
+					inputs: {
+						...input,
+						login: account.login,
+						accountId: String(account.id),
+						operation: "add",
+					},
+				}),
+				redirect: "error",
+				signal: AbortSignal.timeout(5_000),
+			},
+		);
+		if (!response.ok)
+			throw new Error(`GitHub dispatch returned ${response.status}`);
+		const run =
+			response.status === 204
+				? null
+				: blocklistDispatchResponseSchema.safeParse(await response.json());
+		const runId = run?.success ? run.data.workflow_run_id : null;
+		logger.info(
+			{ actorId, accountId: account.id, runId },
+			"Queued blocklist addition",
+		);
+		return {
+			status: "queued",
+			url: runId
+				? `${SHARED_BLOCKLIST_REPOSITORY}/actions/runs/${runId}`
+				: `${SHARED_BLOCKLIST_REPOSITORY}/actions/workflows/publish-snapshot.yml`,
+		} as const;
+	} catch (error) {
+		logger.warn({ err: error, actorId }, "Could not queue blocklist addition");
+		return { status: "failed" } as const;
+	}
+}

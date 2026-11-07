@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { AdminBlocklistForm } from "#/components/admin/admin-blocklist-form";
 import { AdminOverviewStats } from "#/components/admin/admin-overview-stats";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { Page, PageBody, PageHeader } from "#/components/layouts/page";
@@ -88,6 +89,8 @@ export function AdminHomePage() {
 							<AdminOverviewStats overview={data} />
 						</SectionBody>
 					</Section>
+
+					<AdminBlocklistForm />
 
 					<Section id="admin-sections">
 						<SectionHeader title="Staff tools" />

@@ -6,7 +6,7 @@ export const SHARED_BLOCKLIST_REPOSITORY =
 	"https://github.com/Boring-Software-Inc/tripwire-shared-blocklist";
 export const SHARED_BLOCKLIST_API_PATH = "/api/blocklist";
 export const SHARED_BLOCKLIST_SOURCE =
-	"https://raw.githubusercontent.com/Boring-Software-Inc/tripwire-shared-blocklist/main/snapshot.json";
+	"https://raw.githubusercontent.com/Boring-Software-Inc/tripwire-shared-blocklist/published/snapshot.json";
 export const SHARED_BLOCKLIST_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 const accountId = z.string().regex(/^[1-9][0-9]*$/);
@@ -51,3 +51,21 @@ export function sharedBlocklistAvailable(
 		repo.externalId === allowedRepositoryId
 	);
 }
+
+export const staffBlocklistAdditionSchema = z.strictObject({
+	login: z
+		.string()
+		.trim()
+		.regex(/^[a-z\d](?:[a-z\d-]{0,98}[a-z\d])?$/i),
+	reason: entry.shape.reason,
+	expiresAt: entry.shape.expiresAt,
+});
+
+export const blocklistGitHubAccountSchema = z.object({
+	id: z.int().positive(),
+	login: staffBlocklistAdditionSchema.shape.login,
+});
+
+export const blocklistDispatchResponseSchema = z.object({
+	workflow_run_id: z.int().positive(),
+});

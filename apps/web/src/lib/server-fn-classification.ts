@@ -184,6 +184,7 @@ export const SERVER_FN_CLASSIFICATION: ServerFnClassification = {
 
 	// ── staff (platform admin portal — /admin) ───────────────────────────
 	getAdminContext: "staff",
+	addSharedBlocklistAccount: "staff",
 	getAdminOverview: "staff",
 	listAdminUsers: "staff",
 	listAdminOrgs: "staff",

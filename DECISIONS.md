@@ -792,3 +792,9 @@ exception. Both read the same validated GitHub snapshot as the review pilot.
 Anyone can browse without a Tripwire account. GitHub remains the place to
 propose additions and corrections. Dashboard access also requires the staging
 Databuddy flag and repository allowlist. The repo's opt-in controls the worker.
+
+## Shared blocklist publication
+
+The community blocklist repository keeps reviewed submissions on protected `main`. Its Actions publisher combines those entries with platform-admin submissions and writes a versioned snapshot to the separate `published` branch. Both the worker and public page consume that snapshot. Admin submissions remain inspectable in `published:staff-entries/`; community and staff removals follow their respective paths in the list repo's README.
+
+Set `TRIPWIRE_SHARED_BLOCKLIST_ACTIONS_TOKEN` on the web service to enable the staff form. Use a GitHub App installation token provider or a fine-grained GitHub token limited to `Boring-Software-Inc/tripwire-shared-blocklist` with **Actions: Read and write**. The publisher itself uses the repository's job token with **Contents: Write**. Staging and production read the same public list, so configure the staff credential only on environments that should be able to publish to it.
