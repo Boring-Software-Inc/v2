@@ -23,6 +23,8 @@ describe("registry", () => {
 				// version — @1 required merges in-repo, unsatisfiable for first-timers.
 				"min-merged-prs@1",
 				"min-merged-prs@2",
+				"owned-repo-stars@1",
+				"merged-pr-repo-stars@1",
 				"pr-rate-limit@1",
 				"profile-readme@1",
 			].sort(),

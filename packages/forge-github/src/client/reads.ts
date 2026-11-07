@@ -1,3 +1,4 @@
+import type { EventActor, StarredContributionQuery } from "@tripwire/contracts";
 import type {
 	ChangeRequestHead,
 	ContributorProfile,
@@ -14,6 +15,7 @@ import { z } from "zod";
  */
 
 import { GithubHttp, type GithubHttpOptions } from "./http.ts";
+import { countStarredContributions } from "./starred-contributions.ts";
 
 export type GithubReadsOptions = GithubHttpOptions;
 
@@ -78,6 +80,14 @@ export class GithubReads {
 
 	constructor(options: GithubReadsOptions) {
 		this.http = new GithubHttp(options);
+	}
+
+	countStarredContributions(
+		repoFullName: string,
+		author: EventActor,
+		query: StarredContributionQuery,
+	) {
+		return countStarredContributions(this.http, repoFullName, author, query);
 	}
 
 	private get(repoFullName: string, path: string): Promise<unknown> {

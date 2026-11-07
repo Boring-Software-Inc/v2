@@ -25,6 +25,19 @@ const SAMPLE_EVIDENCE = {
 		min: 5,
 		trustedAfter: 3,
 	},
+	"owned-repo-stars": {
+		matchingCount: 2,
+		complete: false,
+		minStars: 50_000,
+		min: 2,
+	},
+	"merged-pr-repo-stars": {
+		matchingCount: 2,
+		complete: true,
+		minRepoStars: 50_000,
+		min: 5,
+		repoOwnership: "exclude-author",
+	},
 	"pr-rate-limit": {
 		count: 2,
 		maxPerWindow: 1,

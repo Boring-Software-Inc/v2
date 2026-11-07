@@ -1,4 +1,8 @@
-import type { NormalizedEvent } from "@tripwire/contracts";
+import type {
+	NormalizedEvent,
+	StarredContributionCount,
+	StarredContributionQuery,
+} from "@tripwire/contracts";
 
 /**
  * RuleContext — everything a rule may read, pre-fetched by the worker (§5.8).
@@ -82,4 +86,8 @@ export interface RuleContext {
 	contributor: ContextContributor | null;
 	/** Injected by the worker when AI credentials exist (§8). */
 	generate?: AiReviewGenerate;
+	/** Reads public GitHub history for the pull request author, if available. */
+	countStarredContributions?: (
+		query: StarredContributionQuery,
+	) => Promise<StarredContributionCount | null>;
 }

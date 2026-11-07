@@ -13,6 +13,7 @@ import { maxFilesChanged } from "./max-files-changed.ts";
 import { minMergedPrs, minMergedPrsV2 } from "./min-merged-prs.ts";
 import { prRateLimit } from "./pr-rate-limit.ts";
 import { profileReadme } from "./profile-readme.ts";
+import { mergedPrRepoStars, ownedRepoStars } from "./starred-contributions.ts";
 
 /**
  * The typed registry, keyed by `id@version` (§6 versioning law): a stored run
@@ -33,6 +34,8 @@ register(accountAge);
 // @1 stays registered (frozen) so stored runs stay interpretable; @2 is current.
 register(minMergedPrs);
 register(minMergedPrsV2);
+register(ownedRepoStars);
+register(mergedPrRepoStars);
 register(prRateLimit);
 register(maxFilesChanged);
 register(englishOnly);

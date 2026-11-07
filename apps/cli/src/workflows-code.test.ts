@@ -21,6 +21,7 @@ import {
 	type PulledWorkflow,
 	pulledCountText,
 	readLocalWorkflows,
+	resolveWorkflowSdk,
 	sdkWorkflowSource,
 	selectPulled,
 	selectWorkflowSources,
@@ -517,3 +518,62 @@ describe("picking workflows to pull", () => {
 function never(): never {
 	throw new Error("missing fixture");
 }
+
+test("editor star rules export named SDK helpers and preserve an explicit owner exclusion", () => {
+	const definition = workflowDefinitionSchema.parse({
+		id: "stars",
+		name: "stars",
+		version: 1,
+		nodes: [
+			{ id: "trigger", type: "trigger", kinds: ["change-request.opened"] },
+			{
+				id: "merged-pr-repo-stars",
+				type: "rule",
+				ref: "merged-pr-repo-stars@1",
+				config: {
+					minRepoStars: 50_000,
+					min: 5,
+					repoOwnership: "exclude-author",
+				},
+			},
+			{ id: "block", type: "action", action: "block" },
+		],
+		edges: [
+			{
+				id: "trigger-pass-merged-pr-repo-stars",
+				from: "trigger",
+				to: "merged-pr-repo-stars",
+			},
+			{
+				id: "merged-pr-repo-stars-fail-block",
+				from: "merged-pr-repo-stars",
+				to: "block",
+				when: "fail",
+			},
+		],
+	});
+	const source = sdkWorkflowSource(definition);
+	expect(source).toContain(
+		"require: mergedChangeRequests().authoredBy(prAuthor).excludeReposOwnedBy(prAuthor).withMinRepoStars(50_000).atLeast(5)",
+	);
+	expect(source).not.toContain("workflowGraph");
+	const owned = workflowDefinitionSchema.parse({
+		...definition,
+		nodes: definition.nodes.map((node) =>
+			node.type === "rule"
+				? {
+						...node,
+						ref: "owned-repo-stars@1",
+						config: { minStars: 50_000, min: 1 },
+					}
+				: node,
+		),
+		edges: [],
+	});
+	expect(sdkWorkflowSource(owned)).toContain(
+		"repositories().ownedBy(prAuthor).withMinStars(50_000).atLeast(1)",
+	);
+	expect(() =>
+		resolveWorkflowSdk(sdkWorkflowProject(true, false, "0.1.3"), definition),
+	).toThrow("Repository star checks need 0.1.4");
+});

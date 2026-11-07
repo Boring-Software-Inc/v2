@@ -18,6 +18,8 @@ import {
 	completeSchedule,
 	type WorkflowValue as LegacyWorkflowValue,
 	lockParamsSchema,
+	mergedPrRepoStarsConfigSchema,
+	ownedRepoStarsConfigSchema,
 	RULE_CATALOG,
 	type SettingValue,
 	stripWorkflowSecrets,
@@ -186,6 +188,32 @@ const SDK_RULE_CONFIGS = {
 	}),
 } satisfies Record<keyof typeof SDK_RULES, z.ZodType>;
 
+function sdkStarRuleSource(
+	node: Extract<WorkflowNode, { type: "rule" }>,
+	imports: Set<string>,
+): string | undefined {
+	const integer = (value: number) =>
+		String(value).replace(/\B(?=(\d{3})+(?!\d))/g, "_");
+	if (node.ref === "owned-repo-stars@1") {
+		const config = ownedRepoStarsConfigSchema.safeParse(node.config);
+		if (!config.success) return;
+		imports.add("repositories");
+		imports.add("prAuthor");
+		return `repositories().ownedBy(prAuthor).withMinStars(${integer(config.data.minStars)}).atLeast(${integer(config.data.min)})`;
+	}
+	if (node.ref === "merged-pr-repo-stars@1") {
+		const config = mergedPrRepoStarsConfigSchema.safeParse(node.config);
+		if (!config.success) return;
+		imports.add("mergedChangeRequests");
+		imports.add("prAuthor");
+		const ownership =
+			config.data.repoOwnership === "exclude-author"
+				? ".excludeReposOwnedBy(prAuthor)"
+				: "";
+		return `mergedChangeRequests().authoredBy(prAuthor)${ownership}.withMinRepoStars(${integer(config.data.minRepoStars)}).atLeast(${integer(config.data.min)})`;
+	}
+}
+
 function graphLiteral(value: unknown): string {
 	if (Array.isArray(value)) return `[${value.map(graphLiteral).join(", ")}]`;
 	if (value === null || typeof value !== "object") return JSON.stringify(value);
@@ -221,6 +249,8 @@ function sdkGraphSource(definition: WorkflowDefinition): string {
 			case "gate":
 				return call("gate", json(node.mode));
 			case "rule": {
+				const starred = sdkStarRuleSource(node, imports);
+				if (starred) return starred;
 				if (node.ref === "pr-rate-limit@1") {
 					const rate = z
 						.strictObject({
@@ -460,15 +490,20 @@ function sdkHelperSource(
 					)?.[1]
 				: undefined;
 		const config = SDK_RULE_CONFIGS["account-age@1"].safeParse(
-			rule?.type === "rule" ? rule.config : null,
+			rule?.type === "rule" && rule.ref === "account-age@1"
+				? rule.config
+				: null,
 		);
+		const starred =
+			!legacy && rule?.type === "rule"
+				? sdkStarRuleSource(rule, imports)
+				: undefined;
 		if (
 			scheduled ||
 			definition.nodes.length !== 3 ||
 			definition.edges.length !== 2 ||
 			rule?.type !== "rule" ||
-			rule.ref !== "account-age@1" ||
-			!config.success ||
+			(!starred && !config.success) ||
 			action?.type !== "action" ||
 			!elseAction ||
 			action.params !== undefined ||
@@ -482,15 +517,21 @@ function sdkHelperSource(
 			failure.input
 		)
 			return;
-		imports.add("accountAge");
+		let requirement = starred;
+		if (!requirement && config.success) {
+			imports.add("accountAge");
+			requirement = fullIdentity
+				? `accountAge({ minDays: ${config.data.minDays} })`
+				: `accountAge({\n\t\tminDays: ${config.data.minDays},\n\t})`;
+		}
+		if (!requirement) return;
 		imports.add(elseAction);
 		spec.push(
-			fullIdentity
-				? `require: accountAge({ minDays: ${config.data.minDays} })`
-				: `require: accountAge({\n\t\tminDays: ${config.data.minDays},\n\t})`,
+			`require: ${requirement}`,
 			`${legacy ? "otherwise" : "else"}: ${elseAction}()`,
 		);
-		nodes["account-age"] = {
+		const ruleKey = rule.ref.split("@")[0] ?? rule.id;
+		nodes[ruleKey] = {
 			id: rule.id,
 			...(rule.position ? { position: rule.position } : {}),
 		};
@@ -500,11 +541,11 @@ function sdkHelperSource(
 			id: action.id,
 			...(action.position ? { position: action.position } : {}),
 		};
-		edges["trigger-pass-account-age"] = {
+		edges[`trigger-pass-${ruleKey}`] = {
 			id: check.id,
 			...(check.when ? { explicitPass: true } : {}),
 		};
-		edges[`account-age-fail-${actionKey}`] = { id: failure.id };
+		edges[`${ruleKey}-fail-${actionKey}`] = { id: failure.id };
 	}
 	imports.add("workflow");
 	const savedNodes = Object.entries(nodes).filter(
@@ -684,7 +725,21 @@ const MIN_WORKFLOW_SDK = "0.1.2";
 const sdkPackageManifest = z.object({ name: z.string(), version: z.string() });
 
 /** Resolve from the workflow so a global CLI checks the SDK the project actually uses. */
-export function resolveWorkflowSdk(file: string): string {
+export function resolveWorkflowSdk(
+	file: string,
+	definition?: WorkflowDefinition,
+): string {
+	const stars =
+		definition?.nodes.some(
+			(node) =>
+				node.type === "rule" &&
+				(node.ref === "owned-repo-stars@1" ||
+					node.ref === "merged-pr-repo-stars@1"),
+		) === true;
+	const minimum = stars ? "0.1.4" : MIN_WORKFLOW_SDK;
+	const requirement = stars
+		? "Repository star checks need"
+		: "Workflow commands need";
 	const path = resolve(file);
 	const install = `Run npm install ${SDK_PACKAGE}@${IS_STAGING ? "staging" : "latest"} in your project.`;
 	let entry: string;
@@ -694,7 +749,7 @@ export function resolveWorkflowSdk(file: string): string {
 		);
 	} catch {
 		throw new Error(
-			`Workflow commands need ${SDK_PACKAGE} ${MIN_WORKFLOW_SDK} or later. ${install}`,
+			`${requirement} ${SDK_PACKAGE} ${minimum} or later. ${install}`,
 		);
 	}
 	for (let directory = dirname(entry); ; directory = dirname(directory)) {
@@ -715,12 +770,12 @@ export function resolveWorkflowSdk(file: string): string {
 					(Number(release[1]) > 0 ||
 						Number(release[2]) > 1 ||
 						(Number(release[2]) === 1 &&
-							Number(release[3]) >= (release[4] ? 3 : 2)))
+							Number(release[3]) >= (stars ? 4 : release[4] ? 3 : 2)))
 				) {
 					return entry;
 				}
 				throw new Error(
-					`This project uses ${SDK_PACKAGE}@${version}. Workflow commands need ${MIN_WORKFLOW_SDK} or later. ${install}`,
+					`This project uses ${SDK_PACKAGE}@${version}. ${requirement} ${minimum} or later. ${install}`,
 				);
 			}
 		}

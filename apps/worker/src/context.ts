@@ -1,4 +1,9 @@
-import type { RepoScopedEvent } from "@tripwire/contracts";
+import type {
+	EventActor,
+	RepoScopedEvent,
+	StarredContributionCount,
+	StarredContributionQuery,
+} from "@tripwire/contracts";
 import type { AiReviewGenerate, RuleContext } from "@tripwire/core";
 import type {
 	ChangeRequestHead,
@@ -18,6 +23,11 @@ import { forcedReadFailures } from "./reads-injection.ts";
  */
 
 export interface WorkerReads {
+	countStarredContributions?(
+		repoFullName: string,
+		author: EventActor,
+		query: StarredContributionQuery,
+	): Promise<StarredContributionCount>;
 	getDiff(
 		repoFullName: string,
 		number: number,
@@ -137,10 +147,38 @@ export async function buildRuleContext(
 		);
 	}
 
+	const countStarredContributions =
+		reads?.countStarredContributions?.bind(reads);
+	const starReads = new Map<string, Promise<StarredContributionCount | null>>();
+
 	const ctx: RuleContext = {
 		event,
 		now,
 		generate,
+		countStarredContributions: countStarredContributions
+			? (query) => {
+					const key = JSON.stringify(query);
+					const cached = starReads.get(key);
+					if (cached) return cached;
+					const result = guard("starred-contributions", async () => {
+						const count = await countStarredContributions(
+							repo,
+							event.actor,
+							query,
+						);
+						if (!count.complete && count.count < query.min) {
+							degradedReads.push("starred-contributions");
+							logger.warn(
+								{ read: "starred-contributions" },
+								"GitHub search returned insufficient evidence",
+							);
+						}
+						return count;
+					});
+					starReads.set(key, result);
+					return result;
+				}
+			: undefined,
 		diff:
 			diff?.map((file) => ({
 				path: file.path,

@@ -163,6 +163,35 @@ export const minMergedPrsConfigSchemaV2 = z.object({
 		.default(1)
 		.describe("merges in this repo that exempt a proven local contributor"),
 });
+export const ownedRepoStarsConfigSchema = z.strictObject({
+	minStars: z.int().min(0).describe("Minimum stars per repository"),
+	min: z.int().min(1).describe("Minimum owned repositories"),
+});
+export const mergedPrRepoStarsConfigSchema = z.strictObject({
+	minRepoStars: z
+		.int()
+		.min(0)
+		.describe("Minimum stars per destination repository"),
+	min: z.int().min(1).describe("Minimum merged pull requests"),
+	repoOwnership: z
+		.enum(["any", "exclude-author"])
+		.describe("Destination repository ownership"),
+});
+
+export type StarredContributionQuery =
+	| ({ kind: "owned-repositories" } & z.infer<
+			typeof ownedRepoStarsConfigSchema
+	  >)
+	| ({ kind: "merged-pull-requests" } & z.infer<
+			typeof mergedPrRepoStarsConfigSchema
+	  >);
+
+export interface StarredContributionCount {
+	count: number;
+	/** False means the count is a lower bound, so it cannot prove failure. */
+	complete: boolean;
+}
+
 export const prRateLimitConfigSchema = z.object({
 	maxPerWindow: z.number().int().min(1),
 	windowHours: z.number().min(0.1).default(24),
@@ -230,6 +259,36 @@ export const RULE_CATALOG = [
 			"Requires N merged change requests in other people's repos, as proof that someone else accepted their work.",
 		contributorLabel:
 			"you need merged change requests in other people's repositories first.",
+	},
+	{
+		ruleId: "owned-repo-stars",
+		forges: ["github"],
+		version: 1,
+		name: "Owned repositories by stars",
+		blurb:
+			"Counts public repositories the pull request author owns that meet a star threshold.",
+		configSchema: ownedRepoStarsConfigSchema,
+		defaultConfig: { minStars: 50_000, min: 1 },
+		optIn: true,
+		description:
+			"Require the pull request author to own public repositories with a minimum number of stars.",
+		contributorLabel:
+			"you need more public repositories that meet this project's star requirement.",
+	},
+	{
+		ruleId: "merged-pr-repo-stars",
+		forges: ["github"],
+		version: 1,
+		name: "Merged pull requests by repository stars",
+		blurb:
+			"Counts the author's merged pull requests in public repositories that meet a star threshold.",
+		configSchema: mergedPrRepoStarsConfigSchema,
+		defaultConfig: { minRepoStars: 50_000, min: 1, repoOwnership: "any" },
+		optIn: true,
+		description:
+			"Require prior merges in public repositories with a minimum number of stars. You can exclude the author's own repositories.",
+		contributorLabel:
+			"you need more merged pull requests in public repositories that meet this project's requirements.",
 	},
 	{
 		ruleId: "pr-rate-limit",
@@ -602,6 +661,62 @@ export const RULE_PARAMS = {
 				int: true,
 				min: 1,
 				default: 1,
+			},
+		],
+	},
+	"owned-repo-stars": {
+		sentences: [
+			"requires {min} owned public repositories with at least {minStars} each",
+		],
+		params: [
+			{
+				key: "min",
+				label: "Minimum owned repositories",
+				kind: "number",
+				int: true,
+				min: 1,
+				default: 1,
+			},
+			{
+				key: "minStars",
+				label: "Minimum stars per repository",
+				kind: "number",
+				int: true,
+				min: 0,
+				unit: "stars",
+				default: 50_000,
+			},
+		],
+	},
+	"merged-pr-repo-stars": {
+		sentences: [
+			"requires {min} merges in public repositories with at least {minRepoStars} each",
+			"destination repository ownership: {repoOwnership}",
+		],
+		params: [
+			{
+				key: "min",
+				label: "Minimum merged pull requests",
+				kind: "number",
+				int: true,
+				min: 1,
+				default: 1,
+			},
+			{
+				key: "minRepoStars",
+				label: "Minimum stars per destination repository",
+				kind: "number",
+				int: true,
+				min: 0,
+				unit: "stars",
+				default: 50_000,
+			},
+			{
+				key: "repoOwnership",
+				label: "Destination repository ownership",
+				kind: "enum",
+				options: ["any", "exclude-author"],
+				default: "any",
 			},
 		],
 	},
