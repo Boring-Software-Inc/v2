@@ -1,4 +1,30 @@
+import {
+	blocklistGitHubRepositorySchema,
+	SHARED_BLOCKLIST_REPOSITORY,
+} from "@tripwire/contracts";
 import { loadPublishedSharedBlocklist } from "@tripwire/utils/shared-blocklist";
+
+let repositoryStars: Promise<number | null> | undefined;
+let refreshStarsAt = 0;
+
+export function getBlocklistRepositoryStars(): Promise<number | null> {
+	if (!repositoryStars || Date.now() >= refreshStarsAt) {
+		refreshStarsAt = Date.now() + 5 * 60_000;
+		repositoryStars = fetch(
+			`https://api.github.com/repos${new URL(SHARED_BLOCKLIST_REPOSITORY).pathname}`,
+			{ signal: AbortSignal.timeout(1500) },
+		)
+			.then(async (response) => {
+				if (!response.ok) return null;
+				const parsed = blocklistGitHubRepositorySchema.safeParse(
+					await response.json(),
+				);
+				return parsed.success ? parsed.data.stargazers_count : null;
+			})
+			.catch(() => null);
+	}
+	return repositoryStars;
+}
 
 export async function handlePublicBlocklist(
 	request: Request,

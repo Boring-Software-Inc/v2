@@ -61,6 +61,31 @@ test("only an exact account ID on a fresh list can queue human review", async ()
 	expect(
 		sharedBlocklistReviewWorkflow(event, { ...snapshot, entries: [] }, now),
 	).toBeNull();
+	const permanent = sharedBlocklistSnapshotSchema.parse({
+		...snapshot,
+		entries: [
+			{
+				accountId: event.actor.externalId,
+				login: "older-handle",
+				reason: "Recorded test match",
+			},
+		],
+	});
+	expect(permanent.entries[0]?.expiresAt).toBeNull();
+	expect(sharedBlocklistReviewWorkflow(event, permanent, now)).not.toBeNull();
+	expect(
+		sharedBlocklistReviewWorkflow(
+			event,
+			{
+				...permanent,
+				entries: permanent.entries.map((entry) => ({
+					...entry,
+					expiresAt: new Date(now).toISOString(),
+				})),
+			},
+			now,
+		),
+	).toBeNull();
 	const definition = sharedBlocklistReviewWorkflow(event, snapshot, now);
 	expect(definition).not.toBeNull();
 	if (!definition) throw new Error("Expected a review workflow");

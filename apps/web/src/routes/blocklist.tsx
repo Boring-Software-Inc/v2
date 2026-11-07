@@ -4,7 +4,17 @@ import {
 	SHARED_BLOCKLIST_REPOSITORY,
 } from "@tripwire/contracts";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
-import { Button } from "#/design-system/ui/button";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import { GithubMark, Icon } from "#/design-system/icon";
+import { Button, buttonVariants } from "#/design-system/ui/button";
+import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyTitle,
+} from "#/design-system/ui/empty-state";
+import { RelativeTime } from "#/design-system/ui/relative-time";
 import {
 	Body,
 	PageTitle,
@@ -29,8 +39,26 @@ export const Route = createFileRoute("/blocklist")({
 	component: PublicBlocklist,
 });
 
+const SUGGEST_ACCOUNT_URL = `${SHARED_BLOCKLIST_REPOSITORY}/issues/new?${new URLSearchParams(
+	{
+		title: "Suggest an account",
+		body: "GitHub username or profile URL:\n\nWhat happened? Include public links if available. Keep private evidence out of this issue.",
+	},
+)}`;
+const APPEAL_URL = `${SHARED_BLOCKLIST_REPOSITORY}/issues/new?${new URLSearchParams(
+	{
+		title: "Appeal a listing",
+		body: "GitHub username or profile URL:\n\nWhy should this listing be changed or removed? Keep private details out of this issue.",
+	},
+)}`;
+
 function PublicBlocklist() {
-	const snapshot = Route.useLoaderData();
+	const { snapshot, stars } = Route.useLoaderData();
+	const showSearch = Boolean(snapshot?.total);
+	const starCount =
+		stars === null
+			? null
+			: `${stars.toLocaleString("en-US")} ${stars === 1 ? "star" : "stars"}`;
 	const { q = "" } = Route.useSearch();
 
 	return (
@@ -44,7 +72,26 @@ function PublicBlocklist() {
 					<TripwireLogo size={22} />
 					<span>Tripwire</span>
 				</a>
-				<a href={SHARED_BLOCKLIST_REPOSITORY}>View on GitHub</a>
+				<div data-layout-role="public-blocklist-actions">
+					<a
+						data-slot="button"
+						className={buttonVariants({ variant: "secondary" })}
+						href={APPEAL_URL}
+					>
+						Appeal a listing
+					</a>
+					<a
+						data-slot="button"
+						className={buttonVariants({ variant: "secondary" })}
+						href={SHARED_BLOCKLIST_REPOSITORY}
+					>
+						<Icon icon={GithubMark} />
+						View on GitHub
+						{starCount ? (
+							<SupportingText as="span">{starCount}</SupportingText>
+						) : null}
+					</a>
+				</div>
 			</nav>
 			<header data-layout-role="public-blocklist-intro">
 				<PageTitle>Shared spam blocklist</PageTitle>
@@ -55,39 +102,41 @@ function PublicBlocklist() {
 			</header>
 			<section className="shell" aria-labelledby="blocklist-accounts">
 				<div className="panel" data-layout-role="public-blocklist-directory">
-					<header data-layout-role="public-blocklist-toolbar">
-						<div data-layout-role="public-blocklist-stack">
-							<SectionHeading id="blocklist-accounts">
-								Listed accounts
-							</SectionHeading>
-							{snapshot ? (
-								<SupportingText>
-									{q
-										? `${snapshot.matches} of ${snapshot.total} accounts`
-										: `${snapshot.total} ${snapshot.total === 1 ? "account" : "accounts"}`}
-								</SupportingText>
-							) : null}
-						</div>
-						<form
-							action="/blocklist"
-							method="get"
-							data-layout-role="public-blocklist-search"
-						>
-							<input
-								key={q}
-								className="field"
-								aria-label="GitHub username or account ID"
-								placeholder="Username or account ID"
-								name="q"
-								type="search"
-								maxLength={100}
-								defaultValue={q}
-							/>
-							<Button type="submit" variant="secondary">
-								Search
-							</Button>
-						</form>
-					</header>
+					{showSearch ? (
+						<header data-layout-role="public-blocklist-toolbar">
+							<div data-layout-role="public-blocklist-stack">
+								<SectionHeading id="blocklist-accounts">
+									Listed accounts
+								</SectionHeading>
+								{snapshot ? (
+									<SupportingText>
+										{q
+											? `${snapshot.matches} of ${snapshot.total} accounts`
+											: `${snapshot.total} ${snapshot.total === 1 ? "account" : "accounts"}`}
+									</SupportingText>
+								) : null}
+							</div>
+							<form
+								action="/blocklist"
+								method="get"
+								data-layout-role="public-blocklist-search"
+							>
+								<input
+									key={q}
+									className="field"
+									aria-label="GitHub username"
+									placeholder="GitHub username"
+									name="q"
+									type="search"
+									maxLength={100}
+									defaultValue={q}
+								/>
+								<Button type="submit" variant="secondary">
+									Search
+								</Button>
+							</form>
+						</header>
+					) : null}
 					{snapshot?.entries.length ? (
 						<table data-layout-role="public-blocklist-table">
 							<thead>
@@ -106,46 +155,71 @@ function PublicBlocklist() {
 											>
 												@{entry.login}
 											</a>
-											<SupportingText>ID {entry.accountId}</SupportingText>
 										</td>
 										<td>{entry.reason}</td>
 										<td>
-											<time dateTime={entry.expiresAt}>
-												{entry.expiresAt.slice(0, 10)}
-											</time>
+											{entry.expiresAt ? (
+												<time dateTime={entry.expiresAt}>
+													{entry.expiresAt.slice(0, 10)}
+												</time>
+											) : (
+												"No expiry"
+											)}
 										</td>
 									</tr>
 								))}
 							</tbody>
 						</table>
 					) : (
-						<div data-layout-role="public-blocklist-empty">
-							<SectionHeading>
-								{!snapshot
-									? "Blocklist unavailable"
-									: q
-										? "No matching accounts"
-										: "No accounts listed"}
-							</SectionHeading>
-							<Body>
-								{!snapshot
-									? "Try again in a few minutes or view the source on GitHub."
-									: q
-										? "Try a different username or numeric account ID."
-										: "Accounts appear here after a maintainer publishes an entry."}
-							</Body>
-							{q && snapshot ? <a href="/blocklist">Clear search</a> : null}
-						</div>
+						<Empty
+							art={
+								<MascotArt mood={snapshot ? "activity-empty" : "route-error"} />
+							}
+							reason={!snapshot ? "error" : showSearch ? "no-results" : "empty"}
+							variant="plain"
+						>
+							<EmptyHeader>
+								<EmptyTitle id={showSearch ? undefined : "blocklist-accounts"}>
+									{!snapshot
+										? "Blocklist unavailable"
+										: showSearch
+											? "No matching accounts"
+											: "No accounts listed"}
+								</EmptyTitle>
+								<EmptyDescription>
+									{!snapshot
+										? "Try again in a few minutes."
+										: showSearch
+											? "Try a different GitHub username."
+											: "Know an account sending spam? Suggest it for review."}
+								</EmptyDescription>
+							</EmptyHeader>
+							<EmptyContent>
+								{showSearch ? (
+									<a
+										data-slot="button"
+										className={buttonVariants({ variant: "secondary" })}
+										href="/blocklist"
+									>
+										Clear search
+									</a>
+								) : (
+									<a
+										data-slot="button"
+										className={buttonVariants()}
+										href={SUGGEST_ACCOUNT_URL}
+									>
+										Suggest an account
+									</a>
+								)}
+							</EmptyContent>
+						</Empty>
 					)}
 				</div>
 				{snapshot ? (
 					<div className="shell-foot" data-layout-role="public-blocklist-meta">
 						<SupportingText as="span">
-							Updated{" "}
-							<time dateTime={snapshot.publishedAt}>
-								{snapshot.publishedAt.slice(0, 10)}
-							</time>{" "}
-							UTC · Revision {snapshot.revision}
+							Updated <RelativeTime date={snapshot.publishedAt} format="long" />
 						</SupportingText>
 						{snapshot.pageCount > 1 ? (
 							<nav
@@ -175,14 +249,9 @@ function PublicBlocklist() {
 				) : null}
 			</section>
 			<footer data-layout-role="public-blocklist-footer">
-				<a
-					href={`${SHARED_BLOCKLIST_REPOSITORY}#suggest-an-addition-or-correction`}
-				>
-					Suggest an account
-				</a>
-				<a href={`${SHARED_BLOCKLIST_REPOSITORY}/issues/new`}>
-					Request a correction
-				</a>
+				{showSearch ? (
+					<a href={SUGGEST_ACCOUNT_URL}>Suggest an account</a>
+				) : null}
 				<a href={SHARED_BLOCKLIST_API_PATH}>JSON API</a>
 			</footer>
 		</main>

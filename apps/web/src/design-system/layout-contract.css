@@ -3112,6 +3112,7 @@
 	gap: var(--space-6);
 }
 
+[data-layout-role="public-blocklist-actions"],
 [data-layout-role="public-blocklist-nav"],
 [data-layout-role="public-blocklist-toolbar"],
 [data-layout-role="public-blocklist-meta"],
@@ -3137,7 +3138,6 @@
 
 [data-layout-role="public-blocklist-intro"],
 [data-layout-role="public-blocklist-stack"],
-[data-layout-role="public-blocklist-empty"],
 [data-layout-role="admin-blocklist-form"],
 [data-layout-role="admin-blocklist-field"] {
 	display: grid;
@@ -3150,15 +3150,8 @@
 }
 
 [data-layout-role="public-blocklist-toolbar"],
-[data-layout-role="public-blocklist-table"] :is(th, td),
-[data-layout-role="public-blocklist-empty"] {
+[data-layout-role="public-blocklist-table"] :is(th, td) {
 	padding: var(--space-4);
-}
-
-[data-layout-role="public-blocklist-empty"] {
-	justify-items: start;
-	border-block-start: var(--line-width) solid var(--line-faint);
-	padding-block: var(--space-8);
 }
 
 [data-layout-role="public-blocklist-table"] {
@@ -3184,7 +3177,7 @@
 }
 
 [data-layout-role="public-blocklist"]
-	a:not([data-layout-role="public-blocklist-brand"]),
+	a:not([data-layout-role="public-blocklist-brand"], [data-slot="button"]),
 [data-layout-role="admin-blocklist-form"] a {
 	text-decoration: underline;
 	text-underline-offset: 0.2em;

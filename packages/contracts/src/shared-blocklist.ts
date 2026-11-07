@@ -14,7 +14,7 @@ const entry = z.strictObject({
 	accountId,
 	login: z.string().min(1).max(100),
 	reason: z.string().trim().min(1).max(300),
-	expiresAt: z.iso.datetime(),
+	expiresAt: z.iso.datetime().nullable().default(null),
 });
 
 export const sharedBlocklistSnapshotSchema = z
@@ -68,4 +68,8 @@ export const blocklistGitHubAccountSchema = z.object({
 
 export const blocklistDispatchResponseSchema = z.object({
 	workflow_run_id: z.int().positive(),
+});
+
+export const blocklistGitHubRepositorySchema = z.object({
+	stargazers_count: z.int().nonnegative(),
 });

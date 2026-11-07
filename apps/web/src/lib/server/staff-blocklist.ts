@@ -17,7 +17,7 @@ export async function queueSharedBlocklistAddition(
 	request: (url: string, init: RequestInit) => Promise<Response> = fetch,
 ) {
 	if (!token) return { status: "unavailable" } as const;
-	if (Date.parse(input.expiresAt) <= Date.now()) {
+	if (input.expiresAt !== null && Date.parse(input.expiresAt) <= Date.now()) {
 		return { status: "invalid-expiry" } as const;
 	}
 	try {
@@ -43,6 +43,7 @@ export async function queueSharedBlocklistAddition(
 					ref: "main",
 					inputs: {
 						...input,
+						expiresAt: input.expiresAt ?? "",
 						login: account.login,
 						accountId: String(account.id),
 						operation: "add",

@@ -4,7 +4,10 @@ import {
 	type SharedBlocklistSnapshot,
 	type WorkflowDefinition,
 } from "@tripwire/contracts";
-import { isSharedBlocklistFresh } from "@tripwire/utils/shared-blocklist";
+import {
+	isSharedBlocklistEntryActive,
+	isSharedBlocklistFresh,
+} from "@tripwire/utils/shared-blocklist";
 
 export function sharedBlocklistReviewWorkflow(
 	event: RepoScopedEvent,
@@ -21,7 +24,7 @@ export function sharedBlocklistReviewWorkflow(
 	const entry = snapshot.entries.find(
 		(item) =>
 			item.accountId === event.actor.externalId &&
-			Date.parse(item.expiresAt) > now,
+			isSharedBlocklistEntryActive(item.expiresAt, now),
 	);
 	if (!entry) return null;
 

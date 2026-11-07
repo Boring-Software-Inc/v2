@@ -14,8 +14,14 @@ export const getPublicSharedBlocklist = createServerFn({ method: "GET" })
 		const { loadPublishedSharedBlocklist } = await import(
 			"@tripwire/utils/shared-blocklist"
 		);
-		const snapshot = await loadPublishedSharedBlocklist();
-		if (!snapshot) return null;
+		const { getBlocklistRepositoryStars } = await import(
+			"#/lib/server/public-blocklist"
+		);
+		const [snapshot, stars] = await Promise.all([
+			loadPublishedSharedBlocklist(),
+			getBlocklistRepositoryStars(),
+		]);
+		if (!snapshot) return { snapshot: null, stars };
 		const query = (data.q ?? "").toLowerCase().replace(/^@/, "");
 		const matches = snapshot.entries.filter(
 			(entry) =>
@@ -25,12 +31,14 @@ export const getPublicSharedBlocklist = createServerFn({ method: "GET" })
 		const page = Math.min(data.page ?? 1, pageCount);
 		const start = (page - 1) * PAGE_SIZE;
 		return {
-			revision: snapshot.revision,
-			publishedAt: snapshot.publishedAt,
-			total: snapshot.entries.length,
-			matches: matches.length,
-			page,
-			pageCount,
-			entries: matches.slice(start, start + PAGE_SIZE),
+			stars,
+			snapshot: {
+				publishedAt: snapshot.publishedAt,
+				total: snapshot.entries.length,
+				matches: matches.length,
+				page,
+				pageCount,
+				entries: matches.slice(start, start + PAGE_SIZE),
+			},
 		};
 	});

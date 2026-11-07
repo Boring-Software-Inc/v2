@@ -29,11 +29,12 @@ export function AdminBlocklistForm() {
 					onSubmit={(event) => {
 						event.preventDefault();
 						const form = new FormData(event.currentTarget);
+						const expiry = form.get("expiry");
 						addition.mutate({
 							data: {
 								login: String(form.get("login")),
 								reason: String(form.get("reason")),
-								expiresAt: `${form.get("expiry")}T00:00:00Z`,
+								expiresAt: expiry ? `${expiry}T00:00:00Z` : null,
 							},
 						});
 					}}
@@ -64,8 +65,11 @@ export function AdminBlocklistForm() {
 						/>
 					</label>
 					<label data-layout-role="admin-blocklist-field">
-						Expires at midnight UTC
-						<input className="field" type="date" name="expiry" required />
+						Expiry date (optional, midnight UTC)
+						<input className="field" type="date" name="expiry" />
+						<Body>
+							Leave blank to keep the listing active until it’s removed.
+						</Body>
 					</label>
 					<div data-layout-role="public-blocklist-search">
 						<Button

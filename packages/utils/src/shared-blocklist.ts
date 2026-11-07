@@ -16,6 +16,13 @@ export function isSharedBlocklistFresh(
 	return age >= 0 && age < SHARED_BLOCKLIST_MAX_AGE_MS;
 }
 
+export function isSharedBlocklistEntryActive(
+	expiresAt: string | null,
+	now: number,
+): boolean {
+	return expiresAt === null || Date.parse(expiresAt) > now;
+}
+
 async function readSnapshot(): Promise<SharedBlocklistSnapshot> {
 	const response = await fetch(SHARED_BLOCKLIST_SOURCE, {
 		redirect: "error",
@@ -81,8 +88,8 @@ export async function loadPublishedSharedBlocklist(): Promise<SharedBlocklistSna
 	const now = Date.now();
 	return {
 		...snapshot,
-		entries: snapshot.entries.filter(
-			(entry) => Date.parse(entry.expiresAt) > now,
+		entries: snapshot.entries.filter((entry) =>
+			isSharedBlocklistEntryActive(entry.expiresAt, now),
 		),
 	};
 }

@@ -19,7 +19,12 @@ test("queues the verified GitHub account and links to its publishing run", async
 			: Response.json({ id: 75869731, login: "ripgrim" });
 	};
 	expect(
-		await queueSharedBlocklistAddition(entry, "staff", "fake", request),
+		await queueSharedBlocklistAddition(
+			{ ...entry, expiresAt: null },
+			"staff",
+			"fake",
+			request,
+		),
 	).toEqual({
 		status: "queued",
 		url: "https://github.com/Boring-Software-Inc/tripwire-shared-blocklist/actions/runs/42",
@@ -30,7 +35,12 @@ test("queues the verified GitHub account and links to its publishing run", async
 			url: "https://api.github.com/repos/Boring-Software-Inc/tripwire-shared-blocklist/actions/workflows/publish-snapshot.yml/dispatches",
 			body: {
 				ref: "main",
-				inputs: { ...entry, accountId: "75869731", operation: "add" },
+				inputs: {
+					...entry,
+					expiresAt: "",
+					accountId: "75869731",
+					operation: "add",
+				},
 			},
 		},
 	]);
