@@ -72,6 +72,10 @@ function argIssue(
 		if (!inner.success) {
 			return "this rule is missing the comparison it negates";
 		}
+		const innerVerb = inner.data.kind;
+		if (!VERBS_FOR_KIND[kind]?.includes(innerVerb)) {
+			return `${innerVerb} does not apply to this signal`;
+		}
 		return argIssue(kind, inner.data);
 	}
 	if (kind === "boolean") {
