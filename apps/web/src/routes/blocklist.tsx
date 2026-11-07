@@ -25,7 +25,7 @@ export const Route = createFileRoute("/blocklist")({
 
 function PublicBlocklist() {
 	const snapshot = Route.useLoaderData();
-	const { q } = Route.useSearch();
+	const { q = "" } = Route.useSearch();
 
 	return (
 		<main data-layout-role="public-blocklist">

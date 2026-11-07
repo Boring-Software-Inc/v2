@@ -21,12 +21,7 @@ const authRequestMiddleware = createMiddleware({ type: "request" }).server(
 			);
 			return handlePublicBlocklist(request);
 		}
-		if (
-			url.pathname === "/" &&
-			["blocklist.tripwire.sh", "blocklist.staging.tripwire.sh"].includes(
-				url.hostname,
-			)
-		) {
+		if (url.pathname === "/" && url.hostname === "blocklist.tripwire.sh") {
 			return Response.redirect(new URL("/blocklist", url), 307);
 		}
 		// DEV persona switcher (§13). `import.meta.env.DEV` is a compile-time
