@@ -29,13 +29,13 @@ export function DashboardNews() {
 	const { enabled } = pilot.data;
 
 	return (
-		<section aria-label="New in Tripwire" className="space-y-2 px-1">
-			<h2 className="type-label text-text-2">New in Tripwire</h2>
-			<div className="space-y-2 rounded-lg border border-line-faint bg-paper p-3">
-				<h3 className="type-label text-text-1">
+		<section aria-label="New in Tripwire" data-layout-role="dashboard-news">
+			<h2 data-layout-role="dashboard-news-copy">New in Tripwire</h2>
+			<div data-layout-role="dashboard-news-card">
+				<h3 data-layout-role="dashboard-news-title">
 					Review matches from the shared spam blocklist
 				</h3>
-				<p className="type-label text-text-2">
+				<p data-layout-role="dashboard-news-copy">
 					Send matching pull requests to Human review.
 				</p>
 				<Button
@@ -47,7 +47,7 @@ export function DashboardNews() {
 					{enabled ? "Turn off" : "Turn on"}
 				</Button>
 				{save.isError ? (
-					<p role="alert" className="type-label text-text-2">
+					<p role="alert" data-layout-role="dashboard-news-copy">
 						Couldn’t save. Try again.
 					</p>
 				) : null}
