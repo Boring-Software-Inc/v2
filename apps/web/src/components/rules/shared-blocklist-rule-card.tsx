@@ -85,7 +85,7 @@ export function SharedBlocklistRuleCard({
 							aria-label="Uninstall Pilot"
 							className="ms-auto"
 							onClick={onUninstall}
-							pending={pending}
+							pending={pending || undefined}
 							pendingLabel="Uninstalling"
 							size="sm"
 							variant="secondary"
