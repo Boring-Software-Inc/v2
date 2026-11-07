@@ -3131,12 +3131,7 @@
 	justify-content: space-between;
 }
 
-[data-layout-role="public-blocklist-nav"] {
-	border-block-end: var(--line-width) solid var(--line-faint);
-	padding-block-end: var(--space-4);
-}
-
-[data-layout-role="public-blocklist-intro"],
+[data-layout-role="public-blocklist-callout"],
 [data-layout-role="public-blocklist-stack"],
 [data-layout-role="admin-blocklist-form"],
 [data-layout-role="admin-blocklist-field"] {
@@ -3144,9 +3139,10 @@
 	gap: var(--space-2);
 }
 
-[data-layout-role="public-blocklist-intro"] {
+[data-layout-role="public-blocklist-callout"] {
 	max-inline-size: var(--measure);
-	padding-block: var(--space-4);
+	justify-items: start;
+	padding-block-start: var(--space-4);
 }
 
 [data-layout-role="public-blocklist-toolbar"],

@@ -47,7 +47,7 @@ const SUGGEST_ACCOUNT_URL = `${SHARED_BLOCKLIST_REPOSITORY}/issues/new?${new URL
 )}`;
 const APPEAL_URL = `${SHARED_BLOCKLIST_REPOSITORY}/issues/new?${new URLSearchParams(
 	{
-		title: "Appeal a listing",
+		title: "Appeal a block",
 		body: "GitHub username or profile URL:\n\nWhy should this listing be changed or removed? Keep private details out of this issue.",
 	},
 )}`;
@@ -78,7 +78,7 @@ function PublicBlocklist() {
 						className={buttonVariants({ variant: "secondary" })}
 						href={APPEAL_URL}
 					>
-						Appeal a listing
+						Appeal a block
 					</a>
 					<a
 						data-slot="button"
@@ -93,13 +93,7 @@ function PublicBlocklist() {
 					</a>
 				</div>
 			</nav>
-			<header data-layout-role="public-blocklist-intro">
-				<PageTitle>Shared spam blocklist</PageTitle>
-				<Body>
-					A public list of GitHub accounts flagged for spam. Repositories that
-					turn it on send matching pull requests to a maintainer for review.
-				</Body>
-			</header>
+			<PageTitle>Shared spam blocklist</PageTitle>
 			<section className="shell" aria-labelledby="blocklist-accounts">
 				<div className="panel" data-layout-role="public-blocklist-directory">
 					{showSearch ? (
@@ -253,7 +247,27 @@ function PublicBlocklist() {
 					<a href={SUGGEST_ACCOUNT_URL}>Suggest an account</a>
 				) : null}
 				<a href={SHARED_BLOCKLIST_API_PATH}>JSON API</a>
+				<a href={`${SHARED_BLOCKLIST_API_PATH}?format=txt`}>Raw usernames</a>
 			</footer>
+			<aside
+				data-layout-role="public-blocklist-callout"
+				aria-labelledby="blocklist-tripwire"
+			>
+				<SectionHeading id="blocklist-tripwire">
+					Want to block these accounts automatically?
+				</SectionHeading>
+				<SupportingText>
+					The Tripwire pilot sends matches to Human review. Automatic blocking
+					is planned.
+				</SupportingText>
+				<a
+					data-slot="button"
+					className={buttonVariants({ variant: "secondary" })}
+					href="https://tripwire.sh"
+				>
+					Visit Tripwire
+				</a>
+			</aside>
 		</main>
 	);
 }
