@@ -21,10 +21,6 @@ const authRequestMiddleware = createMiddleware({ type: "request" }).server(
 			);
 			return handlePublicBlocklist(request);
 		}
-		if (url.pathname === "/blocklist" || url.pathname === "/blocklist/") {
-			url.pathname = "/pilot";
-			return Response.redirect(url, 308);
-		}
 		if (url.pathname === "/" && url.hostname === "blocklist.tripwire.sh") {
 			url.pathname = "/pilot";
 			return Response.redirect(url, 307);
