@@ -1359,7 +1359,8 @@ function EditorBody({
 	const selectedOne =
 		selectedFlowNodes.length === 1 ? selectedFlowNodes[0] : undefined;
 	const selectedNode =
-		selectedOne && !groups.cards.has(selectedOne.id)
+		selectedOne &&
+		(selectedOne.data.node.type === "rule" || !groups.cards.has(selectedOne.id))
 			? selectedOne.data.node
 			: null;
 
