@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
 	SHARED_BLOCKLIST_API_PATH,
 	SHARED_BLOCKLIST_REPOSITORY,
+	sharedBlocklistPageQuerySchema,
 } from "@tripwire/contracts";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
 import { MascotArt } from "#/components/mascot/mascot-art";
@@ -22,17 +23,14 @@ import {
 	SectionHeading,
 	SupportingText,
 } from "#/design-system/ui/typography";
-import {
-	blocklistSearchSchema,
-	getPublicSharedBlocklist,
-} from "#/lib/public-blocklist.functions";
+import { getPublicSharedBlocklist } from "#/lib/public-blocklist.functions";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 
 const PILOT_DESCRIPTION =
 	"A public list of GitHub accounts reported for spam and reviewed by maintainers.";
 
 export const Route = createFileRoute("/pilot")({
-	validateSearch: blocklistSearchSchema,
+	validateSearch: sharedBlocklistPageQuerySchema,
 	loaderDeps: ({ search }) => search,
 	loader: ({ deps }) => getPublicSharedBlocklist({ data: deps }),
 	head: () =>

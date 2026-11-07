@@ -16,7 +16,14 @@ test("serves a public snapshot and refuses writes without contacting the source"
 	);
 	expect(res.status).toBe(200);
 	expect(res.headers.get("access-control-allow-origin")).toBe("*");
-	expect(await res.json()).toEqual(snapshot);
+	expect(await res.json()).toEqual({
+		...snapshot,
+		total: 0,
+		matches: 0,
+		page: 1,
+		pageCount: 1,
+		pageSize: 25,
+	});
 	const write = await handlePublicBlocklist(
 		new Request(url, { method: "POST" }),
 		async () => {
@@ -35,6 +42,52 @@ test("serves a public snapshot and refuses writes without contacting the source"
 	expect(await head.text()).toBe("");
 });
 
+test("paginates JSON results and searches across the whole list", async () => {
+	const snapshot = {
+		version: 1 as const,
+		revision: 9,
+		publishedAt: "2026-11-07T23:04:03Z",
+		entries: Array.from({ length: 52 }, (_, index) => ({
+			accountId: String(index + 1),
+			login: `account-${index + 1}`,
+			reason: "Repeated bounty claims",
+			expiresAt: null,
+		})),
+	};
+	const read = async (query = "") =>
+		(
+			await handlePublicBlocklist(
+				new Request(url + query),
+				async () => snapshot,
+			)
+		).json();
+
+	expect(await read()).toEqual({
+		...snapshot,
+		entries: snapshot.entries.slice(0, 25),
+		total: 52,
+		matches: 52,
+		page: 1,
+		pageCount: 3,
+		pageSize: 25,
+	});
+	expect(await read("?page=2")).toMatchObject({
+		page: 2,
+		entries: snapshot.entries.slice(25, 50),
+	});
+	expect(await read("?page=4")).toMatchObject({
+		page: 3,
+		entries: snapshot.entries.slice(50),
+	});
+	expect(await read("?q=%40ACCOUNT-52")).toMatchObject({
+		total: 52,
+		matches: 1,
+		page: 1,
+		pageCount: 1,
+		entries: snapshot.entries.slice(51),
+	});
+});
+
 test("exports just the published usernames as plain text", async () => {
 	const snapshot = {
 		version: 1 as const,
@@ -45,7 +98,7 @@ test("exports just the published usernames as plain text", async () => {
 			{ accountId: "2", login: "second", reason: "Test", expiresAt: null },
 		],
 	};
-	const textUrl = `${url}?format=txt`;
+	const textUrl = `${url}?format=txt&page=2&q=first`;
 	const res = await handlePublicBlocklist(
 		new Request(textUrl),
 		async () => snapshot,

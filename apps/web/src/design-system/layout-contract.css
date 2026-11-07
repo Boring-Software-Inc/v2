@@ -3131,6 +3131,11 @@
 	justify-content: space-between;
 }
 
+[data-layout-role="public-blocklist-meta"] {
+	padding-block: var(--space-3);
+	padding-inline: calc(var(--space-4) + var(--line-width));
+}
+
 [data-layout-role="public-blocklist-callout"],
 [data-layout-role="public-blocklist-stack"],
 [data-layout-role="admin-blocklist-form"],

@@ -33,6 +33,11 @@ export const sharedBlocklistSnapshotSchema = z
 		"Duplicate account IDs",
 	);
 
+export const sharedBlocklistPageQuerySchema = z.object({
+	q: z.string().trim().max(100).optional().catch(undefined),
+	page: z.coerce.number().int().min(1).max(400).optional().catch(undefined),
+});
+
 export const sharedBlocklistMatchSchema = z.strictObject({
 	accountId,
 	reason: entry.shape.reason,
