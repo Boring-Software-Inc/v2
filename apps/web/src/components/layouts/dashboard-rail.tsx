@@ -33,8 +33,8 @@ export function DashboardRail({
 			</div>
 			<CommandPaletteButton wide />
 			<ShellNav counts={counts} variant="rail" />
-			<DashboardNews />
-			<div className="mt-auto">
+			<div className="mt-auto flex flex-col gap-4">
+				<DashboardNews />
 				<UserMenu showName user={user} />
 			</div>
 		</nav>

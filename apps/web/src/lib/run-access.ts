@@ -48,6 +48,8 @@ const PUBLIC_RUN_PATH = /^\/runs\/[^/]+\/?$/;
 export function isPublicPath(pathname: string): boolean {
 	return (
 		pathname === "/login" ||
+		pathname === "/blocklist" ||
+		pathname === "/blocklist/" ||
 		PUBLIC_RUN_PATH.test(pathname) ||
 		(import.meta.env.DEV === true &&
 			(pathname === "/mascot" || pathname === "/game"))

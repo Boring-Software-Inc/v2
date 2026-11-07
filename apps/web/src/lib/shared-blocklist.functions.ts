@@ -19,6 +19,28 @@ async function pilotRepo(orgId: string, name: string) {
 	const { getDb } = await import("#/lib/server/db");
 	const { repoServices } = await import("@tripwire/db");
 	const db = getDb().db;
+	const { getAuth } = await import("#/lib/server/auth");
+	const auth = getAuth();
+	if (auth) {
+		const { getStartContext } = await import("@tanstack/start-storage-context");
+		const session = await auth.api.getSession({
+			headers: getStartContext().request.headers,
+		});
+		if (!session) return null;
+		const { FLAGS } = await import("@tripwire/auth/databuddy");
+		const { getFlagEvaluator } = await import("#/lib/server/staff-users");
+		const evaluate = await getFlagEvaluator();
+		const flags = await evaluate([FLAGS.sharedSpamBlocklist], {
+			userId: session.user.id,
+			email: session.user.email,
+		});
+		if (
+			!flags.some(
+				(flag) => flag.key === FLAGS.sharedSpamBlocklist && flag.enabled,
+			)
+		)
+			return null;
+	}
 	const scoped = await resolveOrgRepo(orgId, name);
 	const repo = await repoServices.getRepoById(db, scoped.id);
 	if (!repo?.armed || !sharedBlocklistAvailable(allowed, repo)) return null;

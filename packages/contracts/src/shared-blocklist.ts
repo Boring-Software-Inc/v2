@@ -2,6 +2,9 @@ import { z } from "zod";
 
 export const SHARED_BLOCKLIST_RULE_ID = "shared-spam-blocklist";
 export const SHARED_BLOCKLIST_RULE_REF = "shared-spam-blocklist@1";
+export const SHARED_BLOCKLIST_REPOSITORY =
+	"https://github.com/Boring-Software-Inc/tripwire-shared-blocklist";
+export const SHARED_BLOCKLIST_API_PATH = "/api/blocklist";
 export const SHARED_BLOCKLIST_SOURCE =
 	"https://raw.githubusercontent.com/Boring-Software-Inc/tripwire-shared-blocklist/main/snapshot.json";
 export const SHARED_BLOCKLIST_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;

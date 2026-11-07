@@ -64,6 +64,8 @@ describe("resolveRunAccess", () => {
 describe("isPublicPath", () => {
 	test("the run page and /login are public", () => {
 		expect(isPublicPath("/login")).toBe(true);
+		expect(isPublicPath("/blocklist")).toBe(true);
+		expect(isPublicPath("/blocklist/review")).toBe(false);
 		expect(isPublicPath("/runs/019f54d3-0c13-7000-930a-dc97f87e1d5e")).toBe(
 			true,
 		);

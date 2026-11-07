@@ -48,6 +48,7 @@ import {
 import type { CommentReason, GithubHttp } from "@tripwire/forge-github";
 import { createForgeSignalCtx } from "@tripwire/sdk";
 import { generateId, getErrorMessage } from "@tripwire/utils";
+import { loadSharedBlocklist } from "@tripwire/utils/shared-blocklist";
 import type { Logger } from "pino";
 import { buildRuleContext, type WorkerReads } from "../context.ts";
 import {
@@ -68,10 +69,7 @@ import {
 	customRuleSource,
 	evaluateCustomRule,
 } from "./custom-rules.ts";
-import {
-	loadSharedBlocklist,
-	sharedBlocklistReviewWorkflow,
-} from "./shared-blocklist.ts";
+import { sharedBlocklistReviewWorkflow } from "./shared-blocklist.ts";
 
 /**
  * §5.7–5.12: match enabled workflows by trigger → build RuleContext (reads
@@ -377,7 +375,9 @@ async function runWorkflowsInner(
 	) {
 		const pilot = sharedBlocklistReviewWorkflow(
 			event,
-			await loadSharedBlocklist(logger),
+			await loadSharedBlocklist(() =>
+				logger.warn("Shared blocklist snapshot could not be refreshed"),
+			),
 			Date.now(),
 		);
 		if (pilot) definitions.push(pilot);

@@ -1,6 +1,7 @@
 import { captureException } from "@sentry/node";
 import { isNotFound, isRedirect } from "@tanstack/react-router";
 import { createMiddleware, createStart } from "@tanstack/react-start";
+import { SHARED_BLOCKLIST_API_PATH } from "@tripwire/contracts";
 import { APP_OG_VIDEO_PATH, parseRunOgPath } from "#/lib/run-og";
 import { isServerOnlyAuthPath } from "#/lib/server-only-auth-paths";
 
@@ -14,6 +15,20 @@ import { isServerOnlyAuthPath } from "#/lib/server-only-auth-paths";
 const authRequestMiddleware = createMiddleware({ type: "request" }).server(
 	async ({ next, request }) => {
 		const url = new URL(request.url);
+		if (url.pathname === SHARED_BLOCKLIST_API_PATH) {
+			const { handlePublicBlocklist } = await import(
+				"#/lib/server/public-blocklist"
+			);
+			return handlePublicBlocklist(request);
+		}
+		if (
+			url.pathname === "/" &&
+			["blocklist.tripwire.sh", "blocklist.staging.tripwire.sh"].includes(
+				url.hostname,
+			)
+		) {
+			return Response.redirect(new URL("/blocklist", url), 307);
+		}
 		// DEV persona switcher (§13). `import.meta.env.DEV` is a compile-time
 		// constant, so this whole branch is dead-code-eliminated from the
 		// production bundle — the endpoint cannot exist in prod.

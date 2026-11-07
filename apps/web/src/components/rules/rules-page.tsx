@@ -22,6 +22,7 @@ import {
 	type RulesTab,
 } from "#/components/rules/rules-collection";
 import { RuleGridSkeleton } from "#/components/rules/rules-page-skeleton";
+import { SharedBlocklistRuleCard } from "#/components/rules/shared-blocklist-rule-card";
 import { useInstallRules } from "#/components/rules/use-install-rules";
 import {
 	type SaveQueueCommit,
@@ -333,6 +334,7 @@ export function RulesPage() {
 						title="Rules"
 					/>
 					<PageBody>
+						<SharedBlocklistRuleCard />
 						<CustomRuleBuilder
 							onClose={() => setBuilderOpen(false)}
 							onSave={saveDraft}

@@ -784,3 +784,11 @@ workflow with no automatic block or close action. Missing, expired, or invalid
 snapshots add no review. The feature stays off without an explicit repository
 ID in the web and worker environments. Automatic blocking and production
 rollout require separate approval.
+
+## 2026-11-07 · Public shared blocklist directory
+
+The public directory and read-only JSON snapshot are approved as a narrow REST
+exception. Both read the same validated GitHub snapshot as the review pilot.
+Anyone can browse without a Tripwire account. GitHub remains the place to
+propose additions and corrections. Dashboard access also requires the staging
+Databuddy flag and repository allowlist. The repo's opt-in controls the worker.
