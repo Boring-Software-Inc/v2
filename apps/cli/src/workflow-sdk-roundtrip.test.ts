@@ -375,9 +375,23 @@ test.skipIf(!sdkPath && !(sdkArchive && cliArchive))(
 			expect(original).toContain('gate("unless")');
 			expect(original).toContain("humanReview()");
 			expect(original).not.toContain("defineWorkflow");
+			const duplicateFile = join(directory, "duplicate-review.ts");
+			await writeFile(duplicateFile, original);
+			expect(
+				await run([
+					"workflows",
+					"push",
+					"contributor-review",
+					"duplicate-review",
+					"--no-browser",
+				]),
+			).toBe(1);
+			expect(proposed).toEqual([]);
+			process.exitCode = 0;
+			await rm(duplicateFile);
 			const authored = (
 				"// Preserve this comment and newline style.\n" +
-				original.replace('"minDays":30', '"minDays":45')
+				original.replace("minDays: 30", "minDays: 45")
 			).replaceAll("\n", "\r\n");
 			await writeFile(file, authored);
 			expect(

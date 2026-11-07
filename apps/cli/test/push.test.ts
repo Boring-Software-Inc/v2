@@ -212,9 +212,9 @@ describe("workflows push sends tripwire.ts for review", () => {
 			["workflows", "push", "--repo", "scratch", "--file", file()],
 			env(),
 		);
-		expect(result.code).toBe(0);
+		expect(result.code).toBe(1);
 		expect(result.stderr).toBe(
-			"error     New accounts was not sent for review. Any of: It takes no inputs.\n",
+			`error     ${file()} (New accounts) was not sent for review. Any of: It takes no inputs.\n`,
 		);
 		expect(sandbox.argv()).toEqual([]);
 	});

@@ -99,13 +99,17 @@ export function pushRefusalText(view: WorkflowPushView, repo: string): string {
 }
 
 export function blockedText(
-	workflows: readonly { name: string; issues: readonly string[] }[],
+	workflows: readonly {
+		name: string;
+		issues: readonly string[];
+		file?: string;
+	}[],
 	style: Style,
 ): string {
 	return workflows
 		.map((workflow) =>
 			errorLine(
-				`${workflow.name} was not sent for review. ${workflow.issues.join(" ")}`,
+				`${workflow.file ? `${workflow.file} (${workflow.name})` : workflow.name} was not sent for review. ${workflow.issues.map((issue) => (issue.startsWith("Another workflow on this repo is named ") ? `Duplicate workflow name ${JSON.stringify(workflow.name)}. Choose a different name.` : issue)).join(" ")}`,
 				style,
 			),
 		)

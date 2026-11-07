@@ -597,7 +597,7 @@ async function compileWorkflowSources(
 	);
 	if (sources.length === 0) {
 		throw new Error(
-			`No workflows in ${directory}. Run tripwire workflows pull --repo <repo> first.`,
+			`No local workflow files in ${directory}. Pull a workflow or add a .ts file first. Removing a local file does not delete the workflow in Tripwire.`,
 		);
 	}
 	const definitions: WorkflowDefinition[] = [];
@@ -714,14 +714,6 @@ async function withServerIds(
 	const server = unmapped ? await serverWorkflows(deps, options, repo) : [];
 	const matched = matchWorkflowIds(definitions, server, mapping);
 	for (const match of matched.matches) {
-		if (match.by === "new" && unmapped) {
-			err(
-				warnLine(
-					`${match.key} matches no workflow on the server, so a push adds it as a new one.`,
-					options.errStyle,
-				),
-			);
-		}
 		if (match.by === "name") {
 			const name = server.find((workflow) => workflow.id === match.id)?.name;
 			err(
@@ -1217,6 +1209,37 @@ async function awaitReview(
 	}
 }
 
+function pushSourceFile(
+	compiled: CompiledWorkflowSources,
+	index: number,
+): string {
+	return (
+		compiled.files[compiled.format === "sdk" ? index : 0] ?? compiled.context
+	);
+}
+
+function duplicatePushNames(
+	compiled: CompiledWorkflowSources,
+	matched: MatchedWorkflows,
+): string[] {
+	if (compiled.format !== "sdk") return [];
+	const filesByName = new Map<string, string[]>();
+	const newNames = new Set<string>();
+	for (const [index, definition] of compiled.definitions.entries()) {
+		const files = filesByName.get(definition.name) ?? [];
+		files.push(pushSourceFile(compiled, index));
+		filesByName.set(definition.name, files);
+		if (matched.matches[index]?.by === "new") newNames.add(definition.name);
+	}
+	return [...filesByName].flatMap(([name, files]) =>
+		files.length > 1 && newNames.has(name)
+			? [
+					`Duplicate workflow name ${JSON.stringify(name)} in ${[...new Set(files)].join(", ")}. Give each workflow a different name.`,
+				]
+			: [],
+	);
+}
+
 function pushWorkflows(
 	deps: ManageDeps,
 	command: Command,
@@ -1255,6 +1278,10 @@ function pushWorkflows(
 			compiled.context,
 			compiled.definitions,
 		);
+		const duplicates = duplicatePushNames(compiled, matched);
+		if (duplicates.length > 0) {
+			return fail(new Error(duplicates.join("\n")), options);
+		}
 		if (opts.force) {
 			return await applyDirect(deps, options, repo, compiled.context, matched);
 		}
@@ -1279,9 +1306,31 @@ function pushWorkflows(
 			if (options.json) {
 				out(JSON.stringify(proposal, null, 2));
 			} else {
-				err(blockedText(proposal.workflows, options.errStyle));
+				err(
+					blockedText(
+						proposal.workflows.map((workflow) => {
+							const index = matched.definitions.findIndex(
+								({ id }) => id === workflow.id,
+							);
+							const sourceIndex =
+								index >= 0
+									? index
+									: matched.definitions.findIndex(
+											({ name }) => name === workflow.name,
+										);
+							return {
+								...workflow,
+								file:
+									sourceIndex >= 0
+										? pushSourceFile(compiled, sourceIndex)
+										: undefined,
+							};
+						}),
+						options.errStyle,
+					),
+				);
 			}
-			return 0;
+			return 1;
 		}
 		const { push } = proposal;
 		if (options.json && !opts.wait) {
@@ -1289,6 +1338,15 @@ function pushWorkflows(
 			return 0;
 		}
 		if (!options.json) {
+			const newNames = push.workflows
+				.filter(({ change }) => change === "new")
+				.map(({ name }) => JSON.stringify(name));
+			if (newNames.length > 0) {
+				const count = push.workflows.length;
+				err(
+					`New ${newNames.length === 1 ? "workflow" : "workflows"} detected: ${newNames.join(", ")}. Review ${count} ${count === 1 ? "change" : "changes"}. Accepting creates the new ${newNames.length === 1 ? "workflow" : "workflows"} from your local code.`,
+				);
+			}
 			err(reviewLink(push.url, process.stderr.isTTY === true));
 		}
 		if (

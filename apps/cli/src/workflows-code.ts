@@ -185,13 +185,23 @@ const SDK_RULE_CONFIGS = {
 	}),
 } satisfies Record<keyof typeof SDK_RULES, z.ZodType>;
 
+function graphLiteral(value: unknown): string {
+	if (Array.isArray(value)) return `[${value.map(graphLiteral).join(", ")}]`;
+	if (value === null || typeof value !== "object") return JSON.stringify(value);
+	const fields = Object.entries(value).map(([key, entry]) => {
+		const property = /^[A-Za-z_$][\w$]*$/.test(key) ? key : JSON.stringify(key);
+		return `${property}: ${graphLiteral(entry)}`;
+	});
+	return fields.length ? `{ ${fields.join(", ")} }` : "{}";
+}
+
 function sdkGraphSource(definition: WorkflowDefinition): string {
 	const imports = new Set(["graphNode", "workflowGraph"]);
 	const call = (helper: string, ...args: string[]) => {
 		imports.add(helper);
 		return `${helper}(${args.join(", ")})`;
 	};
-	const json = (value: unknown) => JSON.stringify(value);
+	const json = graphLiteral;
 	const step = (node: WorkflowNode): string => {
 		switch (node.type) {
 			case "trigger": {
@@ -210,6 +220,22 @@ function sdkGraphSource(definition: WorkflowDefinition): string {
 			case "gate":
 				return call("gate", json(node.mode));
 			case "rule": {
+				if (node.ref === "pr-rate-limit@1") {
+					const rate = z
+						.strictObject({
+							maxPerWindow: z.int().min(1),
+							windowHours: z.number().min(1),
+						})
+						.safeParse(node.config);
+					if (rate.success)
+						return call(
+							"changeRequestRate",
+							json({
+								max: rate.data.maxPerWindow,
+								windowHours: rate.data.windowHours,
+							}),
+						);
+				}
 				const entry = Object.entries(SDK_RULES).find(
 					([ref]) => ref === node.ref,
 				);
@@ -264,26 +290,49 @@ function sdkGraphSource(definition: WorkflowDefinition): string {
 			}
 		}
 	};
-	const nodes = definition.nodes.map((node) =>
-		call(
+	const aliases = new Map<string, string>();
+	const used = new Set<string>();
+	const nodes = definition.nodes.map((node) => {
+		const label =
+			node.type === "rule"
+				? node.ref.split("@")[0]
+				: node.type === "gate"
+					? node.mode
+					: node.type === "action"
+						? node.action
+						: "trigger";
+		const base = (label ?? node.type).replace(
+			/-+([a-z0-9])/g,
+			(_, char: string) => char.toUpperCase(),
+		);
+		let alias = base;
+		for (let suffix = 2; used.has(alias); suffix++) alias = `${base}${suffix}`;
+		used.add(alias);
+		aliases.set(node.id, alias);
+		const expression = call(
 			"graphNode",
 			json(node.id),
 			step(node),
 			...(node.position ? [json(node.position)] : []),
-		),
-	);
+		);
+		return `\t${alias}: ${expression},`;
+	});
+	const endpoint = (id: string) => {
+		const alias = aliases.get(id);
+		return alias ? `nodes.${alias}.id` : json(id);
+	};
 	const edges = definition.edges.map(({ id, from, to, ...options }) =>
 		call(
 			"connect",
 			json(id),
-			json(from),
-			json(to),
+			endpoint(from),
+			endpoint(to),
 			...(Object.keys(options).length ? [json(options)] : []),
 		),
 	);
 	const array = (items: string[]) =>
 		items.length ? `[\n\t\t${items.join(",\n\t\t")},\n\t]` : "[]";
-	return `import { ${[...imports].sort().join(", ")} } from "@tripwire-sh/sdk/workflows";\n\nexport default workflowGraph({\n\tname: ${json(definition.name)},\n\tversion: ${definition.version},\n\tnodes: ${array(nodes)},\n\tedges: ${array(edges)},\n});\n`;
+	return `import {\n\t${[...imports].sort().join(",\n\t")},\n} from "@tripwire-sh/sdk/workflows";\n\nconst nodes = {\n${nodes.join("\n")}\n};\n\nexport default workflowGraph({\n\tname: ${json(definition.name)},\n\tversion: ${definition.version},\n\tnodes: Object.values(nodes),\n\tedges: ${array(edges)},\n});\n`;
 }
 
 const DURATION_SUFFIX = { hours: "h", days: "d", weeks: "w", months: "mo" };
@@ -387,16 +436,24 @@ function sdkHelperSource(definition: WorkflowDefinition): string | undefined {
 		spec.push(
 			`run: ${name}(${reason ? `{ reason: ${JSON.stringify(reason)} }` : ""})`,
 		);
-		nodes[rule.action] = {
+		const actionKey =
+			rule.action === "send-to-moderation" ? "human-review" : rule.action;
+		nodes[actionKey] = {
 			id: rule.id,
 			...(rule.position ? { position: rule.position } : {}),
 		};
-		edges[`${triggerKey}-pass-${rule.action}`] = {
+		edges[`${triggerKey}-pass-${actionKey}`] = {
 			id: edge.id,
 			...(edge.when ? { explicitPass: true } : {}),
 		};
 	} else if (definition.nodes.length !== 1 || definition.edges.length !== 0) {
 		const [check, failure] = definition.edges;
+		const otherwise =
+			action?.type === "action"
+				? Object.entries(SDK_ACTIONS).find(
+						([kind]) => kind === action.action,
+					)?.[1]
+				: undefined;
 		const config = SDK_RULE_CONFIGS["account-age@1"].safeParse(
 			rule?.type === "rule" ? rule.config : null,
 		);
@@ -408,7 +465,7 @@ function sdkHelperSource(definition: WorkflowDefinition): string | undefined {
 			rule.ref !== "account-age@1" ||
 			!config.success ||
 			action?.type !== "action" ||
-			action.action !== "block" ||
+			!otherwise ||
 			action.params !== undefined ||
 			check?.from !== trigger.id ||
 			check.to !== rule.id ||
@@ -421,16 +478,18 @@ function sdkHelperSource(definition: WorkflowDefinition): string | undefined {
 		)
 			return;
 		imports.add("accountAge");
-		imports.add("block");
+		imports.add(otherwise);
 		spec.push(
 			`require: accountAge({\n\t\tminDays: ${config.data.minDays},\n\t})`,
-			"otherwise: block()",
+			`otherwise: ${otherwise}()`,
 		);
 		nodes["account-age"] = {
 			id: rule.id,
 			...(rule.position ? { position: rule.position } : {}),
 		};
-		nodes.block = {
+		const actionKey =
+			action.action === "send-to-moderation" ? "human-review" : action.action;
+		nodes[actionKey] = {
 			id: action.id,
 			...(action.position ? { position: action.position } : {}),
 		};
@@ -438,7 +497,7 @@ function sdkHelperSource(definition: WorkflowDefinition): string | undefined {
 			id: check.id,
 			...(check.when ? { explicitPass: true } : {}),
 		};
-		edges["account-age-fail-block"] = { id: failure.id };
+		edges[`account-age-fail-${actionKey}`] = { id: failure.id };
 	}
 	imports.add("workflow");
 	const savedNodes = Object.entries(nodes).filter(
