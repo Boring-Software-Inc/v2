@@ -500,3 +500,26 @@ The prior CLI review confirmed parser, help, JSON, group-exit, and numeric-valid
 - Decide which compatibility rules TypeScript can express cleanly and which remain runtime compiler errors. Runtime enforcement is required in both cases.
 - Define catalog version compatibility so an SDK upgrade cannot silently reinterpret an older workflow.
 
+
+## Repository stars on staging
+
+Install the owned repository check as a standalone rule on the staging scratch repo:
+
+```sh
+tripwire-staging --org grim rules set scratch owned-repo-stars \
+  --enable --param minStars=50000 --param min=1
+```
+
+The rule requires the pull request author to own at least one public GitHub repository with 50,000 stars or more. A standalone rule blocks on a failed check. Use the rule in a workflow if you want a different action. The merged pull request variant is `merged-pr-repo-stars`; set `minRepoStars`, `min`, and `repoOwnership=exclude-author` to count only merges into repositories the author does not own.
+
+In a workflow, change the star threshold or ownership setting in Properties, save, and pull again. Pull generates the SDK helper with the saved values. `50_000` in TypeScript is the number `50000` in the workflow graph. Adding a new kind of evidence requires a forge read, a rule, and typed SDK support; editor settings do not add SDK methods.
+
+The staging CLI at `0.1.22-staging.24` accepted SDK `0.1.2` and wrote a file with imports that version did not export. CLI `0.1.23-staging.26` and newer require SDK `0.1.4` or its staging prerelease for these workflows and stop before writing files if the installed SDK is too old.
+
+```sh
+npm install -g @tripwire-sh/cli@staging
+npm install @tripwire-sh/sdk@staging
+tripwire-staging --org grim workflows pull star-check-owned
+```
+
+SDK changes on the staging branch publish to npm's `staging` tag after CI. The release workflow uses the version in `package.json`; a stable release from `main` requires a version bump. CLI release CI installs the selected channel's SDK and checks that both star workflows pull and compile back to the same graph before publishing. CI publishes packages to npm. The installed CLI and project SDK update when you run the install commands above.
