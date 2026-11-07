@@ -384,7 +384,7 @@ export async function getRulesStats(
 
 	const perRuleResult = await db.execute(sql`
 		SELECT s.rule_id AS ref,
-		       extract(hour FROM s.started_at)::int AS bucket,
+		       floor(extract(epoch FROM (now() - s.started_at)) / 3600)::int AS h,
 		       count(*)::int AS n
 		FROM run_steps s JOIN runs r ON r.id = s.run_id
 		WHERE r.repo_full_name = ${repoFullName}
@@ -395,7 +395,7 @@ export async function getRulesStats(
 	const perRuleMap = new Map<string, RuleStat>();
 	for (const row of perRuleResult.rows as unknown as {
 		ref: string;
-		bucket: number;
+		h: number;
 		n: number;
 	}[]) {
 		let stat = perRuleMap.get(row.ref);
@@ -403,10 +403,10 @@ export async function getRulesStats(
 			stat = { ref: row.ref, matches24h: 0, series: Array(24).fill(0) };
 			perRuleMap.set(row.ref, stat);
 		}
-		const index = Number(row.bucket);
+		const h = Number(row.h);
 		stat.matches24h += Number(row.n);
-		if (index >= 0 && index < 24) {
-			stat.series[index] = Number(row.n);
+		if (h >= 0 && h < 24) {
+			stat.series[23 - h] = Number(row.n);
 		}
 	}
 

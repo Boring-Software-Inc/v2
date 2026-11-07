@@ -137,6 +137,88 @@ describe("getRulesStats — repo-scoped, real stored data", () => {
 		expect(empty.actioned24h.value).toBe(0);
 		expect(empty.perRule).toHaveLength(0);
 	});
+
+	test("per-rule series uses the same rolling hours-ago ordering as matches24h.series", async () => {
+		const repo = "acme/ordering";
+		const eventId = await seedEvent("evt-ordering", repo);
+		const runId = await createRun(db, {
+			eventId,
+			repoFullName: repo,
+			subjectNumber: 1,
+			headSha: "sha-ordering",
+			snapshot: SNAPSHOT,
+			status: "completed",
+			verdict: "block",
+		});
+		// Seed two rule-node fails at distinct offsets so the rolling index
+		// (23 - h) is distinguishable from a clock-hour bucket. 5h ago → 18,
+		// 10h ago → 13. Under the old clock-hour bucket these would land at
+		// (currentHour - 5) and (currentHour - 10), disagreeing with the
+		// top-level series.
+		const at5h = new Date(Date.now() - 5 * 3600_000).toISOString();
+		const at10h = new Date(Date.now() - 10 * 3600_000).toISOString();
+		const ref5h = "ordering-5h@1";
+		const ref10h = "ordering-10h@1";
+		await recordSteps(db, runId, [
+			{
+				nodeId: "default@1:rule-0",
+				nodeKind: "rule",
+				ruleRef: ref5h,
+				status: "fail",
+				input: {},
+				output: {
+					ruleId: ref5h.split("@")[0],
+					version: 1,
+					status: "evaluated",
+					passed: false,
+					evidence: {},
+					evaluatedAt: at5h,
+				},
+				startedAt: at5h,
+				finishedAt: at5h,
+				durationMs: 0,
+			},
+			{
+				nodeId: "default@1:rule-1",
+				nodeKind: "rule",
+				ruleRef: ref10h,
+				status: "fail",
+				input: {},
+				output: {
+					ruleId: ref10h.split("@")[0],
+					version: 1,
+					status: "evaluated",
+					passed: false,
+					evidence: {},
+					evaluatedAt: at10h,
+				},
+				startedAt: at10h,
+				finishedAt: at10h,
+				durationMs: 0,
+			},
+		]);
+
+		const stats = await insightServices.getRulesStats(db, repo);
+
+		// Top-level series: 5h fail at 23 - 5 = 18, 10h fail at 23 - 10 = 13.
+		expect(stats.matches24h.series.findIndex((x) => x > 0)).toBe(13);
+		expect(stats.matches24h.series[18]).toBe(1);
+		expect(stats.matches24h.series[13]).toBe(1);
+
+		// Per-rule series: the SAME fail must land at the SAME rolling index
+		// — the sparkline contract is "oldest first, index 23 = now", and
+		// the per-rule series flows unchanged into <Sparkline data={rule.trend}>.
+		const byRef = new Map(stats.perRule.map((r) => [r.ref, r]));
+		const perRule5h = byRef.get(ref5h);
+		expect(perRule5h).toBeDefined();
+		expect(perRule5h?.series.findIndex((x) => x > 0)).toBe(18);
+		expect(perRule5h?.matches24h).toBe(1);
+
+		const perRule10h = byRef.get(ref10h);
+		expect(perRule10h).toBeDefined();
+		expect(perRule10h?.series.findIndex((x) => x > 0)).toBe(13);
+		expect(perRule10h?.matches24h).toBe(1);
+	});
 });
 
 describe("getHomeStats — the number and its series tell one story", () => {
