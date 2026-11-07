@@ -5,7 +5,7 @@ import {
 	installAccessResultSchema,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
-import { and, eq, gt, sql } from "drizzle-orm";
+import { and, eq, gt, lt, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { installationAccessChecks } from "../schema/organizations.ts";
 
@@ -69,4 +69,51 @@ export async function getFreshInstallAccessCheck(
 		)
 		.limit(1);
 	return rows[0] ?? null;
+}
+
+/**
+ * Count a user's access-check rows newer than `windowSeconds` — the per-user
+ * rate-limit probe for `recoverInstallation`. Counts distinct installation ids
+ * (the upsert on `(user_id, forge, installation_id)` collapses repeats of the
+ * same id), which is exactly the dimension an attacker rotates to burn quota.
+ */
+export async function countRecentInstallAccessChecks(
+	db: Db,
+	userId: string,
+	windowSeconds: number,
+): Promise<number> {
+	const rows = await db
+		.select({ count: sql<number>`count(*)::int` })
+		.from(installationAccessChecks)
+		.where(
+			and(
+				eq(installationAccessChecks.userId, userId),
+				gt(
+					installationAccessChecks.verifiedAt,
+					sql`now() - make_interval(secs => ${windowSeconds})`,
+				),
+			),
+		);
+	return rows[0]?.count ?? 0;
+}
+
+/**
+ * Delete access-check rows older than `maxAgeDays` — the scheduled retention
+ * prune. Without this, the table grows indefinitely: the only other deletion
+ * path is the `ON DELETE CASCADE` FK on user deletion.
+ */
+export async function pruneInstallAccessChecks(
+	db: Db,
+	maxAgeDays: number,
+): Promise<number> {
+	const removed = await db
+		.delete(installationAccessChecks)
+		.where(
+			lt(
+				installationAccessChecks.verifiedAt,
+				sql`now() - make_interval(secs => ${maxAgeDays * 24 * 60 * 60})`,
+			),
+		)
+		.returning({ id: installationAccessChecks.id });
+	return removed.length;
 }
