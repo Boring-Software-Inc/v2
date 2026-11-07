@@ -101,7 +101,7 @@ describe("sync-repo-reviewers", () => {
 		).toHaveLength(1);
 	});
 
-	test("no github reads or no repo is a no-op", async () => {
+	test("no github reads or no repo leaves the rows untouched", async () => {
 		await syncRepoReviewers({ db, http: null, logger }, { repoId });
 		await syncRepoReviewers(
 			{ db, http: httpReturning(200, []), logger },
@@ -110,6 +110,64 @@ describe("sync-repo-reviewers", () => {
 		expect(
 			(await reviewerServices.listRepoReviewers(db, repoId)).reviewers,
 		).toHaveLength(1);
+	});
+
+	test("a sync with github reads disabled stamps the sync time", async () => {
+		const disabledRepo = await repoServices.ensureRepo(db, {
+			externalId: "disabled",
+			owner: "acme",
+			name: "disabled",
+			fullName: "acme/disabled",
+			installationId: "7",
+		});
+		await syncRepoReviewers(
+			{ db, http: null, logger },
+			{ repoId: disabledRepo },
+		);
+		const list = await reviewerServices.listRepoReviewers(db, disabledRepo);
+		expect(list.reviewers).toEqual([]);
+		expect(list.syncedAt).not.toBeNull();
+		expect(reviewerServices.reviewersNeedSync(list.syncedAt, new Date())).toBe(
+			false,
+		);
+	});
+
+	test("a sync for a non-github repo stamps the sync time", async () => {
+		const opengitRepo = await repoServices.ensureRepo(db, {
+			forge: "opengit",
+			externalId: "og-1",
+			owner: "acme",
+			name: "opengit-repo",
+			fullName: "acme/opengit-repo",
+			installationId: "7",
+		});
+		await syncRepoReviewers(
+			{ db, http: httpReturning(200, [OCTOCAT]), logger },
+			{ repoId: opengitRepo },
+		);
+		const list = await reviewerServices.listRepoReviewers(db, opengitRepo);
+		expect(list.reviewers).toEqual([]);
+		expect(list.syncedAt).not.toBeNull();
+	});
+
+	test("an empty collaborator list stamps the sync time", async () => {
+		const emptyRepo = await repoServices.ensureRepo(db, {
+			externalId: "empty",
+			owner: "acme",
+			name: "empty",
+			fullName: "acme/empty",
+			installationId: "7",
+		});
+		await syncRepoReviewers(
+			{ db, http: httpReturning(200, []), logger },
+			{ repoId: emptyRepo },
+		);
+		const list = await reviewerServices.listRepoReviewers(db, emptyRepo);
+		expect(list.reviewers).toEqual([]);
+		expect(list.syncedAt).not.toBeNull();
+		expect(reviewerServices.reviewersNeedSync(list.syncedAt, new Date())).toBe(
+			false,
+		);
 	});
 
 	test("the queue holds one waiting sync per repo", async () => {

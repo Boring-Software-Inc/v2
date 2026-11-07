@@ -16,8 +16,13 @@ export async function syncRepoLabels(
 ): Promise<void> {
 	const { db, http, logger } = deps;
 	const repo = await repoServices.getRepoById(db, job.repoId);
-	if (!repo || repo.removedAt || repo.forge !== "github") {
-		logger.info({ repoId: job.repoId }, "label sync skipped: no github repo");
+	if (!repo || repo.removedAt) {
+		logger.info({ repoId: job.repoId }, "label sync skipped: no repo");
+		return;
+	}
+	if (repo.forge !== "github") {
+		logger.info({ repoId: repo.id }, "label sync skipped: non-github repo");
+		await labelServices.stampRepoLabelSync(db, repo.id);
 		return;
 	}
 	if (!http) {
@@ -25,6 +30,7 @@ export async function syncRepoLabels(
 			{ repoId: repo.id },
 			"label sync skipped: github reads disabled",
 		);
+		await labelServices.stampRepoLabelSync(db, repo.id);
 		return;
 	}
 	try {
