@@ -10,14 +10,13 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
 	type JsonValue,
 	type WorkflowDefinition,
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
 import { z } from "zod";
-import { buildProgram } from "#/program";
-import { realSystem } from "#/system";
 import { loadWorkflowFile } from "#/workflows-code";
 
 const sdkPath = process.env.TRIPWIRE_TEST_SDK_PATH;
@@ -190,6 +189,8 @@ test.skipIf(!sdkPath && !(sdkArchive && cliArchive))(
 		let stopServer: (() => Promise<void>) | undefined;
 		try {
 			await writeFile(join(root, "package.json"), '{"type":"module"}');
+			const directory = join(root, ".tripwire", "workflows");
+			await mkdir(directory, { recursive: true });
 			if (sdkArchive && cliArchive) {
 				const installed = Bun.spawnSync(
 					[
@@ -285,50 +286,33 @@ test.skipIf(!sdkPath && !(sdkArchive && cliArchive))(
 				},
 				{ preconnect: fetch.preconnect },
 			);
-			const program = () =>
-				buildProgram(
-					realSystem(
-						{ TRIPWIRE_TOKEN: "test", TRIPWIRE_STAGING_TOKEN: "test" },
-						process.platform,
-					),
-					{
-						fetch: fetchMock,
-					},
-				).exitOverride();
-			const server =
-				cliArchive && sdkArchive
-					? Bun.serve({
-							hostname: "127.0.0.1",
-							port: 0,
-							async fetch(request) {
-								if (request.method !== "POST")
-									return new Response(null, { status: 405 });
-								return fetchMock(request, { body: await request.text() });
-							},
-						})
-					: undefined;
-			if (server)
-				stopServer = async () => {
-					await server.stop(true);
-				};
+			const server = Bun.serve({
+				hostname: "127.0.0.1",
+				port: 0,
+				async fetch(request) {
+					if (request.method !== "POST")
+						return new Response(null, { status: 405 });
+					return fetchMock(request, { body: await request.text() });
+				},
+			});
+			stopServer = async () => {
+				await server.stop(true);
+			};
+
+			let commandOutput = "";
 			async function run(args: string[]): Promise<number> {
-				if (!server) {
-					await program().parseAsync(args, { from: "user" });
-					return Number(process.exitCode ?? 0);
-				}
-				const child = Bun.spawn(
-					[
-						process.execPath,
-						join(
+				const entry = cliArchive
+					? join(
 							root,
 							"node_modules",
 							"@tripwire-sh",
 							"cli",
 							"dist",
 							"tripwire.js",
-						),
-						...args,
-					],
+						)
+					: fileURLToPath(new URL("./index.ts", import.meta.url));
+				const child = Bun.spawn(
+					[cliArchive ? "node" : process.execPath, entry, ...args],
 					{
 						cwd: root,
 						env: {
@@ -337,14 +321,16 @@ test.skipIf(!sdkPath && !(sdkArchive && cliArchive))(
 							TRIPWIRE_STAGING_TOKEN: "test",
 							TRIPWIRE_MCP_URL: `http://127.0.0.1:${server.port}/mcp`,
 						},
-						stdout: "ignore",
+						stdout: "pipe",
 						stderr: "pipe",
 					},
 				);
-				const [code, stderr] = await Promise.all([
+				const [code, stdout, stderr] = await Promise.all([
 					child.exited,
+					new Response(child.stdout).text(),
 					new Response(child.stderr).text(),
 				]);
+				commandOutput = stderr || stdout;
 				if (code && !stderr)
 					throw new Error(`Installed CLI exited ${code} without a diagnostic`);
 				return code;
@@ -359,9 +345,9 @@ test.skipIf(!sdkPath && !(sdkArchive && cliArchive))(
 					"--json",
 				]),
 			).toBe(0);
-			const directory = join(root, ".tripwire", "workflows");
 			expect(await readdir(directory)).toEqual(["contributor-review.ts"]);
-			expect(await run(["workflows", "pull", "--json"])).toBe(0);
+			const pullAll = await run(["workflows", "pull", "--json"]);
+			expect(pullAll, commandOutput).toBe(0);
 			expect((await readdir(directory)).sort()).toEqual([
 				"contributor-review.ts",
 				"scheduled-lock.ts",
