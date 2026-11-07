@@ -155,9 +155,14 @@ export function WorkflowEditorPage() {
 							/>
 						) : undefined
 					}
+					headerNote={
+						draftId && canManage
+							? "Save the draft to edit or move steps."
+							: undefined
+					}
 					headerLeading={
 						<>
-							{draftId ? <Badge variant="outline">Draft</Badge> : null}
+							{draftId ? <Badge variant="outline">Draft preview</Badge> : null}
 							<span data-layout-role="workflow-editor-agent-presence">
 								<AgentPresence agents={agents} motion={motion} />
 							</span>

@@ -61,6 +61,7 @@ export interface EditorHeaderProps {
 	onSetEnabled: (enabled: boolean) => void;
 	leading?: ReactNode;
 	actions?: ReactNode;
+	note?: string;
 }
 
 export function EditorHeader({
@@ -84,6 +85,7 @@ export function EditorHeader({
 	onShowProblems,
 	leading,
 	actions,
+	note,
 }: EditorHeaderProps) {
 	const [renaming, setRenaming] = useState(false);
 	const protectionAvailable = forgeEvaluates(forge);
@@ -291,6 +293,7 @@ export function EditorHeader({
 					</>
 				)}
 			</div>
+			{note ? <p data-layout-role="workflow-editor-note">{note}</p> : null}
 			{protectionAvailable ? null : (
 				<p
 					data-layout-role="workflow-editor-protection-note"

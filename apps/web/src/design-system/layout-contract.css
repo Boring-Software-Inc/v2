@@ -1050,11 +1050,13 @@
 }
 
 [data-layout-role="workflow-editor-save-hint"],
+[data-layout-role="workflow-editor-note"],
 [data-layout-role="workflow-editor-protection-note"] {
 	color: var(--tw-content-secondary);
 	font: var(--type-caption);
 }
 
+[data-layout-role="workflow-editor-note"],
 [data-layout-role="workflow-editor-protection-note"] {
 	flex-basis: 100%;
 }

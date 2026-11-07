@@ -356,6 +356,7 @@ export interface WorkflowEditorProps {
 	live?: WorkflowEditorLive;
 	headerLeading?: ReactNode;
 	headerActions?: ReactNode;
+	headerNote?: string;
 	/** The repo's custom rules for the palette. */
 	customRules: { ref: string; name: string; description: string }[];
 	aiCredits: AiCreditsState;
@@ -403,6 +404,7 @@ function EditorBody({
 	live,
 	headerLeading,
 	headerActions,
+	headerNote,
 	aiCredits,
 	customRules,
 	definition,
@@ -1517,6 +1519,7 @@ function EditorBody({
 				zeroNodes={nodes.length === 0}
 				leading={headerLeading}
 				actions={headerActions}
+				note={headerNote}
 			/>
 			{codeView ? (
 				<WorkflowCode

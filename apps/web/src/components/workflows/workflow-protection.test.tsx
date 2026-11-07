@@ -31,11 +31,13 @@ async function renderWorkflowPage({
 	canManage,
 	enabled,
 	editor,
+	draft = false,
 }: {
 	forge: Forge;
 	canManage: boolean;
 	enabled: boolean;
 	editor: boolean;
+	draft?: boolean;
 }) {
 	const client = new QueryClient();
 	client.setQueryData(orgContextQueryOptions("team").queryKey, {
@@ -72,7 +74,7 @@ async function renderWorkflowPage({
 		runnable: true,
 		canTurnOn: true,
 		state: enabled ? "on" : "off",
-		draftId: null,
+		draftId: draft ? "draft-test" : null,
 		work: null,
 		definition: DEFAULT_WORKFLOW,
 		lastTicks: {},
@@ -189,6 +191,20 @@ describe("workflow activation follows the loaded repository capability", () => {
 			expect(control(html, "Turn on workflow")).not.toContain('disabled=""');
 			expect(html).toContain('aria-label="Rename Check contributions"');
 		}
+	});
+
+	test("the agent draft preview explains how to edit its steps", async () => {
+		const html = await renderWorkflowPage({
+			forge: "github",
+			canManage: true,
+			enabled: false,
+			editor: true,
+			draft: true,
+		});
+		expect(html).toContain("Draft preview");
+		expect(html).toContain("Save the draft to edit or move steps.");
+		expect(control(html, "Save workflow")).not.toContain('disabled=""');
+		expect(html).not.toContain("Auto-arrange");
 	});
 
 	for (const editor of [false, true]) {
