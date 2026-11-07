@@ -448,7 +448,7 @@ function sdkHelperSource(definition: WorkflowDefinition): string | undefined {
 		};
 	} else if (definition.nodes.length !== 1 || definition.edges.length !== 0) {
 		const [check, failure] = definition.edges;
-		const otherwise =
+		const elseAction =
 			action?.type === "action"
 				? Object.entries(SDK_ACTIONS).find(
 						([kind]) => kind === action.action,
@@ -465,7 +465,7 @@ function sdkHelperSource(definition: WorkflowDefinition): string | undefined {
 			rule.ref !== "account-age@1" ||
 			!config.success ||
 			action?.type !== "action" ||
-			!otherwise ||
+			!elseAction ||
 			action.params !== undefined ||
 			check?.from !== trigger.id ||
 			check.to !== rule.id ||
@@ -478,10 +478,10 @@ function sdkHelperSource(definition: WorkflowDefinition): string | undefined {
 		)
 			return;
 		imports.add("accountAge");
-		imports.add(otherwise);
+		imports.add(elseAction);
 		spec.push(
 			`require: accountAge({\n\t\tminDays: ${config.data.minDays},\n\t})`,
-			`otherwise: ${otherwise}()`,
+			`else: ${elseAction}()`,
 		);
 		nodes["account-age"] = {
 			id: rule.id,

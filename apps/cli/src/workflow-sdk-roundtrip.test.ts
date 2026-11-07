@@ -351,7 +351,7 @@ test.skipIf(!sdkPath && !(sdkArchive && cliArchive))(
 			expect(simpleSource).toContain(
 				"require: accountAge({\n\t\tminDays: 30,\n\t})",
 			);
-			expect(simpleSource).toContain("otherwise: block()");
+			expect(simpleSource).toContain("else: block()");
 			const simpleCompiled = await loadWorkflowFile(simplePath);
 			expect(simpleCompiled.ok).toBe(true);
 			expect(simpleCompiled.definitions[0]).toEqual({
@@ -423,6 +423,16 @@ test.skipIf(!sdkPath && !(sdkArchive && cliArchive))(
 			await rm(file);
 			expect(await run(pull)).toBe(0);
 			expect(await readFile(file, "utf8")).toBe(authored);
+			expect(await run([...pull, "--regenerate"])).toBe(0);
+			const regenerated = await readFile(file, "utf8");
+			expect(regenerated).not.toContain("Preserve this comment");
+			const regeneratedPath = join(root, "contributor-review.ts");
+			await writeFile(regeneratedPath, regenerated);
+			const { authoredSource: _source, ...submittedGraph } = submitted;
+			expect((await loadWorkflowFile(regeneratedPath)).definitions[0]).toEqual({
+				...submittedGraph,
+				id: "contributor-review",
+			});
 			remote = { ...definition, version: 8 };
 			expect(await run(pull)).toBe(0);
 			const updated = await readFile(file, "utf8");

@@ -653,6 +653,7 @@ async function workflowAction(
 
 interface PullOptions {
 	file?: string;
+	regenerate?: boolean;
 	force?: boolean;
 	link: boolean;
 }
@@ -832,7 +833,11 @@ function pullSdkWorkflows(
 		);
 		const written = writeSdkWorkflows(
 			directory,
-			picked.map(({ definition }) => definition),
+			picked.map(({ definition }) =>
+				opts.regenerate
+					? { ...definition, authoredSource: undefined }
+					: definition,
+			),
 			keys,
 			opts.force === true,
 			options.link?.link.workflowPullHashes,
@@ -908,6 +913,9 @@ function pullWorkflows(
 	}
 	const file = opts.file;
 	return workflowAction(command, deps, async (options) => {
+		if (opts.regenerate) {
+			throw new Error("--regenerate is only available for SDK workflow files.");
+		}
 		const output = await callForData(deps, options, "get_workflow", { repo });
 		if (output.isError) {
 			return render("get_workflow", output, options);
@@ -1816,6 +1824,7 @@ export function registerManageCommands(program: Command, deps: ManageDeps) {
 		.option("--file <path>", "Explicit legacy tripwire.ts collection output")
 		.option("--repo <repo>", "Repository to pull; defaults to the project link")
 		.option("--force", "Replace selected files that have local edits")
+		.option("--regenerate", "Generate SDK code from the current workflow graph")
 		.option("--no-link", "Do not save the repo to .tripwire/project.json")
 		.action(
 			(
