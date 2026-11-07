@@ -30,7 +30,7 @@ export const Route = createFileRoute("/blocklist")({
 	validateSearch: blocklistSearchSchema,
 	loaderDeps: ({ search }) => search,
 	loader: ({ deps }) => getPublicSharedBlocklist({ data: deps }),
-	head: () => ({ meta: [{ title: "Shared spam blocklist | Tripwire" }] }),
+	head: () => ({ meta: [{ title: "Pilot | Tripwire" }] }),
 	pendingComponent: () => (
 		<main data-layout-role="public-blocklist">
 			<Body role="status">Loading the blocklist…</Body>
@@ -93,7 +93,13 @@ function PublicBlocklist() {
 					</a>
 				</div>
 			</nav>
-			<PageTitle>Shared spam blocklist</PageTitle>
+			<header data-layout-role="public-blocklist-stack">
+				<PageTitle>Pilot</PageTitle>
+				<SupportingText>
+					A public list of GitHub accounts reported for spam and reviewed by
+					maintainers.
+				</SupportingText>
+			</header>
 			<section className="shell" aria-labelledby="blocklist-accounts">
 				<div className="panel" data-layout-role="public-blocklist-directory">
 					{showSearch ? (
