@@ -16,11 +16,14 @@ export async function syncRepoReviewers(
 ): Promise<void> {
 	const { db, http, logger } = deps;
 	const repo = await repoServices.getRepoById(db, job.repoId);
-	if (!repo || repo.removedAt || repo.forge !== "github") {
-		logger.info(
-			{ repoId: job.repoId },
-			"reviewer sync skipped: no github repo",
-		);
+	if (!repo || repo.removedAt) {
+		logger.info({ repoId: job.repoId }, "reviewer sync skipped: no repo");
+		return;
+	}
+	if (repo.forge === "gitcafe") return;
+	if (repo.forge !== "github") {
+		logger.info({ repoId: repo.id }, "reviewer sync skipped: non-github repo");
+		await reviewerServices.stampRepoReviewerSync(db, repo.id);
 		return;
 	}
 	if (!http) {
@@ -28,6 +31,7 @@ export async function syncRepoReviewers(
 			{ repoId: repo.id },
 			"reviewer sync skipped: github reads disabled",
 		);
+		await reviewerServices.stampRepoReviewerSync(db, repo.id);
 		return;
 	}
 	try {

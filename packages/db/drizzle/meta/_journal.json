@@ -351,6 +351,13 @@
       "when": 1793248499493,
       "tag": "0049_gitcafe_event_completion",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1794132526753,
+      "tag": "0050_repo_sync_stamps",
+      "breakpoints": true
     }
   ]
 }
