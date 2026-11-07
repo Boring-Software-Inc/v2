@@ -31,10 +31,16 @@ export function isSharedBlocklistEntryActive(
 }
 
 async function readSnapshot(): Promise<SharedBlocklistSnapshot> {
-	const source =
-		sharedBlocklistTarget() === "staging"
-			? SHARED_BLOCKLIST_STAGING_SOURCE
-			: SHARED_BLOCKLIST_SOURCE;
+	const isStaging = sharedBlocklistTarget() === "staging";
+	const source = new URL(
+		isStaging ? SHARED_BLOCKLIST_STAGING_SOURCE : SHARED_BLOCKLIST_SOURCE,
+	);
+	if (isStaging) {
+		source.searchParams.set(
+			"preview",
+			String(Math.floor(Date.now() / REFRESH_MS)),
+		);
+	}
 	const response = await fetch(source, {
 		redirect: "error",
 		signal: AbortSignal.timeout(3_000),
