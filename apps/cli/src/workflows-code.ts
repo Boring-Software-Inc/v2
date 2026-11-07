@@ -33,6 +33,7 @@ import {
 } from "@tripwire/contracts";
 import { z } from "zod";
 import { authoringSource } from "#/authoring-source" with { type: "macro" };
+import { IS_STAGING } from "#/config";
 import { pairs, type Style, workflowTriggerWords } from "#/format";
 import type { PickerItem } from "#/picker";
 import type { System } from "#/system";
@@ -685,7 +686,7 @@ const sdkPackageManifest = z.object({ name: z.string(), version: z.string() });
 /** Resolve from the workflow so a global CLI checks the SDK the project actually uses. */
 export function resolveWorkflowSdk(file: string): string {
 	const path = resolve(file);
-	const install = `Run npm install ${SDK_PACKAGE}@latest in your project.`;
+	const install = `Run npm install ${SDK_PACKAGE}@${IS_STAGING ? "staging" : "latest"} in your project.`;
 	let entry: string;
 	try {
 		entry = createRequire(pathToFileURL(path)).resolve(
@@ -704,12 +705,17 @@ export function resolveWorkflowSdk(file: string): string {
 			);
 			if (parsed.success && parsed.data.name === SDK_PACKAGE) {
 				const { version } = parsed.data;
-				const release = /^(\d+)\.(\d+)\.(\d+)(?:\+[^\s]+)?$/.exec(version);
+				const release =
+					/^(\d+)\.(\d+)\.(\d+)(-staging\.[1-9]\d*)?(?:\+[^\s]+)?$/.exec(
+						version,
+					);
 				if (
 					release &&
+					(!release[4] || IS_STAGING) &&
 					(Number(release[1]) > 0 ||
 						Number(release[2]) > 1 ||
-						(Number(release[2]) === 1 && Number(release[3]) >= 2))
+						(Number(release[2]) === 1 &&
+							Number(release[3]) >= (release[4] ? 3 : 2)))
 				) {
 					return entry;
 				}

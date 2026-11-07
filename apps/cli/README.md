@@ -27,8 +27,9 @@ export PATH="$HOME/.local/tripwire-staging/bin:$PATH"
 tripwire-staging --version
 ```
 
-For a one-off run, use `npx @tripwire-sh/cli@staging login`. Both CLI channels
-use the same `@tripwire-sh/sdk` package in your project.
+For a one-off run, use `npx @tripwire-sh/cli@staging login`. To test SDK
+changes with the staging CLI, install `@tripwire-sh/sdk@staging` in your
+project. The staging CLI also accepts the stable SDK.
 
 The staging release defaults to MCP at
 `https://tripwire-mcp-preview-tripwire.unkey.app/mcp` and auth at
@@ -59,7 +60,12 @@ custom URL overrides require a fresh login rather than reusing the old singleton
 
 ## Release
 
-After the changes you want to release are merged into `staging`, run:
+CLI and contracts changes release through CI when pushed to `staging` or
+`main`. CI installs the packaged CLI and tests workflow pull, compile, and
+push with the SDK from the same channel before it publishes. Staging uses
+the stable SDK until the SDK repository publishes its first staging build.
+
+To release staging on demand, run:
 
 ```sh
 bun run cli:release patch --staging
