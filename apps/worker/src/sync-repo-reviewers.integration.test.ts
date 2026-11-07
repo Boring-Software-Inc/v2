@@ -101,6 +101,43 @@ describe("sync-repo-reviewers", () => {
 		).toHaveLength(1);
 	});
 
+	test("a truncated collaborator list keeps the last set", async () => {
+		await syncRepoReviewers(
+			{ db, http: httpReturning(200, [OCTOCAT]), logger },
+			{ repoId },
+		);
+		expect(
+			(await reviewerServices.listRepoReviewers(db, repoId)).reviewers,
+		).toEqual([
+			{
+				id: 583231,
+				login: "octocat",
+				avatarUrl: "https://avatars.githubusercontent.com/u/583231?v=4",
+				permission: "admin",
+			},
+		]);
+
+		const fullPage = Array.from({ length: 100 }, (_, i) => ({
+			...OCTOCAT,
+			id: 583231 + i,
+			login: `user${i}`,
+		}));
+		await syncRepoReviewers(
+			{ db, http: httpReturning(200, fullPage), logger },
+			{ repoId },
+		);
+		expect(
+			(await reviewerServices.listRepoReviewers(db, repoId)).reviewers,
+		).toEqual([
+			{
+				id: 583231,
+				login: "octocat",
+				avatarUrl: "https://avatars.githubusercontent.com/u/583231?v=4",
+				permission: "admin",
+			},
+		]);
+	});
+
 	test("no github reads or no repo is a no-op", async () => {
 		await syncRepoReviewers({ db, http: null, logger }, { repoId });
 		await syncRepoReviewers(

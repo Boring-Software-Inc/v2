@@ -5,6 +5,18 @@ import type { GithubHttp } from "./http.ts";
 const PAGE_SIZE = 100;
 const MAX_PAGES = 10;
 
+export interface ListRepoReviewersResult {
+	reviewers: RepoReviewer[];
+	/**
+	 * True when the MAX_PAGES safety cap was hit with a full final page —
+	 * GitHub may have more collaborators beyond the fetched set. Callers
+	 * that cache the full set (e.g. the sync job's delete-and-replace)
+	 * must refuse to shrink on a truncated read rather than silently
+	 * replacing a complete set with a partial one.
+	 */
+	truncated: boolean;
+}
+
 const collaboratorSchema = z.object({
 	id: z.number(),
 	login: z.string(),
@@ -37,8 +49,9 @@ function permissionOf(collaborator: Collaborator): string | null {
 export async function listRepoReviewers(
 	http: GithubHttp,
 	repoFullName: string,
-): Promise<RepoReviewer[]> {
+): Promise<ListRepoReviewersResult> {
 	const found: RepoReviewer[] = [];
+	let truncated = false;
 	for (let page = 1; page <= MAX_PAGES; page++) {
 		const rows = pageSchema.parse(
 			await http.get(
@@ -65,6 +78,9 @@ export async function listRepoReviewers(
 		if (rows.length < PAGE_SIZE) {
 			break;
 		}
+		if (page === MAX_PAGES) {
+			truncated = true;
+		}
 	}
-	return found;
+	return { reviewers: found, truncated };
 }
