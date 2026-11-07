@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { AdminBlocklistForm } from "#/components/admin/admin-blocklist-form";
 import { AdminOverviewStats } from "#/components/admin/admin-overview-stats";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { Page, PageBody, PageHeader } from "#/components/layouts/page";
@@ -47,6 +46,11 @@ const SECTIONS = [
 		title: "Installations",
 		description: "See installed forge accounts and which org claimed each one.",
 	},
+	{
+		to: "/admin/pilot",
+		title: "Pilot",
+		description: "Publish accounts to the public spam blocklist.",
+	},
 ] as const;
 
 export function AdminHomePage() {
@@ -90,28 +94,28 @@ export function AdminHomePage() {
 						</SectionBody>
 					</Section>
 
-					<AdminBlocklistForm />
-
 					<Section id="admin-sections">
 						<SectionHeader title="Staff tools" />
 						<SectionBody>
-							<ItemGroup aria-label="Admin sections">
-								{SECTIONS.map((section) => (
-									<Item key={section.to}>
-										<ItemContent>
-											<ItemTitle>
-												<Link
-													data-layout-role="admin-section-link"
-													to={section.to}
-												>
-													{section.title}
-												</Link>
-											</ItemTitle>
-											<ItemDescription>{section.description}</ItemDescription>
-										</ItemContent>
-									</Item>
-								))}
-							</ItemGroup>
+							<nav aria-label="Admin sections">
+								<ItemGroup>
+									{SECTIONS.map((section) => (
+										<Item key={section.to}>
+											<ItemContent>
+												<ItemTitle>
+													<Link
+														data-layout-role="admin-section-link"
+														to={section.to}
+													>
+														{section.title}
+													</Link>
+												</ItemTitle>
+												<ItemDescription>{section.description}</ItemDescription>
+											</ItemContent>
+										</Item>
+									))}
+								</ItemGroup>
+							</nav>
 						</SectionBody>
 					</Section>
 				</PageBody>

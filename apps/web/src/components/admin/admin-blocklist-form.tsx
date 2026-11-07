@@ -22,7 +22,7 @@ export function AdminBlocklistForm() {
 
 	return (
 		<Section id="admin-blocklist">
-			<SectionHeader title="Shared spam blocklist" />
+			<SectionHeader title="Add an account" />
 			<SectionBody>
 				<form
 					data-layout-role="admin-blocklist-form"
@@ -40,8 +40,8 @@ export function AdminBlocklistForm() {
 					}}
 				>
 					<Body>
-						Verify the account before publishing. The username, reason and
-						expiry will be public on GitHub.
+						Verify the account and review the evidence before publishing. The
+						username, reason, and expiry are public.
 					</Body>
 					<label data-layout-role="admin-blocklist-field">
 						GitHub username
