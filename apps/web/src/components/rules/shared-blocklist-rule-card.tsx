@@ -13,9 +13,7 @@ export function SharedBlocklistRuleCard() {
 			aria-labelledby="shared-blocklist-rule-title"
 			data-layout-role="dashboard-news-card"
 		>
-			<SectionHeading id="shared-blocklist-rule-title">
-				Shared spam blocklist
-			</SectionHeading>
+			<SectionHeading id="shared-blocklist-rule-title">Pilot</SectionHeading>
 			<SupportingText>
 				{pilot.enabled ? "On · Review only" : "Off · Review only"}
 			</SupportingText>

@@ -10,11 +10,9 @@ export function DashboardNews() {
 		<section aria-label="New in Tripwire" data-layout-role="dashboard-news">
 			<h2 data-layout-role="dashboard-news-copy">New in Tripwire</h2>
 			<div data-layout-role="dashboard-news-card">
-				<h3 data-layout-role="dashboard-news-title">
-					Review matches from the shared spam blocklist
-				</h3>
+				<h3 data-layout-role="dashboard-news-title">Pilot</h3>
 				<p data-layout-role="dashboard-news-copy">
-					Send matching pull requests to Human review.
+					Send pull requests from listed accounts to Human review.
 				</p>
 				{pilot.enabled ? (
 					<Button
