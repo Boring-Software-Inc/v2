@@ -321,6 +321,7 @@ describe("buildRunChain, a blocked run with two workflows", () => {
 						recordedAt: AT,
 						url: null,
 						label: "Workflow comment",
+						workflowName: "Issue intake",
 					},
 				],
 			}),
@@ -329,7 +330,7 @@ describe("buildRunChain, a blocked run with two workflows", () => {
 			"Verdict comment",
 			"Labeled needs-a-human",
 			"Labeled human-approved",
-			"Workflow comment",
+			"Workflow comment (Issue intake)",
 		]);
 	});
 });

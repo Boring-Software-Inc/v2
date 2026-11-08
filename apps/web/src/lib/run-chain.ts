@@ -722,6 +722,10 @@ function deliveryLabel(target: string, action: RunActionView): string {
 	return `Sent to ${target}`;
 }
 
+function actionWithWorkflow(label: string, action: RunActionView): string {
+	return action.workflowName ? `${label} (${action.workflowName})` : label;
+}
+
 const CHIP_ORDER = ["set-check", "block", "comment"];
 
 const ONE_CHIP_KINDS = new Set([
@@ -756,8 +760,11 @@ export function outcomeChips(run: RunView): ChainChip[] {
 		if (action.kind === "discord" || action.kind === "webhook") {
 			chips.push({
 				key,
-				label: deliveryLabel(
-					action.kind === "discord" ? "Discord" : "a webhook",
+				label: actionWithWorkflow(
+					deliveryLabel(
+						action.kind === "discord" ? "Discord" : "a webhook",
+						action,
+					),
 					action,
 				),
 				glyph: "send",
@@ -803,11 +810,14 @@ export function outcomeChips(run: RunView): ChainChip[] {
 		} else if (action.kind !== "send-to-moderation") {
 			chips.push({
 				key,
-				label:
+				label: actionWithWorkflow(
 					action.label ??
-					ACTION_CATALOG.find((entry) => entry.action === action.kind)?.name ??
-					action.kind,
-				glyph: "action",
+						ACTION_CATALOG.find((entry) => entry.action === action.kind)
+							?.name ??
+						action.kind,
+					action,
+				),
+				glyph: action.kind === "post-comment" ? "comment" : "action",
 				tone: "neutral",
 				href: action.url,
 				internal: false,

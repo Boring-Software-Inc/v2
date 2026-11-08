@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { DEFAULT_WORKFLOW, type WorkflowDefinition } from "@tripwire/contracts";
 import { actionUrl } from "#/lib/run-links";
-import { splitStepNode, workflowOutcomes } from "#/lib/run-workflows";
+import {
+	actionWorkflowName,
+	splitStepNode,
+	workflowOutcomes,
+} from "#/lib/run-workflows";
 
 const HELD: WorkflowDefinition = {
 	id: "wf-solar",
@@ -93,6 +97,30 @@ describe("workflowOutcomes", () => {
 	});
 });
 
+test("attributes an action to its exact workflow in the saved run", () => {
+	const snapshot: WorkflowDefinition[] = [
+		"Issue intake",
+		"Scheduled cleanup",
+	].map((name, index) => ({
+		...DEFAULT_WORKFLOW,
+		id: `workflow-${index}`,
+		name,
+		nodes: [{ id: "comment", type: "action", action: "post-comment" }],
+	}));
+	expect(
+		actionWorkflowName(snapshot, "post-comment", "workflow-0:comment"),
+	).toBe("Issue intake");
+	expect(
+		actionWorkflowName(snapshot, "post-comment", "workflow-1:comment"),
+	).toBe("Scheduled cleanup");
+	expect(
+		actionWorkflowName(snapshot, "close", "workflow-0:comment"),
+	).toBeNull();
+	expect(
+		actionWorkflowName(snapshot.slice(0, 1), "post-comment", "comment"),
+	).toBeNull();
+});
+
 describe("actionUrl", () => {
 	const base = {
 		forge: "github" as const,
@@ -109,6 +137,15 @@ describe("actionUrl", () => {
 			"https://github.com/acme/scratch/pull/91#pullrequestreview-42",
 		);
 		expect(actionUrl({ ...base, kind: "comment" })).toBe(
+			"https://github.com/acme/scratch/pull/91#issuecomment-42",
+		);
+	});
+
+	test("a workflow comment links to the issue or pull request it was posted on", () => {
+		expect(
+			actionUrl({ ...base, kind: "post-comment", subjectKind: "issue" }),
+		).toBe("https://github.com/acme/scratch/issues/91#issuecomment-42");
+		expect(actionUrl({ ...base, kind: "post-comment" })).toBe(
 			"https://github.com/acme/scratch/pull/91#issuecomment-42",
 		);
 	});

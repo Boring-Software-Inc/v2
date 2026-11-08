@@ -33,7 +33,11 @@ import {
 	threadUrlOf,
 	toEventView,
 } from "#/lib/run-links";
-import { parseSnapshot, workflowOutcomes } from "#/lib/run-workflows";
+import {
+	actionWorkflowName,
+	parseSnapshot,
+	workflowOutcomes,
+} from "#/lib/run-workflows";
 import type { JsonValue, RunReviewView, RunView } from "#/lib/runs.functions";
 import type { SessionState } from "#/lib/server/session";
 
@@ -145,11 +149,12 @@ export async function loadRunView(
 					: null,
 		});
 	}
+	const subjectKind = threadSubjectOf(result.run.subjectKind, eventNormalized);
 	const view: RunView = {
 		id: result.run.id,
 		repoFullName: result.run.repoFullName,
 		subjectNumber: result.run.subjectNumber,
-		subjectKind: threadSubjectOf(result.run.subjectKind, eventNormalized),
+		subjectKind,
 		headSha: result.run.headSha,
 		status: result.run.status,
 		verdict: result.run.verdict as Verdict | null,
@@ -205,23 +210,28 @@ export async function loadRunView(
 			})),
 		),
 		actions: collapseSurfaceActions(
-			result.actions.map((action) => ({
-				kind: action.kind,
-				status: action.status,
-				recordedAt: action.recordedAt.toISOString(),
-				label: actionDone(
-					action.kind,
-					actionParamsSchema.parse(action.payload),
-				),
-				url: actionUrl({
-					forge,
-					repoFullName: result.run.repoFullName,
-					number: result.run.subjectNumber,
+			result.actions.map((action) => {
+				const params = actionParamsSchema.parse(action.payload);
+				const nodeId = z.string().safeParse(params.nodeId).data ?? null;
+				return {
 					kind: action.kind,
-					externalId: action.externalId,
-				}),
-				delivery: deliveryStatus(action),
-			})),
+					status: action.status,
+					recordedAt: action.recordedAt.toISOString(),
+					label: actionDone(action.kind, params),
+					workflowName: COLLAPSIBLE_ACTION_KINDS.has(action.kind)
+						? null
+						: actionWorkflowName(snapshot, action.kind, nodeId),
+					url: actionUrl({
+						forge,
+						repoFullName: result.run.repoFullName,
+						number: result.run.subjectNumber,
+						subjectKind,
+						kind: action.kind,
+						externalId: action.externalId,
+					}),
+					delivery: deliveryStatus(action),
+				};
+			}),
 		),
 		redactionLevel: 0,
 		event: eventRow

@@ -48,6 +48,23 @@ export function workflowName(definition: { id: string; name: string }) {
 		: definition.name;
 }
 
+export function actionWorkflowName(
+	snapshot: readonly WorkflowDefinition[],
+	kind: string,
+	nodeId: string | null,
+): string | null {
+	if (nodeId === null) return null;
+	const owner = snapshot.find((definition) =>
+		definition.nodes.some(
+			(node) =>
+				node.type === "action" &&
+				node.action === kind &&
+				`${definition.id}:${node.id}` === nodeId,
+		),
+	);
+	return owner ? workflowName(owner) : null;
+}
+
 export function normalizeStepStatus(status: string): string {
 	if (status === "failed") {
 		return "fail";
