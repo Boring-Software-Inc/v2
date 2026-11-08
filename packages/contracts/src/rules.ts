@@ -163,6 +163,9 @@ export const minMergedPrsConfigSchemaV2 = z.object({
 		.default(1)
 		.describe("merges in this repo that exempt a proven local contributor"),
 });
+const explicitMergedPrsTrustSchema = z.object({
+	trustedAfter: minMergedPrsConfigSchemaV2.shape.trustedAfter.removeDefault(),
+});
 export const ownedRepoStarsConfigSchema = z.strictObject({
 	minStars: z.int().min(0).describe("Minimum stars per repository"),
 	min: z.int().min(1).describe("Minimum owned repositories"),
@@ -263,8 +266,8 @@ export const RULE_CATALOG = [
 		 * signal and auto-create an exemption they never set. Hold for
 		 * re-confirmation instead.
 		 */
-		carriesForward: (config: unknown) =>
-			typeof config === "object" && config !== null && "trustedAfter" in config,
+		carriesForward: (config: JsonValue) =>
+			explicitMergedPrsTrustSchema.safeParse(config).success,
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Requires N merged change requests in other people's repos, as proof that someone else accepted their work.",
@@ -454,7 +457,7 @@ export const RULE_CATALOG = [
 	 * fills new fields with Zod defaults is NOT lossless and must be held for
 	 * re-confirmation.
 	 */
-	carriesForward?: (config: unknown) => boolean;
+	carriesForward?: (config: JsonValue) => boolean;
 	/**
 	 * Forges this rule can run on. Absent ⇒ all of them. Present ⇒ the rule needs
 	 * something the other forges do not expose, and both the engine and the rules
