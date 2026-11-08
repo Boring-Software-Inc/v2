@@ -4,7 +4,7 @@ import {
 	Link,
 	useRouter,
 } from "@tanstack/react-router";
-import { lazy, Suspense } from "react";
+import { type ComponentProps, lazy, Suspense } from "react";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { Button } from "#/design-system/ui/button";
 import {
@@ -18,16 +18,19 @@ import {
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
 
 const RouteErrorInShell = lazy(() =>
-	import("#/components/common/route-error-shell").then((m) => ({
-		default: m.RouteErrorInShell,
-	})),
+	import("#/components/common/route-error-shell").then(
+		(module) => ({ default: module.RouteErrorInShell }),
+		() => ({ default: RouteReload }),
+	),
 );
 
 export function RouteErrorBody({
 	signedIn,
 	onRetry,
+	reload = false,
 }: {
 	signedIn: boolean;
+	reload?: boolean;
 	onRetry: () => Promise<void>;
 }) {
 	return (
@@ -39,14 +42,16 @@ export function RouteErrorBody({
 			<EmptyHeader>
 				<EmptyTitle>This page didn't load</EmptyTitle>
 				<EmptyDescription>
-					{signedIn
-						? "Something broke on our side. Try again, or go back to your home page."
-						: "Something broke on our side. Try again, or sign in."}
+					{reload && "Reload this page to get the latest version."}
+					{!reload &&
+						(signedIn
+							? "Something broke on our side. Try again, or go back to your home page."
+							: "Something broke on our side. Try again, or sign in.")}
 				</EmptyDescription>
 			</EmptyHeader>
 			<EmptyContent>
 				<EmptyRetry onRetry={onRetry} variant="primary">
-					Try again
+					{reload ? "Reload page" : "Try again"}
 				</EmptyRetry>
 				<Button
 					nativeButton={false}
@@ -61,13 +66,39 @@ export function RouteErrorBody({
 	);
 }
 
-export function RouteError({ reset }: ErrorComponentProps) {
+function StandaloneRouteError(props: ComponentProps<typeof RouteErrorBody>) {
+	return (
+		<main data-layout-role="standalone-route-error">
+			<RouteErrorBody {...props} />
+		</main>
+	);
+}
+
+function RouteReload() {
+	return (
+		<StandaloneRouteError
+			onRetry={async () => window.location.reload()}
+			reload
+			signedIn
+		/>
+	);
+}
+
+export function RouteError({ error, reset }: ErrorComponentProps) {
 	const router = useRouter();
 	const { data: session } = useQuery(sessionInfoQueryOptions());
 	const onRetry = async () => {
 		reset();
 		await router.invalidate();
 	};
+
+	if (
+		/Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Unable to preload CSS/i.test(
+			error.message,
+		)
+	) {
+		return <RouteReload />;
+	}
 
 	if (session?.user) {
 		return (
@@ -76,9 +107,5 @@ export function RouteError({ reset }: ErrorComponentProps) {
 			</Suspense>
 		);
 	}
-	return (
-		<main className="flex min-h-dvh items-center justify-center bg-page px-4 py-10">
-			<RouteErrorBody onRetry={onRetry} signedIn={false} />
-		</main>
-	);
+	return <StandaloneRouteError onRetry={onRetry} signedIn={false} />;
 }

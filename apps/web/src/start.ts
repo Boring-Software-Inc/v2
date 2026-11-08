@@ -15,6 +15,12 @@ import { isServerOnlyAuthPath } from "#/lib/server-only-auth-paths";
 const authRequestMiddleware = createMiddleware({ type: "request" }).server(
 	async ({ next, request }) => {
 		const url = new URL(request.url);
+		if (import.meta.env.PROD && url.pathname.startsWith("/assets/")) {
+			return new Response(null, {
+				status: 404,
+				headers: { "Cache-Control": "no-store" },
+			});
+		}
 		if (url.pathname === SHARED_BLOCKLIST_API_PATH) {
 			const { handlePublicBlocklist } = await import(
 				"#/lib/server/public-blocklist"
@@ -95,31 +101,38 @@ const authRequestMiddleware = createMiddleware({ type: "request" }).server(
  */
 const securityHeadersMiddleware = createMiddleware({ type: "request" }).server(
 	async ({ next, request }) => {
-		const response = await next();
-		if (response instanceof Response) {
-			const h = response.headers;
-			h.set("X-Content-Type-Options", "nosniff");
-			h.set("X-Frame-Options", "DENY");
-			h.set("Content-Security-Policy", "frame-ancestors 'none'");
-			const setup = new URL(request.url).pathname === "/onboarding/setup";
-			if (!h.has("Referrer-Policy"))
-				h.set("Referrer-Policy", "strict-origin-when-cross-origin");
-			if (setup) {
-				h.set("Referrer-Policy", "no-referrer");
-				h.set("Cache-Control", "no-store");
-				h.set("Pragma", "no-cache");
-			}
-			if (import.meta.env.PROD) {
-				h.set(
-					"Strict-Transport-Security",
-					"max-age=63072000; includeSubDomains; preload",
-				);
-			}
-			if (!setup && (h.get("content-type") ?? "").includes("text/html")) {
-				h.set("Cache-Control", "no-cache");
-			}
+		const result = await next();
+		const { response } = result;
+		if (isRedirect(response)) return result;
+		const h = new Headers(response.headers);
+		h.set("X-Content-Type-Options", "nosniff");
+		h.set("X-Frame-Options", "DENY");
+		h.set("Content-Security-Policy", "frame-ancestors 'none'");
+		const setup = new URL(request.url).pathname === "/onboarding/setup";
+		if (!h.has("Referrer-Policy"))
+			h.set("Referrer-Policy", "strict-origin-when-cross-origin");
+		if (setup) {
+			h.set("Referrer-Policy", "no-referrer");
+			h.set("Cache-Control", "no-store");
+			h.set("Pragma", "no-cache");
 		}
-		return response;
+		if (import.meta.env.PROD) {
+			h.set(
+				"Strict-Transport-Security",
+				"max-age=63072000; includeSubDomains; preload",
+			);
+		}
+		if (!setup && (h.get("content-type") ?? "").includes("text/html")) {
+			h.set("Cache-Control", "no-cache");
+		}
+		return {
+			...result,
+			response: new Response(response.body, {
+				status: response.status,
+				statusText: response.statusText,
+				headers: h,
+			}),
+		};
 	},
 );
 

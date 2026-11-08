@@ -11,9 +11,10 @@ import { cn } from "#/design-system/lib/utils";
 import { CopyButton } from "#/design-system/ui/copy-button";
 
 const PierreFile = lazy(() =>
-	import("#/components/code/pierre-code").then((module) => ({
-		default: module.PierreFile,
-	})),
+	import("#/components/code/pierre-code").then(
+		(module) => ({ default: module.PierreFile }),
+		() => ({ default: PlainCode }),
+	),
 );
 
 export interface TripwireCodeFileProps {

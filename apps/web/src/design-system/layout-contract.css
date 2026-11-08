@@ -3253,3 +3253,12 @@
 [data-layout-role="org-name-fields"] > .org-name-avatar {
 	margin-block-end: var(--space-1);
 }
+
+[data-layout-role="standalone-route-error"] {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-block-size: 100dvh;
+	padding: calc(var(--space-2) * 5) var(--space-4);
+	background: var(--page);
+}
