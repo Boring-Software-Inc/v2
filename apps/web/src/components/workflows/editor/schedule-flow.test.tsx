@@ -46,8 +46,9 @@ test("TriggerFlow readonly keeps event choices visible but disables native contr
 	);
 	expect(html).toContain('data-status="current"');
 	expect(html).toContain("A change request opens");
+	expect(html).toContain("An issue opens");
 	expect(
 		html.match(/<input(?=[^>]*type="checkbox")(?=[^>]*disabled="")[^>]*>/g),
-	).toHaveLength(5);
+	).toHaveLength(6);
 	expect(html.match(/role="radio"[^>]*aria-disabled="true"/g)).toHaveLength(2);
 });
