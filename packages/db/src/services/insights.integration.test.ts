@@ -249,7 +249,10 @@ describe("getRulesStats — repo-scoped, real stored data", () => {
 			},
 		]);
 
-		const stats = await insightServices.getRulesStats(db, repo);
+		const stats = await insightServices.getRulesStats(db, {
+			forge: "github",
+			fullName: repo,
+		});
 
 		// Top-level series: 5h fail at 23 - 5 = 18, 10h fail at 23 - 10 = 13.
 		expect(stats.matches24h.series.findIndex((x) => x > 0)).toBe(13);

@@ -2,6 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { globMatch } from "./glob.ts";
 
 describe("globMatch", () => {
+	test("a literal null character never becomes a wildcard", () => {
+		expect(globMatch("a\u0000b", "a/xb")).toBe(false);
+	});
+
 	describe("literal spaces in patterns stay literal (regression for the space-placeholder bug)", () => {
 		test("a pattern with a space does not match a path where the space would be a wildcard", () => {
 			expect(globMatch("docs/My Folder/**", "docs/MyXFolder/secret.yml")).toBe(
