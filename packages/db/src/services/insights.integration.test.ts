@@ -148,13 +148,13 @@ describe("getRulesStats — repo-scoped, real stored data", () => {
 				["block"],
 			);
 			await db.execute(
-				sql`UPDATE runs SET created_at = now() - make_interval(hours => ${hours}) WHERE id = ${runId}`,
+				sql`UPDATE runs SET created_at = now() - make_interval(hours => ${hours}, mins => 30) WHERE id = ${runId}`,
 			);
 			await db.execute(
-				sql`UPDATE run_steps SET started_at = now() - make_interval(hours => ${hours}) WHERE run_id = ${runId}`,
+				sql`UPDATE run_steps SET started_at = now() - make_interval(hours => ${hours}, mins => 30) WHERE run_id = ${runId}`,
 			);
 			await db.execute(
-				sql`UPDATE run_actions SET executed_at = now() - make_interval(hours => ${hours}) WHERE run_id = ${runId}`,
+				sql`UPDATE run_actions SET executed_at = now() - make_interval(hours => ${hours}, mins => 30) WHERE run_id = ${runId}`,
 			);
 		}
 		const repo = { forge: "github", fullName } satisfies RepoIdentity;
@@ -206,8 +206,8 @@ describe("getRulesStats — repo-scoped, real stored data", () => {
 		// 10h ago → 13. Under the old clock-hour bucket these would land at
 		// (currentHour - 5) and (currentHour - 10), disagreeing with the
 		// top-level series.
-		const at5h = new Date(Date.now() - 5 * 3600_000).toISOString();
-		const at10h = new Date(Date.now() - 10 * 3600_000).toISOString();
+		const at5h = new Date(Date.now() - 5.5 * 3600_000).toISOString();
+		const at10h = new Date(Date.now() - 10.5 * 3600_000).toISOString();
 		const ref5h = "ordering-5h@1";
 		const ref10h = "ordering-10h@1";
 		await recordSteps(db, runId, [
