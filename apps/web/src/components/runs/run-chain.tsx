@@ -27,7 +27,6 @@ import {
 	Workflow,
 } from "#/design-system/icon";
 import { Badge } from "#/design-system/ui/badge";
-import { Button } from "#/design-system/ui/button";
 import { RelativeTime } from "#/design-system/ui/relative-time";
 import {
 	type ChainBranch,
@@ -230,39 +229,39 @@ const CHIP_TONE = {
 } satisfies Record<ChainChip["tone"], string>;
 
 function OutcomeChip({ chip }: { chip: ChainChip }) {
-	const glyph = (
-		<Icon
-			className={CHIP_TONE[chip.tone]}
-			icon={CHIP_GLYPH[chip.glyph]}
-			size={12}
-		/>
-	);
-	if (!chip.href) {
-		return (
-			<Badge className="self-center" variant="outline">
-				{glyph}
-				{chip.label}
-			</Badge>
-		);
-	}
 	const href = chip.href;
+
 	return (
-		<Button
-			nativeButton={false}
-			render={(props) =>
-				chip.internal ? (
-					<Link {...props} params={{ runId: href }} to="/runs/$runId" />
-				) : (
-					<a {...props} href={href} rel="noreferrer" target="_blank" />
-				)
+		<Badge
+			data-layout-role="run-outcome-chip"
+			render={
+				href
+					? (props) =>
+							chip.internal ? (
+								<Link {...props} params={{ runId: href }} to="/runs/$runId" />
+							) : (
+								<a {...props} href={href} rel="noreferrer" target="_blank" />
+							)
+					: undefined
 			}
-			size="sm"
-			variant="secondary"
+			variant="outline"
 		>
-			{glyph}
-			{chip.label}
-			<Icon className="text-text-3" icon={ArrowUpRight} size={12} />
-		</Button>
+			<Icon
+				className={CHIP_TONE[chip.tone]}
+				icon={CHIP_GLYPH[chip.glyph]}
+				size={12}
+			/>
+			<span className="min-w-0 truncate" title={chip.label}>
+				{chip.label}
+			</span>
+			{href ? (
+				<Icon
+					data-layout-role="run-outcome-chip-arrow"
+					icon={ArrowUpRight}
+					size={12}
+				/>
+			) : null}
+		</Badge>
 	);
 }
 
