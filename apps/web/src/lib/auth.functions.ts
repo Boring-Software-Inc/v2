@@ -35,8 +35,6 @@ export interface SessionInfo {
 	 * route gate can never disagree with what the server actually blocks.
 	 */
 	gateEnabled: boolean;
-	/** Server-resolved so SSR and hydration choose the same dashboard chrome. */
-	sidebarEnabled: boolean;
 	impersonation?: {
 		login: string | null;
 		expiresAt: string;
@@ -53,7 +51,6 @@ export const getSessionInfo = createServerFn({ method: "GET" }).handler(
 				authEnabled: false,
 				defaultOrgSlug: null,
 				gateEnabled: false,
-				sidebarEnabled: false,
 			};
 		}
 		const { getStartContext } = await import("@tanstack/start-storage-context");
@@ -65,7 +62,6 @@ export const getSessionInfo = createServerFn({ method: "GET" }).handler(
 				authEnabled: true,
 				defaultOrgSlug: null,
 				gateEnabled: false,
-				sidebarEnabled: false,
 			};
 		}
 		const {
@@ -76,10 +72,7 @@ export const getSessionInfo = createServerFn({ method: "GET" }).handler(
 		const { getDb } = await import("#/lib/server/db");
 		const { eq } = await import("drizzle-orm");
 		const { isAccessGateEnabled } = await import("@tripwire/auth/access-gate");
-		const { FLAGS } = await import("@tripwire/auth/databuddy");
-		const { fenceOf, getFlagEvaluator } = await import(
-			"#/lib/server/staff-users"
-		);
+		const { fenceOf } = await import("#/lib/server/staff-users");
 		const db = getDb().db;
 		const rows = await db
 			.select({
@@ -95,15 +88,7 @@ export const getSessionInfo = createServerFn({ method: "GET" }).handler(
 			userId: session.user.id,
 			email: session.user.email,
 		};
-		const [gateEnabled, layoutFlags] = await Promise.all([
-			isAccessGateEnabled(flagUser),
-			getFlagEvaluator().then((evaluate) =>
-				evaluate([FLAGS.showSidebar], flagUser),
-			),
-		]);
-		const sidebarEnabled =
-			layoutFlags.find((flag) => flag.key === FLAGS.showSidebar)?.enabled ??
-			false;
+		const gateEnabled = await isAccessGateEnabled(flagUser);
 		// `/` redirect target: the session's last-visited org while membership
 		// still holds, else the personal org (every user has one).
 		const orgs = await orgServices.listUserOrgs(db, session.user.id);
@@ -142,7 +127,6 @@ export const getSessionInfo = createServerFn({ method: "GET" }).handler(
 			authEnabled: true,
 			defaultOrgSlug,
 			gateEnabled,
-			sidebarEnabled,
 		};
 	},
 );

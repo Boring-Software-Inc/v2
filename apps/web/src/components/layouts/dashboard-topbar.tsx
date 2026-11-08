@@ -2,13 +2,6 @@ import { Link } from "@tanstack/react-router";
 import { useTheme } from "next-themes";
 import { TripwireWordmark } from "#/components/common/tripwire-wordmark";
 import { useFeedback } from "#/components/feedback";
-import { CommandPaletteButton } from "#/components/layouts/command-palette-launcher";
-import { HeaderFeedbackControl } from "#/components/layouts/header-feedback-control";
-import {
-	OrgSwitcher,
-	RepoSwitcher,
-} from "#/components/layouts/scope-switchers";
-import { SetupPill } from "#/components/setup/setup-pill";
 import {
 	Comment,
 	Dark,
@@ -33,47 +26,6 @@ import { useActiveScope } from "#/hooks/use-active-scope";
 import { useHasMounted } from "#/hooks/use-has-mounted";
 import { useSignOut } from "#/hooks/use-sign-out";
 import type { CurrentUser } from "#/lib/auth.functions";
-
-interface DashboardTopbarProps {
-	user: CurrentUser | null;
-}
-
-export function DashboardTopbar({ user }: DashboardTopbarProps) {
-	const scope = useActiveScope();
-	const org = scope.org?.slug;
-
-	return (
-		<nav
-			aria-label="Primary"
-			data-feedback-name="DashboardTopbar"
-			className="flex h-12 min-w-0 shrink-0 items-center gap-1 px-2 sm:px-3"
-		>
-			<Brand org={org} />
-			<Slash />
-			<OrgSwitcher />
-			{org ? (
-				<>
-					<Slash />
-					<RepoSwitcher />
-					{scope.repo ? <SetupPill /> : null}
-				</>
-			) : null}
-			<div className="ms-auto flex min-w-0 items-center gap-1 sm:gap-2">
-				<CommandPaletteButton />
-				<HeaderFeedbackControl />
-				<UserMenu user={user} />
-			</div>
-		</nav>
-	);
-}
-
-function Slash() {
-	return (
-		<span aria-hidden className="type-body text-text-3">
-			/
-		</span>
-	);
-}
 
 export function Brand({ org }: { org: string | undefined }) {
 	return (

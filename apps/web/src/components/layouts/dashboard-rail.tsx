@@ -1,6 +1,7 @@
 import { DashboardNews } from "#/components/layouts/dashboard-news";
 import { ShellNav } from "#/components/layouts/shell-nav";
 import { SetupPill } from "#/components/setup/setup-pill";
+import { cn } from "#/design-system/lib/utils";
 import { useActiveScope } from "#/hooks/use-active-scope";
 import type { CurrentUser } from "#/lib/auth.functions";
 import { CommandPaletteButton } from "./command-palette-launcher";
@@ -11,16 +12,23 @@ import { OrgSwitcher, RepoSwitcher } from "./scope-switchers";
 export function DashboardRail({
 	user,
 	counts,
+	className,
+	nav = true,
 }: {
 	user: CurrentUser | null;
 	counts: { queue?: number };
+	className?: string;
+	nav?: boolean;
 }) {
 	const scope = useActiveScope();
 	const org = scope.org?.slug;
 	return (
 		<nav
 			aria-label="Primary"
-			className="flex w-56 shrink-0 flex-col gap-4 overflow-y-auto px-1 py-2"
+			className={cn(
+				"flex w-56 shrink-0 flex-col gap-4 overflow-y-auto px-1 py-2",
+				className,
+			)}
 		>
 			<div className="flex items-center justify-between ps-1">
 				<Brand org={org} />
@@ -32,9 +40,15 @@ export function DashboardRail({
 				{scope.repo ? <SetupPill appearance="rail" /> : null}
 			</div>
 			<CommandPaletteButton wide />
-			<ShellNav counts={counts} variant="rail" />
+			{nav ? (
+				<ShellNav
+					counts={counts}
+					scope={{ org, repo: scope.repo }}
+					variant="rail"
+				/>
+			) : null}
 			<div className="mt-auto flex flex-col gap-4">
-				<DashboardNews />
+				{nav ? <DashboardNews /> : null}
 				<UserMenu showName user={user} />
 			</div>
 		</nav>

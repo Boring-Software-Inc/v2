@@ -745,6 +745,21 @@
 	text-decoration: underline;
 }
 
+[data-layout-role="run-outcome-chip"] {
+	height: var(--control-sm);
+	gap: calc(var(--space-1) * 1.5);
+	border-radius: var(--radius-pill);
+	padding-inline: calc(var(--space-1) * 2.5);
+}
+
+[data-layout-role="run-outcome-chip"]:any-link:hover {
+	background-color: var(--hover);
+}
+
+[data-layout-role="run-outcome-chip-arrow"] {
+	color: var(--text-3);
+}
+
 [data-layout-role="run-skeleton-action-small"],
 [data-layout-role="run-skeleton-action-wide"] {
 	block-size: var(--control-sm);

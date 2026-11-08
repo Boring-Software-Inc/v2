@@ -22,6 +22,7 @@ type NavVariant = "tabs" | "rail";
 interface ShellNavProps {
 	counts: { queue?: number };
 	variant?: NavVariant;
+	scope?: { org: string | undefined; repo: string | null };
 }
 
 const NAV_CLASS = {
@@ -34,10 +35,10 @@ const LINK_CLASS = {
 	rail: "flex h-(--control) items-center gap-2 rounded-tag px-2 type-label text-text-2 hover:bg-hover hover:text-text-1 aria-[current=page]:bg-pressed aria-[current=page]:text-text-1",
 } satisfies Record<NavVariant, string>;
 
-export function ShellNav({ counts, variant = "tabs" }: ShellNavProps) {
+export function ShellNav({ counts, scope, variant = "tabs" }: ShellNavProps) {
 	const params = useParams({ strict: false });
-	const org = params.org;
-	const repo = params.repo;
+	const org = params.org ?? scope?.org;
+	const repo = params.repo ?? scope?.repo;
 	const navRef = useRef<HTMLElement>(null);
 	useActiveLinkInView(navRef);
 	const { data: permissions } = useQuery({

@@ -1,20 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import { DevScenarioSwitcher } from "#/components/dev/dev-scenario-switcher";
 import {
 	FeedbackPanel,
 	FeedbackPicker,
 	FeedbackProvider,
 } from "#/components/feedback";
-import { DashboardNews } from "#/components/layouts/dashboard-news";
-import { ShellNav } from "#/components/layouts/shell-nav";
 import { cn } from "#/design-system/lib/utils";
 import { useMediaQuery } from "#/hooks/use-media-query";
-import {
-	currentUserQueryOptions,
-	sessionInfoQueryOptions,
-} from "#/lib/auth.query";
+import { currentUserQueryOptions } from "#/lib/auth.query";
 import { CommandPaletteLauncher } from "./command-palette-launcher";
 import { DashboardRail } from "./dashboard-rail";
 import {
@@ -22,7 +17,6 @@ import {
 	SidePanelToggle,
 	useSidePanel,
 } from "./dashboard-side-panel";
-import { DashboardTopbar } from "./dashboard-topbar";
 import { MobileFooter } from "./mobile-footer";
 import { RouteProgress } from "./route-progress";
 
@@ -50,12 +44,9 @@ function DashboardShell({
 	children,
 }: DashboardLayoutProps) {
 	const { data: user } = useQuery(currentUserQueryOptions());
-	const { data: session } = useQuery(sessionInfoQueryOptions());
-	const [sidebarEnabled] = useState(() => session?.sidebarEnabled ?? false);
 	const { content, collapsed } = useSidePanel();
 	const isDesktop = useMediaQuery("(min-width: 768px)");
 	const showPanel = isDesktop && Boolean(content) && !collapsed;
-	const rail = isDesktop && sidebarEnabled;
 	const params = useParams({ strict: false });
 	const inset = Boolean(params.repo);
 
@@ -100,21 +91,19 @@ function DashboardShell({
 				>
 					Skip to content
 				</a>
-				{rail ? null : (
-					<>
-						<DashboardTopbar user={user ?? null} />
-						{nav ? <ShellNav counts={counts} /> : null}
-						{nav ? <DashboardNews /> : null}
-					</>
-				)}
 				<RouteProgress />
 
-				<div className={cn("flex min-h-0 flex-1", rail && "py-2 pe-2")}>
-					{rail ? <DashboardRail counts={counts} user={user ?? null} /> : null}
+				<div className="flex min-h-0 flex-1 md:py-2 md:pe-2">
+					<DashboardRail
+						className="hidden md:flex"
+						counts={counts}
+						nav={nav}
+						user={user ?? null}
+					/>
 					<div
 						className={cn(
 							"grid min-h-0 flex-1 transition-[padding] duration-(--dur-overlay) ease-out",
-							rail ? "p-0" : inset ? "px-2 pt-2 pb-2" : "px-0 pb-0",
+							inset ? "px-2 pt-2 pb-2 md:p-0" : "p-0",
 							showPanel
 								? "grid-cols-[minmax(0,1fr)_--spacing(82)]"
 								: "grid-cols-[minmax(0,1fr)]",
@@ -123,9 +112,9 @@ function DashboardShell({
 						<div
 							className={cn(
 								"relative flex min-h-0 flex-col overflow-hidden bg-paper transition-[border-radius] duration-(--dur-overlay) ease-out",
-								inset || rail
+								inset
 									? "rounded-shell border border-line-faint"
-									: "rounded-none border-0",
+									: "md:rounded-shell md:border md:border-line-faint",
 							)}
 						>
 							<main
@@ -167,7 +156,9 @@ function DashboardShell({
 					</div>
 				</div>
 
-				<MobileFooter />
+				{isDesktop ? null : (
+					<MobileFooter counts={counts} nav={nav} user={user ?? null} />
+				)}
 				<CommandPaletteLauncher />
 				<DevScenarioSwitcher />
 			</div>
