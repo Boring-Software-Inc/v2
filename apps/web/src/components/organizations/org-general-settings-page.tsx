@@ -152,10 +152,10 @@ function RenameCard({
 			}}
 		>
 			<div className="panel flex flex-col gap-4 p-4">
-				<div className="flex items-end gap-3">
+				<div data-layout-role="org-name-fields">
 					<OrgAvatar
 						animate
-						className="mb-1"
+						className="org-name-avatar"
 						hue={orgContext.avatarHue}
 						name={name}
 						size="lg"

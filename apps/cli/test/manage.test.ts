@@ -195,79 +195,77 @@ describe("management commands over MCP", () => {
 		).toEqual([]);
 	});
 
-	test("commands map to tools with org and args", async () => {
-		const cases: Array<[string[], string, ToolCall["args"]]> = [
-			[["status"], "setup_status", { org: "acme" }],
-			[["repos"], "list_repos", { org: "acme" }],
-			[["rules", "list"], "list_rule_catalog", { org: "acme" }],
+	const commandMappings: Array<[string[], string, ToolCall["args"]]> = [
+		[["status"], "setup_status", { org: "acme" }],
+		[["repos"], "list_repos", { org: "acme" }],
+		[["rules", "list"], "list_rule_catalog", { org: "acme" }],
+		[
+			["rules", "list", "acme/web"],
+			"get_repo_rules",
+			{ org: "acme", repo: "acme/web" },
+		],
+		[
 			[
-				["rules", "list", "acme/web"],
-				"get_repo_rules",
-				{ org: "acme", repo: "acme/web" },
+				"rules",
+				"set",
+				"acme/web",
+				"account-age@1",
+				"--enable",
+				"--param",
+				"minDays=30",
+				"--param",
+				"mode=strict",
 			],
-			[
-				[
-					"rules",
-					"set",
-					"acme/web",
-					"account-age@1",
-					"--enable",
-					"--param",
-					"minDays=30",
-					"--param",
-					"mode=strict",
-				],
-				"set_rule",
-				{
-					org: "acme",
-					repo: "acme/web",
-					ruleId: "account-age@1",
-					enabled: true,
-					config: { minDays: 30, mode: "strict" },
-				},
-			],
-			[
-				["gate", "on", "acme/web"],
-				"turn_on_gate",
-				{ org: "acme", repo: "acme/web" },
-			],
-			[
-				["workflows", "list", "acme/web"],
-				"list_workflows",
-				{ org: "acme", repo: "acme/web" },
-			],
-			[
-				["workflows", "disable", "acme/web", "wf_1"],
-				"set_workflow_enabled",
-				{ org: "acme", repo: "acme/web", workflowId: "wf_1", enabled: false },
-			],
-			[
-				["runs", "list", "--repo", "acme/web", "--limit", "5"],
-				"list_runs",
-				{ org: "acme", repo: "acme/web", limit: 5 },
-			],
-			[
-				["queue", "list", "--repo", "acme/web"],
-				"list_moderation_queue",
-				{ org: "acme", repo: "acme/web" },
-			],
-			[
-				["queue", "decide", "acme/web", "item_9", "approve"],
-				"decide_moderation",
-				{
-					org: "acme",
-					repo: "acme/web",
-					itemId: "item_9",
-					decision: "approve",
-				},
-			],
-		];
-		for (const [args, tool, expected] of cases) {
-			server.calls.length = 0;
-			const result = await runCli(["--org", "acme", "--json", ...args], env());
-			expect(result.code).toBe(0);
-			expect(server.calls).toEqual([{ name: tool, args: expected }]);
-		}
+			"set_rule",
+			{
+				org: "acme",
+				repo: "acme/web",
+				ruleId: "account-age@1",
+				enabled: true,
+				config: { minDays: 30, mode: "strict" },
+			},
+		],
+		[
+			["gate", "on", "acme/web"],
+			"turn_on_gate",
+			{ org: "acme", repo: "acme/web" },
+		],
+		[
+			["workflows", "list", "acme/web"],
+			"list_workflows",
+			{ org: "acme", repo: "acme/web" },
+		],
+		[
+			["workflows", "disable", "acme/web", "wf_1"],
+			"set_workflow_enabled",
+			{ org: "acme", repo: "acme/web", workflowId: "wf_1", enabled: false },
+		],
+		[
+			["runs", "list", "--repo", "acme/web", "--limit", "5"],
+			"list_runs",
+			{ org: "acme", repo: "acme/web", limit: 5 },
+		],
+		[
+			["queue", "list", "--repo", "acme/web"],
+			"list_moderation_queue",
+			{ org: "acme", repo: "acme/web" },
+		],
+		[
+			["queue", "decide", "acme/web", "item_9", "approve"],
+			"decide_moderation",
+			{
+				org: "acme",
+				repo: "acme/web",
+				itemId: "item_9",
+				decision: "approve",
+			},
+		],
+	];
+
+	test.each(commandMappings)("maps %j to %s", async (args, tool, expected) => {
+		const result = await runCli(["--org", "acme", "--json", ...args], env());
+		expect(result.code).toBe(0);
+		expect(server.calls).toEqual([{ name: tool, args: expected }]);
 	});
 
 	test("TRIPWIRE_ORG is used when --org is absent", async () => {

@@ -46,6 +46,7 @@ import { SkeletonSwap, SkeletonText } from "#/design-system/ui/skeleton";
 import { Status } from "#/design-system/ui/status";
 import { Switch } from "#/design-system/ui/switch";
 import { toast } from "#/design-system/ui/toast";
+import { SupportingText } from "#/design-system/ui/typography";
 import { useHasMounted } from "#/hooks/use-has-mounted";
 import { useSignOut } from "#/hooks/use-sign-out";
 import { useDeviceTimezone } from "#/hooks/use-timezones";
@@ -319,9 +320,9 @@ function SessionsSection() {
 								</DialogDescription>
 							</DialogHeader>
 							<DialogBody>
-								<p className="type-body-sm text-text-2">
+								<SupportingText>
 									You will need to sign in again on those devices.
-								</p>
+								</SupportingText>
 							</DialogBody>
 							<DialogFooter>
 								<DialogClose>Cancel</DialogClose>

@@ -31,14 +31,14 @@ export function PilotLibraryRow({
 }) {
 	return (
 		<li className="rule-row">
-			<Item className="gap-4 py-3">
+			<Item data-layout-role="pilot-library-row">
 				<ItemContent>
 					<ItemTitle>
-						<h3 className="type-label">Pilot</h3>
+						<h3>Pilot</h3>
 					</ItemTitle>
 					<ItemDescription>{PILOT_DESCRIPTION}</ItemDescription>
 				</ItemContent>
-				<ItemActions className="me-0">
+				<ItemActions>
 					<Button
 						aria-label="Install Pilot"
 						onClick={onInstall}
@@ -83,7 +83,7 @@ export function SharedBlocklistRuleCard({
 						<h2 className="min-w-0 truncate type-label-lg">Pilot</h2>
 						<Button
 							aria-label="Uninstall Pilot"
-							className="ms-auto"
+							data-layout-role="pilot-rule-action"
 							onClick={onUninstall}
 							pending={pending || undefined}
 							pendingLabel="Uninstalling"

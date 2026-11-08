@@ -12,6 +12,7 @@ import {
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "#/design-system/ui/collapsible";
+import { Caption } from "#/design-system/ui/typography";
 import {
 	branchOutcomeLabel,
 	branchSummary,
@@ -67,8 +68,8 @@ function PassedFold({
 										</span>
 									) : null}
 									{formatDuration(rule.step.durationMs) ? (
-										<span className="shrink-0 type-caption">
-											{formatDuration(rule.step.durationMs)}
+										<span className="shrink-0">
+											<Caption>{formatDuration(rule.step.durationMs)}</Caption>
 										</span>
 									) : null}
 								</span>
@@ -111,9 +112,7 @@ function FlaggedRule({
 						{failed ? "Did not pass" : "Skipped"}
 					</span>
 					{formatDuration(rule.step.durationMs) ? (
-						<span className="type-caption text-text-2">
-							{formatDuration(rule.step.durationMs)}
-						</span>
+						<Caption>{formatDuration(rule.step.durationMs)}</Caption>
 					) : null}
 				</div>
 				{reason ? (

@@ -24,10 +24,8 @@ export function CodeHeader({
 }: CodeHeaderProps) {
 	return (
 		<div
-			className={cn(
-				"flex h-10 min-w-0 items-center gap-2 border-line-faint border-b ps-3.5 pe-1.5",
-				className,
-			)}
+			className={cn("flex h-10 min-w-0 items-center", className)}
+			data-layout-role="code-header"
 		>
 			{leading}
 			<Icon className="text-text-2" icon={FileCode} />

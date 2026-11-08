@@ -47,9 +47,7 @@ export function TripwireCodeDiff({
 	const narrow = useMediaQuery("(max-width: 639.98px)");
 	const header = (stats?: DiffStats) => (
 		<CodeHeader
-			className={
-				review ? "sticky top-0 z-10 bg-code-surface ps-1.5" : undefined
-			}
+			className={review ? "sticky top-0 z-10 bg-code-surface" : undefined}
 			leading={
 				review ? (
 					<Button
