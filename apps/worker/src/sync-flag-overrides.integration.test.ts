@@ -85,12 +85,15 @@ beforeAll(async () => {
 	pool = handle.pool;
 	await applyMigrations(db);
 	boss = await createBoss(container.url);
-});
+}, 120_000);
 
 afterAll(async () => {
-	await boss.stop({ graceful: false });
-	await pool.end();
-	await container.stop();
+	try {
+		await boss?.stop({ graceful: false });
+		await pool?.end();
+	} finally {
+		await container?.stop();
+	}
 });
 
 describe("sync-flag-overrides job", () => {

@@ -301,5 +301,5 @@ for (const admin of [true, false]) {
 			await recovered.pool.end();
 			await isolated.stop();
 		}
-	});
+	}, 120_000);
 }
