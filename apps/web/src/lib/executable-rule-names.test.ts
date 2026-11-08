@@ -4,7 +4,7 @@ import { executableRuleNames } from "#/lib/activity.functions";
 type Workflow = { nodes: { type: string; ref?: string }[] };
 
 const wf = (nodes: Workflow["nodes"]): Workflow => ({ nodes });
-const rule = (ref: string): { type: string; ref: string } => ({
+const rule = (ref: string) => ({
 	type: "rule",
 	ref,
 });

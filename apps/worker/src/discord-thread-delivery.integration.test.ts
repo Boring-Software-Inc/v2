@@ -8,8 +8,10 @@ import {
 } from "bun:test";
 import {
 	DEFAULT_WORKFLOW,
+	type JsonValue,
 	type NormalizedEvent,
 	normalizedEventSchema,
+	webhookPayloadSchema,
 } from "@tripwire/contracts";
 import {
 	applyMigrations,
@@ -148,15 +150,16 @@ async function seedRunWithDeliveries(
 	return { runId, rows };
 }
 
-async function actionRow(actionId: string): Promise<{
-	status: string;
-	payload: Record<string, unknown>;
-}> {
-	const res = await pool.query<{
-		status: string;
-		payload: Record<string, unknown>;
-	}>("SELECT status, payload FROM run_actions WHERE id = $1", [actionId]);
-	return res.rows[0] ?? { status: "missing", payload: {} };
+async function actionRow(actionId: string) {
+	const { rows } = await pool.query<{ status: string; delivery: JsonValue }>(
+		"SELECT status, payload->'delivery' AS delivery FROM run_actions WHERE id = $1",
+		[actionId],
+	);
+	const row = rows[0];
+	return {
+		status: row?.status ?? "missing",
+		delivery: webhookPayloadSchema.nullable().parse(row?.delivery ?? null),
+	};
 }
 
 describe("thread-path delivery: discord rows are delivered, not mis-executed", () => {
@@ -199,8 +202,8 @@ describe("thread-path delivery: discord rows are delivered, not mis-executed", (
 		// Both delivery rows got a payload attached — neither was left bare.
 		const discordAfter = await actionRow(discordRow.id);
 		const webhookAfter = await actionRow(webhookRow.id);
-		expect(discordAfter.payload.delivery).toBeDefined();
-		expect(webhookAfter.payload.delivery).toBeDefined();
+		expect(discordAfter.delivery).not.toBeNull();
+		expect(webhookAfter.delivery).not.toBeNull();
 		expect(discordAfter.status).toBe("recorded");
 		expect(webhookAfter.status).toBe("recorded");
 
@@ -250,7 +253,7 @@ describe("thread-path delivery: discord rows are delivered, not mis-executed", (
 
 		// The payload was attached even with no adapter.
 		const after = await actionRow(discordRow.id);
-		expect(after.payload.delivery).toBeDefined();
+		expect(after.delivery).not.toBeNull();
 		expect(after.status).toBe("recorded");
 
 		// The cron delivers it — it is NOT abandoned as malformed.
@@ -302,7 +305,7 @@ describe("thread-path delivery: discord rows are delivered, not mis-executed", (
 
 		// Payload attached, not executed via forge.
 		const after = await actionRow(discordRow.id);
-		expect(after.payload.delivery).toBeDefined();
+		expect(after.delivery).not.toBeNull();
 		expect(after.status).toBe("recorded");
 		expect(executed).toEqual([]);
 
@@ -389,6 +392,6 @@ describe("thread-path delivery: discord rows are delivered, not mis-executed", (
 		]);
 		expect((await actionRow(lockRow.id)).status).toBe("executed");
 		expect((await actionRow(discordRow.id)).status).toBe("recorded");
-		expect((await actionRow(discordRow.id)).payload.delivery).toBeDefined();
+		expect((await actionRow(discordRow.id)).delivery).not.toBeNull();
 	});
 });
