@@ -20,6 +20,7 @@ export function actionUrl(input: {
 	forge: ForgeId | null;
 	repoFullName: string;
 	number: number | null;
+	subjectKind?: ThreadSubject;
 	kind: string;
 	externalId: string | null;
 }): string | null {
@@ -36,8 +37,9 @@ export function actionUrl(input: {
 	if (kind === "block") {
 		return `${GITHUB}/${repoFullName}/pull/${number}#pullrequestreview-${externalId}`;
 	}
-	if (kind === "comment") {
-		return `${GITHUB}/${repoFullName}/pull/${number}#issuecomment-${externalId}`;
+	if (kind === "comment" || kind === "post-comment") {
+		const path = input.subjectKind === "issue" ? "issues" : "pull";
+		return `${GITHUB}/${repoFullName}/${path}/${number}#issuecomment-${externalId}`;
 	}
 	return null;
 }

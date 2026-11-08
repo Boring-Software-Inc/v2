@@ -91,6 +91,7 @@ export interface RunActionView {
 	recordedAt: string;
 	url: string | null;
 	label?: string | null;
+	workflowName?: string | null;
 	delivery?:
 		| { state: "sent" }
 		| { state: "queued" }
