@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, jest, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, jest, test } from "bun:test";
 import { LIVE_RETRY_MS, onLiveResync, subscribeLive } from "#/lib/live-stream";
 
 type Listener = (message: { data: string }) => void;
@@ -52,6 +52,11 @@ class FakeDocument extends EventTarget {
 }
 
 const page = new FakeDocument();
+const browserGlobals = { EventSource: FakeEventSource, document: page };
+const originalGlobals = Object.keys(browserGlobals).map(
+	(name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)] as const,
+);
+let stopWatching: (() => void) | undefined;
 
 function latest(): FakeEventSource {
 	const source = FakeEventSource.made.at(-1);
@@ -68,24 +73,35 @@ function watch() {
 	const offResync = onLiveResync(() => {
 		resyncs += 1;
 	});
+	const stop = () => {
+		offResync();
+		off();
+		stopWatching = undefined;
+	};
+	stopWatching = stop;
 	return {
 		messages,
 		resyncs: () => resyncs,
-		stop: () => {
-			offResync();
-			off();
-		},
+		stop,
 	};
 }
 
-beforeAll(() => {
-	Object.assign(globalThis, { EventSource: FakeEventSource, document: page });
+beforeEach(() => {
+	Object.assign(globalThis, browserGlobals);
 });
 
 afterEach(() => {
+	stopWatching?.();
 	jest.useRealTimers();
 	FakeEventSource.made = [];
 	page.visibilityState = "visible";
+	for (const [name, descriptor] of originalGlobals) {
+		if (descriptor) {
+			Object.defineProperty(globalThis, name, descriptor);
+		} else {
+			Reflect.deleteProperty(globalThis, name);
+		}
+	}
 });
 
 describe("live stream recovery", () => {

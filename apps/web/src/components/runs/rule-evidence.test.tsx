@@ -41,7 +41,7 @@ function renderEvidence(
 		status: "passed",
 		evidence,
 		output: null,
-		durationMs: 25,
+		durationMs: 1234,
 		startedAt: "2026-10-27T12:00:00Z",
 	};
 	return renderToStaticMarkup(
@@ -78,7 +78,7 @@ describe("RuleEvidence", () => {
 		expect(html).toContain("Raw evidence");
 		expect(html).toContain("1,200 tokens in");
 		expect(html).toContain("80 out");
-		expect(html).toContain("25ms");
+		expect(html).toContain(">1.2s</span>");
 		expect(html).toContain(
 			"PRIVATE_TRACE_CANARY &lt;b&gt;literal trace&lt;/b&gt;",
 		);
