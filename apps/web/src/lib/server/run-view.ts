@@ -166,7 +166,7 @@ export async function loadRunView(
 				: null,
 		orgSlug,
 		repoName,
-		canRerun: canRerun && !scheduled,
+		canRerun: canRerun && !scheduled && eventRow?.kind !== "issue.opened",
 		stepsHidden: false,
 		forge,
 		/**

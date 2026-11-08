@@ -798,3 +798,35 @@ Databuddy flag and repository allowlist. The repo's opt-in controls the worker.
 The community blocklist repository keeps reviewed submissions on protected `main`. Its Actions publisher combines those entries with platform-admin submissions and writes a versioned snapshot to the separate `published` branch. Both the worker and public page consume that snapshot. Admin submissions remain inspectable in `published:staff-entries/`; community and staff removals follow their respective paths in the list repo's README.
 
 Set `TRIPWIRE_SHARED_BLOCKLIST_ACTIONS_TOKEN` on the web service to enable the staff form. Use a fine-grained GitHub token limited to `Boring-Software-Inc/Pilot` with **Actions: Read and write**. The publisher uses the repository's job token with **Contents: Write**. Unkey preview deployments dispatch to the GitHub Actions `staging` environment and read `published-staging`. Production uses `published`. Both snapshots include reviewed community entries. Staff entries are stored separately on each branch, and the repository is public.
+
+## 2026-11-08 | GitHub issue moderation
+
+A GitHub **Issue opened** workflow runs on a repository with Tripwire armed
+and the workflow enabled. Issue workflows have their own trigger and support
+**Comment** and **Close**. Existing change request workflows and default
+checks keep their current triggers. The issue path uses the same rule
+evaluation, contributor exemptions, run access, and evidence redaction.
+Tripwire holds both actions when it cannot verify the contributor's
+permissions or an enforcing check skips. Issue edits and reopens are outside
+this slice.
+
+For a deployment, subscribe the GitHub App to **Issues** and grant repository
+**Issues: Read and write**. Existing installations may need to approve the
+permission change. Enable the workflow in the editor after the installation
+has approved access.
+
+A maintainer with access to the operator checkout, database, and GitHub App
+credentials can preview a saved workflow against the current GitHub issue or
+pull request. Use the workflow ID from the editor URL.
+
+```sh
+bun --env-file=path/to/staging.env scripts/rule-check.ts --workflow 'WORKFLOW_ID' --issue 'owner/repo#123'
+bun --env-file=path/to/staging.env scripts/rule-check.ts --workflow 'WORKFLOW_ID' --pr 'owner/repo#456'
+```
+
+The preview reads GitHub and reports step outcomes and planned action kinds.
+It simulates an opened event using current data, including for closed items.
+It evaluates saved drafts and reports whether the repository is armed, the
+workflow is enabled, and the author is exempt. It writes neither forge
+actions nor Tripwire runs. AI review needs a configured runtime and skips
+in this tool. The published CLI and SDK do not expose the issue trigger yet.

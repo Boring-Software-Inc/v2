@@ -664,6 +664,12 @@ export interface TriggerCatalogEntry {
 	toolbox: boolean;
 }
 
+export function isIssueWorkflow(definition: WorkflowDefinition): boolean {
+	return definition.nodes.some(
+		(node) => node.type === "trigger" && node.kinds.includes("issue.opened"),
+	);
+}
+
 export const TRIGGER_CATALOG: TriggerCatalogEntry[] = [
 	{
 		kind: "change-request.opened",
@@ -681,6 +687,12 @@ export const TRIGGER_CATALOG: TriggerCatalogEntry[] = [
 		kind: "change-request.closed",
 		name: "Change request closed",
 		description: "Runs when a change request is closed.",
+		toolbox: true,
+	},
+	{
+		kind: "issue.opened",
+		name: "Issue opened",
+		description: "Runs when someone opens a GitHub issue.",
 		toolbox: true,
 	},
 	{

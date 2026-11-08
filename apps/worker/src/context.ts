@@ -128,7 +128,7 @@ export async function buildRuleContext(
 			: Promise.resolve(null),
 	]);
 	const contributor =
-		event.forge === "gitcafe" &&
+		(event.forge === "gitcafe" || event.kind === "issue.opened") &&
 		readContributor?.externalId !== event.actor.externalId
 			? null
 			: readContributor;
