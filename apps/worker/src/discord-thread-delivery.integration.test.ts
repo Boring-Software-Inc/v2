@@ -21,6 +21,7 @@ import {
 	type TestDatabase,
 } from "@tripwire/db";
 import type { ForgeAction } from "@tripwire/forge";
+import { generateId } from "@tripwire/utils";
 import type { Pool } from "pg";
 import pino from "pino";
 import { deliverWebhooks } from "./jobs/deliver-webhook.ts";
@@ -69,7 +70,7 @@ afterAll(async () => {
 
 function commentCreatedEvent(number: number): NormalizedEvent {
 	return normalizedEventSchema.parse({
-		id: crypto.randomUUID(),
+		id: generateId(),
 		forge: "github",
 		deliveryId: `comment-${number}`,
 		repo: { owner: "acme", name: "discord-thread", fullName: REPO },
@@ -88,7 +89,7 @@ function commentCreatedEvent(number: number): NormalizedEvent {
 
 function scheduleMatchedEvent(number: number): NormalizedEvent {
 	return normalizedEventSchema.parse({
-		id: crypto.randomUUID(),
+		id: generateId(),
 		forge: "github",
 		deliveryId: `schedule-${number}`,
 		repo: { owner: "acme", name: "discord-thread", fullName: REPO },
@@ -113,7 +114,7 @@ function scheduleMatchedEvent(number: number): NormalizedEvent {
 
 interface SeededRun {
 	runId: string;
-	rows: { id: string; kind: string; payload: Record<string, unknown> }[];
+	rows: Awaited<ReturnType<typeof runServices.recordActions>>;
 }
 
 async function seedRunWithDeliveries(
