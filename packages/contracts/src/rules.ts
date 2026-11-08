@@ -163,6 +163,9 @@ export const minMergedPrsConfigSchemaV2 = z.object({
 		.default(1)
 		.describe("merges in this repo that exempt a proven local contributor"),
 });
+const explicitMergedPrsTrustSchema = z.object({
+	trustedAfter: minMergedPrsConfigSchemaV2.shape.trustedAfter.removeDefault(),
+});
 export const ownedRepoStarsConfigSchema = z.strictObject({
 	minStars: z.int().min(0).describe("Minimum stars per repository"),
 	min: z.int().min(1).describe("Minimum owned repositories"),
@@ -254,6 +257,17 @@ export const RULE_CATALOG = [
 		/** §6 (b) — what @2 changed vs the pinned prior version; the Rules-page
 		 * "update available" note. Only bumped rules carry one. */
 		changeNote: "counts merges globally, not per-repo",
+		/**
+		 * §6 (b) — `trustedAfter` is the field @2 introduced; a config without
+		 * it was authored under @1 (where `min` meant merges in THIS repo, not
+		 * elsewhere). Such a config parses under the @2 schema only because
+		 * `trustedAfter` carries a Zod default — carrying it forward would
+		 * silently re-interpret the maintainer's tuned `min` on a different
+		 * signal and auto-create an exemption they never set. Hold for
+		 * re-confirmation instead.
+		 */
+		carriesForward: (config: JsonValue) =>
+			explicitMergedPrsTrustSchema.safeParse(config).success,
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Requires N merged change requests in other people's repos, as proof that someone else accepted their work.",
@@ -432,6 +446,18 @@ export const RULE_CATALOG = [
 	summaryReveals?: readonly RedactionItem[];
 	evidenceRedaction?: Partial<Record<RedactionItem, readonly string[]>>;
 	changeNote?: string;
+	/**
+	 * §6 (b) — for rules whose config SEMANTICS changed between versions, a
+	 * predicate that decides whether a stored config was authored under the
+	 * current version's shape (and so carries forward losslessly). Absent ⇒
+	 * schema-parse success alone is sufficient (the rule's config didn't
+	 * change meaning across versions, e.g. ai-review). Present ⇒ the config
+	 * must also match the current version's shape, not just parse under its
+	 * schema — a prior-version config that parses only because the new schema
+	 * fills new fields with Zod defaults is NOT lossless and must be held for
+	 * re-confirmation.
+	 */
+	carriesForward?: (config: JsonValue) => boolean;
 	/**
 	 * Forges this rule can run on. Absent ⇒ all of them. Present ⇒ the rule needs
 	 * something the other forges do not expose, and both the engine and the rules
@@ -938,9 +964,12 @@ export interface ResolvedRuleConfig {
 	config: JsonValue;
 	/**
 	 * True when the repo is HELD on an older version: it's pinned behind AND its
-	 * saved config can't parse under the current version's schema, so advancing
-	 * would silently discard the maintainer's settings. Held rules keep running
-	 * their pinned (frozen, still-registered) version until an admin re-confirms.
+	 * saved config can't carry forward losslessly to the current version's
+	 * schema (parse failure, or a prior-version shape the new schema would
+	 * silently re-interpret via Zod defaults), so advancing would silently
+	 * discard or alter the maintainer's settings. Held rules keep running
+	 * their pinned (frozen, still-registered) version until an admin
+	 * re-confirms.
 	 */
 	held: boolean;
 }
@@ -951,14 +980,18 @@ export interface ResolvedRuleConfig {
  * ACTUALLY runs:
  *
  * - pinned ≥ current (or unknown rule): run as pinned — nothing to do.
- * - pinned < current, config still parses under the new schema: AUTO-ADVANCE to
+ * - pinned < current, config carries forward (parses under the new schema AND
+ *   was authored under the current version's shape — rules whose config
+ *   semantics changed declare a `carriesForward` shape gate): AUTO-ADVANCE to
  *   current, carrying the config forward. Lossless and silent — the set-and-
- *   forget path that covers ~all upgrades. No DB write: the pin is the config's
- *   schema anchor; the effective version is derived here on every evaluation.
- * - pinned < current, config CANNOT parse under the new schema: HOLD on the
- *   pinned version (the append-only law keeps it registered + running) and flag
- *   it, so an admin re-confirms rather than losing tuned settings to a silent
- *   reset.
+ *   forget path that covers ~all upgrades. No DB write: the pin is the
+ *   config's schema anchor; the effective version is derived here on every
+ *   evaluation.
+ * - pinned < current, config CANNOT carry forward (parse failure, or a
+ *   prior-version shape the new schema would silently re-interpret via
+ *   defaults): HOLD on the pinned version (the append-only law keeps it
+ *   registered + running) and flag it, so an admin re-confirms rather than
+ *   losing tuned settings to a silent reset.
  */
 export function resolveEffectiveRuleConfig(
 	row: StoredRuleConfig,
@@ -972,7 +1005,17 @@ export function resolveEffectiveRuleConfig(
 			held: false,
 		};
 	}
-	const carriesForward = entry.configSchema.safeParse(row.config).success;
+	// A config carries forward losslessly only when it parses under the
+	// current schema AND was authored under the current version's shape.
+	// Parse success alone is not enough: a prior-version config can parse
+	// under the new schema when the new schema fills new fields with Zod
+	// defaults, silently re-interpreting the maintainer's tuned settings
+	// under different semantics. The optional `carriesForward` gate (present
+	// only on rules whose config semantics changed between versions) checks
+	// the config's shape, not just its parseability.
+	const carriesForward =
+		entry.configSchema.safeParse(row.config).success &&
+		("carriesForward" in entry ? entry.carriesForward(row.config) : true);
 	return carriesForward
 		? {
 				ref: `${row.ruleId}@${entry.version}`,

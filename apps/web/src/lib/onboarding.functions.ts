@@ -6,6 +6,7 @@ import {
 	type ForgeId,
 	forgeConnectable,
 	type InstallStatus,
+	recoverInstallationInputSchema,
 } from "@tripwire/contracts";
 import type {
 	ApprovedInstallRequest,
@@ -124,7 +125,7 @@ export const getInstallPreview = createServerFn({ method: "GET" })
 
 export const recoverInstallation = createServerFn({ method: "POST" })
 	.middleware([accessGuardMiddleware])
-	.inputValidator((input: { installationId: string }) => input)
+	.inputValidator(recoverInstallationInputSchema)
 	.handler(async ({ data }): Promise<{ queued: boolean }> => {
 		const { requireSession } = await import("#/lib/server/session");
 		const userId = await requireSession();
@@ -132,25 +133,16 @@ export const recoverInstallation = createServerFn({ method: "POST" })
 			return { queued: false };
 		}
 		const { getBoss, getDb } = await import("#/lib/server/db");
-		const {
-			installationAccessServices,
-			RECOVER_INSTALLATION_QUEUE,
-			recoverInstallationOptions,
-		} = await import("@tripwire/db");
-		const job = { userId, installationId: data.installationId };
-		await installationAccessServices.recordInstallAccessCheck(getDb().db, {
-			userId,
-			forge: "github",
-			installationId: data.installationId,
-			result: "pending",
-		});
-		const boss = await getBoss();
-		await boss.send(
-			RECOVER_INSTALLATION_QUEUE,
-			job,
-			recoverInstallationOptions(job),
+		const { installationAccessServices } = await import("@tripwire/db");
+		const result = await installationAccessServices.requestInstallationRecovery(
+			getDb().db,
+			await getBoss(),
+			{ userId, installationId: data.installationId },
 		);
-		return { queued: true };
+		if (result === "rate-limited") {
+			throw new Error("Too many recovery attempts. Please try again later.");
+		}
+		return { queued: result === "queued" };
 	});
 
 /**
