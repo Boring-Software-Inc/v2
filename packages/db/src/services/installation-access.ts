@@ -6,8 +6,20 @@ import {
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
 import { and, eq, gt, lt, sql } from "drizzle-orm";
-import type { Db } from "../client.ts";
+import { drizzle } from "drizzle-orm/node-postgres";
+import type { PgBoss } from "pg-boss";
+import { type Db, requirePostgresPool, schema } from "../client.ts";
+import {
+	RECOVER_INSTALLATION_QUEUE,
+	type RecoverInstallationJob,
+	recoverInstallationOptions,
+} from "../queue.ts";
 import { installationAccessChecks } from "../schema/organizations.ts";
+
+const RECOVERY_WINDOW_SECONDS = 60;
+const MAX_RECENT_RECOVERIES = 5;
+
+type AccessCheckWriter = Pick<Db, "insert">;
 
 export interface InstallAccessCheck {
 	result: InstallAccessResult;
@@ -21,7 +33,7 @@ export interface InstallAccessKey {
 }
 
 export async function recordInstallAccessCheck(
-	db: Db,
+	db: AccessCheckWriter,
 	input: InstallAccessKey & { result: InstallAccessResult; at?: Date },
 ): Promise<void> {
 	const result = installAccessResultSchema.parse(input.result);
@@ -71,30 +83,55 @@ export async function getFreshInstallAccessCheck(
 	return rows[0] ?? null;
 }
 
-/**
- * Count a user's access-check rows newer than `windowSeconds` — the per-user
- * rate-limit probe for `recoverInstallation`. Counts distinct installation ids
- * (the upsert on `(user_id, forge, installation_id)` collapses repeats of the
- * same id), which is exactly the dimension an attacker rotates to burn quota.
- */
-export async function countRecentInstallAccessChecks(
+/** Serialize requests per user so simultaneous attempts share the same budget. */
+export async function requestInstallationRecovery(
 	db: Db,
-	userId: string,
-	windowSeconds: number,
-): Promise<number> {
-	const rows = await db
-		.select({ count: sql<number>`count(*)::int` })
-		.from(installationAccessChecks)
-		.where(
-			and(
-				eq(installationAccessChecks.userId, userId),
-				gt(
-					installationAccessChecks.verifiedAt,
-					sql`now() - make_interval(secs => ${windowSeconds})`,
-				),
-			),
-		);
-	return rows[0]?.count ?? 0;
+	boss: Pick<PgBoss, "send">,
+	job: RecoverInstallationJob,
+): Promise<"queued" | "already-requested" | "rate-limited"> {
+	const client = await requirePostgresPool(db).connect();
+	try {
+		return await drizzle(client, { schema }).transaction(async (tx) => {
+			const lockKey = `installation-recovery:${job.userId}`;
+			await tx.execute(
+				sql`select pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`,
+			);
+			const recent = await tx
+				.select({ installationId: installationAccessChecks.installationId })
+				.from(installationAccessChecks)
+				.where(
+					and(
+						eq(installationAccessChecks.userId, job.userId),
+						eq(installationAccessChecks.forge, "github"),
+						gt(
+							installationAccessChecks.verifiedAt,
+							sql`now() - make_interval(secs => ${RECOVERY_WINDOW_SECONDS})`,
+						),
+					),
+				);
+			if (recent.some((row) => row.installationId === job.installationId)) {
+				return "already-requested";
+			}
+			if (recent.length >= MAX_RECENT_RECOVERIES) {
+				return "rate-limited";
+			}
+			const id = await boss.send(RECOVER_INSTALLATION_QUEUE, job, {
+				...recoverInstallationOptions(job),
+				db: { executeSql: (text, values) => client.query(text, values) },
+			});
+			if (id === null) {
+				return "already-requested";
+			}
+			await recordInstallAccessCheck(tx, {
+				...job,
+				forge: "github",
+				result: "pending",
+			});
+			return "queued";
+		});
+	} finally {
+		client.release();
+	}
 }
 
 /**

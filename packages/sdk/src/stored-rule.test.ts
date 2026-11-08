@@ -373,14 +373,14 @@ describe("stored rule raw argument compatibility", () => {
 		).toBeNull();
 	});
 
-	test("not checks the inner argument shape without rechecking verb applicability", () => {
+	test("not checks the inner verb as well as the argument shape", () => {
 		const inner = Object.assign([], { kind: "has", args: [7] });
 		expect(
 			storedRuleIssue({
 				when: { id: "contributor.accountAge" },
 				comparison: { kind: "not", args: [inner] },
 			}),
-		).toBeNull();
+		).toBe("has does not apply to this signal");
 		expect(
 			storedRuleIssue({
 				when: { id: "contributor.accountAge" },

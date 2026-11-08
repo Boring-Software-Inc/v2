@@ -19,7 +19,7 @@ const installationSchema = z.object({
 });
 
 const repositoryPageSchema = z.object({
-	total_count: z.number(),
+	total_count: z.number().int().nonnegative(),
 	repositories: z.array(
 		z.object({
 			id: z.number(),
@@ -32,7 +32,7 @@ const repositoryPageSchema = z.object({
 });
 
 const userInstallationRepositoryPageSchema = z.object({
-	total_count: z.number(),
+	total_count: z.number().int().nonnegative(),
 	repositories: z.array(
 		z.object({
 			id: z.number(),
@@ -134,7 +134,8 @@ export class GithubInstallations {
 	): Promise<GithubInstallationRepo[]> {
 		const token = await this.tokens.getToken(installationId);
 		const found: GithubInstallationRepo[] = [];
-		let totalCount = 0;
+		let totalCount: number | undefined;
+		const seen = new Set<number>();
 		for (let page = 1; page <= MAX_PAGES; page++) {
 			const res = await this.get(
 				`/installation/repositories?per_page=${PAGE_SIZE}&page=${page}`,
@@ -144,8 +145,17 @@ export class GithubInstallations {
 				throw new Error(`GET /installation/repositories failed: ${res.status}`);
 			}
 			const body = repositoryPageSchema.parse(await res.json());
+			if (totalCount !== undefined && totalCount !== body.total_count) {
+				throw new Error(
+					"installation repository count changed during pagination",
+				);
+			}
 			totalCount = body.total_count;
 			for (const repo of body.repositories) {
+				if (seen.has(repo.id)) {
+					throw new Error("installation repository repeated during pagination");
+				}
+				seen.add(repo.id);
 				found.push({
 					externalId: String(repo.id),
 					owner: repo.owner.login,
@@ -161,7 +171,7 @@ export class GithubInstallations {
 				break;
 			}
 		}
-		if (found.length < totalCount) {
+		if (totalCount !== undefined && found.length !== totalCount) {
 			throw new Error(
 				`installation repositories truncated: fetched ${found.length} of ${totalCount} (page cap ${MAX_PAGES} x ${PAGE_SIZE})`,
 			);
@@ -175,7 +185,8 @@ export class GithubInstallations {
 	): Promise<UserInstallationAccess> {
 		const repositories: UserInstallationRepo[] = [];
 		const path = `/user/installations/${encodeURIComponent(installationId)}/repositories`;
-		let totalCount = 0;
+		let totalCount: number | undefined;
+		const seen = new Set<number>();
 		for (let page = 1; page <= MAX_PAGES; page++) {
 			const res = await this.get(
 				`${path}?per_page=${PAGE_SIZE}&page=${page}`,
@@ -196,8 +207,17 @@ export class GithubInstallations {
 				);
 			}
 			const body = userInstallationRepositoryPageSchema.parse(await res.json());
+			if (totalCount !== undefined && totalCount !== body.total_count) {
+				throw new Error(
+					"installation repository count changed during pagination",
+				);
+			}
 			totalCount = body.total_count;
 			for (const repo of body.repositories) {
+				if (seen.has(repo.id)) {
+					throw new Error("installation repository repeated during pagination");
+				}
+				seen.add(repo.id);
 				repositories.push({
 					externalId: String(repo.id),
 					admin: repo.permissions?.admin === true,
@@ -210,7 +230,7 @@ export class GithubInstallations {
 				break;
 			}
 		}
-		if (repositories.length < totalCount) {
+		if (totalCount !== undefined && repositories.length !== totalCount) {
 			throw new Error(
 				`user installation repositories truncated: fetched ${repositories.length} of ${totalCount} (page cap ${MAX_PAGES} x ${PAGE_SIZE})`,
 			);

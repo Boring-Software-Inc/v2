@@ -102,4 +102,30 @@ describe("GithubInstallations pagination truncation", () => {
 			});
 		}
 	});
+	test("rejects repeated repository IDs across pages", async () => {
+		const github = client((url) =>
+			new URL(url).pathname.endsWith("/access_tokens")
+				? new Response(
+						JSON.stringify({
+							token: "ghs_x",
+							expires_at: "2099-01-01T00:00:00Z",
+						}),
+						{ status: 201 },
+					)
+				: repoPage(200, 1, PAGE_SIZE),
+		);
+		await expect(github.listRepositories("42")).rejects.toThrow(
+			"repository repeated",
+		);
+	});
+
+	test("rejects a total that changes during a user repository read", async () => {
+		const github = client((url) => {
+			const page = Number(new URL(url).searchParams.get("page"));
+			return repoPage(page === 1 ? 200 : 199, page, PAGE_SIZE);
+		});
+		await expect(
+			github.userInstallationRepositories("ghu_x", "42"),
+		).rejects.toThrow("repository count changed");
+	});
 });

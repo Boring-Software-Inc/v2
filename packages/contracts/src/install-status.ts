@@ -19,6 +19,12 @@ export const installStatePayloadSchema = z.union([
 ]);
 export type InstallStatePayload = z.infer<typeof installStatePayloadSchema>;
 
+export const recoverInstallationInputSchema = z.object({
+	installationId: z
+		.string()
+		.regex(/^[1-9][0-9]{0,19}$/, "Invalid installation id."),
+});
+
 export const installAccessResultSchema = z.enum([
 	"pending",
 	"granted-admin",

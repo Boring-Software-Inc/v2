@@ -9,6 +9,7 @@ import {
 import { eq, sql } from "drizzle-orm";
 import {
 	applyMigrations,
+	createBoss,
 	createDb,
 	createTestDatabase,
 	type Db,
@@ -18,6 +19,7 @@ import {
 import { installationAccessChecks, user } from "../schema/index.ts";
 
 let container: TestDatabase;
+let boss: Awaited<ReturnType<typeof createBoss>>;
 let db: Db;
 let pool: { end(): Promise<void> };
 
@@ -45,11 +47,13 @@ beforeAll(async () => {
 	container = await createTestDatabase();
 	({ db, pool } = createDb(container.url));
 	await applyMigrations(db);
+	boss = await createBoss(container.url);
 	await seedUser("rate-user-a");
 	await seedUser("rate-user-b");
 }, 120_000);
 
 afterAll(async () => {
+	await boss?.stop({ close: true, graceful: false });
 	await pool?.end().catch(() => undefined);
 	await container?.stop();
 });
@@ -58,97 +62,55 @@ beforeEach(async () => {
 	await db.delete(installationAccessChecks);
 });
 
-describe("countRecentInstallAccessChecks", () => {
-	test("zero for a user with no rows", async () => {
-		expect(
-			await installationAccessServices.countRecentInstallAccessChecks(
-				db,
-				"rate-user-a",
-				60,
+describe("requestInstallationRecovery", () => {
+	test("caps concurrent requests across distinct IDs and preserves a separate user's budget", async () => {
+		const requested = await Promise.all(
+			Array.from({ length: 10 }, (_, index) =>
+				installationAccessServices.requestInstallationRecovery(db, boss, {
+					userId: "rate-user-a",
+					installationId: String(100 + index),
+				}),
 			),
-		).toBe(0);
+		);
+		expect(requested.filter((result) => result === "queued")).toHaveLength(5);
+		expect(
+			requested.filter((result) => result === "rate-limited"),
+		).toHaveLength(5);
+		expect(await db.select().from(installationAccessChecks)).toHaveLength(5);
+		await expect(
+			installationAccessServices.requestInstallationRecovery(db, boss, {
+				userId: "rate-user-b",
+				installationId: "100",
+			}),
+		).resolves.toBe("queued");
 	});
 
-	test("counts distinct installation ids within the window", async () => {
-		for (const id of ["100", "101", "102"]) {
-			await installationAccessServices.recordInstallAccessCheck(db, {
-				userId: "rate-user-a",
-				forge: "github",
-				installationId: id,
-				result: "pending",
-			});
-		}
-		expect(
-			await installationAccessServices.countRecentInstallAccessChecks(
-				db,
-				"rate-user-a",
-				60,
-			),
-		).toBe(3);
+	test("coalesces repeated requests within the cooldown", async () => {
+		const job = { userId: "rate-user-a", installationId: "200" };
+		await expect(
+			installationAccessServices.requestInstallationRecovery(db, boss, job),
+		).resolves.toBe("queued");
+		await expect(
+			installationAccessServices.requestInstallationRecovery(db, boss, job),
+		).resolves.toBe("already-requested");
 	});
 
-	test("repeating the same id does not increase the count (upsert)", async () => {
-		for (let i = 0; i < 5; i++) {
-			await installationAccessServices.recordInstallAccessCheck(db, {
-				userId: "rate-user-a",
-				forge: "github",
-				installationId: "200",
-				result: "pending",
-			});
-		}
-		expect(
-			await installationAccessServices.countRecentInstallAccessChecks(
+	test("leaves no pending access check when queue admission fails", async () => {
+		const job = { userId: "rate-user-a", installationId: "300" };
+		const unavailable = {
+			send: () => Promise.reject(new Error("queue unavailable")),
+		};
+		await expect(
+			installationAccessServices.requestInstallationRecovery(
 				db,
-				"rate-user-a",
-				60,
+				unavailable,
+				job,
 			),
-		).toBe(1);
-	});
-
-	test("rows outside the window are not counted", async () => {
-		await installationAccessServices.recordInstallAccessCheck(db, {
-			userId: "rate-user-a",
-			forge: "github",
-			installationId: "300",
-			result: "pending",
-		});
-		await ageRow("300", 120);
-		expect(
-			await installationAccessServices.countRecentInstallAccessChecks(
-				db,
-				"rate-user-a",
-				60,
-			),
-		).toBe(0);
-	});
-
-	test("counts are per-user, not global", async () => {
-		await installationAccessServices.recordInstallAccessCheck(db, {
-			userId: "rate-user-a",
-			forge: "github",
-			installationId: "400",
-			result: "pending",
-		});
-		await installationAccessServices.recordInstallAccessCheck(db, {
-			userId: "rate-user-b",
-			forge: "github",
-			installationId: "401",
-			result: "pending",
-		});
-		expect(
-			await installationAccessServices.countRecentInstallAccessChecks(
-				db,
-				"rate-user-a",
-				60,
-			),
-		).toBe(1);
-		expect(
-			await installationAccessServices.countRecentInstallAccessChecks(
-				db,
-				"rate-user-b",
-				60,
-			),
-		).toBe(1);
+		).rejects.toThrow("queue unavailable");
+		expect(await db.select().from(installationAccessChecks)).toHaveLength(0);
+		await expect(
+			installationAccessServices.requestInstallationRecovery(db, boss, job),
+		).resolves.toBe("queued");
 	});
 });
 

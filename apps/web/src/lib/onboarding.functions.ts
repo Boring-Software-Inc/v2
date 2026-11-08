@@ -6,6 +6,7 @@ import {
 	type ForgeId,
 	forgeConnectable,
 	type InstallStatus,
+	recoverInstallationInputSchema,
 } from "@tripwire/contracts";
 import type {
 	ApprovedInstallRequest,
@@ -122,21 +123,9 @@ export const getInstallPreview = createServerFn({ method: "GET" })
 		};
 	});
 
-/** Per-user rate limit for recovery attempts — bounds the fan-out of GitHub App
- * API calls an authenticated user can cause through `recoverInstallation`.
- * Counts distinct installation ids in a rolling window via the upsert's unique
- * constraint: rotating ids grows the count, repeating the same id does not. */
-const RECOVER_INSTALLATION_RATE_LIMIT_WINDOW_SECONDS = 60;
-const RECOVER_INSTALLATION_RATE_LIMIT_MAX = 5;
-
 export const recoverInstallation = createServerFn({ method: "POST" })
 	.middleware([accessGuardMiddleware])
-	.inputValidator((input: { installationId: string }) => {
-		if (!/^\d+$/.test(input.installationId)) {
-			throw new Error("Invalid installation id.");
-		}
-		return input;
-	})
+	.inputValidator(recoverInstallationInputSchema)
 	.handler(async ({ data }): Promise<{ queued: boolean }> => {
 		const { requireSession } = await import("#/lib/server/session");
 		const userId = await requireSession();
@@ -144,34 +133,16 @@ export const recoverInstallation = createServerFn({ method: "POST" })
 			return { queued: false };
 		}
 		const { getBoss, getDb } = await import("#/lib/server/db");
-		const {
-			installationAccessServices,
-			RECOVER_INSTALLATION_QUEUE,
-			recoverInstallationOptions,
-		} = await import("@tripwire/db");
-		const recent =
-			await installationAccessServices.countRecentInstallAccessChecks(
-				getDb().db,
-				userId,
-				RECOVER_INSTALLATION_RATE_LIMIT_WINDOW_SECONDS,
-			);
-		if (recent >= RECOVER_INSTALLATION_RATE_LIMIT_MAX) {
+		const { installationAccessServices } = await import("@tripwire/db");
+		const result = await installationAccessServices.requestInstallationRecovery(
+			getDb().db,
+			await getBoss(),
+			{ userId, installationId: data.installationId },
+		);
+		if (result === "rate-limited") {
 			throw new Error("Too many recovery attempts. Please try again later.");
 		}
-		const job = { userId, installationId: data.installationId };
-		await installationAccessServices.recordInstallAccessCheck(getDb().db, {
-			userId,
-			forge: "github",
-			installationId: data.installationId,
-			result: "pending",
-		});
-		const boss = await getBoss();
-		await boss.send(
-			RECOVER_INSTALLATION_QUEUE,
-			job,
-			recoverInstallationOptions(job),
-		);
-		return { queued: true };
+		return { queued: result === "queued" };
 	});
 
 /**
