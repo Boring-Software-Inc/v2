@@ -43,13 +43,24 @@ afterAll(async () => {
 	await container?.stop();
 });
 
-function httpReturning(status: number, body: object[] | string) {
+function httpReturning(
+	status: number,
+	body: object[] | string,
+	paginated = false,
+) {
 	return new GithubHttp({
 		tokenFor: () => Promise.resolve("t"),
 		appId: 1,
 		fetchImpl: ((_url: string | URL | Request) =>
 			Promise.resolve(
-				new Response(JSON.stringify(body), { status }),
+				new Response(JSON.stringify(body), {
+					status,
+					headers: paginated
+						? {
+								link: '<https://api.github.com/repos/acme/app/collaborators?page=11>; rel="next"',
+							}
+						: {},
+				}),
 			)) as typeof fetch,
 	});
 }
@@ -123,7 +134,7 @@ describe("sync-repo-reviewers", () => {
 			login: `user${i}`,
 		}));
 		await syncRepoReviewers(
-			{ db, http: httpReturning(200, fullPage), logger },
+			{ db, http: httpReturning(200, fullPage, true), logger },
 			{ repoId },
 		);
 		expect(

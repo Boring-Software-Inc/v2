@@ -29,9 +29,17 @@ function httpWith(pages: Record<number, object[]>, seen: string[] = []) {
 		appId: 1,
 		fetchImpl: ((url: string | URL | Request) => {
 			seen.push(String(url));
-			const page = Number(new URL(String(url)).searchParams.get("page"));
+			const current = new URL(String(url));
+			const page = Number(current.searchParams.get("page"));
+			const next = new URL(current);
+			next.searchParams.set("page", String(page + 1));
 			return Promise.resolve(
-				new Response(JSON.stringify(pages[page] ?? []), { status: 200 }),
+				new Response(JSON.stringify(pages[page] ?? []), {
+					status: 200,
+					headers: pages[page + 1]
+						? { link: `<${next.href}>; rel="next"` }
+						: {},
+				}),
 			);
 		}) as typeof fetch,
 	});
@@ -134,6 +142,24 @@ describe("listRepoReviewers", () => {
 		expect(reviewers).toHaveLength(1000);
 		expect(seen).toHaveLength(10);
 		expect(seen.at(-1)).toMatch(/page=10/);
+	});
+
+	test("accepts 1,000 collaborators when there is no next page", async () => {
+		const pages: Record<number, object[]> = {};
+		for (let page = 1; page <= 10; page++) {
+			pages[page] = Array.from({ length: 100 }, (_, i) =>
+				collaborator(page * 100 + i, `user${page}x${i}`, "write", {
+					admin: false,
+					maintain: false,
+					push: true,
+				}),
+			);
+		}
+		const seen: string[] = [];
+		const result = await listRepoReviewers(httpWith(pages, seen), "acme/app");
+		expect(result.truncated).toBe(false);
+		expect(result.reviewers).toHaveLength(1_000);
+		expect(seen).toHaveLength(10);
 	});
 
 	test("does not mark truncation when the last allowed page is short", async () => {

@@ -7,13 +7,7 @@ const MAX_PAGES = 10;
 
 export interface ListRepoReviewersResult {
 	reviewers: RepoReviewer[];
-	/**
-	 * True when the MAX_PAGES safety cap was hit with a full final page —
-	 * GitHub may have more collaborators beyond the fetched set. Callers
-	 * that cache the full set (e.g. the sync job's delete-and-replace)
-	 * must refuse to shrink on a truncated read rather than silently
-	 * replacing a complete set with a partial one.
-	 */
+	/** GitHub advertised another page after the request cap. */
 	truncated: boolean;
 }
 
@@ -53,12 +47,11 @@ export async function listRepoReviewers(
 	const found: RepoReviewer[] = [];
 	let truncated = false;
 	for (let page = 1; page <= MAX_PAGES; page++) {
-		const rows = pageSchema.parse(
-			await http.get(
-				repoFullName,
-				`/repos/${repoFullName}/collaborators?affiliation=all&permission=push&per_page=${PAGE_SIZE}&page=${page}`,
-			),
+		const { body, next } = await http.getPage(
+			repoFullName,
+			`/repos/${repoFullName}/collaborators?affiliation=all&permission=push&per_page=${PAGE_SIZE}&page=${page}`,
 		);
+		const rows = pageSchema.parse(body);
 		for (const row of rows) {
 			const collaborator = collaboratorSchema.safeParse(row);
 			if (!collaborator.success) {
@@ -75,11 +68,9 @@ export async function listRepoReviewers(
 				found.push(reviewer.data);
 			}
 		}
-		if (rows.length < PAGE_SIZE) {
+		truncated = next !== null;
+		if (!truncated) {
 			break;
-		}
-		if (page === MAX_PAGES) {
-			truncated = true;
 		}
 	}
 	return { reviewers: found, truncated };
