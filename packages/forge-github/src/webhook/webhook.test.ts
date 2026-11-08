@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { fileURLToPath } from "node:url";
 import { normalizedEventSchema } from "@tripwire/contracts";
+import issueCommentCreated from "../../fixtures/issue_comment.created.json";
 import pullRequestOpened from "../../fixtures/pull_request.opened.json";
 import { normalizeWebhook } from "./normalize.ts";
 import { signWebhookBody, verifyWebhookSignature } from "./verify.ts";
@@ -75,6 +76,43 @@ describe("normalizeWebhook — fixture corpus (contract layer §11)", () => {
 		);
 		expect(event?.kind).toBe("change-request.closed");
 		expect(normalizedEventSchema.parse(event)).toBeTruthy();
+	});
+
+	test("normalizes an issue opened delivery without a PR verdict", () => {
+		const raw = {
+			deliveryId: "issue-opened",
+			eventName: "issues",
+			signature: null,
+			body: JSON.stringify({ ...issueCommentCreated, action: "opened" }),
+		};
+		const event = normalizeWebhook(raw, NOW);
+		expect(event).toMatchObject({
+			kind: "issue.opened",
+			issue: { number: issueCommentCreated.issue.number, maintainer: true },
+			actor: { login: issueCommentCreated.issue.user.login },
+		});
+		expect(
+			normalizeWebhook(
+				{
+					...raw,
+					body: JSON.stringify({ ...issueCommentCreated, action: "reopened" }),
+				},
+				NOW,
+			),
+		).toBeNull();
+		expect(() =>
+			normalizeWebhook(
+				{
+					...raw,
+					body: JSON.stringify({
+						...issueCommentCreated,
+						action: "opened",
+						issue: { ...issueCommentCreated.issue, pull_request: {} },
+					}),
+				},
+				NOW,
+			),
+		).toThrow();
 	});
 
 	test("issue_comment.created → comment.created", async () => {

@@ -8,7 +8,12 @@
  */
 import { createDb } from "@tripwire/db";
 import { z } from "zod";
-import { type CheckResult, checkRule, listRules } from "./rule-check.core.ts";
+import {
+	type CheckResult,
+	checkRule,
+	checkWorkflow,
+	listRules,
+} from "./rule-check.core.ts";
 
 const textArgSchema = z.string();
 
@@ -29,6 +34,14 @@ function parsePr(input: string) {
 	const match = input.match(/^(.+)#(\d+)$/);
 	if (!match?.[1] || !match[2]) {
 		throw new Error(`--pr must look like owner/name#123, got "${input}"`);
+	}
+	return { repo: match[1], number: Number(match[2]) };
+}
+
+function parseSubject(input: string) {
+	const match = input.match(/^([\w.-]+\/[\w.-]+)#([1-9]\d*)$/);
+	if (!match?.[1] || !match[2] || !Number.isSafeInteger(Number(match[2]))) {
+		throw new Error("Use a GitHub target like owner/name#123.");
 	}
 	return { repo: match[1], number: Number(match[2]) };
 }
@@ -82,11 +95,34 @@ async function main(): Promise<void> {
 			}
 			return;
 		}
+		if (args.workflow !== undefined) {
+			const workflowId = z.uuid().parse(args.workflow);
+			const kind = args.issue === undefined ? "pr" : "issue";
+			if (
+				(args.pr === undefined) === (args.issue === undefined) ||
+				args.rule !== undefined
+			) {
+				throw new Error(
+					"Use --workflow <id> with exactly one of --issue or --pr.",
+				);
+			}
+			const { repo, number } = parseSubject(textArgSchema.parse(args[kind]));
+			const result = await checkWorkflow({
+				db,
+				repo,
+				number,
+				kind,
+				workflowId,
+			});
+			process.stdout.write(`${JSON.stringify(result, null, 2)}
+`);
+			return;
+		}
 		const ruleRef = textArgSchema.safeParse(args.rule);
 		const prArg = textArgSchema.safeParse(args.pr);
 		if (!ruleRef.success || !ruleRef.data || !prArg.success) {
 			console.error(
-				"usage:\n  rule-check --list --repo owner/name\n  rule-check --rule <ref|name> --pr owner/name#123 [--json]",
+				"usage:\n  rule-check --list --repo owner/name\n  rule-check --rule <ref|name> --pr owner/name#123 [--json]\n  rule-check --workflow <id> --issue owner/name#123\n  rule-check --workflow <id> --pr owner/name#123",
 			);
 			process.exitCode = 1;
 			return;

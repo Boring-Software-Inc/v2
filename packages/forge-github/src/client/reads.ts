@@ -210,7 +210,9 @@ export class GithubReads {
 					() => null,
 				),
 			]);
-		const perm = permission?.permission ?? "none";
+		const perm = permission?.permission;
+		const canWrite =
+			perm == null ? null : ["admin", "maintain", "write"].includes(perm);
 		return {
 			login,
 			externalId: String(user.id),
@@ -223,8 +225,8 @@ export class GithubReads {
 			// null (not 0) on a failed read — 0 would falsely read as "no reputation".
 			mergedElsewhere: mergedElsewhere ? mergedElsewhere.total_count : null,
 			recentChangeRequestTimes: (recent?.items ?? []).map((i) => i.created_at),
-			isOrgMember: perm === "admin" || perm === "maintain" || perm === "write",
-			isMaintainer: perm === "admin" || perm === "maintain" || perm === "write",
+			isOrgMember: canWrite,
+			isMaintainer: canWrite,
 		};
 	}
 }

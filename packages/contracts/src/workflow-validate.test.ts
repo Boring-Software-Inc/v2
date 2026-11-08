@@ -39,6 +39,25 @@ function rulesOf(result: ReturnType<typeof validateWorkflow>): string[] {
 	return result.valid ? [] : result.issues.map((i) => i.rule);
 }
 
+test("issue workflows keep PR triggers and actions out of the issue path", () => {
+	const definition = graph({
+		nodes: [
+			{
+				id: "t",
+				type: "trigger",
+				kinds: ["issue.opened", "change-request.opened"],
+			},
+			{ id: "r", type: "rule", ref: "account-age@1", config: { minDays: 7 } },
+			{ id: "a", type: "action", action: "block" },
+		],
+	});
+	expect(rulesOf(validateWorkflowForEnable(definition))).toEqual([
+		"issue-trigger",
+		"issue-action",
+	]);
+	expect(unrunnableIssues(definition)).toHaveLength(2);
+});
+
 describe("validateWorkflow (base — every failure class)", () => {
 	test("valid graph and DEFAULT_WORKFLOW pass", () => {
 		expect(validateWorkflow(graph({})).valid).toBe(true);

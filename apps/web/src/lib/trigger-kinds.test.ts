@@ -109,6 +109,7 @@ describe("whenSentence", () => {
 			"A change request opens",
 			"A change request gets new commits",
 			"A change request closes",
+			"An issue opens",
 			"Someone comments",
 			"Someone pushes",
 		]);

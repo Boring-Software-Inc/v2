@@ -96,7 +96,10 @@ export const contextForge = defineForge<RuleContext>()({
 			if ("changeRequest" in ctx.forge.event) {
 				return ctx.forge.event.changeRequest.title;
 			}
-			signalUnavailable("This event has no change request.");
+			if (ctx.forge.event.kind === "issue.opened") {
+				return ctx.forge.event.issue.title;
+			}
+			signalUnavailable("This event has no title.");
 		},
 		[commentBody.id]: (ctx) => {
 			if (ctx.forge.event.kind === "comment.created") {
@@ -111,6 +114,10 @@ export const contextForge = defineForge<RuleContext>()({
 			const event = ctx.forge.event;
 			if (event.kind === "comment.created") {
 				content.comment = event.comment.body;
+			}
+			if (event.kind === "issue.opened") {
+				content.title = event.issue.title;
+				if (event.issue.body) content.body = event.issue.body;
 			}
 			if ("changeRequest" in event) {
 				content.title = event.changeRequest.title;

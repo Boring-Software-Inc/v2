@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import type { WorkflowDefinition } from "@tripwire/contracts";
 import {
 	applyMigrations,
 	createBoss,
@@ -8,13 +9,17 @@ import {
 	eventServices,
 	moderationServices,
 	repoServices,
+	runServices,
 	type TestDatabase,
 	turnOnLegacyRules,
+	workflowServices,
 } from "@tripwire/db";
+import type { ContributorProfile, ForgeAction } from "@tripwire/forge";
 import { normalizeWebhook } from "@tripwire/forge-github";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import pino from "pino";
+import issueCommentFixture from "../../../packages/forge-github/fixtures/issue_comment.created.json";
 import retargetFixture from "../../../packages/forge-github/fixtures/pull_request.edited.base.json";
 import { staticForge } from "./forge-runtime.ts";
 import { processEvent } from "./jobs/process-event.ts";
@@ -996,4 +1001,155 @@ describe("retarget without a push (pull_request edited, same head)", () => {
 			["set-check", "executed"],
 		]);
 	});
+});
+
+test("issue moderation sends only thread actions and keeps incomplete checks quiet", async () => {
+	const { issue, repository } = issueCommentFixture;
+	const name = "issue-moderation";
+	const repoName = `${repository.owner.login}/${name}`;
+	const repoId = await repoServices.ensureRepo(db, {
+		externalId: String(repository.id + 1),
+		owner: repository.owner.login,
+		name,
+		fullName: repoName,
+	});
+	const definition: WorkflowDefinition = {
+		id: "issue-moderation",
+		name: "Issue moderation",
+		version: 1,
+		nodes: [
+			{ id: "open", type: "trigger", kinds: ["issue.opened"] },
+			{
+				id: "age",
+				type: "rule",
+				ref: "account-age@1",
+				config: { minDays: 30 },
+			},
+			{
+				id: "comment",
+				type: "action",
+				action: "post-comment",
+				params: { message: "Please contact the maintainers." },
+			},
+			{ id: "close", type: "action", action: "close" },
+		],
+		edges: [
+			{ id: "check-age", from: "open", to: "age" },
+			{ id: "explain", from: "age", to: "comment", when: "fail" },
+			{ id: "close-issue", from: "age", to: "close", when: "fail" },
+		],
+	};
+	const workflow = await workflowServices.createWorkflow(db, {
+		repoId,
+		name: definition.name,
+		definition,
+	});
+	const enabled = await workflowServices.setWorkflowEnabled(db, {
+		repoId,
+		workflowId: workflow.id,
+		enabled: true,
+	});
+	expect(enabled).toMatchObject({ ok: true });
+
+	const profile: ContributorProfile = {
+		login: issue.user.login,
+		externalId: String(issue.user.id),
+		createdAt: new Date().toISOString(),
+		followers: 0,
+		following: 0,
+		publicRepos: 0,
+		profileText: null,
+		mergedInRepo: 0,
+		mergedElsewhere: 0,
+		recentChangeRequestTimes: [],
+		isMaintainer: false,
+		isOrgMember: false,
+	};
+	const executed: ForgeAction[] = [];
+	let pullReads = 0;
+	async function deliver(
+		suffix: string,
+		association: string,
+		contributor: ContributorProfile,
+	) {
+		const { eventId } = await eventServices.insertRawEvent(pool, boss, {
+			deliveryId: `issue-moderation-${suffix}`,
+			rawKind: "issues",
+			raw: {
+				...issueCommentFixture,
+				action: "opened",
+				issue: { ...issue, author_association: association },
+				repository: {
+					...repository,
+					id: repository.id + 1,
+					name,
+					full_name: repoName,
+				},
+			},
+		});
+		if (!eventId) throw new Error("Missing event ID");
+		const prRead = () => {
+			pullReads++;
+			return Promise.reject(new Error("Unexpected PR read"));
+		};
+		const reads = {
+			getDiff: prRead,
+			getCommits: prRead,
+			getContributorProfile: () => Promise.resolve(contributor),
+		};
+		const deps = {
+			db,
+			pool,
+			logger,
+			appUrl: "https://tripwire.test",
+			makeGenerate: null,
+			resolveForge: staticForge({
+				reads,
+				adapter: {
+					...reads,
+					forge: "github",
+					verifyWebhook: () => true,
+					normalizeWebhook: () => null,
+					readFile: () => Promise.resolve(null),
+					execute: (action) => {
+						executed.push(action);
+						return Promise.resolve({ externalId: null });
+					},
+				},
+			}),
+		};
+		await processEvent(deps, { eventId });
+		await processEvent(deps, { eventId });
+		return runServices.getRunForEvent(db, eventId);
+	}
+	expect(await deliver("unarmed", "NONE", profile)).toBeNull();
+	await repoServices.setRepoArmed(db, repoId, true);
+	expect(await deliver("maintainer", "OWNER", profile)).toBeNull();
+	const incomplete = await deliver("incomplete", "NONE", {
+		...profile,
+		createdAt: null,
+	});
+	expect(incomplete).not.toBeNull();
+	const unverified = await deliver("unverified", "NONE", {
+		...profile,
+		isMaintainer: null,
+		isOrgMember: null,
+	});
+	expect(unverified?.verdict).toBe("pass");
+	expect(executed).toEqual([]);
+	const run = await deliver("outsider", "NONE", profile);
+	expect(run).toMatchObject({
+		subjectKind: "issue",
+		subjectNumber: issue.number,
+		headSha: null,
+	});
+	expect(executed).toEqual([
+		expect.objectContaining({
+			kind: "post-comment",
+			number: issue.number,
+			body: "Please contact the maintainers.",
+		}),
+		expect.objectContaining({ kind: "close", number: issue.number }),
+	]);
+	expect(pullReads).toBe(0);
 });

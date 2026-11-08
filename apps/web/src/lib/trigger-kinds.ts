@@ -63,6 +63,7 @@ const WHEN_LABELS = new Map<EventKind, string>([
 	["change-request.opened", "A change request opens"],
 	["change-request.updated", "A change request gets new commits"],
 	["change-request.closed", "A change request closes"],
+	["issue.opened", "An issue opens"],
 	["comment.created", "Someone comments"],
 	["push", "Someone pushes"],
 ]);
@@ -109,6 +110,7 @@ export function whenSentence(kinds: readonly EventKind[]): string | null {
 		changeRequest.length > 0
 			? `a change request ${orList(changeRequest)}`
 			: null,
+		ordered.includes("issue.opened") ? "an issue opens" : null,
 		someone.length > 0 ? `someone ${orList(someone)}` : null,
 	].filter((group): group is string => group !== null);
 	if (groups.length === 0) {

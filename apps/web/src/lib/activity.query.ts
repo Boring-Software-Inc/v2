@@ -52,6 +52,9 @@ function groupOf(
 			subjectNumber: event.changeRequest.number,
 		};
 	}
+	if (event.kind === "issue.opened") {
+		return { repo: event.repo.fullName, subjectNumber: event.issue.number };
+	}
 	if (event.kind === "comment.created") {
 		return {
 			repo: event.repo.fullName,
@@ -69,6 +72,7 @@ function eventUrl(event: NormalizedEvent): string | null {
 	) {
 		return event.changeRequest.url;
 	}
+	if (event.kind === "issue.opened") return event.issue.url;
 	if (event.kind === "comment.created") {
 		return event.comment.url;
 	}
@@ -83,6 +87,7 @@ function isTripwireComment(event: NormalizedEvent | null): boolean {
 }
 
 function groupTitle(event: NormalizedEvent, subjectNumber: number): string {
+	if (event.kind === "issue.opened") return event.issue.title;
 	return event.kind === "change-request.opened" ||
 		event.kind === "change-request.updated" ||
 		event.kind === "change-request.closed"
