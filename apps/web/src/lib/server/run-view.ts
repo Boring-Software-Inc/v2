@@ -19,6 +19,7 @@ import {
 	repoServices,
 	responseServices,
 	runServices,
+	workflowServices,
 } from "@tripwire/db";
 import { z } from "zod";
 import {
@@ -94,6 +95,21 @@ export async function loadRunView(
 		canRerun = rerunner && result.run.subjectNumber !== null;
 	}
 	const snapshot = parseSnapshot(result.run.workflowSnapshot as JsonValue);
+	const workflowEditorLinks =
+		access === "full" &&
+		repo &&
+		orgSlug &&
+		snapshot.length > 0 &&
+		(!session.authEnabled || permissions.includes("workflows:read"))
+			? (await workflowServices.listWorkflowRows(db, repo.id)).flatMap(
+					(row) => {
+						const saved = snapshot.find(
+							(entry) => entry.id === row.definition.id,
+						);
+						return saved ? [{ id: row.id, name: saved.name }] : [];
+					},
+				)
+			: [];
 	const nodeLabels = snapshotNodeLabels(snapshot);
 	// Resolve rule display names through the merged catalog: built-ins via
 	// ruleDisplayName, custom refs via the repo's stored names — else a custom
@@ -172,6 +188,7 @@ export async function loadRunView(
 		orgSlug,
 		repoName,
 		canRerun: canRerun && !scheduled && eventRow?.kind !== "issue.opened",
+		workflowEditorLinks,
 		stepsHidden: false,
 		forge,
 		/**

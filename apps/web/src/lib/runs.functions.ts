@@ -140,6 +140,7 @@ export interface RunView {
 	redactionLevel: number;
 	event: RunEventView | null;
 	workflows: RunWorkflowView[];
+	workflowEditorLinks?: { id: string; name: string }[];
 	reviews: RunReviewView[];
 	previousRun: RunLinkView | null;
 	nextRun: RunLinkView | null;

@@ -14,7 +14,7 @@ import { MascotArt } from "#/components/mascot/mascot-art";
 import { RunChainView, RunStatusMark } from "#/components/runs/run-chain";
 import { RunPageSkeleton } from "#/components/runs/run-page-skeleton";
 import { ZoneOrgScope } from "#/components/timezones/zoned-time";
-import { GithubMark, Icon, Retry } from "#/design-system/icon";
+import { GithubMark, Icon, Retry, Workflow } from "#/design-system/icon";
 import { Button } from "#/design-system/ui/button";
 import { CopyButton } from "#/design-system/ui/copy-button";
 import {
@@ -122,6 +122,7 @@ export function RunPage() {
 
 function RunBody({ run }: { run: RunView }) {
 	const canGoBack = useCanGoBack();
+	const { orgSlug, repoName } = run;
 	const chain = useMemo(
 		() =>
 			buildRunChain(run, mergeLiveSteps(run.status, run.snapshot, run.steps)),
@@ -147,6 +148,28 @@ function RunBody({ run }: { run: RunView }) {
 									variant="ghost"
 								/>
 							) : null}
+							{run.access === "full" && orgSlug && repoName
+								? run.workflowEditorLinks?.map(({ id, name }) => (
+										<Button
+											key={id}
+											nativeButton={false}
+											render={
+												<Link
+													params={{
+														org: orgSlug,
+														repo: repoName,
+														workflowId: id,
+													}}
+													to="/$org/$repo/workflows/$workflowId"
+												/>
+											}
+											variant="secondary"
+										>
+											<Icon icon={Workflow} />
+											{name}
+										</Button>
+									))
+								: null}
 							<ViewOnForgeButton run={run} />
 							{run.canRerun && run.orgSlug && run.repoName ? (
 								<RerunRunButton
