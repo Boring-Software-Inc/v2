@@ -4,6 +4,7 @@ type SiteConfig = {
 	tagline: string;
 	themeColor: string;
 	githubRepositoryUrl: string;
+	pilotUrl: string;
 	defaultTitle: string;
 	defaultDescription: string;
 };
@@ -14,6 +15,7 @@ export const siteConfig: SiteConfig = {
 	tagline: "The firewall for your OSS projects",
 	themeColor: "#fbfbfa",
 	githubRepositoryUrl: "https://github.com/Boring-Software-Inc/tripwire",
+	pilotUrl: "https://tripwire.sh/pilot",
 	defaultTitle: "Tripwire | Open source firewall for git",
 	defaultDescription:
 		"Tripwire is a contribution gatekeeper for git forges. It checks contributors and change requests against rules you set, blocks slop before it merges, and keeps a record of every verdict.",
