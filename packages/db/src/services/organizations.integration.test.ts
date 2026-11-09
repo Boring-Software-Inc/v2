@@ -1122,6 +1122,33 @@ describe("install status — what the setup page shows", () => {
 		});
 	});
 
+	test("a stuck webhook gives way to the recovery result", async () => {
+		await seedInstallEvent({
+			installationId: "9010",
+			senderId: 6101,
+			kind: null,
+		});
+		await recordInstallAccessCheck(db, {
+			userId: "status-owner",
+			forge: "github",
+			installationId: "9010",
+			result: "failed",
+		});
+		expect(await status("status-owner", "9010")).toMatchObject({
+			status: "unreadable",
+		});
+		await recordInstallAccessCheck(db, {
+			userId: "status-other",
+			forge: "github",
+			installationId: "9010",
+			result: "denied",
+		});
+		expect(await status("status-other", "9010")).toMatchObject({
+			status: "not-yours",
+			recoverable: false,
+		});
+	});
+
 	test("a raw installation event that is not a create never reads as processing", async () => {
 		await seedInstallEvent({
 			installationId: "9002",
