@@ -198,7 +198,7 @@ test.skipIf(!sdkPath && !(sdkArchive && cliArchive))(
 						"add",
 						resolve(sdkArchive),
 						resolve(cliArchive),
-						"typescript@5.9.3",
+						"typescript@latest",
 					],
 					{ cwd: root },
 				);
