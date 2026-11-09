@@ -3106,6 +3106,8 @@
 
 [data-layout-role="public-blocklist"] {
 	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	inline-size: 100%;
 	max-inline-size: calc(var(--measure) + var(--measure) / 2);
 	margin-inline: auto;
 	padding: var(--space-6) var(--space-4);
@@ -3157,6 +3159,7 @@
 
 [data-layout-role="public-blocklist-table"] {
 	inline-size: 100%;
+	table-layout: fixed;
 	border-collapse: collapse;
 	text-align: start;
 	overflow-wrap: anywhere;
@@ -3173,12 +3176,17 @@
 	font: var(--type-label);
 }
 
-[data-layout-role="public-blocklist-table"] td:last-child {
-	white-space: nowrap;
+[data-layout-role="public-blocklist-table"] th:first-child {
+	inline-size: 28%;
+}
+
+[data-layout-role="public-blocklist-table"] th:last-child {
+	inline-size: 20%;
 }
 
 [data-layout-role="public-blocklist-account"] {
 	display: inline-flex;
+	max-inline-size: 100%;
 	align-items: center;
 	gap: var(--space-2);
 }
