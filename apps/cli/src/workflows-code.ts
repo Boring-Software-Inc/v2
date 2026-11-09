@@ -907,7 +907,13 @@ export async function typecheckSdkWorkflow(
 	const path = resolve(file);
 	let tscPath: string;
 	try {
-		tscPath = createRequire(pathToFileURL(path)).resolve("typescript/bin/tsc");
+		const manifestPath = createRequire(pathToFileURL(path)).resolve(
+			"typescript/package.json",
+		);
+		const manifest = z
+			.object({ bin: z.object({ tsc: z.string().min(1) }) })
+			.parse(JSON.parse(readFileSync(manifestPath, "utf8")));
+		tscPath = resolve(dirname(manifestPath), manifest.bin.tsc);
 	} catch {
 		return {
 			ok: false,
