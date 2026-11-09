@@ -343,10 +343,23 @@ function SetupFlow({
 }
 
 function ConnectingScreen() {
+	const [isTakingLonger, setIsTakingLonger] = useState(false);
+	useEffect(() => {
+		const timer = window.setTimeout(() => setIsTakingLonger(true), 3_000);
+		return () => window.clearTimeout(timer);
+	}, []);
+
 	return (
 		<SetupShell>
 			<MascotArt className="self-center" mood="repos-syncing" />
-			<SetupHeader title="Connecting your installation…" />
+			<div className="text-center">
+				<SetupHeader title="Connecting your installation…" />
+				<output className="mx-auto mt-2 block max-w-measure-hint type-body text-pretty text-text-2 empty:mt-0">
+					{isTakingLonger
+						? "This is taking longer than usual. Keep this page open and Tripwire will continue automatically."
+						: null}
+				</output>
+			</div>
 		</SetupShell>
 	);
 }
