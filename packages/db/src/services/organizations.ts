@@ -1086,11 +1086,13 @@ export async function resolveInstallStatus(
 	if (events.normalized) {
 		return { ...base, status: "not-yours", recoverable: check === null };
 	}
-	if (events.processing) {
-		return { ...base, status: "processing" };
-	}
 	if (result === "denied") {
 		return { ...base, status: "not-yours", recoverable: false };
+	}
+	if (events.processing) {
+		return result === "failed"
+			? { ...base, status: "unreadable" }
+			: { ...base, status: "processing" };
 	}
 	if (events.quarantined) {
 		return { ...base, status: "unreadable" };

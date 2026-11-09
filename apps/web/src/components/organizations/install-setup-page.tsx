@@ -159,7 +159,7 @@ function RecoverInstallation({ state }: { state: string | undefined }) {
 	);
 }
 
-const MISSING_GRACE_MS = 30_000;
+const WEBHOOK_GRACE_MS = 30_000;
 const POLL_MS = 2000;
 
 function isWaiting(status: InstallStatus): boolean {
@@ -175,7 +175,9 @@ function useAutoRecover(
 	recover: () => void,
 ) {
 	const fired = useRef(false);
-	const waitForWebhook = status?.status === "missing" && status.recoverable;
+	const waitForWebhook =
+		status?.status === "processing" ||
+		(status?.status === "missing" && status.recoverable);
 	const checkNow = status?.status === "not-yours" && status.recoverable;
 	useEffect(() => {
 		if (fired.current) {
@@ -192,7 +194,7 @@ function useAutoRecover(
 		const timer = setTimeout(() => {
 			fired.current = true;
 			recover();
-		}, MISSING_GRACE_MS);
+		}, WEBHOOK_GRACE_MS);
 		return () => clearTimeout(timer);
 	}, [waitForWebhook, checkNow, recover]);
 }
@@ -261,6 +263,15 @@ function SetupFlow({
 				</SetupShell>
 			);
 		case "processing":
+			if (recovery.isError) {
+				return (
+					<LoadError
+						onRetry={() => recovery.mutate()}
+						title="Couldn't check this installation"
+					/>
+				);
+			}
+			return <ConnectingScreen />;
 		case "recovering":
 			return <ConnectingScreen />;
 		case "missing":
