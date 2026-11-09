@@ -1,4 +1,3 @@
-import { Link } from "@tanstack/react-router";
 import { AgentOutline } from "#/components/agent/agent-outline";
 import {
 	RULE_CARD_CLASS,
@@ -18,6 +17,7 @@ import {
 } from "#/design-system/ui/item";
 import { Panel } from "#/design-system/ui/panel";
 import { useAgentMotion } from "#/hooks/use-agent-motion";
+import { siteConfig } from "#/lib/site-config";
 
 export const PILOT_DESCRIPTION =
 	"Send pull requests from listed accounts to Human review.";
@@ -96,7 +96,7 @@ export function SharedBlocklistRuleCard({
 					<p className={RULE_SENTENCE_CLASS}>{PILOT_DESCRIPTION}</p>
 				</Panel>
 				<CardFooter className={RULE_FOOTER_CLASS}>
-					<Link to="/pilot">Browse the public list</Link>
+					<a href={siteConfig.pilotUrl}>Browse the public list</a>
 				</CardFooter>
 			</Card>
 		</div>
