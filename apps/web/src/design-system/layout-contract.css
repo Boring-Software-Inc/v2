@@ -3104,6 +3104,20 @@
 	color: var(--text-1);
 }
 
+[data-layout-role="install-setup-status"] {
+	display: block;
+	max-inline-size: var(--measure-hint);
+	margin-inline: auto;
+	color: var(--text-2);
+	font: var(--type-body);
+	text-align: center;
+	text-wrap: pretty;
+}
+
+[data-layout-role="install-setup-status"]:not(:empty) {
+	margin-block-start: var(--space-2);
+}
+
 [data-layout-role="public-blocklist"] {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);

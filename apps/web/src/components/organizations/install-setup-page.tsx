@@ -352,9 +352,9 @@ function ConnectingScreen() {
 	return (
 		<SetupShell>
 			<MascotArt className="self-center" mood="repos-syncing" />
-			<div className="text-center">
+			<div>
 				<SetupHeader title="Connecting your installation…" />
-				<output className="mx-auto mt-2 block max-w-measure-hint type-body text-pretty text-text-2 empty:mt-0">
+				<output data-layout-role="install-setup-status">
 					{isTakingLonger
 						? "This is taking longer than usual. Keep this page open and Tripwire will continue automatically."
 						: null}
