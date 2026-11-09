@@ -11,6 +11,7 @@
 		"./client": "./src/client.ts",
 		"./databuddy": "./src/databuddy.ts",
 		"./flag-evaluation": "./src/flag-evaluation.ts",
+		"./gitcafe-oidc": "./src/gitcafe-oidc.ts",
 		"./install-state": "./src/install-state.ts",
 		"./org-access": "./src/org-access.ts",
 		"./org-gate": "./src/org-gate.ts",

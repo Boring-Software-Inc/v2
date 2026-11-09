@@ -5,6 +5,7 @@ export const DEV_ACCOUNTS = [
 	"member",
 	"moderator",
 	"team-admin",
+	"platform-admin",
 	"outsider",
 	"anonymous",
 ] as const;
@@ -32,6 +33,7 @@ export const DEV_LANDINGS = [
 	"workflow",
 	"settings",
 	"install-setup",
+	"admin",
 	"public-run",
 ] as const;
 export const DEV_LATENCIES = [0, 400, 1500, 4000] as const;
@@ -91,6 +93,7 @@ export const DEV_OPTION_LABELS: DevOptionLabelMap = {
 		member: "Member, not admin",
 		moderator: "Moderator, human review only",
 		"team-admin": "Team org admin",
+		"platform-admin": "Platform admin",
 		outsider: "Signed in, outside the org",
 		anonymous: "Signed out",
 	},
@@ -129,6 +132,7 @@ export const DEV_OPTION_LABELS: DevOptionLabelMap = {
 		workflow: "Workflow editor",
 		settings: "Org settings",
 		"install-setup": "Install confirmation",
+		admin: "Platform admin",
 		"public-run": "Public run",
 	},
 };
@@ -367,6 +371,17 @@ export const DEV_PRESETS: readonly DevPreset[] = [
 		"Accounts",
 		{ ...OWNER_HOME, account: "team-admin", repos: "one", workflows: "live" },
 		{ keywords: ["roles", "members", "admin", "team"] },
+	),
+	preset(
+		"platform-admin",
+		"Platform admin",
+		"Accounts",
+		{
+			...OWNER_HOME,
+			account: "platform-admin",
+			landing: "admin",
+		},
+		{ keywords: ["staff", "operations", "users"] },
 	),
 	preset(
 		"outsider",

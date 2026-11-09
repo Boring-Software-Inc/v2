@@ -1,6 +1,6 @@
 {
 	"name": "@tripwire-sh/cli",
-	"version": "0.1.0",
+	"version": "0.1.21",
 	"description": "Set up Tripwire in your coding agents and manage it from the terminal",
 	"type": "module",
 	"imports": {

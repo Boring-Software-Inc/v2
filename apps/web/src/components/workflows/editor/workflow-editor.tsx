@@ -13,6 +13,7 @@ import { useBlocker } from "@tanstack/react-router";
 import type {
 	AiCreditsState,
 	EdgeWhen,
+	Forge,
 	GateInput,
 	LintFix,
 	LintIntent,
@@ -68,17 +69,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import {
-	Dialog,
-	DialogAction,
-	DialogClose,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/glaze/ui/dialog";
-import { toast } from "#/components/glaze/ui/toast";
 import {
 	AGENT_SETTLE_SLACK_MS,
 	decorateLive,
@@ -142,6 +132,17 @@ import {
 	type TypedFlowEdge,
 } from "#/components/workflows/editor/typed-connections";
 import { WorkflowCode } from "#/components/workflows/editor/workflow-code";
+import {
+	Dialog,
+	DialogAction,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/design-system/ui/dialog";
+import { toast } from "#/design-system/ui/toast";
 import type { AgentMotion } from "#/hooks/use-agent-motion";
 import { repoReviewersQueryOptions } from "#/lib/reviewers.query";
 import {
@@ -231,6 +232,20 @@ function newId(): string {
 	return crypto.randomUUID();
 }
 
+/** dnd-kit reports movement from the activator, not a final pointer event. */
+export function dragEndScreenPosition(
+	event: Pick<DragEndEvent, "activatorEvent" | "delta">,
+) {
+	const activator = event.activatorEvent;
+	if (!(activator instanceof MouseEvent)) {
+		return null;
+	}
+	return {
+		x: activator.clientX + event.delta.x,
+		y: activator.clientY + event.delta.y,
+	};
+}
+
 function handlePoint(position: { x: number; y: number }) {
 	return {
 		x: position.x + INPUT_HANDLE_OFFSET.x,
@@ -256,9 +271,9 @@ function serverProblem(
 	names: ReadonlyMap<string, string> = new Map(),
 ): Problem {
 	const step =
-		"step" in issue && typeof issue.step === "string"
-			? issue.step
-			: ((issue.nodeId ? names.get(issue.nodeId) : undefined) ?? "Workflow");
+		issue.step ??
+		(issue.nodeId ? names.get(issue.nodeId) : undefined) ??
+		"Workflow";
 	return {
 		step,
 		key: `server:${issue.rule ?? ""}:${issue.nodeId ?? ""}:${issue.edgeId ?? ""}:${issue.message}`,
@@ -302,18 +317,6 @@ function fitViewOptions() {
 	} as const;
 }
 
-const CANVAS_TOKENS = {
-	"--xy-background-color": "var(--page)",
-	"--xy-edge-stroke": "var(--ink-45)",
-	"--xy-edge-stroke-selected": "var(--ink)",
-	"--xy-connectionline-stroke": "var(--ink-45)",
-	"--xy-handle-background-color": "var(--ink-32)",
-	"--xy-handle-border-color": "var(--paper)",
-	"--xy-node-color": "var(--text-1)",
-	"--xy-selection-background-color": "var(--ink-06)",
-	"--xy-selection-border": "var(--line-width) dashed var(--line-strong)",
-} as React.CSSProperties;
-
 /**
  * The droppable MUST be a child of <DndContext> — a useDroppable call in the
  * same component that renders the provider registers into dnd-kit's DEFAULT
@@ -331,7 +334,11 @@ function CanvasDropzone({
 }) {
 	const { setNodeRef } = useDroppable({ id: CANVAS_DROP_ID });
 	return (
-		<div className="relative min-h-0 flex-1" hidden={hidden} ref={setNodeRef}>
+		<div
+			data-layout-role="workflow-editor-canvas-region"
+			hidden={hidden}
+			ref={setNodeRef}
+		>
 			{mounted ? children : null}
 		</div>
 	);
@@ -345,9 +352,11 @@ export interface WorkflowEditorLive {
 }
 
 export interface WorkflowEditorProps {
+	forge: Forge;
 	live?: WorkflowEditorLive;
 	headerLeading?: ReactNode;
 	headerActions?: ReactNode;
+	headerNote?: string;
 	/** The repo's custom rules for the palette. */
 	customRules: { ref: string; name: string; description: string }[];
 	aiCredits: AiCreditsState;
@@ -391,9 +400,11 @@ export function WorkflowEditor(props: WorkflowEditorProps) {
 }
 
 function EditorBody({
+	forge,
 	live,
 	headerLeading,
 	headerActions,
+	headerNote,
 	aiCredits,
 	customRules,
 	definition,
@@ -635,7 +646,10 @@ function EditorBody({
 	const syncedReviewers = reviewerData?.syncedAt
 		? reviewerData.reviewers
 		: undefined;
-	const reviewerScope = useMemo(() => ({ org, repoId }), [org, repoId]);
+	const reviewerScope = useMemo(
+		() => ({ org, repoId, forge }),
+		[org, repoId, forge],
+	);
 
 	const candidate = useMemo(
 		() => graphToCandidate(meta, nodes, edges),
@@ -1345,7 +1359,8 @@ function EditorBody({
 	const selectedOne =
 		selectedFlowNodes.length === 1 ? selectedFlowNodes[0] : undefined;
 	const selectedNode =
-		selectedOne && !groups.cards.has(selectedOne.id)
+		selectedOne &&
+		(selectedOne.data.node.type === "rule" || !groups.cards.has(selectedOne.id))
 			? selectedOne.data.node
 			: null;
 
@@ -1364,20 +1379,11 @@ function EditorBody({
 			return;
 		}
 		const item = event.active.data.current as ToolboxItem | undefined;
-		const activator = event.activatorEvent as Partial<PointerEvent>;
-		if (
-			!item ||
-			typeof activator.clientX !== "number" ||
-			typeof activator.clientY !== "number"
-		) {
+		const screenPosition = dragEndScreenPosition(event);
+		if (!item || !screenPosition) {
 			return;
 		}
-		// pointer position = where the drag STARTED (activatorEvent) plus how
-		// far it travelled (delta) — dnd-kit has no per-move pointer on end.
-		const position = screenToFlowPosition({
-			x: activator.clientX + event.delta.x,
-			y: activator.clientY + event.delta.y,
-		});
+		const position = screenToFlowPosition(screenPosition);
 		const hit = getIntersectingNodes({ ...position, width: 1, height: 1 })
 			.map((node) => groups.cards.get(node.id))
 			.find((card) => card !== undefined);
@@ -1492,8 +1498,9 @@ function EditorBody({
 	};
 
 	return (
-		<div className="flex h-full min-h-0 flex-col">
+		<div data-layout-role="workflow-editor">
 			<EditorHeader
+				forge={forge}
 				blockers={blockers}
 				customRules={customRules}
 				onViewChange={onViewChange}
@@ -1507,14 +1514,13 @@ function EditorBody({
 				onSave={handleSave}
 				onSetEnabled={handleSetEnabled}
 				onShowProblems={() => setProblemsOpen(true)}
-				org={org}
 				readOnly={readOnly}
-				repo={repo}
 				saving={saving}
 				toggling={toggling}
 				zeroNodes={nodes.length === 0}
 				leading={headerLeading}
 				actions={headerActions}
+				note={headerNote}
 			/>
 			{codeView ? (
 				<WorkflowCode
@@ -1539,6 +1545,7 @@ function EditorBody({
 													connectionLineComponent={TypedConnectionLine}
 													data-agent-live={live ? "" : undefined}
 													data-agent-motion={live?.motion}
+													data-layout-role="workflow-editor-canvas"
 													data-drag-tone={
 														plan?.port
 															? WORKFLOW_PORT_TONE[plan.port]
@@ -1574,7 +1581,6 @@ function EditorBody({
 													onNodesChange={onNodesChange}
 													onReconnect={readOnly ? undefined : onReconnect}
 													proOptions={{ hideAttribution: true }}
-													style={CANVAS_TOKENS}
 												>
 													<CanvasZoom />
 													<LaneRules ys={decor.rules.map((rule) => rule.y)} />
@@ -1615,8 +1621,8 @@ function EditorBody({
 						/>
 					</ReviewerScopeContext.Provider>
 					{nodes.length === 0 ? (
-						<div className="pointer-events-none absolute inset-0 grid place-items-center">
-							<p className="type-body-sm text-text-2">
+						<div data-layout-role="workflow-editor-empty-canvas">
+							<p>
 								{live
 									? "No steps yet"
 									: "Drag a step from the toolbox, or press its add button"}
@@ -1626,7 +1632,7 @@ function EditorBody({
 				</CanvasDropzone>
 				<DragOverlay dropAnimation={null}>
 					{dragged ? (
-						<div className="overlay rounded-panel px-2 py-1 type-label-sm">
+						<div data-layout-role="workflow-editor-drag-preview">
 							{dragged.name}
 						</div>
 					) : null}

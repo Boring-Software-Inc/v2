@@ -49,6 +49,77 @@ describe("validateWorkflow (base — every failure class)", () => {
 		expect(validateWorkflow({ nope: true }).valid).toBe(false);
 	});
 
+	test("arbitrary malformed boundary values report schema issues without throwing", () => {
+		const malformed = [
+			null,
+			undefined,
+			true,
+			3,
+			"workflow",
+			[],
+			[graph({})],
+			Symbol("workflow"),
+			1n,
+			() => graph({}),
+			{},
+			{ nodes: null },
+			{ ...graph({}), nodes: [null] },
+			{ ...graph({}), nodes: [{}] },
+			{ ...graph({}), edges: [null] },
+		];
+		for (const input of malformed) {
+			for (const validate of [validateWorkflow, validateWorkflowForEnable]) {
+				const result = validate(input);
+				expect(result.valid).toBe(false);
+				if (result.valid) throw new Error("malformed workflow was accepted");
+				expect(result.issues.length).toBeGreaterThan(0);
+				expect(result.issues.every((issue) => issue.rule === "schema")).toBe(
+					true,
+				);
+			}
+			const report = lintWorkflowReport(input);
+			expect(report.definition).toBeNull();
+			expect(report.results.length).toBeGreaterThan(0);
+		}
+	});
+
+	test("silent-trigger fallback keeps node diagnostics and the raw graph unchanged", () => {
+		const input = graph({
+			nodes: [
+				{ id: "t", type: "trigger", kinds: [] },
+				{ id: "r", type: "rule", ref: "account-age@1", config: { minDays: 7 } },
+				{ id: "a", type: "action", action: "block" },
+			],
+		});
+		const before = JSON.stringify(input);
+		for (const validate of [validateWorkflow, validateWorkflowForEnable]) {
+			const result = validate(input);
+			expect(result.valid).toBe(false);
+			if (result.valid) throw new Error("silent workflow was accepted");
+			expect(
+				result.issues.map((issue) => ({
+					rule: issue.rule,
+					nodeId: issue.nodeId,
+					message: issue.message,
+				})),
+			).toEqual([
+				{
+					rule: "no-trigger-events",
+					nodeId: "t",
+					message: "Pick when it runs.",
+				},
+			]);
+		}
+		expect(JSON.stringify(input)).toBe(before);
+	});
+
+	test("validation retains existing unknown-key stripping", () => {
+		const result = validateWorkflow({ ...graph({}), extra: "ignored" });
+		expect(result.valid).toBe(true);
+		if (!result.valid) throw new Error("valid workflow was rejected");
+		expect(result.definition).toEqual(graph({}));
+	});
+
 	test("duplicate node id", () => {
 		const g = graph({});
 		g.nodes.push({ id: "t", type: "gate", mode: "all-of" });
@@ -190,7 +261,7 @@ describe("validateWorkflowForEnable (the two enable-time invariants)", () => {
 		const g = graph({});
 		const rule = g.nodes.find((n) => n.type === "rule");
 		if (rule?.type === "rule") {
-			rule.ref = "ai-review@1"; // frozen: absent from RULE_CATALOG
+			rule.ref = "ai-review@99";
 			rule.config = {};
 		}
 		expect(validateWorkflow(g).valid).toBe(true); // base: structural only

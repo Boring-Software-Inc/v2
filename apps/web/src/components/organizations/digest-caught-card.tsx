@@ -1,5 +1,6 @@
 import type { HomeDigest } from "@tripwire/contracts";
-import { Button } from "#/components/glaze/ui/button";
+import { useSetupInstallRules } from "#/components/setup/use-repo-setup";
+import { Button } from "#/design-system/ui/button";
 import {
 	Card,
 	CardDescription,
@@ -7,8 +8,7 @@ import {
 	CardHeader,
 	CardMeta,
 	CardTitle,
-} from "#/components/glaze/ui/card";
-import { useSetupInstallRules } from "#/components/setup/use-repo-setup";
+} from "#/design-system/ui/card";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 
 interface DigestCaughtCardProps {

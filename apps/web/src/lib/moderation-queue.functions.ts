@@ -41,7 +41,7 @@ export const listModerationQueue = createServerFn({ method: "GET" })
 		const limit = moderationServices.PENDING_ITEMS_LIMIT;
 		const rows = await moderationServices.listPendingItems(
 			getDb().db,
-			repo.fullName,
+			[repo],
 			limit + 1,
 		);
 		const items = rows.slice(0, limit).map((item) => ({
@@ -78,12 +78,22 @@ export const decideModeration = createServerFn({ method: "POST" })
 		const { requireSession } = await import("#/lib/server/session");
 		const decidedBy = await requireSession();
 		const { moderationServices } = await import("@tripwire/db");
-		const { getDb, getBoss, isDemoMode } = await import("#/lib/server/db");
+		const { getDb, getBoss, getGitCafeConnectionBoss, isDemoMode } =
+			await import("#/lib/server/db");
+		const boss = isDemoMode()
+			? null
+			: repo.forge === "gitcafe"
+				? await getGitCafeConnectionBoss(data.itemId)
+				: await getBoss();
+		if (boss && repo.forge === "gitcafe") {
+			const { GITCAFE_RESUME_RUN_QUEUE } = await import("@tripwire/contracts");
+			await boss.createQueue(GITCAFE_RESUME_RUN_QUEUE);
+		}
 		const result = await moderationServices.decideRepoModerationItem(
 			getDb().db,
-			isDemoMode() ? null : { pool: getDb().pool, boss: await getBoss() },
+			boss ? { pool: getDb().pool, boss } : null,
 			{
-				repoFullName: repo.fullName,
+				repo,
 				itemId: data.itemId,
 				decision: data.decision,
 				decidedBy,

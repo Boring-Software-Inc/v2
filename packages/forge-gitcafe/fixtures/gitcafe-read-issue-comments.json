@@ -1,0 +1,28 @@
+{
+	"items": [
+		{
+			"author": {
+				"kind": "local",
+				"actorId": "act_01m08gfttrfw3ba3xpz50vq38h",
+				"handle": "grim",
+				"displayName": "grim",
+				"avatarUrl": null
+			},
+			"id": "icomment_01m62kwy8ff888v6vyvbwa24ve",
+			"issueId": "issue_01m62kwbc9ewtrxfnn7v8p70mr",
+			"repoId": "repo_01m608d2crfqzt2vc8akngqsc0",
+			"authorActorId": "act_01m08gfttrfw3ba3xpz50vq38h",
+			"authorDelegatorActorId": null,
+			"authorViaInstallationId": null,
+			"body": "Tripwire staging issue-comment acceptance. <!-- tripwire-qa:01a1853e-5292-749e-9910-48a737ee5b55 -->",
+			"version": 0,
+			"createdAt": "2026-10-29T01:20:26.340Z",
+			"updatedAt": "2026-10-29T01:20:26.340Z",
+			"capabilities": {
+				"edit": false,
+				"delete": false
+			}
+		}
+	],
+	"next": null
+}

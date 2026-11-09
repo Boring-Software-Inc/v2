@@ -127,7 +127,7 @@ export async function replayBundle(
 		const result = await executeWorkflow({
 			definition,
 			event: bundle.event,
-			evaluateRuleRef: (ref: string, _config: unknown): Promise<RuleResult> => {
+			evaluateRuleRef: (ref): Promise<RuleResult> => {
 				const node = definition.nodes.find(
 					(n) => n.type === "rule" && n.ref === ref && byNode(n.id),
 				);
@@ -339,8 +339,8 @@ export async function replay(bundles: ReplayBundle[]): Promise<ReplayReport> {
 	return report;
 }
 
-export function parseCorpus(json: unknown): ReplayBundle[] {
-	return z.array(bundleSchema).parse(json) as ReplayBundle[];
+export function parseCorpus(json: string): ReplayBundle[] {
+	return z.array(bundleSchema).parse(JSON.parse(json)) as ReplayBundle[];
 }
 
 function renderReport(report: ReplayReport): string {
@@ -376,7 +376,7 @@ if (import.meta.main) {
 	let pool: { end(): Promise<void> } | null = null;
 	let skippedLoads: ReplayReport["skipped"] = [];
 	if (corpusPath) {
-		bundles = parseCorpus(await Bun.file(corpusPath).json());
+		bundles = parseCorpus(await Bun.file(corpusPath).text());
 	} else {
 		const created = createDb();
 		pool = created.pool;

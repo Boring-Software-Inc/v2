@@ -2,6 +2,13 @@ import { Link } from "@tanstack/react-router";
 import { useTheme } from "next-themes";
 import { TripwireWordmark } from "#/components/common/tripwire-wordmark";
 import { useFeedback } from "#/components/feedback";
+import { CommandPaletteButton } from "#/components/layouts/command-palette-launcher";
+import { HeaderFeedbackControl } from "#/components/layouts/header-feedback-control";
+import {
+	OrgSwitcher,
+	RepoSwitcher,
+} from "#/components/layouts/scope-switchers";
+import { SetupPill } from "#/components/setup/setup-pill";
 import {
 	Comment,
 	Dark,
@@ -9,9 +16,9 @@ import {
 	Light,
 	Settings,
 	SignOut,
-} from "#/components/glaze/icon";
-import { Avatar } from "#/components/glaze/ui/avatar";
-import { Button } from "#/components/glaze/ui/button";
+} from "#/design-system/icon";
+import { Avatar } from "#/design-system/ui/avatar";
+import { Button } from "#/design-system/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -21,17 +28,11 @@ import {
 	DropdownMenuLinkItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "#/components/glaze/ui/dropdown-menu";
-import { CommandPaletteButton } from "#/components/layouts/command-palette-launcher";
-import {
-	OrgSwitcher,
-	RepoSwitcher,
-} from "#/components/layouts/scope-switchers";
-import { SetupPill } from "#/components/setup/setup-pill";
+} from "#/design-system/ui/dropdown-menu";
 import { useActiveScope } from "#/hooks/use-active-scope";
 import { useHasMounted } from "#/hooks/use-has-mounted";
+import { useSignOut } from "#/hooks/use-sign-out";
 import type { CurrentUser } from "#/lib/auth.functions";
-import { authClient } from "#/lib/auth-client";
 
 interface DashboardTopbarProps {
 	user: CurrentUser | null;
@@ -57,9 +58,9 @@ export function DashboardTopbar({ user }: DashboardTopbarProps) {
 					{scope.repo ? <SetupPill /> : null}
 				</>
 			) : null}
-			<div className="ms-auto flex shrink-0 items-center gap-1 sm:gap-2">
+			<div className="ms-auto flex min-w-0 items-center gap-1 sm:gap-2">
 				<CommandPaletteButton />
-				<BetaTag />
+				<HeaderFeedbackControl />
 				<UserMenu user={user} />
 			</div>
 		</nav>
@@ -87,20 +88,6 @@ export function Brand({ org }: { org: string | undefined }) {
 	);
 }
 
-export function BetaTag() {
-	const { start: openFeedback } = useFeedback();
-	return (
-		<Button
-			aria-label="Tripwire is in beta. Send feedback"
-			onClick={openFeedback}
-			size="sm"
-			variant="secondary"
-		>
-			Beta
-		</Button>
-	);
-}
-
 const PLACEHOLDER_USER: CurrentUser = {
 	id: "",
 	name: "local session",
@@ -117,6 +104,7 @@ export function UserMenu({
 	user: CurrentUser | null;
 	showName?: boolean;
 }) {
+	const signOut = useSignOut();
 	const moderator = user ?? PLACEHOLDER_USER;
 	const identity = accountIdentity(moderator);
 	const { start: openFeedback } = useFeedback();
@@ -139,6 +127,7 @@ export function UserMenu({
 				<Avatar
 					decorative
 					name={moderator.name}
+					size={showName ? "default" : "lg"}
 					src={moderator.image || undefined}
 				/>
 				{showName ? (
@@ -183,15 +172,7 @@ export function UserMenu({
 					{isDark ? "Light theme" : "Dark theme"}
 				</DropdownMenuItem>
 				<DropdownMenuSeparator />
-				<DropdownMenuItem
-					onClick={() =>
-						authClient.signOut({
-							fetchOptions: {
-								onSuccess: () => window.location.assign("/login"),
-							},
-						})
-					}
-				>
+				<DropdownMenuItem onClick={() => signOut.mutate()}>
 					<Icon icon={SignOut} />
 					Sign out
 				</DropdownMenuItem>

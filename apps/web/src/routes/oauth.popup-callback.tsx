@@ -1,14 +1,19 @@
 import { track } from "@databuddy/sdk";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
+import {
+	oauthPopupSearchSchema,
+	type WaitlistNotification,
+	waitlistNotificationSchema,
+} from "@tripwire/contracts";
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
-import { Button } from "#/components/glaze/ui/button";
-import { Status } from "#/components/glaze/ui/status";
+import { Button } from "#/design-system/ui/button";
+import { Status } from "#/design-system/ui/status";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
-import { type TrackingSearch, trackingSearch } from "#/lib/track";
+import { trackingSearch } from "#/lib/track";
 
 /**
  * Post-auth closer page for the waitlist popup. Notifies the opener via
@@ -19,13 +24,16 @@ import { type TrackingSearch, trackingSearch } from "#/lib/track";
 export const Route = createFileRoute("/oauth/popup-callback")({
 	component: PopupCallbackPage,
 	validateSearch: (
-		search: Record<string, unknown>,
-	): { opener?: string; error?: string; mode?: string } & TrackingSearch => ({
-		opener: typeof search.opener === "string" ? search.opener : undefined,
-		error: typeof search.error === "string" ? search.error : undefined,
-		mode: typeof search.mode === "string" ? search.mode : undefined,
-		...trackingSearch(search),
-	}),
+		search: Parameters<typeof oauthPopupSearchSchema.parse>[0],
+	) => {
+		const parsed = oauthPopupSearchSchema.parse(search);
+		return {
+			opener: parsed.opener,
+			error: parsed.error,
+			mode: parsed.mode,
+			...trackingSearch(search),
+		};
+	},
 	head: ({ match }) =>
 		buildSeo({
 			path: match.pathname,
@@ -47,11 +55,17 @@ function resolveTargetOrigin(opener: string | undefined): string | null {
 	return opener && allowed.includes(opener) ? opener : null;
 }
 
-function postToOpener(payload: unknown, targetOrigin: string | null): boolean {
+function postToOpener(
+	payload: WaitlistNotification,
+	targetOrigin: string | null,
+): boolean {
 	if (!targetOrigin) return false;
 	try {
 		if (window.opener && !window.opener.closed) {
-			window.opener.postMessage(payload, targetOrigin);
+			window.opener.postMessage(
+				waitlistNotificationSchema.parse(payload),
+				targetOrigin,
+			);
 			return true;
 		}
 	} catch {

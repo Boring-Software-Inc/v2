@@ -229,6 +229,7 @@ describe("manual re-run (§ re-run feature)", () => {
 
 		const fake = fakeAdapter();
 		await rerunChangeRequest(baseDeps(fake.adapter, MOVED_SHA), {
+			forge: "github",
 			repoFullName: "Codertocat/Hello-World",
 			number: 2,
 			requestedBy: "admin-1",
@@ -276,6 +277,7 @@ describe("manual re-run (§ re-run feature)", () => {
 	test("check delivery failure is recorded, never fatal — the run completes", async () => {
 		const fake = fakeAdapter({ failCheck: true });
 		await rerunChangeRequest(baseDeps(fake.adapter, MOVED_SHA), {
+			forge: "github",
 			repoFullName: "Codertocat/Hello-World",
 			number: 2,
 			requestedBy: "admin-1",
@@ -299,6 +301,7 @@ describe("manual re-run (§ re-run feature)", () => {
 	test("re-run for a PR with no evaluatable event is a logged no-op", async () => {
 		const before = await pool.query("SELECT count(*)::int AS n FROM runs");
 		await rerunChangeRequest(baseDeps(fakeAdapter().adapter, MOVED_SHA), {
+			forge: "github",
 			repoFullName: "Codertocat/Hello-World",
 			number: 9999,
 			requestedBy: "admin-1",
@@ -360,7 +363,7 @@ describe("manual re-run (§ re-run feature)", () => {
 		// Materialize the queued run the way the server fn does.
 		const eventRow = await eventServices.getLatestChangeRequestEvent(
 			db,
-			"Codertocat/Hello-World",
+			{ forge: "github", fullName: "Codertocat/Hello-World" },
 			2,
 		);
 		if (!eventRow) {
@@ -395,6 +398,7 @@ describe("manual re-run (§ re-run feature)", () => {
 				}),
 			},
 			{
+				forge: "github",
 				repoFullName: "Codertocat/Hello-World",
 				number: 2,
 				requestedBy: "admin-1",
@@ -436,4 +440,59 @@ describe("manual re-run (§ re-run feature)", () => {
 		const second = await boss.send(RERUN_QUEUE, data, options);
 		expect(second).toBeNull();
 	});
+});
+
+test("a re-run cannot claim or fail a queued run from another forge", async () => {
+	const { generateId } = await import("@tripwire/utils");
+	const eventId = generateId();
+	await pool.query(
+		"INSERT INTO events (id, forge, delivery_id, raw_kind, raw) VALUES ($1, 'opengit', $1, 'database-isolation-test', '{}')",
+		[eventId],
+	);
+	const runId = await runServices.createRun(db, {
+		eventId,
+		repoFullName: "Codertocat/Hello-World",
+		subjectNumber: 2,
+		headSha: ORIGINAL_SHA,
+		snapshot: [DEFAULT_WORKFLOW],
+		status: "queued",
+		verdict: null,
+	});
+	const fake = fakeAdapter();
+	await rerunChangeRequest(baseDeps(fake.adapter, MOVED_SHA), {
+		forge: "github",
+		repoFullName: "Codertocat/Hello-World",
+		number: 2,
+		requestedBy: "admin-1",
+		runId,
+	});
+	expect((await runServices.getRunById(db, runId))?.status).toBe("queued");
+	expect(fake.executed).toEqual([]);
+});
+
+test("a legacy queued re-run recovers its forge from its claimed event", async () => {
+	const source = await eventServices.getLatestChangeRequestEvent(
+		db,
+		{ forge: "github", fullName: "Codertocat/Hello-World" },
+		2,
+	);
+	if (!source) {
+		throw new Error("missing stored event");
+	}
+	const runId = await runServices.createRun(db, {
+		eventId: source.id,
+		repoFullName: "Codertocat/Hello-World",
+		subjectNumber: 2,
+		headSha: ORIGINAL_SHA,
+		snapshot: [DEFAULT_WORKFLOW],
+		status: "queued",
+		verdict: null,
+	});
+	await rerunChangeRequest(baseDeps(fakeAdapter().adapter, MOVED_SHA), {
+		repoFullName: "Codertocat/Hello-World",
+		number: 2,
+		requestedBy: "admin-1",
+		runId,
+	});
+	expect((await runServices.getRunById(db, runId))?.status).not.toBe("queued");
 });

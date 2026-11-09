@@ -1,0 +1,37 @@
+{
+	"items": [
+		{
+			"name": "main",
+			"oid": "ac21bd68841290a7dddb7b8f7d7dd1657fdaba04",
+			"isHead": true,
+			"annotated": false,
+			"targetCommit": {
+				"oid": "ac21bd68841290a7dddb7b8f7d7dd1657fdaba04",
+				"summary": "test: initialize Tripwire staging QA scratch",
+				"committedAt": 1793185325,
+				"author": {
+					"name": "Tripwire staging QA",
+					"email": "[REDACTED]"
+				}
+			},
+			"verification": null
+		},
+		{
+			"name": "tripwire-qa/adapter-20261028",
+			"oid": "2bff66c45a9e2241fc2482bc63bac23281a7377f",
+			"isHead": false,
+			"annotated": false,
+			"targetCommit": {
+				"oid": "2bff66c45a9e2241fc2482bc63bac23281a7377f",
+				"summary": "test: add GitCafe adapter acceptance fixture",
+				"committedAt": 1793185347,
+				"author": {
+					"name": "Tripwire staging QA",
+					"email": "[REDACTED]"
+				}
+			},
+			"verification": null
+		}
+	],
+	"next": null
+}

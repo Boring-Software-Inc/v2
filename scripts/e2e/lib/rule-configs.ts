@@ -62,7 +62,7 @@ export async function pinRules(
 	repoFullName: string,
 	enable: RuleConfigRow[],
 ): Promise<RuleConfigSnapshot> {
-	const repo = await repoServices.getRepoByFullName(db, repoFullName);
+	const repo = await repoServices.getRepoByFullName(db, repoFullName, "github");
 	if (!repo) {
 		throw new Error(
 			`repo ${repoFullName} is not in the DB — is the app installed and has a webhook landed?`,

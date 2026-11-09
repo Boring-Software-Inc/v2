@@ -7,13 +7,14 @@ import {
 	parseLineAnchor,
 } from "#/components/code/line-anchor";
 import { PlainCode } from "#/components/code/plain-code";
-import { CopyButton } from "#/components/glaze/ui/copy-button";
-import { cn } from "#/lib/glaze/utils";
+import { cn } from "#/design-system/lib/utils";
+import { CopyButton } from "#/design-system/ui/copy-button";
 
 const PierreFile = lazy(() =>
-	import("#/components/code/pierre-code").then((module) => ({
-		default: module.PierreFile,
-	})),
+	import("#/components/code/pierre-code").then(
+		(module) => ({ default: module.PierreFile }),
+		() => ({ default: PlainCode }),
+	),
 );
 
 export interface TripwireCodeFileProps {

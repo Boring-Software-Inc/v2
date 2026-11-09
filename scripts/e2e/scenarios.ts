@@ -1,5 +1,8 @@
-import type { WorkflowDefinition } from "@tripwire/contracts";
-import { validateWorkflowForEnable } from "@tripwire/contracts";
+import type { JsonValue, WorkflowDefinition } from "@tripwire/contracts";
+import {
+	deliveryFailureProjectionSchema,
+	validateWorkflowForEnable,
+} from "@tripwire/contracts";
 import { repoServices, schema } from "@tripwire/db";
 import { COMMENT_MARKER } from "@tripwire/forge-github";
 import { eq } from "drizzle-orm";
@@ -172,7 +175,7 @@ function webhookFailWorkflow(minDays: number, url: string): WorkflowDefinition {
 function ruleWorkflow(
 	ruleId: string,
 	version: number,
-	config: unknown,
+	config: JsonValue,
 ): WorkflowDefinition {
 	return {
 		id: `e2e-wfm-${ruleId}`,
@@ -189,7 +192,7 @@ function ruleWorkflow(
 				id: "r",
 				type: "rule",
 				ref: `${ruleId}@${version}`,
-				config: config as never,
+				config,
 				position: { x: 360, y: 160 },
 			},
 			{
@@ -263,7 +266,7 @@ function gateWorkflow(mode: "all-of" | "any-of" | "not"): WorkflowDefinition {
 interface RuleMatrixRow {
 	ruleId: string;
 	version: number;
-	config: Record<string, unknown>;
+	config: JsonValue;
 	/** The change that forces this rule to FAIL. */
 	edits: Record<string, string | null>;
 	title?: string;
@@ -1118,7 +1121,11 @@ export const SCENARIOS: Scenario[] = [
 			if (!db) {
 				throw new Error("workflow-existing needs a DB");
 			}
-			const repo = await repoServices.getRepoByFullName(db, ctx.config.repo);
+			const repo = await repoServices.getRepoByFullName(
+				db,
+				ctx.config.repo,
+				"github",
+			);
 			if (!repo) {
 				throw new Error(`repo ${ctx.config.repo} not in the DB`);
 			}
@@ -1216,14 +1223,23 @@ export const SCENARIOS: Scenario[] = [
 					.innerJoin(schema.runs, eq(schema.runActions.runId, schema.runs.id))
 					.where(eq(schema.runs.repoFullName, ctx.config.repo));
 				for (const row of rows) {
-					const payload = row.payload as Record<string, unknown>;
-					if (typeof payload.deliveryFailure === "string") {
-						failure = payload.deliveryFailure;
+					const payload = row.payload;
+					if (payload === null || payload === undefined) {
+						throw new TypeError(
+							"Cannot read deliveryFailure from a nullish action payload",
+						);
+					}
+					const parsed = deliveryFailureProjectionSchema.safeParse(payload);
+					const deliveryFailure = parsed.success
+						? parsed.data.deliveryFailure
+						: undefined;
+					if (deliveryFailure !== undefined) {
+						failure = deliveryFailure;
 						// The url must NEVER be exposed alongside the failure.
 						asserter.ok(
 							"the recorded failure does not carry the url",
 							!JSON.stringify(payload).includes("169.254.169.254") ||
-								payload.deliveryFailure === "blocked-destination",
+								deliveryFailure === "blocked-destination",
 							"url leaked into the failure record",
 						);
 					}

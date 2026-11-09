@@ -3,14 +3,11 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { ConnectForgeDialog } from "#/components/forges/connect-forge-dialog";
-import {
-	Add,
-	Check,
-	ChevronSort,
-	Icon,
-	Settings,
-} from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
+import { CreateOrgDialog } from "#/components/organizations/create-org-dialog";
+import { OrgAvatar } from "#/components/organizations/org-avatar";
+import { Add, Check, ChevronSort, Icon, Settings } from "#/design-system/icon";
+import { cn } from "#/design-system/lib/utils";
+import { Button } from "#/design-system/ui/button";
 import {
 	Command,
 	CommandEmpty,
@@ -19,7 +16,7 @@ import {
 	CommandItem,
 	CommandList,
 	CommandSeparator,
-} from "#/components/glaze/ui/command";
+} from "#/design-system/ui/command";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -27,17 +24,14 @@ import {
 	DropdownMenuLinkItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "#/components/glaze/ui/dropdown-menu";
+} from "#/design-system/ui/dropdown-menu";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "#/components/glaze/ui/popover";
-import { CreateOrgDialog } from "#/components/organizations/create-org-dialog";
-import { OrgAvatar } from "#/components/organizations/org-avatar";
+} from "#/design-system/ui/popover";
 import { useActiveScope } from "#/hooks/use-active-scope";
 import { useFeaturePath } from "#/hooks/use-feature-path";
-import { cn } from "#/lib/glaze/utils";
 import { myOrgsQueryOptions, orgHomeQueryOptions } from "#/lib/org.query";
 
 type Appearance = "bar" | "rail";
@@ -70,7 +64,7 @@ export function OrgSwitcher({
 					}
 				>
 					{org ? (
-						<OrgAvatar eyes hue={org.avatarHue} name={org.name} size="sm" />
+						<OrgAvatar hue={org.avatarHue} name={org.name} size="sm" />
 					) : null}
 					<span
 						className={cn(

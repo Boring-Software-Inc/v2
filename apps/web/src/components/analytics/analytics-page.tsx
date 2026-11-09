@@ -8,14 +8,15 @@ import {
 	ChartAtRest,
 	hourlyZeroRows,
 } from "#/components/analytics/chart-at-rest";
-import { Icon, TrendDown, TrendUp } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Icon, TrendDown, TrendUp } from "#/design-system/icon";
+import { cn } from "#/design-system/lib/utils";
+import { Button } from "#/design-system/ui/button";
 import {
 	SegmentedControl,
 	SegmentedControlItem,
-} from "#/components/glaze/ui/segmented-control";
-import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+} from "#/design-system/ui/segmented-control";
+import { SkeletonSwap } from "#/design-system/ui/skeleton";
 import {
 	type AnalyticsMetric,
 	hoursAgo,
@@ -24,7 +25,6 @@ import {
 import { analyticsActivityQueryOptions } from "#/lib/analytics-activity.query";
 import { closestEventId } from "#/lib/analytics-events";
 import type { DateRange } from "#/lib/date-range";
-import { cn } from "#/lib/glaze/utils";
 import { moderationStatsQueryOptions } from "#/lib/moderation.query";
 import { pickValue } from "#/lib/pick-value";
 import { ANALYTICS_METRICS } from "#/lib/repo-search";

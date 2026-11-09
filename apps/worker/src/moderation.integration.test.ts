@@ -130,10 +130,9 @@ describe("moderation queue = paused run", () => {
 		expect(run.rows[0].status).toBe("paused");
 		expect(run.rows[0].verdict).toBe("needs_review");
 
-		const items = await moderationServices.listPendingItems(
-			db,
-			"Codertocat/Hello-World",
-		);
+		const items = await moderationServices.listPendingItems(db, [
+			{ forge: "github", fullName: "Codertocat/Hello-World" },
+		]);
 		expect(items).toHaveLength(1);
 		expect(items[0]?.runId).toBe(run.rows[0].id);
 		expect(items[0]?.nodeId).toBe("moderated@1:mod");
@@ -141,10 +140,9 @@ describe("moderation queue = paused run", () => {
 	});
 
 	test("deny resumes down the deny edge ⇒ block; item decided; surface re-emitted", async () => {
-		const items = await moderationServices.listPendingItems(
-			db,
-			"Codertocat/Hello-World",
-		);
+		const items = await moderationServices.listPendingItems(db, [
+			{ forge: "github", fullName: "Codertocat/Hello-World" },
+		]);
 		const item = items[0];
 		if (!item) {
 			throw new Error("no pending item");
@@ -180,7 +178,9 @@ describe("moderation queue = paused run", () => {
 		expect(kinds.filter((k) => k === "comment").length).toBe(2);
 
 		expect(
-			await moderationServices.listPendingItems(db, "Codertocat/Hello-World"),
+			await moderationServices.listPendingItems(db, [
+				{ forge: "github", fullName: "Codertocat/Hello-World" },
+			]),
 		).toHaveLength(0);
 
 		const second = await moderationServices.decideModerationItem(pool, boss, {
@@ -249,10 +249,9 @@ async function pauseT4Run(
 		throw new Error("insert failed");
 	}
 	await processEvent({ ...deps(), resolveForge }, { eventId });
-	const items = await moderationServices.listPendingItems(
-		db,
-		"Codertocat/Hello-World",
-	);
+	const items = await moderationServices.listPendingItems(db, [
+		{ forge: "github", fullName: "Codertocat/Hello-World" },
+	]);
 	const item = items[0];
 	if (!item) {
 		throw new Error("no pending item");
@@ -371,10 +370,9 @@ describe("deny floor — deny with no deny edge never fails open", () => {
 			{ eventId },
 		);
 
-		const items = await moderationServices.listPendingItems(
-			db,
-			"Codertocat/Hello-World",
-		);
+		const items = await moderationServices.listPendingItems(db, [
+			{ forge: "github", fullName: "Codertocat/Hello-World" },
+		]);
 		const item = items.find((i) => i.nodeId === "run:degraded");
 		if (!item) {
 			throw new Error("no degraded item");
@@ -458,10 +456,9 @@ describe("a resumed run moves the change request off human review", () => {
 		const run = await pool.query("SELECT id FROM runs WHERE event_id = $1", [
 			eventId,
 		]);
-		const items = await moderationServices.listPendingItems(
-			db,
-			"Codertocat/Hello-World",
-		);
+		const items = await moderationServices.listPendingItems(db, [
+			{ forge: "github", fullName: "Codertocat/Hello-World" },
+		]);
 		const item = items.find((i) => i.runId === run.rows[0].id);
 		if (!item) {
 			throw new Error("no pending item");

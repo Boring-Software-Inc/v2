@@ -50,6 +50,8 @@ export const RULE_FALLBACK_ORDER: readonly string[] = [
 	"profile-readme",
 	"max-files-changed",
 	"ai-review",
+	"owned-repo-stars",
+	"merged-pr-repo-stars",
 ];
 
 export const MOST_USED_MIN_REPOS = 10;

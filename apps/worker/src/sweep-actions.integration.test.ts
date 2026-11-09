@@ -14,6 +14,8 @@ import {
 	runServices,
 	type TestDatabase,
 } from "@tripwire/db";
+import type { ForgeAdapter } from "@tripwire/forge";
+import { generateId } from "@tripwire/utils";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import pino from "pino";
@@ -110,6 +112,92 @@ afterAll(async () => {
 });
 
 describe("sweepActions", () => {
+	for (const kind of ["block", "dismiss-review", "request-review"] as const) {
+		test(`failed ${kind} remains recorded until delivery recovers`, async () => {
+			const base = normalizedEventSchema.parse(
+				await Bun.file(
+					new URL(
+						"../../../packages/core/fixtures/change-request.opened.event.json",
+						import.meta.url,
+					),
+				).json(),
+			);
+			if (!("changeRequest" in base)) throw new Error("expected PR fixture");
+			const repoFullName = `acme/recover-${kind}`;
+			const event = normalizedEventSchema.parse({
+				...base,
+				repo: { ...base.repo, fullName: repoFullName },
+			});
+			const runId = await runServices.createRun(db, {
+				eventId: await insertEvent(`surface-recover-${kind}`),
+				repoFullName,
+				subjectNumber: base.changeRequest.number,
+				headSha: base.changeRequest.headSha,
+				snapshot: SNAPSHOT,
+				status: "completed",
+				verdict: "block",
+			});
+			const rows = await runServices.recordActions(db, runId, [
+				{
+					kind,
+					payload: {
+						number: base.changeRequest.number,
+						reviewId: "review-to-dismiss",
+						reviewers: ["maintainer"],
+					},
+					idempotencyKey: `recover:${kind}`,
+				},
+			]);
+			const fake = fakeAdapter();
+			let available = false;
+			let attempts = 0;
+			const adapter: ForgeAdapter = {
+				...fake.adapter,
+				execute: async (action) => {
+					if (action.kind === kind) {
+						attempts++;
+						if (!available) throw new Error("synthetic forge outage");
+					}
+					return fake.adapter.execute(action);
+				},
+			};
+			await emitPrSurface(
+				{ db, adapter, logger, appUrl: "https://tripwire.sh" },
+				{
+					runId,
+					verdict: "block",
+					event,
+					reasons: [],
+					pendingActionRows: rows,
+				},
+			);
+			expect(attempts).toBe(1);
+			expect((await actionStatuses(runId))[`recover:${kind}`]).toBe("recorded");
+			const sweep = () =>
+				sweepActions(
+					{
+						db,
+						adapterFor: async () => adapter,
+						logger,
+						appUrl: "https://tripwire.sh",
+					},
+					{ recordedBefore: FUTURE(), giveUpBefore: PAST() },
+				);
+			await sweep();
+			expect(attempts).toBe(2);
+			expect((await actionStatuses(runId))[`recover:${kind}`]).toBe("recorded");
+			available = true;
+			await sweep();
+			expect(attempts).toBe(3);
+			expect((await actionStatuses(runId))[`recover:${kind}`]).toBe("executed");
+			expect(
+				fake.executed.filter((action) => action.kind === kind),
+			).toHaveLength(1);
+			await sweep();
+			expect(attempts).toBe(3);
+		});
+	}
+
 	test("recorded under a failing adapter ⇒ recovers ⇒ executed", async () => {
 		const eventId = await insertEvent("sweep-recover");
 		const sha = "a".repeat(40);
@@ -125,7 +213,7 @@ describe("sweepActions", () => {
 		await runServices.recordActions(db, runId, [
 			{
 				kind: "comment",
-				payload: { number: 1, body: "**tripwire: blocked**" },
+				payload: { number: 1, body: "**tripwire: blocked**", verdict: "block" },
 				idempotencyKey: "comment:1:block",
 			},
 			{
@@ -172,7 +260,7 @@ describe("sweepActions", () => {
 		await runServices.recordActions(db, runId, [
 			{
 				kind: "comment",
-				payload: { number: 2, body: "sent to review" },
+				payload: { number: 2, body: "sent to review", verdict: "needs_review" },
 				idempotencyKey: "comment:2:needs_review",
 			},
 			{
@@ -191,7 +279,7 @@ describe("sweepActions", () => {
 		const blockRows = await runServices.recordActions(db, runId, [
 			{
 				kind: "comment",
-				payload: { number: 2, body: "**tripwire: blocked**" },
+				payload: { number: 2, body: "**tripwire: blocked**", verdict: "block" },
 				idempotencyKey: "comment:2:block",
 			},
 			{
@@ -235,7 +323,7 @@ describe("comment ownership (§6 — decide older run after newer)", () => {
 				new URL(
 					"../../../packages/core/fixtures/change-request.opened.event.json",
 					import.meta.url,
-				).pathname,
+				),
 			).json(),
 		) as NormalizedEvent & {
 			repo: { fullName: string };
@@ -324,7 +412,7 @@ describe("a comment run's own reply", () => {
 		await runServices.recordActions(db, commentRun, [
 			{
 				kind: "comment",
-				payload: { number: 4, body: "thanks for the ping" },
+				payload: { number: 4, body: "thanks for the ping", verdict: "pass" },
 				idempotencyKey: "reply:4",
 			},
 		]);
@@ -350,5 +438,139 @@ describe("a comment run's own reply", () => {
 			{ recordedBefore: FUTURE(), giveUpBefore: PAST() },
 		);
 		expect((await actionStatuses(commentRun))["reply:4"]).toBe("executed");
+	});
+});
+
+test("retry dispatch uses the event forge even when both repos have the same name", async () => {
+	const { repoServices } = await import("@tripwire/db");
+	const { generateId } = await import("@tripwire/utils");
+	const fullName = "same-owner/retry-target";
+	for (const forge of ["github", "opengit"] as const) {
+		await repoServices.ensureRepo(db, {
+			forge,
+			externalId: generateId(),
+			owner: "same-owner",
+			name: "retry-target",
+			fullName,
+		});
+	}
+	const deliveryId = generateId();
+	const inserted = await eventServices.insertRawEvent(pool, boss, {
+		forge: "opengit",
+		deliveryId,
+		rawKind: "database-isolation-test",
+		raw: {},
+	});
+	if (!inserted.eventId) {
+		throw new Error("missing event");
+	}
+	const runId = await runServices.createRun(db, {
+		eventId: inserted.eventId,
+		repoFullName: fullName,
+		subjectNumber: 99,
+		headSha: "same-head",
+		snapshot: SNAPSHOT,
+		status: "completed",
+		verdict: "pass",
+	});
+	await runServices.recordActions(db, runId, [
+		{
+			kind: "label",
+			payload: { number: 99, labels: ["checked"] },
+			idempotencyKey: "label",
+		},
+	]);
+	const fake = fakeAdapter();
+	const routed: { name: string; forge: string }[] = [];
+	await sweepActions(
+		{
+			db,
+			appUrl: "https://tripwire.sh",
+			logger,
+			adapterFor: (name, forge) => {
+				routed.push({ name, forge });
+				return Promise.resolve(fake.adapter);
+			},
+		},
+		{ recordedBefore: FUTURE(), giveUpBefore: new Date(0) },
+	);
+	expect(routed.filter((route) => route.name === fullName)).toEqual([
+		{ name: fullName, forge: "opengit" },
+	]);
+	expect(
+		fake.executed.filter((action) => action.kind === "label"),
+	).toHaveLength(1);
+});
+
+test("one malformed intent cannot execute or prevent the valid neighboring action", async () => {
+	const eventId = await insertEvent("mixed-invalid-history");
+	const runId = await runServices.createRun(db, {
+		eventId,
+		repoFullName: "history/mixed-actions",
+		subjectNumber: 2,
+		headSha: "head",
+		snapshot: SNAPSHOT,
+		status: "completed",
+		verdict: "block",
+	});
+	const malformed = [
+		null,
+		false,
+		3,
+		"scalar",
+		[],
+		{ body: 42, verdict: "block" },
+	];
+	const invalidIds: string[] = [];
+	for (const [index, payload] of malformed.entries()) {
+		const id = generateId();
+		await pool.query(
+			"INSERT INTO run_actions (id, run_id, kind, payload, idempotency_key) VALUES ($1, $2, 'comment', $3::jsonb, $4)",
+			[id, runId, JSON.stringify(payload), `invalid-${index}`],
+		);
+		invalidIds.push(id);
+	}
+	const payload = { reason: "stored review", extra: [null, { keep: true }] };
+	const [valid] = await runServices.recordActions(db, runId, [
+		{ kind: "block", payload, idempotencyKey: "stable-valid" },
+	]);
+	if (!valid) throw new Error("valid action not recorded");
+	const fake = fakeAdapter();
+	let adapterCalls = 0;
+	await sweepActions(
+		{
+			db,
+			logger,
+			appUrl: "https://tripwire.sh",
+			adapterFor: async (repo) => {
+				if (repo !== "history/mixed-actions") return null;
+				adapterCalls++;
+				return fake.adapter;
+			},
+		},
+		{ recordedBefore: FUTURE(), giveUpBefore: PAST() },
+	);
+	expect(adapterCalls).toBe(1);
+	expect(fake.executed).toHaveLength(1);
+	expect(fake.executed[0]?.kind).toBe("block");
+	for (const id of invalidIds) {
+		const row = await pool.query(
+			"SELECT status, payload FROM run_actions WHERE id = $1",
+			[id],
+		);
+		expect(row.rows[0]).toMatchObject({
+			status: "superseded",
+			payload: { actionFailure: "invalid-payload" },
+		});
+	}
+	const row = await pool.query(
+		"SELECT id, status, idempotency_key, payload FROM run_actions WHERE id = $1",
+		[valid.id],
+	);
+	expect(row.rows[0]).toMatchObject({
+		id: valid.id,
+		status: "executed",
+		idempotency_key: "stable-valid",
+		payload,
 	});
 });

@@ -157,6 +157,7 @@ export async function loadPreviewInputs(
 		SELECT r.event_id, r.subject_number, s.rule_id, s.status, s.input, s.evidence
 		FROM run_steps s
 		JOIN runs r ON r.id = s.run_id
+        JOIN events e ON e.id = r.event_id AND e.forge = ${repo.forge}
 		WHERE r.repo_full_name = ${repo.fullName}
 		  AND r.subject_kind IS NULL
 		  AND r.created_at >= ${since.toISOString()}

@@ -26,6 +26,7 @@ export interface BuilderState {
 	selectedId: string | null;
 	drag: BlockDrag | null;
 	paletteOpen: boolean;
+	insertIndex: number | null;
 	view: PreviewView;
 }
 
@@ -38,7 +39,7 @@ export type BuilderAction =
 	| { type: "remove"; id: string }
 	| { type: "select"; id: string | null }
 	| { type: "palette"; open: boolean }
-	| { type: "browse" }
+	| { type: "browse"; index?: number }
 	| { type: "view"; view: Partial<PreviewView> }
 	| { type: "drag-start"; item: DragItem }
 	| { type: "drag-over"; index: number | null }
@@ -101,9 +102,11 @@ export function reduceBuilder(
 				blocks: insertAt(
 					state.blocks,
 					action.block,
-					action.index ?? addIndex(state),
+					action.index ?? state.insertIndex ?? addIndex(state),
 				),
 				selectedId: action.block.id,
+				paletteOpen: true,
+				insertIndex: null,
 			};
 		case "move":
 			return {
@@ -122,17 +125,29 @@ export function reduceBuilder(
 				...state,
 				blocks: state.blocks.filter((block) => block.id !== action.id),
 				selectedId: state.selectedId === action.id ? null : state.selectedId,
+				paletteOpen: state.selectedId === action.id ? false : state.paletteOpen,
 			};
 		case "select":
-			return { ...state, selectedId: action.id };
+			return {
+				...state,
+				selectedId: action.id,
+				paletteOpen: action.id !== null,
+				insertIndex: null,
+			};
 		case "palette":
 			return {
 				...state,
 				paletteOpen: action.open,
 				selectedId: action.open ? state.selectedId : null,
+				insertIndex: action.open ? state.insertIndex : null,
 			};
 		case "browse":
-			return { ...state, selectedId: null, paletteOpen: true };
+			return {
+				...state,
+				selectedId: null,
+				paletteOpen: true,
+				insertIndex: action.index ?? state.blocks.length,
+			};
 		case "view":
 			return { ...state, view: { ...state.view, ...action.view } };
 		case "drag-start":
@@ -224,7 +239,8 @@ export type BuilderUi = Omit<BuilderState, "blocks">;
 export const IDLE_UI: BuilderUi = {
 	selectedId: null,
 	drag: null,
-	paletteOpen: true,
+	paletteOpen: false,
+	insertIndex: null,
 	view: OPEN_VIEW,
 };
 
@@ -236,6 +252,7 @@ export function reduceBuilderUi(
 	return next.selectedId === ui.selectedId &&
 		next.drag === ui.drag &&
 		next.paletteOpen === ui.paletteOpen &&
+		next.insertIndex === ui.insertIndex &&
 		next.view === ui.view
 		? ui
 		: next;

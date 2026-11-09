@@ -1,17 +1,39 @@
+import pino from "pino";
+
+const logger = pino({ name: "surface-refresh" });
+
 export async function enqueueSurfaceRefresh(repoIds: string[]): Promise<void> {
 	if (repoIds.length === 0) {
 		return;
 	}
-	const { REFRESH_SURFACES_QUEUE } = await import("@tripwire/db");
-	const { getBoss } = await import("#/lib/server/db");
+	const { REFRESH_SURFACES_QUEUE, repoServices } = await import("@tripwire/db");
+	const { GITCAFE_REFRESH_SURFACES_QUEUE } = await import(
+		"@tripwire/contracts"
+	);
+	const { getBoss, getDb, getGitCafeConnectionBoss } = await import(
+		"#/lib/server/db"
+	);
 	try {
-		const boss = await getBoss();
 		await Promise.all(
-			repoIds.map((repoId) =>
-				boss.send(REFRESH_SURFACES_QUEUE, { repoId }, { singletonKey: repoId }),
-			),
+			repoIds.map(async (repoId) => {
+				const repo = await repoServices.getRepoById(getDb().db, repoId);
+				if (!repo) return;
+				const queue =
+					repo.forge === "gitcafe"
+						? GITCAFE_REFRESH_SURFACES_QUEUE
+						: REFRESH_SURFACES_QUEUE;
+				const boss =
+					repo.forge === "gitcafe"
+						? await getGitCafeConnectionBoss(repoId)
+						: await getBoss();
+				if (repo.forge === "gitcafe") await boss.createQueue(queue);
+				await boss.send(queue, { repoId }, { singletonKey: repoId });
+			}),
 		);
-	} catch (error) {
-		console.error("[responses] surface refresh not enqueued:", error);
+	} catch {
+		logger.error(
+			{ reason: "queue-unavailable" },
+			"Surface refresh not enqueued",
+		);
 	}
 }

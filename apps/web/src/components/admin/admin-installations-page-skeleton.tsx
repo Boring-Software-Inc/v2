@@ -1,4 +1,6 @@
-import { SkeletonText } from "#/components/glaze/ui/skeleton";
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Page, PageBody } from "#/components/layouts/page";
+import { SkeletonText } from "#/design-system/ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -6,25 +8,32 @@ import {
 	TableHeader,
 	TableLoading,
 	TableRow,
-} from "#/components/glaze/ui/table";
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+} from "#/design-system/ui/table";
 
 export function AdminInstallationsPageSkeleton() {
 	return (
 		<DashboardLayout counts={{}}>
-			<div className="px-4 py-6 md:px-8 md:py-10">
-				<div className="mx-auto flex w-full max-w-312 flex-col gap-6">
-					<header className="flex flex-col gap-1">
-						<SkeletonText className="w-32" type="heading" />
-						<SkeletonText className="w-80 max-w-full" type="body" />
-					</header>
-					<Table aria-busy aria-label="Installations">
+			<Page>
+				<header aria-hidden data-layout-role="admin-page-header-skeleton">
+					<SkeletonText data-layout-size="page-title" type="heading" />
+					<SkeletonText data-layout-size="page-description" type="body" />
+				</header>
+				<PageBody>
+					<Table
+						aria-busy
+						aria-label="Installations"
+						data-admin-table="installations"
+					>
 						<TableHeader>
 							<TableRow>
 								<TableHead>Account</TableHead>
-								<TableHead>Org</TableHead>
-								<TableHead numeric>Repos</TableHead>
-								<TableHead numeric>Protected</TableHead>
+								<TableHead data-admin-column="installation-org">Org</TableHead>
+								<TableHead data-admin-column="installation-repos" numeric>
+									Repos
+								</TableHead>
+								<TableHead data-admin-column="installation-protected" numeric>
+									Protected
+								</TableHead>
 							</TableRow>
 						</TableHeader>
 						<TableBody>
@@ -34,8 +43,8 @@ export function AdminInstallationsPageSkeleton() {
 							/>
 						</TableBody>
 					</Table>
-				</div>
-			</div>
+				</PageBody>
+			</Page>
 		</DashboardLayout>
 	);
 }

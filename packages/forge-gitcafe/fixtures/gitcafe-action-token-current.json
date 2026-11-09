@@ -1,0 +1,125 @@
+{
+	"token": "[REDACTED]",
+	"expiresAt": "2026-10-29T00:01:04.094Z",
+	"installationId": "ins_01m60zef0bfzzbx050fw4rymhr",
+	"actor": "act_01m60zef00f4fsqskxqt2w72xs",
+	"repositorySelection": "selected",
+	"repositories": ["scratch", "tripwire"],
+	"permissions": [
+		{
+			"kind": "repo",
+			"family": "contents",
+			"level": "read"
+		},
+		{
+			"kind": "repo",
+			"family": "metadata",
+			"level": "read"
+		},
+		{
+			"kind": "repo",
+			"family": "rulesets",
+			"level": "read"
+		},
+		{
+			"kind": "repo",
+			"family": "collaborators",
+			"level": "read"
+		},
+		{
+			"kind": "repo",
+			"family": "catalog",
+			"level": "read"
+		},
+		{
+			"kind": "repo",
+			"family": "checks",
+			"level": "write"
+		},
+		{
+			"kind": "pr",
+			"family": "contents",
+			"level": "read"
+		},
+		{
+			"kind": "pr",
+			"family": "review",
+			"level": "write"
+		},
+		{
+			"kind": "pr",
+			"family": "labels",
+			"level": "write"
+		},
+		{
+			"kind": "pr",
+			"family": "state",
+			"level": "write"
+		},
+		{
+			"kind": "pr",
+			"family": "lock",
+			"level": "write"
+		},
+		{
+			"kind": "pr",
+			"family": "verdict",
+			"level": "write"
+		},
+		{
+			"kind": "pr",
+			"family": "dismiss",
+			"level": "write"
+		},
+		{
+			"kind": "pr",
+			"family": "reviewers",
+			"level": "write"
+		},
+		{
+			"kind": "issue",
+			"family": "contents",
+			"level": "read"
+		},
+		{
+			"kind": "issue",
+			"family": "labels",
+			"level": "write"
+		},
+		{
+			"kind": "issue",
+			"family": "state",
+			"level": "write"
+		},
+		{
+			"kind": "issue",
+			"family": "lock",
+			"level": "write"
+		},
+		{
+			"kind": "comment",
+			"family": "contents",
+			"level": "write"
+		},
+		{
+			"kind": "org",
+			"family": "metadata",
+			"level": "read"
+		},
+		{
+			"kind": "org",
+			"family": "membership",
+			"level": "read"
+		},
+		{
+			"kind": "team",
+			"family": "metadata",
+			"level": "read"
+		},
+		{
+			"kind": "team",
+			"family": "membership",
+			"level": "read"
+		}
+	]
+}

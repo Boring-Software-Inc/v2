@@ -5,13 +5,12 @@ import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { MetaRow } from "#/components/common/meta-row";
 import { ConnectForgeDialog } from "#/components/forges/connect-forge-dialog";
-import { Add, Icon } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
-import {
-	Empty,
-	EmptyHeader,
-	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
+import { OrganizationConnectionsPage } from "#/components/forges/organization-connections-page";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import { SettingsHeader } from "#/components/settings/settings-frame";
+import { Add, Icon } from "#/design-system/icon";
+import { Button } from "#/design-system/ui/button";
+import { Empty, EmptyHeader, EmptyTitle } from "#/design-system/ui/empty-state";
 import {
 	Item,
 	ItemActions,
@@ -20,15 +19,13 @@ import {
 	ItemGroup,
 	ItemMedia,
 	ItemTitle,
-} from "#/components/glaze/ui/item";
+} from "#/design-system/ui/item";
 import {
 	Skeleton,
 	SkeletonSwap,
 	SkeletonText,
-} from "#/components/glaze/ui/skeleton";
-import { toast } from "#/components/glaze/ui/toast";
-import { MascotArt } from "#/components/mascot/mascot-art";
-import { SettingsHeader } from "#/components/settings/settings-frame";
+} from "#/design-system/ui/skeleton";
+import { toast } from "#/design-system/ui/toast";
 import { currentUserQueryOptions } from "#/lib/auth.query";
 import { disconnectForge } from "#/lib/connections.functions";
 import { connectionsQueryOptions } from "#/lib/connections.query";
@@ -159,6 +156,14 @@ function ConnectionRowsSkeleton() {
 }
 
 export function ConnectionsPage({ org }: { org: string | null }) {
+	return org ? (
+		<OrganizationConnectionsPage org={org} />
+	) : (
+		<AccountConnectionsPage />
+	);
+}
+
+function AccountConnectionsPage() {
 	const [connecting, setConnecting] = useState(false);
 	const { data: connections, isLoading } = useQuery(connectionsQueryOptions());
 	const { data: user } = useQuery(currentUserQueryOptions());
@@ -205,7 +210,7 @@ export function ConnectionsPage({ org }: { org: string | null }) {
 			<ConnectForgeDialog
 				onOpenChange={setConnecting}
 				open={connecting}
-				org={org}
+				org={null}
 			/>
 		</>
 	);

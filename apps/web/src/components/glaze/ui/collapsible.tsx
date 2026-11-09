@@ -96,9 +96,13 @@ function CollapsibleTrigger({className, children, caret = true, size = 'default'
       {...(props as AccordionPrimitive.Trigger.Props)}
     >
       {caret && <CollapsibleCaret/>}
-      {/* Label and summary share one wrapping row, so a summary that does not fit drops under the label. */}
-      <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <span className="min-w-0">{children}</span>
+      {/* Center composed labels: an SVG-first inline-flex synthesizes its baseline
+          from the mark, which otherwise pulls the whole label above the summary. */}
+      <span
+        data-slot="collapsible-label-row"
+        className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5"
+      >
+        <span data-slot="collapsible-label" className="flex min-w-0 items-center">{children}</span>
         {summary && <Summary status={summaryStatus}>{summary}</Summary>}
       </span>
     </AccordionPrimitive.Trigger>

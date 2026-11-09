@@ -46,7 +46,8 @@ interface Scenario {
 	files?: number;
 	diffDown?: boolean;
 	profileDown?: boolean;
-	maintainer?: boolean;
+	maintainer?: boolean | null;
+	orgMember?: boolean | null;
 }
 
 function reads(scenario: Scenario) {
@@ -79,8 +80,10 @@ function reads(scenario: Scenario) {
 						mergedInRepo: 0,
 						mergedElsewhere: 0,
 						recentChangeRequestTimes: [],
-						isOrgMember: false,
-						isMaintainer: scenario.maintainer === true,
+						isOrgMember:
+							scenario.orgMember === undefined ? false : scenario.orgMember,
+						isMaintainer:
+							scenario.maintainer === undefined ? false : scenario.maintainer,
 					}),
 	};
 }
@@ -307,6 +310,29 @@ async function decide(
 const YOUNG = { ageDays: 2 };
 
 describe("rule outcomes", () => {
+	test.each([
+		{ maintainer: null, orgMember: null },
+		{ maintainer: null, orgMember: false },
+		{ maintainer: false, orgMember: null },
+	])("unknown membership never exempts the author: %j", async (membership) => {
+		const repo = await freshRepo();
+		await enableRule(repo.repoId, "account-age", { minDays: 7 });
+		const { run, executed } = await openPr(repo, { ...YOUNG, ...membership });
+		expect(run?.verdict).toBe("block");
+		expect(kinds(executed)).toContain("block");
+	});
+
+	test.each([
+		{ maintainer: true, orgMember: null },
+		{ maintainer: null, orgMember: true },
+	])("confirmed membership still exempts the author: %j", async (membership) => {
+		const repo = await freshRepo();
+		await enableRule(repo.repoId, "account-age", { minDays: 7 });
+		const { run, executed } = await openPr(repo, { ...YOUNG, ...membership });
+		expect(run).toBeUndefined();
+		expect(kinds(executed)).not.toContain("block");
+	});
+
 	test("an installed rule blocks: red check, one changes-requested review", async () => {
 		const repo = await freshRepo();
 		await enableRule(repo.repoId, "account-age", { minDays: 7 });
@@ -919,7 +945,7 @@ describe("review findings", () => {
 		const closed = await moderationServices.closeReviewsForChangeRequest(
 			db,
 			"https://tripwire.sh",
-			repo.fullName,
+			{ forge: "github", fullName: repo.fullName },
 			2,
 		);
 		expect(closed).toEqual([]);
@@ -1024,7 +1050,12 @@ describe("a closed change request", () => {
 				makeGenerate: null,
 				appUrl: "https://tripwire.sh",
 			},
-			{ repoFullName: repo.fullName, number: 2, requestedBy: "admin-1" },
+			{
+				forge: "github",
+				repoFullName: repo.fullName,
+				number: 2,
+				requestedBy: "admin-1",
+			},
 		);
 		expect(fake.executed).toEqual([]);
 		const rerun = await pool.query(

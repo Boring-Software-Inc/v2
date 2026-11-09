@@ -1,16 +1,22 @@
-import { Badge } from "#/components/glaze/ui/badge";
+import type { MascotSnapshot } from "#/components/mascot/engine";
+import {
+	MASCOT_EVENTS,
+	MASCOT_STATES,
+	TRANSITIONS,
+} from "#/components/mascot/machine";
+import { Badge } from "#/design-system/ui/badge";
 import {
 	Card,
 	CardContent,
 	CardHeader,
 	CardTitle,
-} from "#/components/glaze/ui/card";
+} from "#/design-system/ui/card";
 import {
 	DataList,
 	DataListItem,
 	DataListLabel,
 	DataListValue,
-} from "#/components/glaze/ui/data-list";
+} from "#/design-system/ui/data-list";
 import {
 	Table,
 	TableBody,
@@ -18,13 +24,7 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "#/components/glaze/ui/table";
-import type { MascotSnapshot } from "#/components/mascot/engine";
-import {
-	MASCOT_EVENTS,
-	MASCOT_STATES,
-	TRANSITIONS,
-} from "#/components/mascot/machine";
+} from "#/design-system/ui/table";
 
 export type MascotMachineCardProps = {
 	snapshot: MascotSnapshot;

@@ -1,9 +1,9 @@
-import { Button } from "#/components/glaze/ui/button";
 import {
 	DiscardChangesButton,
 	SaveQueueNavGuard,
 	useSaveQueue,
 } from "#/components/save-queue/save-queue-context";
+import { Button } from "#/design-system/ui/button";
 
 /**
  * The floating unsaved-changes bar. Driven ONLY by provider state — it has no

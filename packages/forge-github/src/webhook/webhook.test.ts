@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { fileURLToPath } from "node:url";
 import { normalizedEventSchema } from "@tripwire/contracts";
+import pullRequestOpened from "../../fixtures/pull_request.opened.json";
 import { normalizeWebhook } from "./normalize.ts";
 import { signWebhookBody, verifyWebhookSignature } from "./verify.ts";
 
@@ -157,6 +158,30 @@ describe("normalizeWebhook — fixture corpus (contract layer §11)", () => {
 				NOW,
 			),
 		).toThrow();
+	});
+});
+
+describe("normalizeWebhook pull request action mapping", () => {
+	test.each([
+		["opened", "change-request.opened"],
+		["reopened", "change-request.opened"],
+		["ready_for_review", "change-request.opened"],
+		["synchronize", "change-request.updated"],
+		["closed", "change-request.closed"],
+		["future-action", null],
+		["constructor", null],
+		["toString", null],
+		["__proto__", null],
+	])("%s only maps declared own actions", (action, kind) => {
+		const event = normalizeFixture(
+			JSON.stringify({ ...pullRequestOpened, action }),
+			"d-action",
+		);
+		expect(kind).toBe(event?.kind ?? null);
+		if (event) {
+			expect(event.actor.login).toBe(pullRequestOpened.pull_request.user.login);
+			expect(kind).toBe(normalizedEventSchema.parse(event).kind);
+		}
 	});
 });
 

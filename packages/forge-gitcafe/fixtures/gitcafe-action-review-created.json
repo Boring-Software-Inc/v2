@@ -1,0 +1,14 @@
+{
+	"author": {
+		"kind": "local",
+		"actorId": "act_01m60zef00f4fsqskxqt2w72xs",
+		"handle": "tripwire-staging-620b48f1",
+		"displayName": "Tripwire Staging",
+		"avatarUrl": "/avatars/v1/d46cb91987ecafd73700267db320b3206b171c86c122572827729b6654aa614e",
+		"bot": true
+	},
+	"id": "review_01m62dhk5yfkn9mge0r4b28e4m",
+	"commitOid": "2bff66c45a9e2241fc2482bc63bac23281a7377f",
+	"verdict": "request_changes",
+	"submittedPullVersion": 0
+}

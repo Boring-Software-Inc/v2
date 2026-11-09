@@ -26,6 +26,7 @@ async function publishedVersion(): Promise<string | null> {
 const [mode, arg, channel = "latest"] = process.argv.slice(2);
 const manifest = JSON.parse(readFileSync(MANIFEST, "utf8")) as {
 	version: string;
+	bin: Record<string, string>;
 };
 const published = await publishedVersion();
 const base =
@@ -70,6 +71,9 @@ if (mode === "bump") {
 }
 
 manifest.version = version;
+if (channel === "staging") {
+	manifest.bin = { "tripwire-staging": manifest.bin.tripwire };
+}
 writeFileSync(MANIFEST, `${JSON.stringify(manifest, null, "\t")}\n`);
 process.stdout.write(
 	`published ${published ?? "none"}, releasing ${version} (${channel})\n`,

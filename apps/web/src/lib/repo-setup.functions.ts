@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import type { Forge } from "@tripwire/contracts";
 import type { RepoAgentRun, RepoSetupFacts } from "@tripwire/db";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import {
@@ -9,6 +10,7 @@ import {
 } from "#/lib/server/org-guard";
 
 export interface RepoSetupState {
+	forge: Forge;
 	repoId: string;
 	facts: RepoSetupFacts;
 	agent: RepoAgentRun | null;
@@ -36,7 +38,7 @@ export const getRepoSetup = createServerFn({ method: "GET" })
 				repoFullName: repo.fullName,
 			}),
 		]);
-		return facts ? { repoId: repo.id, facts, agent } : null;
+		return facts ? { forge: repo.forge, repoId: repo.id, facts, agent } : null;
 	});
 
 export const takeOverAgentSetup = createServerFn({ method: "POST" })

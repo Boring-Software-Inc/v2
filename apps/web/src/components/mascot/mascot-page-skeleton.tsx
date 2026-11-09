@@ -1,5 +1,5 @@
-import { Card, CardContent } from "#/components/glaze/ui/card";
-import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
+import { Card, CardContent } from "#/design-system/ui/card";
+import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 
 const CONTROL_SLOTS = ["events", "face", "motion", "behaviour"] as const;
 

@@ -61,6 +61,9 @@ export const commentPayloadSchema = z.object({
 	url: z.string(),
 	/** The change request / issue number the comment belongs to. */
 	subjectNumber: z.number().int(),
+	subjectKind: z.enum(["change-request", "issue"]).optional(),
+	/** A verified subject head pins commit-bound actions; comments still judge their own body. */
+	subjectHeadSha: z.string().min(1).optional(),
 	/** True when this is Tripwire's own comment (carries the run marker, §7). */
 	byTripwire: z.boolean().optional(),
 });
@@ -68,8 +71,8 @@ export type CommentPayload = z.infer<typeof commentPayloadSchema>;
 
 export const pushPayloadSchema = z.object({
 	ref: z.string(),
-	headSha: z.string(),
-	commitCount: z.number().int(),
+	headSha: z.string().nullable(),
+	commitCount: z.number().int().nullable(),
 	/** The forge's compare view for the pushed range (§9 deep link). */
 	url: z.string().optional(),
 });
@@ -79,6 +82,7 @@ export const threadSubjectSchema = z.enum(["issue", "change-request"]);
 export type ThreadSubject = z.infer<typeof threadSubjectSchema>;
 
 export const scheduledThreadSchema = z.object({
+	externalId: z.string().min(1).optional(),
 	kind: threadSubjectSchema,
 	number: z.number().int(),
 	title: z.string(),
@@ -124,6 +128,20 @@ const eventBase = {
 	receivedAt: z.iso.datetime(),
 };
 
+export const installationAccountSchema = z.object({
+	/** The App installation id, as a string. */
+	externalId: z.string(),
+	/** The org/user account the App is installed on. */
+	account: z.string(),
+	/**
+	 * GitHub's account type for `account` — decides how the install is
+	 * presented at claim time (an org install still binds to exactly ONE
+	 * platform org). Optional: older stored payloads predate the field.
+	 */
+	accountType: z.enum(["User", "Organization"]).optional(),
+});
+export type InstallationAccount = z.infer<typeof installationAccountSchema>;
+
 /** Installation events span repos, so they carry a list, not a base repo. */
 const installationBase = {
 	id: z.string(),
@@ -132,18 +150,7 @@ const installationBase = {
 	actor: eventActorSchema,
 	occurredAt: z.iso.datetime(),
 	receivedAt: z.iso.datetime(),
-	installation: z.object({
-		/** The App installation id, as a string. */
-		externalId: z.string(),
-		/** The org/user account the App is installed on. */
-		account: z.string(),
-		/**
-		 * GitHub's account type for `account` — decides how the install is
-		 * presented at claim time (an org install still binds to exactly ONE
-		 * platform org). Optional: older stored payloads predate the field.
-		 */
-		accountType: z.enum(["User", "Organization"]).optional(),
-	}),
+	installation: installationAccountSchema,
 	repositories: z.array(
 		z.object({
 			externalId: z.string(),
@@ -154,6 +161,13 @@ const installationBase = {
 		}),
 	),
 };
+
+export const scheduledEventSchema = z.object({
+	...eventBase,
+	kind: z.literal("schedule.matched"),
+	schedule: scheduleMatchSchema,
+	thread: scheduledThreadSchema,
+});
 
 export const normalizedEventSchema = z.discriminatedUnion("kind", [
 	z.object({
@@ -181,12 +195,7 @@ export const normalizedEventSchema = z.discriminatedUnion("kind", [
 		kind: z.literal("push"),
 		push: pushPayloadSchema,
 	}),
-	z.object({
-		...eventBase,
-		kind: z.literal("schedule.matched"),
-		schedule: scheduleMatchSchema,
-		thread: scheduledThreadSchema,
-	}),
+	scheduledEventSchema,
 	z.object({ ...installationBase, kind: z.literal("installation.created") }),
 	z.object({ ...installationBase, kind: z.literal("installation.deleted") }),
 	z.object({
@@ -218,11 +227,7 @@ export function bearsVerdict(
 	return verdictEventKindSchema.safeParse(kind).success;
 }
 
-/** Installation-sync events (no single base repo). */
-export type ScheduledEvent = Extract<
-	NormalizedEvent,
-	{ kind: "schedule.matched" }
->;
+export type ScheduledEvent = z.infer<typeof scheduledEventSchema>;
 
 export type InstallationEvent = Extract<
 	NormalizedEvent,

@@ -1,13 +1,11 @@
-import {
-	type FlagOverrideChoice,
-	type FlagSyncStatus,
-	mergeTripwireRules,
-} from "@tripwire/contracts";
+import type { FlagOverrideChoice, FlagSyncStatus } from "@tripwire/contracts";
 import {
 	type DatabuddyApi,
 	generateId,
+	getDatabuddyUserOverride,
 	getErrorMessage,
 	truncate,
+	updateDatabuddyUserOverrides,
 } from "@tripwire/utils";
 import { and, desc, eq, inArray, lt, type SQL, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
@@ -97,14 +95,18 @@ export async function listFlagOverrideHistory(
 	return rows;
 }
 
-export interface SetFlagOverrideResult {
-	changed: boolean;
-	from: FlagOverrideChoice;
-	to: FlagOverrideChoice;
-}
+export type SetFlagOverrideResult =
+	| {
+			ok: true;
+			changed: boolean;
+			from: FlagOverrideChoice;
+			to: FlagOverrideChoice;
+	  }
+	| { ok: false; error: string };
 
 export async function setUserFlagOverride(
 	db: Db,
+	api: Pick<DatabuddyApi, "getFlagByKey" | "updateFlagRules">,
 	input: {
 		userId: string;
 		flagKey: string;
@@ -113,6 +115,51 @@ export async function setUserFlagOverride(
 	},
 ): Promise<SetFlagOverrideResult> {
 	return await db.transaction(async (tx) => {
+		await tx.execute(
+			sql`select pg_advisory_xact_lock(hashtextextended(${`databuddy:${input.flagKey}`}, 0))`,
+		);
+		const target = await tx
+			.select({ id: user.id })
+			.from(user)
+			.where(eq(user.id, input.userId))
+			.for("key share");
+		if (!target[0]) {
+			return { ok: false, error: "This user no longer exists." };
+		}
+		let from: FlagOverrideChoice;
+		try {
+			const flag = await api.getFlagByKey(input.flagKey);
+			if (!flag || flag.status === "archived") {
+				return { ok: false, error: FLAG_MISSING_MESSAGE };
+			}
+			if (flag.rules === undefined) {
+				return {
+					ok: false,
+					error:
+						"Databuddy did not return the flag's rules. No changes were made.",
+				};
+			}
+			from = getDatabuddyUserOverride(flag.rules ?? [], input.userId);
+			if (from !== input.choice) {
+				const updated = await api.updateFlagRules(
+					flag.id,
+					updateDatabuddyUserOverrides(flag.rules ?? [], [input]),
+				);
+				if (
+					updated.rules === undefined ||
+					getDatabuddyUserOverride(updated.rules ?? [], input.userId) !==
+						input.choice
+				) {
+					return {
+						ok: false,
+						error:
+							"Databuddy did not confirm this user's override. Load the flags again before retrying.",
+					};
+				}
+			}
+		} catch (error) {
+			return { ok: false, error: truncate(getErrorMessage(error), 300) };
+		}
 		const existing = await tx
 			.select({ id: userFlagOverrides.id, value: userFlagOverrides.value })
 			.from(userFlagOverrides)
@@ -123,10 +170,7 @@ export async function setUserFlagOverride(
 				),
 			)
 			.for("update");
-		const from = choiceOf(existing[0]?.value ?? null);
-		if (from === input.choice) {
-			return { changed: false, from, to: input.choice };
-		}
+		const changed = from !== input.choice;
 		const now = new Date();
 		const value = storedValue(input.choice);
 		if (existing[0]) {
@@ -134,8 +178,10 @@ export async function setUserFlagOverride(
 				.update(userFlagOverrides)
 				.set({
 					value,
-					syncStatus: "pending",
+					syncStatus: "synced",
 					syncError: null,
+					syncAttempts: 0,
+					syncedAt: now,
 					updatedBy: input.actorId,
 					updatedAt: now,
 				})
@@ -146,22 +192,25 @@ export async function setUserFlagOverride(
 				userId: input.userId,
 				flagKey: input.flagKey,
 				value,
-				syncStatus: "pending",
+				syncStatus: "synced",
+				syncedAt: now,
 				updatedBy: input.actorId,
 				createdAt: now,
 				updatedAt: now,
 			});
 		}
-		await tx.insert(userFlagOverrideEvents).values({
-			id: generateId(),
-			userId: input.userId,
-			flagKey: input.flagKey,
-			fromValue: from,
-			toValue: input.choice,
-			actorId: input.actorId,
-			createdAt: now,
-		});
-		return { changed: true, from, to: input.choice };
+		if (changed) {
+			await tx.insert(userFlagOverrideEvents).values({
+				id: generateId(),
+				userId: input.userId,
+				flagKey: input.flagKey,
+				fromValue: from,
+				toValue: input.choice,
+				actorId: input.actorId,
+				createdAt: now,
+			});
+		}
+		return { ok: true, changed, from, to: input.choice };
 	});
 }
 
@@ -244,89 +293,132 @@ export async function syncFlagOverrides(
 	api: Pick<DatabuddyApi, "getFlagByKey" | "updateFlagRules">,
 	flagKey: string,
 ): Promise<SyncFlagResult> {
-	const rows = await db
-		.select({
-			id: userFlagOverrides.id,
-			userId: userFlagOverrides.userId,
-			value: userFlagOverrides.value,
-			syncStatus: userFlagOverrides.syncStatus,
-			updatedAt: userFlagOverrides.updatedAt,
-		})
-		.from(userFlagOverrides)
-		.where(eq(userFlagOverrides.flagKey, flagKey));
-	const on = rows.filter((row) => row.value === true).map((row) => row.userId);
-	const off = rows
-		.filter((row) => row.value === false)
-		.map((row) => row.userId);
-	const unsynced = rows.filter((row) => row.syncStatus !== "synced");
-	const removals = await db
-		.select({ id: flagOverrideRemovals.id })
-		.from(flagOverrideRemovals)
-		.where(eq(flagOverrideRemovals.flagKey, flagKey));
-	const clearRemovals = async (): Promise<void> => {
-		if (removals.length === 0) {
-			return;
-		}
-		await db.delete(flagOverrideRemovals).where(
-			inArray(
-				flagOverrideRemovals.id,
-				removals.map((row) => row.id),
-			),
+	return await db.transaction(async (tx) => {
+		await tx.execute(
+			sql`select pg_advisory_xact_lock(hashtextextended(${`databuddy:${flagKey}`}, 0))`,
 		);
-	};
+		const rows = await tx
+			.select({
+				id: userFlagOverrides.id,
+				userId: userFlagOverrides.userId,
+				value: userFlagOverrides.value,
+				syncStatus: userFlagOverrides.syncStatus,
+				updatedAt: sql<string>`${userFlagOverrides.updatedAt}::text`,
+			})
+			.from(userFlagOverrides)
+			.where(eq(userFlagOverrides.flagKey, flagKey));
+		const unsynced = rows.filter((row) => row.syncStatus !== "synced");
+		const removals = await tx
+			.select({
+				id: flagOverrideRemovals.id,
+				userId: flagOverrideRemovals.userId,
+			})
+			.from(flagOverrideRemovals)
+			.where(eq(flagOverrideRemovals.flagKey, flagKey));
+		const clearRemovals = async (): Promise<void> => {
+			if (removals.length === 0) {
+				return;
+			}
+			await tx.delete(flagOverrideRemovals).where(
+				inArray(
+					flagOverrideRemovals.id,
+					removals.map((row) => row.id),
+				),
+			);
+		};
 
-	const settle = async (set: {
-		syncStatus: FlagSyncStatus;
-		syncError: string | null;
-		syncAttempts: number | SQL;
-		syncedAt?: Date;
-	}): Promise<void> => {
-		for (const row of unsynced) {
-			await db
-				.update(userFlagOverrides)
-				.set(set)
-				.where(
-					and(
-						eq(userFlagOverrides.id, row.id),
-						eq(userFlagOverrides.updatedAt, row.updatedAt),
-					),
+		const settle = async (set: {
+			syncStatus: FlagSyncStatus;
+			syncError: string | null;
+			syncAttempts: number | SQL;
+			syncedAt?: Date;
+		}): Promise<void> => {
+			for (const row of unsynced) {
+				await tx
+					.update(userFlagOverrides)
+					.set(set)
+					.where(
+						and(
+							eq(userFlagOverrides.id, row.id),
+							sql`${userFlagOverrides.updatedAt} = ${row.updatedAt}::timestamptz`,
+						),
+					);
+			}
+		};
+
+		try {
+			const flag = await api.getFlagByKey(flagKey);
+			if (!flag) {
+				await settle({
+					syncStatus: "failed",
+					syncError: FLAG_MISSING_MESSAGE,
+					syncAttempts: sql`${userFlagOverrides.syncAttempts} + 1`,
+				});
+				await clearRemovals();
+				return { status: "missing" };
+			}
+			if (flag.rules === undefined) {
+				return {
+					status: "failed",
+					error: "Databuddy did not return the flag's rules.",
+				};
+			}
+			let rules = flag.rules ?? [];
+			if (removals.length > 0) {
+				const cleaned = updateDatabuddyUserOverrides(
+					rules,
+					removals.map((row) => ({ userId: row.userId, choice: "default" })),
 				);
-		}
-	};
-
-	try {
-		const flag = await api.getFlagByKey(flagKey);
-		if (!flag) {
+				if (JSON.stringify(cleaned) !== JSON.stringify(rules)) {
+					const updated = await api.updateFlagRules(flag.id, cleaned);
+					rules = updated.rules ?? [];
+					if (
+						updated.rules === undefined ||
+						removals.some(
+							(row) =>
+								getDatabuddyUserOverride(rules, row.userId) !== "default",
+						)
+					) {
+						return {
+							status: "failed",
+							error:
+								"Databuddy did not confirm removal of the deleted user's override.",
+						};
+					}
+				}
+			}
+			let on = 0;
+			let off = 0;
+			for (const row of rows) {
+				const choice = getDatabuddyUserOverride(rules, row.userId);
+				if (choice === "on") on++;
+				if (choice === "off") off++;
+				await tx
+					.update(userFlagOverrides)
+					.set({
+						value: storedValue(choice),
+						syncStatus: "synced",
+						syncError: null,
+						syncAttempts: 0,
+						syncedAt: new Date(),
+					})
+					.where(
+						and(
+							eq(userFlagOverrides.id, row.id),
+							sql`${userFlagOverrides.updatedAt} = ${row.updatedAt}::timestamptz`,
+						),
+					);
+			}
+			await clearRemovals();
+			return { status: "synced", rows: rows.length, on, off };
+		} catch (error) {
+			const message = truncate(getErrorMessage(error), 300);
 			await settle({
 				syncStatus: "failed",
-				syncError: FLAG_MISSING_MESSAGE,
+				syncError: message,
 				syncAttempts: sql`${userFlagOverrides.syncAttempts} + 1`,
 			});
-			await clearRemovals();
-			return { status: "missing" };
+			return { status: "failed", error: message };
 		}
-		const rules = mergeTripwireRules(flag.rules ?? [], { on, off });
-		await api.updateFlagRules(flag.id, rules);
-		await settle({
-			syncStatus: "synced",
-			syncError: null,
-			syncAttempts: 0,
-			syncedAt: new Date(),
-		});
-		await clearRemovals();
-		return {
-			status: "synced",
-			rows: rows.length,
-			on: on.length,
-			off: off.length,
-		};
-	} catch (error) {
-		const message = truncate(getErrorMessage(error), 300);
-		await settle({
-			syncStatus: "failed",
-			syncError: message,
-			syncAttempts: sql`${userFlagOverrides.syncAttempts} + 1`,
-		});
-		return { status: "failed", error: message };
-	}
+	});
 }

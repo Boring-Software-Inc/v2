@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Button } from "#/components/glaze/ui/button";
+import type { Forge } from "@tripwire/contracts";
 import {
 	useKeepResponseDefaults,
 	useRunFirstCheck,
 } from "#/components/setup/use-repo-setup";
+import { Button } from "#/design-system/ui/button";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { orgInstallUrlQueryOptions } from "#/lib/onboarding.query";
 import type { SetupStepKey } from "#/lib/repo-setup";
@@ -17,12 +18,29 @@ interface StepActionProps {
 	state: RepoSetupState;
 }
 
-export function InstallAction({ org }: { org: string }) {
+export function InstallAction({
+	org,
+	forge = "github",
+}: {
+	org: string;
+	forge?: Forge;
+}) {
 	const canInstall = useOrgPermission(org, "connections:manage");
 	const install = useQuery({
 		...orgInstallUrlQueryOptions(org),
-		enabled: canInstall,
+		enabled: canInstall && forge !== "gitcafe",
 	});
+	if (forge === "gitcafe")
+		return (
+			<Button
+				nativeButton={false}
+				render={<Link params={{ org }} to="/$org/settings/connections" />}
+				disabled={!canInstall}
+				size="sm"
+			>
+				Manage GitCafe connection
+			</Button>
+		);
 	const url = install.data?.status === "ready" ? install.data.url : null;
 	return (
 		<Button

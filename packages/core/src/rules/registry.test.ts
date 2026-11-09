@@ -13,7 +13,9 @@ describe("registry", () => {
 				// @2 (backticked findings) is the current version.
 				"ai-review@1",
 				"ai-review@2",
+				"ai-review@3",
 				"crypto-address@1",
+				"crypto-address@2",
 				"english-only@1",
 				"honeypot@1",
 				"max-files-changed@1",
@@ -21,6 +23,9 @@ describe("registry", () => {
 				// version — @1 required merges in-repo, unsatisfiable for first-timers.
 				"min-merged-prs@1",
 				"min-merged-prs@2",
+				"owned-repo-stars@1",
+				"shared-spam-blocklist@1",
+				"merged-pr-repo-stars@1",
 				"pr-rate-limit@1",
 				"profile-readme@1",
 			].sort(),

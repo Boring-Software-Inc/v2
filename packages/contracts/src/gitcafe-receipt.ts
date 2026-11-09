@@ -1,0 +1,167 @@
+import { z } from "zod";
+import { gitCafeInstallationSchema } from "./gitcafe-installation.ts";
+
+export const GITCAFE_LIFECYCLE_QUEUE = "gitcafe-lifecycle";
+export const GITCAFE_PROCESS_EVENT_QUEUE = "gitcafe-process-event";
+export const GITCAFE_RESUME_RUN_QUEUE = "gitcafe-resume-run";
+export const GITCAFE_RERUN_QUEUE = "gitcafe-rerun-change-request";
+export const GITCAFE_REFRESH_SURFACES_QUEUE = "gitcafe-refresh-surfaces";
+export const GITCAFE_REFRESH_CATALOGS_QUEUE = "gitcafe-refresh-catalogs";
+export const GITCAFE_SCHEDULE_TICK_QUEUE = "gitcafe-schedule-tick";
+export const GITCAFE_BACKFILL_REPO_QUEUE = "gitcafe-backfill-repo";
+export const gitCafeScheduleTickJobSchema = z.strictObject({
+	requestId: z.uuid(),
+});
+export type GitCafeScheduleTickJob = z.infer<
+	typeof gitCafeScheduleTickJobSchema
+>;
+export const gitCafeRefreshCatalogsJobSchema = z.strictObject({
+	repoId: z.uuid(),
+	requestId: z.uuid(),
+});
+export type GitCafeRefreshCatalogsJob = z.infer<
+	typeof gitCafeRefreshCatalogsJobSchema
+>;
+export const gitCafeProcessEventJobSchema = z.strictObject({
+	eventId: z.uuid(),
+	requestId: z.uuid(),
+});
+export type GitCafeProcessEventJob = z.infer<
+	typeof gitCafeProcessEventJobSchema
+>;
+export const gitCafeResumeRunJobSchema = z.strictObject({
+	itemId: z.uuid(),
+	decision: z.enum(["approve", "deny"]),
+});
+export type GitCafeResumeRunJob = z.infer<typeof gitCafeResumeRunJobSchema>;
+export const gitCafeRefreshSurfacesJobSchema = z.strictObject({
+	repoId: z.uuid(),
+});
+export type GitCafeRefreshSurfacesJob = z.infer<
+	typeof gitCafeRefreshSurfacesJobSchema
+>;
+export const GITCAFE_RECEIPT_APP_ID = "int_01m60999c0fqg841d48s29qwtv";
+export const GITCAFE_RECEIPT_MAX_BYTES = 1024 * 1024;
+
+export const gitCafeReceiptConfigSchema = z.strictObject({
+	appId: z.literal(GITCAFE_RECEIPT_APP_ID),
+	keyVersion: z.string().regex(/^[A-Za-z0-9._-]{1,64}$/),
+	secret: z.string().min(1),
+});
+export type GitCafeReceiptConfig = z.infer<typeof gitCafeReceiptConfigSchema>;
+
+export const gitCafeEventEnvelopeSchema = z.looseObject({
+	id: z.string().startsWith("evt_").min(5).max(128),
+	version: z.literal("1"),
+	type: z.string().min(1).max(128),
+	createdAt: z.iso.datetime(),
+	installation: z.looseObject({
+		id: z.string().regex(/^[A-Za-z0-9_-]{1,255}$/),
+	}),
+});
+export type GitCafeEventEnvelope = z.infer<typeof gitCafeEventEnvelopeSchema>;
+
+export const gitCafeLifecycleEventTypeSchema = z.enum([
+	"installation.created",
+	"installation.repositories_updated",
+	"installation.paused",
+	"installation.uninstalled",
+]);
+export type GitCafeLifecycleEventType = z.infer<
+	typeof gitCafeLifecycleEventTypeSchema
+>;
+
+export const gitCafeLifecycleEventSchema = gitCafeEventEnvelopeSchema.extend({
+	type: gitCafeLifecycleEventTypeSchema,
+	actor: z.object({ id: z.string().min(1) }).optional(),
+	organization: z.object({ id: z.string().min(1) }),
+});
+export type GitCafeLifecycleEvent = z.infer<typeof gitCafeLifecycleEventSchema>;
+
+export const gitCafeInstallationCreatedSchema =
+	gitCafeLifecycleEventSchema.extend({
+		type: z.literal("installation.created"),
+		repositorySelection: z.enum(["all", "selected"]),
+		repositories: z.array(
+			z.object({
+				id: z.string().min(1),
+				owner: z.string().min(1),
+				name: z.string().min(1),
+			}),
+		),
+		repositoriesTruncated: z.boolean(),
+	});
+export type GitCafeInstallationCreated = z.infer<
+	typeof gitCafeInstallationCreatedSchema
+>;
+
+export const gitCafeRepositoriesUpdatedSchema =
+	gitCafeLifecycleEventSchema.extend({
+		type: z.literal("installation.repositories_updated"),
+		repositorySelection: z.enum(["all", "selected"]),
+		previousRepositorySelection: z.enum(["all", "selected"]),
+		repositoriesAdded: gitCafeInstallationCreatedSchema.shape.repositories,
+		repositoriesRemoved: z.array(z.object({ id: z.string().min(1) })),
+		repositoriesRemovedTruncated: z.boolean(),
+	});
+export type GitCafeRepositoriesUpdated = z.infer<
+	typeof gitCafeRepositoriesUpdatedSchema
+>;
+
+/** Exact signed bytes stay separate from normalization and credentials. */
+export const gitCafeReceiptSchema = z.strictObject({
+	format: z.literal("gitcafe-receipt@1"),
+	appId: z.literal(GITCAFE_RECEIPT_APP_ID),
+	payload: gitCafeEventEnvelopeSchema,
+	bodyBase64: z.base64().max(Math.ceil(GITCAFE_RECEIPT_MAX_BYTES / 3) * 4),
+	bodySha256: z.string().regex(/^[0-9a-f]{64}$/),
+	deliveryId: z.string().min(1).max(255),
+	keyVersion: gitCafeReceiptConfigSchema.shape.keyVersion,
+	signedAt: z.string().regex(/^(0|[1-9][0-9]*)$/),
+	requestId: z.uuid(),
+});
+export type GitCafeReceipt = z.infer<typeof gitCafeReceiptSchema>;
+
+export const gitCafeReceiptJobSchema = z.strictObject({
+	receiptId: z.uuid(),
+	requestId: z.uuid(),
+});
+export type GitCafeReceiptJob = z.infer<typeof gitCafeReceiptJobSchema>;
+
+export const gitCafeReceiptStatusSchema = z.enum([
+	"pending",
+	"dispatched",
+	"applied",
+	"stale",
+	"parked",
+	"malformed",
+]);
+export type GitCafeReceiptStatus = z.infer<typeof gitCafeReceiptStatusSchema>;
+
+export const gitCafeLifecycleStatusSchema = z.enum([
+	"active",
+	"reconcile-required",
+	"paused",
+	"uninstalled",
+]);
+export type GitCafeLifecycleStatus = z.infer<
+	typeof gitCafeLifecycleStatusSchema
+>;
+
+export const gitCafeRetirementSchema = z.strictObject({
+	installationId: gitCafeEventEnvelopeSchema.shape.installation.shape.id,
+	reason: z.enum(["reconcile-required", "paused", "uninstalled"]),
+});
+export type GitCafeRetirement = z.infer<typeof gitCafeRetirementSchema>;
+
+export const gitCafeLifecycleLookupSchema = z.discriminatedUnion("ok", [
+	z.object({ ok: z.literal(true), value: gitCafeInstallationSchema }),
+	z.object({
+		ok: z.literal(false),
+		reason: z.string().min(1),
+		status: z.number().int().optional(),
+	}),
+]);
+export type GitCafeLifecycleLookup = z.infer<
+	typeof gitCafeLifecycleLookupSchema
+>;

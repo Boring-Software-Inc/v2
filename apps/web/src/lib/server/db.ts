@@ -1,8 +1,21 @@
-import { createDb, createPgliteDb, type PgliteHandle } from "@tripwire/db";
+import {
+	GITCAFE_REFRESH_CATALOGS_QUEUE,
+	gitCafeRefreshCatalogsJobSchema,
+} from "@tripwire/contracts";
+import {
+	createDb,
+	createGitCafeConnectionBoss,
+	createPgliteDb,
+	type Db,
+	type PgliteHandle,
+	repoServices,
+} from "@tripwire/db";
+import { generateId } from "@tripwire/utils";
 import type { PgBoss } from "pg-boss";
+import pino from "pino";
 
-type DbBundle = ReturnType<typeof createDb>;
-type DbPool = DbBundle["pool"];
+type DbPool = ReturnType<typeof createDb>["pool"];
+type DbBundle = { db: Db; pool: DbPool };
 
 /**
  * Server-only database access for TanStack server functions. Import this
@@ -15,7 +28,9 @@ type DbPool = DbBundle["pool"];
  */
 let instance: DbBundle | null = null;
 let boss: PgBoss | null = null;
+let gitCafeConnectionBoss: Promise<PgBoss> | null = null;
 let pglite: PgliteHandle["client"] | null = null;
+const connectionQueueLogger = pino({ name: "gitcafe-connection-queue" });
 
 /** `dev:demo` runs the web head alone against embedded PGlite. */
 export function isDemoMode(): boolean {
@@ -23,16 +38,13 @@ export function isDemoMode(): boolean {
 }
 
 // Any attempt to use a pg pool in demo mode is a bug — fail loudly, never hang.
-const DEMO_POOL = new Proxy(
-	{},
-	{
-		get() {
-			throw new Error(
-				"No Postgres pool in demo mode. The web app runs alone, with no worker or queue.",
-			);
-		},
+const DEMO_POOL = new Proxy<DbPool>({} as DbPool, {
+	get() {
+		throw new Error(
+			"No Postgres pool in demo mode. The web app runs alone, with no worker or queue.",
+		);
 	},
-) as unknown as DbPool;
+});
 
 export function getDb() {
 	if (instance) {
@@ -66,4 +78,45 @@ export async function getBoss(): Promise<PgBoss> {
 	const created = await createBoss();
 	boss = created;
 	return created;
+}
+
+export async function getGitCafeConnectionBoss(
+	requestId: string,
+): Promise<PgBoss> {
+	if (isDemoMode())
+		throw new Error("pg-boss is unavailable in demo mode (no worker/queue)");
+	const databaseUrl = process.env.DATABASE_URL;
+	if (!databaseUrl) throw new Error("DATABASE_URL is not set");
+	gitCafeConnectionBoss ??= createGitCafeConnectionBoss(
+		databaseUrl,
+		connectionQueueLogger.child({ requestId }),
+	);
+	const pending = gitCafeConnectionBoss;
+	try {
+		return await pending;
+	} catch (error) {
+		if (gitCafeConnectionBoss === pending) gitCafeConnectionBoss = null;
+		throw error;
+	}
+}
+
+/** Forge-specific producers must not start supervision or consumption of the general backlog. */
+export async function queueGitCafeCatalogRefresh(
+	repoId: string,
+): Promise<boolean> {
+	if (isDemoMode()) return false;
+	const repo = await repoServices.getRepoById(getDb().db, repoId);
+	if (repo?.forge !== "gitcafe" || repo.removedAt) return false;
+	const job = gitCafeRefreshCatalogsJobSchema.parse({
+		repoId,
+		requestId: generateId(),
+	});
+	const queue = await getGitCafeConnectionBoss(job.requestId);
+	await queue.createQueue(GITCAFE_REFRESH_CATALOGS_QUEUE, {
+		policy: "stately",
+	});
+	await queue.send(GITCAFE_REFRESH_CATALOGS_QUEUE, job, {
+		singletonKey: repoId,
+	});
+	return true;
 }

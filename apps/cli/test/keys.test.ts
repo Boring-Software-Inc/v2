@@ -108,7 +108,7 @@ function sentIds(tool: string): string[] {
 async function pullTwins() {
 	serve(TWINS);
 	const result = await runCli(
-		["workflows", "pull", "scratch", "--yes"],
+		["workflows", "pull", "--repo", "scratch", "--file", file()],
 		env(),
 		project,
 	);
@@ -132,13 +132,21 @@ describe("workflow keys in tripwire.ts", () => {
 	test("diff and push send the saved ids, with no extra lookup", async () => {
 		await pullTwins();
 		server.calls.length = 0;
-		const diff = await runCli(["workflows", "diff"], env(), project);
+		const diff = await runCli(
+			["workflows", "diff", "--file", file()],
+			env(),
+			project,
+		);
 		expect(diff.code).toBe(0);
 		expect(server.calls.map((call) => call.name)).toEqual([
 			"validate_workflow",
 		]);
 		expect(sentIds("validate_workflow")).toEqual([UUID_A, UUID_B]);
-		const push = await runCli(["workflows", "push", "--force"], env(), project);
+		const push = await runCli(
+			["workflows", "push", "--force", "--file", file()],
+			env(),
+			project,
+		);
 		expect(push.code).toBe(0);
 		expect(sentIds("apply_workflow")).toEqual([UUID_A, UUID_B]);
 	});
@@ -147,8 +155,12 @@ describe("workflow keys in tripwire.ts", () => {
 		await pullTwins();
 		const first = readFileSync(file(), "utf8");
 		const link = readFileSync(linkPath(), "utf8");
-		await runCli(["workflows", "push"], env(), project);
-		await runCli(["workflows", "push", "--force"], env(), project);
+		await runCli(["workflows", "push", "--file", file()], env(), project);
+		await runCli(
+			["workflows", "push", "--force", "--file", file()],
+			env(),
+			project,
+		);
 		const again = await pullTwins();
 		expect(readFileSync(file(), "utf8")).toBe(first);
 		expect(readFileSync(linkPath(), "utf8")).toBe(link);
@@ -159,7 +171,7 @@ describe("workflow keys in tripwire.ts", () => {
 		await pullTwins();
 		serve([blockCrypto(UUID_A, "Block coins"), TWIN_B]);
 		const result = await runCli(
-			["workflows", "pull", "--yes", "--force"],
+			["workflows", "pull", "--force", "--file", file()],
 			env(),
 			project,
 		);
@@ -179,7 +191,11 @@ describe("workflow keys in tripwire.ts", () => {
 				'name: "Block coins",',
 			),
 		);
-		await runCli(["workflows", "push", "--force"], env(), project);
+		await runCli(
+			["workflows", "push", "--force", "--file", file()],
+			env(),
+			project,
+		);
 		expect(sentIds("apply_workflow")).toEqual([UUID_A, UUID_B]);
 	});
 
@@ -187,7 +203,11 @@ describe("workflow keys in tripwire.ts", () => {
 		await pullTwins();
 		writeFileSync(linkPath(), JSON.stringify({ repo: "scratch" }));
 		serve(TWINS);
-		const result = await runCli(["workflows", "diff"], env(), project);
+		const result = await runCli(
+			["workflows", "diff", "--file", file()],
+			env(),
+			project,
+		);
 		expect(result.code).toBe(0);
 		expect(sentIds("validate_workflow")).toEqual([UUID_A, UUID_B]);
 		expect(result.stderr).toContain(
@@ -206,7 +226,7 @@ describe("workflow keys in tripwire.ts", () => {
 		);
 		serve(TWINS);
 		const result = await runCli(
-			["workflows", "push", "--force"],
+			["workflows", "push", "--force", "--file", file()],
 			env(),
 			project,
 		);
@@ -223,7 +243,11 @@ describe("workflow keys in tripwire.ts", () => {
 		await pullTwins();
 		writeFileSync(linkPath(), JSON.stringify({ repo: "scratch" }));
 		serve(TWINS);
-		const result = await runCli(["workflows", "push"], env(), project);
+		const result = await runCli(
+			["workflows", "push", "--file", file()],
+			env(),
+			project,
+		);
 		expect(result.code).toBe(0);
 		expect(sentIds("propose_workflow_push")).toEqual([UUID_A, UUID_B]);
 		expect(readLink().workflows).toEqual({
@@ -235,7 +259,15 @@ describe("workflow keys in tripwire.ts", () => {
 	test("pull takes a workflow by its key", async () => {
 		serve(TWINS);
 		const result = await runCli(
-			["workflows", "pull", "scratch", "block-crypto-pushes-2"],
+			[
+				"workflows",
+				"pull",
+				"block-crypto-pushes-2",
+				"--repo",
+				"scratch",
+				"--file",
+				file(),
+			],
 			env(),
 			project,
 		);

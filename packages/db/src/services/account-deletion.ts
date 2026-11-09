@@ -1,6 +1,7 @@
 import { and, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { session, user } from "../schema/auth.ts";
+import { events } from "../schema/events.ts";
 import { moderationItems } from "../schema/moderation.ts";
 import { agentGrants, deviceCode } from "../schema/oauth.ts";
 import {
@@ -165,7 +166,11 @@ export async function countPendingReviews(
 		.select({ n: sql<number>`count(*)::int` })
 		.from(moderationItems)
 		.innerJoin(runs, eq(runs.id, moderationItems.runId))
-		.innerJoin(repos, eq(repos.fullName, runs.repoFullName))
+		.innerJoin(events, eq(events.id, runs.eventId))
+		.innerJoin(
+			repos,
+			and(eq(repos.fullName, runs.repoFullName), eq(repos.forge, events.forge)),
+		)
 		.where(
 			and(
 				eq(moderationItems.status, "pending"),

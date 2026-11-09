@@ -1,5 +1,4 @@
-import { FlagsProvider } from "@databuddy/sdk/react";
-import type { QueryClient } from "@tanstack/react-query";
+import { type QueryClient, useQuery } from "@tanstack/react-query";
 import {
 	createRootRouteWithContext,
 	HeadContent,
@@ -8,28 +7,36 @@ import {
 	Scripts,
 	useRouterState,
 } from "@tanstack/react-router";
-import { DATABUDDY_CLIENT_ID } from "@tripwire/auth/databuddy";
-import { ThemeProvider } from "next-themes";
-import { lazy, Suspense } from "react";
+import { ThemeProvider, useTheme } from "next-themes";
+import { useEffect, useState } from "react";
+import { type SkulletMode, together } from "skullet";
+import { SkulletProvider } from "skullet/react";
+import { AccountFlagsProvider } from "#/components/common/account-flags-provider";
 import { AnalyticsIdentity } from "#/components/common/analytics-identity";
+import { DatabuddyAnalytics } from "#/components/common/databuddy-analytics";
 import { ImpersonationBanner } from "#/components/common/impersonation-banner";
-import glazeCss from "#/components/glaze/styles.css?url";
-import { useSlowWait } from "#/components/glaze/ui/slow-notice";
-import { Toaster } from "#/components/glaze/ui/toast";
 import { RepoTabsProvider } from "#/components/tabs/repo-tabs-provider";
-import { sessionInfoQueryOptions } from "#/lib/auth.query";
-import { GlazePortalProvider } from "#/lib/glaze/portal";
+import {
+	DesignSystemRoot,
+	designSystemBodyClass,
+	designSystemSkulletTheme,
+	designSystemStyles,
+} from "#/design-system/root";
+import { useSlowWait } from "#/design-system/ui/slow-notice";
+import { Toaster } from "#/design-system/ui/toast";
+import {
+	currentUserQueryOptions,
+	sessionInfoQueryOptions,
+} from "#/lib/auth.query";
+import { getPublicDatabuddyConfig } from "#/lib/databuddy.functions";
 import { isPublicPath } from "#/lib/run-access";
 import { siteConfig } from "#/lib/site-config";
 import appCss from "../styles.css?url";
 
-const Databuddy = lazy(() =>
-	import("@databuddy/sdk/react").then((m) => ({ default: m.Databuddy })),
-);
-
 export const Route = createRootRouteWithContext<{
 	queryClient: QueryClient;
 }>()({
+	loader: () => getPublicDatabuddyConfig(),
 	/**
 	 * §10 — Better Auth gates the dashboard, then onboarding gates it again: a
 	 * signed-in user with no active repo goes to /onboarding (same shape as the
@@ -111,7 +118,7 @@ export const Route = createRootRouteWithContext<{
 		],
 		links: [
 			{ rel: "stylesheet", href: appCss },
-			{ rel: "stylesheet", href: glazeCss },
+			...designSystemStyles.map((href) => ({ rel: "stylesheet", href })),
 			// Global favicon so every page (signed-out login included) shows the mark,
 			// not the browser's generic globe. SVG favicon, modern browsers only.
 			// White mark in prod; the green variant marks a dev tab at a glance
@@ -133,8 +140,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 			<head>
 				<HeadContent />
 			</head>
-			<body className="glaze min-h-dvh">
-				<GlazePortalProvider>{children}</GlazePortalProvider>
+			<body className={`${designSystemBodyClass} min-h-dvh`}>
+				<DesignSystemRoot>{children}</DesignSystemRoot>
 				<Scripts />
 			</body>
 		</html>
@@ -142,6 +149,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
+	const { databuddyWebsiteId } = Route.useLoaderData();
+	const { data: user, isPending: identityPending } = useQuery(
+		currentUserQueryOptions(),
+	);
 	useSlowWait(useRouterState({ select: (state) => state.isLoading }));
 	return (
 		<ThemeProvider
@@ -150,29 +161,45 @@ function RootComponent() {
 			enableSystem
 			disableTransitionOnChange
 		>
-			{/* Above the Outlet, not inside DashboardLayout: pages own their own
+			<TripwireSkulletProvider>
+				{/* Above the Outlet, not inside DashboardLayout: pages own their own
 				    layout wrap, so a provider down there would remount — and re-read
 				    storage — on every navigation. */}
-			<ImpersonationBanner />
-			<FlagsProvider clientId={DATABUDDY_CLIENT_ID}>
-				<RepoTabsProvider>
-					<Outlet />
-				</RepoTabsProvider>
-			</FlagsProvider>
-			<Toaster />
-			{/* Global product analytics — one mount covers every route (pageviews,
+				<ImpersonationBanner />
+				<AccountFlagsProvider
+					clientId={databuddyWebsiteId}
+					isPending={identityPending}
+					user={user}
+				>
+					<RepoTabsProvider>
+						<Outlet />
+					</RepoTabsProvider>
+				</AccountFlagsProvider>
+				<Toaster />
+				{/* Global product analytics — one mount covers every route (pageviews,
 			    interactions, outgoing links, hash changes, web vitals). */}
-			<Suspense fallback={null}>
-				<Databuddy
-					clientId={DATABUDDY_CLIENT_ID}
-					trackHashChanges
-					trackAttributes
-					trackOutgoingLinks
-					trackInteractions
-					trackWebVitals
-				/>
-			</Suspense>
-			<AnalyticsIdentity />
+				<DatabuddyAnalytics websiteId={databuddyWebsiteId} />
+				<AnalyticsIdentity />
+			</TripwireSkulletProvider>
 		</ThemeProvider>
+	);
+}
+
+function TripwireSkulletProvider({ children }: { children: React.ReactNode }) {
+	const { resolvedTheme } = useTheme();
+	const [mounted, setMounted] = useState(false);
+	useEffect(() => setMounted(true), []);
+	const mode: SkulletMode =
+		mounted && (resolvedTheme === "dark" || resolvedTheme === "light")
+			? resolvedTheme
+			: "system";
+	return (
+		<SkulletProvider
+			mode={mode}
+			reveal={together}
+			theme={designSystemSkulletTheme}
+		>
+			{children}
+		</SkulletProvider>
 	);
 }

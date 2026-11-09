@@ -50,7 +50,7 @@ function firstPartyClients(db: Db, resource: string): BetterAuthPlugin {
 									allowedScopes: ALL_SCOPES,
 								},
 							})
-							.catch((error: unknown) => {
+							.catch((error) => {
 								ensured = null;
 								throw error;
 							});

@@ -7,8 +7,8 @@ import {
 	type SyntheticEvent,
 	useState,
 } from "react";
-import { Input } from "#/components/glaze/ui/input";
-import { PopoverTitle } from "#/components/glaze/ui/popover";
+import { Input } from "#/design-system/ui/input";
+import { PopoverTitle } from "#/design-system/ui/popover";
 import { useDebouncedValue } from "#/hooks/use-debounced-value";
 import { closeGifFrom, type GiphyGif } from "#/lib/giphy-gif";
 import { closeGifsQueryOptions } from "#/lib/response.query";

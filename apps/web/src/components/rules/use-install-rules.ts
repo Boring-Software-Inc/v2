@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { toast } from "#/components/glaze/ui/toast";
+import { toast } from "#/design-system/ui/toast";
 import { homeDigestQueryKeys } from "#/lib/home-digest.query";
 import { setRulesEnabled } from "#/lib/rules.functions";
 import { rulesQueryKeys } from "#/lib/rules.query";

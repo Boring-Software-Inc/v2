@@ -29,9 +29,17 @@ function httpWith(pages: Record<number, object[]>, seen: string[] = []) {
 		appId: 1,
 		fetchImpl: ((url: string | URL | Request) => {
 			seen.push(String(url));
-			const page = Number(new URL(String(url)).searchParams.get("page"));
+			const current = new URL(String(url));
+			const page = Number(current.searchParams.get("page"));
+			const next = new URL(current);
+			next.searchParams.set("page", String(page + 1));
 			return Promise.resolve(
-				new Response(JSON.stringify(pages[page] ?? []), { status: 200 }),
+				new Response(JSON.stringify(pages[page] ?? []), {
+					status: 200,
+					headers: pages[page + 1]
+						? { link: `<${next.href}>; rel="next"` }
+						: {},
+				}),
 			);
 		}) as typeof fetch,
 	});
@@ -40,7 +48,7 @@ function httpWith(pages: Record<number, object[]>, seen: string[] = []) {
 describe("listRepoReviewers", () => {
 	test("asks for push collaborators and maps them to reviewers", async () => {
 		const seen: string[] = [];
-		const reviewers = await listRepoReviewers(
+		const { reviewers, truncated } = await listRepoReviewers(
 			httpWith(
 				{
 					1: [
@@ -63,6 +71,7 @@ describe("listRepoReviewers", () => {
 		expect(seen).toEqual([
 			"https://api.github.com/repos/acme/app/collaborators?affiliation=all&permission=push&per_page=100&page=1",
 		]);
+		expect(truncated).toBe(false);
 		expect(reviewers).toEqual([
 			{
 				id: 583231,
@@ -88,7 +97,7 @@ describe("listRepoReviewers", () => {
 			}),
 		);
 		const seen: string[] = [];
-		const reviewers = await listRepoReviewers(
+		const { reviewers, truncated } = await listRepoReviewers(
 			httpWith(
 				{
 					1: full,
@@ -105,6 +114,7 @@ describe("listRepoReviewers", () => {
 			"acme/app",
 		);
 		expect(seen).toHaveLength(2);
+		expect(truncated).toBe(false);
 		expect(reviewers).toHaveLength(101);
 		expect(reviewers.at(-1)).toMatchObject({
 			login: "last",
@@ -112,8 +122,76 @@ describe("listRepoReviewers", () => {
 		});
 	});
 
+	test("marks truncation when the page cap is hit with a full final page", async () => {
+		const pages: Record<number, object[]> = {};
+		for (const p of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]) {
+			pages[p] = Array.from({ length: 100 }, (_, i) =>
+				collaborator(p * 100_000 + i, `user${p}x${i}`, "write", {
+					admin: false,
+					maintain: false,
+					push: true,
+				}),
+			);
+		}
+		const seen: string[] = [];
+		const { reviewers, truncated } = await listRepoReviewers(
+			httpWith(pages, seen),
+			"acme/app",
+		);
+		expect(truncated).toBe(true);
+		expect(reviewers).toHaveLength(1000);
+		expect(seen).toHaveLength(10);
+		expect(seen.at(-1)).toMatch(/page=10/);
+	});
+
+	test("accepts 1,000 collaborators when there is no next page", async () => {
+		const pages: Record<number, object[]> = {};
+		for (let page = 1; page <= 10; page++) {
+			pages[page] = Array.from({ length: 100 }, (_, i) =>
+				collaborator(page * 100 + i, `user${page}x${i}`, "write", {
+					admin: false,
+					maintain: false,
+					push: true,
+				}),
+			);
+		}
+		const seen: string[] = [];
+		const result = await listRepoReviewers(httpWith(pages, seen), "acme/app");
+		expect(result.truncated).toBe(false);
+		expect(result.reviewers).toHaveLength(1_000);
+		expect(seen).toHaveLength(10);
+	});
+
+	test("does not mark truncation when the last allowed page is short", async () => {
+		const pages: Record<number, object[]> = {};
+		for (const p of [1, 2, 3, 4, 5, 6, 7, 8, 9]) {
+			pages[p] = Array.from({ length: 100 }, (_, i) =>
+				collaborator(p * 100_000 + i, `user${p}x${i}`, "write", {
+					admin: false,
+					maintain: false,
+					push: true,
+				}),
+			);
+		}
+		pages[10] = Array.from({ length: 50 }, (_, i) =>
+			collaborator(1_000_000 + i, `user10x${i}`, "write", {
+				admin: false,
+				maintain: false,
+				push: true,
+			}),
+		);
+		const seen: string[] = [];
+		const { reviewers, truncated } = await listRepoReviewers(
+			httpWith(pages, seen),
+			"acme/app",
+		);
+		expect(truncated).toBe(false);
+		expect(reviewers).toHaveLength(950);
+		expect(seen).toHaveLength(10);
+	});
+
 	test("drops people who cannot push and logins GitHub reviews cannot take", async () => {
-		const reviewers = await listRepoReviewers(
+		const { reviewers, truncated } = await listRepoReviewers(
 			httpWith({
 				1: [
 					collaborator(1, "reader", "read", {
@@ -136,6 +214,7 @@ describe("listRepoReviewers", () => {
 			}),
 			"acme/app",
 		);
+		expect(truncated).toBe(false);
 		expect(reviewers.map((reviewer) => reviewer.login)).toEqual(["keeper"]);
 	});
 

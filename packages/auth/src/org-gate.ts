@@ -57,21 +57,22 @@ export async function memberPermissions(
 	return resolveOrgPermissions(role, rows);
 }
 
+/** Repository ids preserve forge isolation when visibility is checked outside the org gate. */
 export async function reposWithPermission(
 	db: Db,
 	userId: string,
 	permission: OrgPermission,
 ): Promise<string[]> {
 	const orgs = await orgServices.listUserOrgs(db, userId);
-	const names: string[] = [];
+	const ids: string[] = [];
 	for (const org of orgs) {
 		const scoped = await withPermissions(db, org);
 		if (scoped.permissions.includes(permission)) {
 			const repos = await orgServices.listOrgRepos(db, org.id);
-			names.push(...repos.map((repo) => repo.fullName));
+			ids.push(...repos.map((repo) => repo.id));
 		}
 	}
-	return names;
+	return ids;
 }
 
 export function roleAffords(held: string, need: OrgRole): boolean {

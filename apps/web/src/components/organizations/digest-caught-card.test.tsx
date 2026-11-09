@@ -4,8 +4,8 @@ import type { HomeDigest, OrgPermission } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
 import { Children, isValidElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { toast } from "#/components/glaze/ui/toast";
 import { DigestCaughtCard } from "#/components/organizations/digest-caught-card";
+import { toast } from "#/design-system/ui/toast";
 import * as armFunctions from "#/lib/arm.functions";
 import { orgQueryKeys } from "#/lib/org.query";
 import * as rulesFunctions from "#/lib/rules.functions";
@@ -111,6 +111,23 @@ test("a refused activation never installs or announces success", async () => {
 	expect(success).not.toHaveBeenCalled();
 	expect(fail).toHaveBeenCalledWith(
 		"Only an org admin can turn on Tripwire for this repo.",
+	);
+});
+
+test("a queue initialization refusal offers retry without installing or announcing success", async () => {
+	arm.mockResolvedValue({
+		ok: false,
+		armed: false,
+		reason: "queue-unavailable",
+		repoId: CAUGHT.repoId,
+	});
+	fail.mockImplementation(() => "toast");
+	const { click } = render(false, ["rules:manage", "connections:manage"]);
+	await click?.();
+	expect(save).not.toHaveBeenCalled();
+	expect(success).not.toHaveBeenCalled();
+	expect(fail).toHaveBeenCalledWith(
+		"Tripwire did not turn on. Try again in a moment.",
 	);
 });
 

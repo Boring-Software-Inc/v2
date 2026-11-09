@@ -410,3 +410,391 @@ case with `bun run typecheck:ts5` and the pinned Microsoft TS7 reference before
 attributing it to application code. See the release-specific
 [compatibility](https://github.com/oxc-project/tsrs/blob/v0.20.0/docs/COMPATIBILITY.md)
 and [defaults](https://github.com/oxc-project/tsrs/blob/v0.20.0/docs/DEFAULTS.md).
+
+## GitCafe foundation: separate identity and forge-qualified repository scope (2026-10-27)
+
+The owner authorized GitCafe integration beyond the old second-forge deferral. The first slice repairs namespace isolation before activation. `gitcafe` keeps its distinct catalog ID and canonical origin `https://git.cafe`; historical `opengit` data, origin, issuer, credentials, and paused status are preserved. No migration equates their IDs.
+
+Repository service scopes use `{ forge, fullName }`; runs derive forge from their triggering event. Org permissions remain tenant boundaries, and a Tripwire org can contain multiple forges. Ambiguous names fail closed. Event uniqueness becomes `(forge, delivery_id)` through migration 0045; deploy the targetless-conflict ingest code before replacing the old index. See [migration risks and acceptance evidence](docs/research/git-cafe-foundation.md).
+
+GitCafe remains planned and unavailable for sign-in, connection, ingest, reads, and actions. Its package home is defined by the decision below. Account-age/global reputation features stay unavailable without invented evidence; when GitCafe is surfaced, retain disabled controls with reasons. Team/org reviewer actors and ongoing GitHub-sync webhooks remain unverified pending live tests, with no hard-coded exclusion based on the initial audit.
+
+## GitCafe protocol package home (2026-10-27)
+
+The owner explicitly authorized a dedicated `packages/forge-gitcafe` workspace after reviewing the initial OpenGit subpath placement. This is a scoped exception to the closed package layout and replaces `@tripwire/forge-opengit/gitcafe` with `@tripwire/forge-gitcafe`. Separate protocol ownership cannot be expressed clearly under the legacy adapter's name. No third-party dependency is added.
+
+GitCafe code and captured fixtures live in the new package. Historical OpenGit exports, issuer, credentials and data remain in `packages/forge-opengit`; neither forge package imports the other. GitCafe follows the adapter dependency boundaries: contracts, utils and forge only, with worker and API as permitted consumers. This slice contains protocol primitives only; no adapter, receiver or sign-in is activated. Captured response bytes and provenance are preserved through the move. Authenticated token and lifecycle fixtures await an authorized staging app.
+
+
+## 2026-10-27: Staging integration branch
+
+Staging work merges into `staging`. Independent staging PRs target that branch;
+stacked PRs may target their parent feature branch, with the stack root targeting
+`staging`. Production promotion is a separate PR from `staging` into `main`.
+The staging CLI release dispatches from `staging` and publishes only to the
+`staging` npm tag. The former `staging/visual` tip is preserved as
+`archive/staging-visual`.
+
+## GitCafe explicit person grant is authorization delegation (2026-10-27)
+
+The owner authorized the connect-only API grant foundation while GitCafe remains
+planned. Both the grant plugin and sign-in provider use the existing configured
+GitCafe auth client; this adds no independent enablement flag or UI availability
+rule. Repository connection remains unavailable pending the parent-owned shared
+readiness policy, genuine person-read evidence and worker adapter work.
+
+An approved Tripwire user's current session and fresh target-org
+`connections:manage` permission authorize initiation. The explicit GitCafe grant
+may represent a subject that signs into a different Tripwire account. Its API
+credential delegates external authority to the initiating user for the bound org
+and intended installation; it does not authenticate that subject into Tripwire.
+The grant never creates or reassigns `account` or `forge_identities`, issues a
+session, merges by email, approves another account or inherits its permissions.
+Proof evidence preserves both the local user/session and the remote subject/actor
+IDs. The generated protocol suite covers an existing foreign account without any
+account, identity, user or session mutation. Sign-in/linking uniqueness and failed
+signup guards retain their existing policy and regression tests.
+
+The grant reuses the registered `/api/auth/callback/gitcafe` URI, with fixed
+`openid profile email repo:metadata:read` scopes and `https://git.cafe/api` resource.
+Persisted server context classifies callbacks without consuming sign-in state;
+Better Auth's state parser still checks the signed browser cookie and expiry.
+Connect callbacks, including errors and attempts at another provider callback,
+terminate before the sign-in handler. A separate atomically consumed server nonce
+fences replay across auth instances. Login and delegation share the same signed
+claim verifier. Userinfo must match its verified subject; principal supplies a
+separate actor ID with the same access token.
+
+Only a random opaque handle leaves the callback. Better Auth's existing
+`symmetricEncrypt`/`symmetricDecrypt` encrypt the proof with HMAC-derived,
+purpose-separated key material from the auth secret. No crypto implementation or
+dependency is added. The proof is stored in the existing verification store,
+bound to purpose, forge, org, intended installation, user and session; its expiry
+is the minimum of flow expiry, five minutes and token expiry. Refresh and ID
+tokens are discarded; account token storage is untouched. Expired ciphertext is
+cleaned by Better Auth's verification-store cleanup and cannot authorize use.
+
+The narrow handoff is the pathless `auth.api.consumeGitCafeConnectProof` endpoint
+on a configured auth instance. It requires the same fresh authoritative session,
+approval, org permission and installation binding before atomic one-use consume;
+its returned credential is for trusted server code only and must never be
+serialized to a browser. No worker imports auth, and no worker transport, queue
+payload or shared decryption abstraction is invented. A future claim needs an
+explicit allowed-layer credential handoff plus fresh person binding, bot-read
+current membership/role, expected active app/installation, selected repositories,
+Tripwire permission and unique-claim verification. This proof alone is never an
+installation ownership or administrator claim, and no GET or POST claim is added.
+
+### 2026-10-28 — GitCafe connection storage and isolated staging verification
+
+The current build step connects the dedicated GitCafe staging installation after
+explicit confirmation. `Forge`/`forgeSchema` now admit GitCafe repository rows via
+the catalog's `connection` status, independently of `IngestForge`/
+`ingestForgeSchema`. This permits forge-qualified repository ownership, org
+routing, Home, and the picker without claiming an evaluation adapter exists.
+GitCafe's worker runtime and normalizer are explicitly null; webhook ingest,
+re-runs, action retries, repository arming, and workflow protection enabling
+remain unavailable. GitHub and historical OpenGit retain their current behavior.
+
+A consumed server-only person proof becomes a strict, five-minute action job
+containing user/session/org/installation, verified subject/actor, authorization
+and expiry timestamps, and request ID. No bearer credential, private key, or
+reusable authorization secret enters pg-boss. The worker rechecks current local
+session posture and target-org connections:manage, fresh bot-read org-owner or
+org-admin membership for that actor, active expected app/installation, selected
+repository stable identities, and unique installation/repository ownership. It
+revalidates remote authority immediately before the atomic ownership mutation;
+new and refreshed GitCafe rows stay unarmed. Generic claim/move paths refuse
+GitCafe. No GET claims an installation, and no account or identity is linked.
+
+`WORKER_MODE=gitcafe-connect` is an operational staging verification mode. It
+requires Unkey's actual `preview` environment slug and the captured dedicated
+Tripwire Staging app ID `int_01m60999c0fqg841d48s29qwtv`; this concrete pin excludes
+production and is not a general integration activation flag. It starts only the
+connection queue and health endpoint, without the general deployment fence,
+normal queue registration/consumption, pg-boss scheduling, schema migration, or
+maintenance. Existing queue schema must already exist. The stopped staging
+worker's event/action/schedule backlog must remain untouched. No deployment or
+production enablement is authorized by this code change.
+
+The worker uses the existing `@tripwire/forge-gitcafe` installed-client package;
+no new external dependency, package, adapter, or deployment SDK is introduced.
+Login and Connect consume one exact public provider availability result,
+`{ available: ConfiguredSignInProviderIds }`, so advertised availability cannot
+split into independent login and connection lists. Membership and repository
+schemas are grounded in the genuine authorized staging captures with independent
+original-byte/provenance/privacy validation recorded in their sidecars.
+
+### 2026-10-28 — Bounded connection failure logging in the web head
+
+The web workspace declares the existing stack's `pino@^10.3.1` dependency for
+GitCafe confirmation failures. It replaces silent catch-only handling at that
+edge; pg-boss and TanStack Start do not provide the required structured pino
+logging. Logs contain a generated request ID and a fixed failure code, never
+provider response bodies, delegated credentials, actors, or email addresses.
+No new third-party library is introduced.
+
+## GitCafe delegated subject is the membership actor (2026-10-28)
+
+GitCafe's founder confirmed that the signed OIDC `sub` is the permanent,
+non-reused person account key. Staging independently matched the authenticated
+account subject to the same person's organization-membership `actorId`. The
+API-resource OAuth token succeeds at userinfo but receives 403 at
+`/api/auth/principal`; that endpoint is not required for the connection flow.
+
+This supersedes the separate-principal requirement above. The signed ID-token
+subject, checked against live same-token userinfo, supplies both proof `subject`
+and membership `actorId`. Confirmation rechecks userinfo and rejects differing
+proof IDs before enqueueing. The worker still requires current complete-page
+org-owner/admin membership, installation snapshot fencing, selected-repository
+validation, local permissions and atomic claim uniqueness. Handles, profile data
+and email never authorize a claim. No ingestion or protection is enabled.
+
+Source: [GitCafe OIDC guide](https://git.cafe/docs/integrations/sign-in-with-gitcafe),
+founder response relayed by Grim, and a read-only staging equality check. The
+equality result is live evidence, not a captured provider-response fixture.
+
+## 2026-10-28 — GitCafe read client uses the forge interface workspace
+
+The concrete GitCafe read client declares the existing internal `@tripwire/forge` workspace dependency for universal commit and contributor types. This follows the approved adapter dependency arrow and replaces duplicate local representations of those types. The existing stack already supplies the interface package; no third-party dependency is added. Historical OpenGit remains separate.
+
+## 2026-10-28 — GitCafe staging protection execution and action receipts
+
+Grim requested completion of GitCafe protection, beyond repository connections. The first executable path stays isolated to Unkey preview and the dedicated Tripwire Staging app. Its process, resume, rerun and refresh queues are separate from the ordinary worker queues; queue-scoped supervision and durable receipt recovery leave general backlog and schedules untouched. Historical parked deliveries are not activated during rollout.
+
+Signed receipts retain their exact raw bytes. Dispatch atomically creates the GitCafe event and its job; a dispatched receipt remains recoverable until processing finishes. Installation lifecycle authority and fresh installed-client scope fences apply to reads and actions. A persisted action, current claimed repository and installation establish the write binding. Review creation retains its immutable request ID and input in the existing validated action JSON; comment creation retains an operation marker and permits one dispatch, reconciling uncertain results rather than blindly resending. Only the installation bot's artifacts may be edited or dismissed.
+
+GitCafe supplies diff, commit, profile-text and repository-local evidence. Account age, complete contributor-wide history and global merge history remain unavailable. Their controls remain disabled with source-specific reasons. Explicitly omitted patches cannot establish a clean text scan or an AI verdict; existing AI prompts remain unchanged. Capability declarations describe these reads without enabling the catalog's protection gate. Catalog activation, staging rollout and required-check enforcement require separate scratch acceptance evidence.
+
+## 2026-10-28 — GitCafe clearance waits for settled review submissions
+
+GitCafe actions serialize by installation, repository and subject through a dedicated PostgreSQL session-lock pool. A dispatched blocking review retains its immutable request ID until a verified receipt is stored. Clearance replays uncertain submissions with that same input before enumerating and dismissing owned reviews; a lost response or an expired cleanup retry cannot release a successful check. Definitive first-attempt refusals do not leave an uncertain submission behind. General worker queues remain unchanged.
+
+Initial and resumed GitCafe evaluations commit audit steps, moderation state and workflow action intents atomically. Recovery uses the committed evaluation and exact recorded surface intents, with a separate surface key for each applied moderation decision. It never reruns evaluation to repair remote delivery.
+
+The omitted-patch policy is versioned as `crypto-address@2` and `ai-review@3`. Older versions retain their original evaluation behavior; GitCafe requires the versions that distinguish unavailable patches. AI instruction and prompt bytes are unchanged from `ai-review@2`. Declaring GitCafe review delivery enables correct surface planning only; the catalog protection gate remains closed pending live acceptance.
+
+Saved AI and crypto workflow references remain enableable through an explicit map of their frozen config schemas after the current catalog advances. Unknown versions remain invalid; validation does not rewrite stored definitions or audit snapshots. The existing standalone-rule policy still advances compatible configs to the current version. This avoids making an existing GitHub workflow unrunnable solely because GitCafe needs a new evidence policy.
+
+Surface intents also bind the committed verdict, head and complete sorted set of applied moderation decisions. Planning reads a consistent audit under the run lock; insertion and review-body stamping compare that phase under the same lock. Dispatch rechecks it alongside installation authority. An older approval cannot clear a later denial within the same run. Terminal GitCafe rerun retries recover committed surfaces without reevaluating rules.
+
+An action's originating phase is immutable. A newer surface transaction supersedes obsolete intents before they can dispatch; it records a new action when a previously undelivered block or close remains required. Uncertain old review commands remain retained for later clearance reconciliation. Run status participates in the phase, including `closed`; closing moderation and recording its neutral check/comment commit together, leaving the scoped sweeper able to recover delivery after a crash.
+
+GitCafe response refresh uses that same committed-evaluation planner and phase-fenced insertion. Its stable queue job ID identifies refresh intents; retrying a refresh reuses those intents. A refresh captured before moderation closes cannot overwrite the neutral closure check. Configured sole-review changes retain the owned replacement-before-dismissal protocol.
+
+## 2026-10-28 — GitCafe pushes retain per-ref evidence
+
+Complete signed GitCafe pushes fan out atomically by installation, event and ref, retaining the original raw payload on every event. Each ref must still match current installed reads before evaluation; uncommitted projections are rehydrated on retry. Deleted refs have a null head, and unavailable push commit counts stay null rather than borrowing a ref count. Installed bot identities suppress self-generated activity by immutable actor ID. Push-triggered catalog refresh uses the existing isolated queue; completed refs remain completed while unfinished siblings recover.
+
+## 2026-10-28 — GitCafe reviewer selections retain actor IDs
+
+Typed GitCafe reviewer selections store immutable string actor IDs alongside display handles; GitHub keeps its numeric IDs and legacy handle references. GitCafe delivery uses the stored actor ID, while GitHub delivery retains its existing login mapping. Both boundaries keep their own validated formats.
+
+GitCafe supplies reviewer candidates per pull request. Its repository suggestions therefore collect complete candidate lists from current open PRs, fencing each detail read before and after enumeration. The picker names that source; these suggestions grant no authority, and action delivery rechecks the target PR's current candidate list. Ordinary source failures retain the previous reviewer cache; installation or claim invalidation refuses the whole catalog bundle. GitCafe's typed reviewer array uses the existing `repo_suggestions` JSON column, with a contracts schema validated on write; the GitHub numeric reviewer table and physical SQL schema remain unchanged. This avoids introducing a parallel cache or inventing organization-wide reviewer eligibility.
+
+Exact reviewer IDs remain separate from legacy handles in the forge action. A removed GitCafe candidate ID cannot resolve to another actor through a matching handle. GitHub refuses an action containing these foreign exact IDs before sending any requests; its existing numeric-ID-to-login workflow mapping remains unchanged.
+
+## 2026-10-28 — GitHub mirrors do not imply GitCafe enforcement
+
+GitCafe documents no issue or pull webhooks for GitHub imports, and its checks do not sync back to GitHub. A readable mirror is not proof of upstream protection. Setup names this limitation and directs maintainers to connect Tripwire on GitHub. Signed Git push receipts retain their existing source and admission behavior; no missing PR events or GitHub identities are synthesized.
+
+Action delivery rejects a current subject marked as GitHub-managed or using a provider merge route before making local enforcement writes. An unsupported merge route receives its own refusal rather than being mislabeled as GitHub. Owned review dismissal and comment cleanup keep their existing ownership, authority and version checks so changing a repository's sync settings cannot strand Tripwire's old artifacts. Native GitCafe behavior and protection activation gates remain unchanged.
+
+## 2026-10-29 — GitCafe comment reviews pin an observed PR head
+
+A comment still evaluates its own author and body. GitCafe hydration may additionally observe the parent PR's head, verify it did not change while reading the comment, and retain it separately as `comment.subjectHeadSha`. That head is saved with the run's atomic evaluation and supplies the review command's commit binding. Recovery reuses the committed head and request ID; a later head cannot inherit the old comment's blocking review. Issue comments remain headless, and GitHub comment normalization and behavior remain unchanged. Existing headless history is not retroactively attached to a new commit.
+
+For comment-triggered runs, the observed head binds review creation, review cleanup, and checks. Thread actions such as close, lock, labels, and comments remain head-independent: an unrelated push must not strand their recorded retry. They still revalidate current subject identity, source eligibility, installation authority, and optimistic version before writing. The saved run head is retained unchanged for audit and commit-bound commands.
+
+## 2026-10-29 — Native GitCafe re-requests retain durable retry ownership
+
+A queued run materialized for an unfinished native check re-request belongs to that request's durable event recovery. The general three-minute queued-run timeout must not fail it during a temporary evidence outage. Ordinary queued runs keep their existing expiry.
+
+Re-request preparation distinguishes an absent or contradictory recorded check reference from a temporary installation-authority change. Check writes with an action reference are recorded before dispatch; an event ID from the initial pending check cannot acquire such a reference later. These unbound requests settle without evaluation or recovery churn. Generation changes and transient provider failures remain retryable, and already committed runs retain their recovery path.
+
+During re-request preparation, installed-transport snapshot staleness is a retryable authority fence. The verifier distinguishes it at each transport boundary from an obsolete pending check, timestamp, or PR head; those semantic refusals remain terminal. Binding, check readback, and PR readback can each lose their installation snapshot without consuming the durable request.
+
+## 2026-10-29 — Uncommitted GitCafe evidence can retry snapshot conflicts
+
+A PR push between comment hydration reads does not invalidate an unchanged comment's author, body, or version. Hydration refuses that attempt with snapshot `stale`; the dedicated consumer retains the event and retries after the head stabilizes. Edited, hidden, deleted, or mismatched comment evidence keeps its terminal refusal. Once a run commits, recovery retains its saved head and command identity. GitCafe installed-snapshot conflicts during preparation use the same retry path; native GitHub normalization is unchanged.
+
+
+## 2026-10-29 — GitCafe protection uses explicit arming and isolated history
+
+GitCafe enters the live capability catalog on staging after the protocol and runtime slices. Connection and installation sync still leave repositories unarmed. Existing manager-only Arm and workflow-enable controls become available; enabling a workflow checks the current installation lifecycle and exact organization claim under the connection lock. Disabling and disarming remain available after access is withdrawn.
+
+Arming and admission of one `gitcafe-backfill-repo` job commit in one transaction under the same authority fence. The job carries the exact repository, installation, organization and lifecycle generation. The isolated worker rechecks that binding before each evaluation and under the authority lock when committing history, refusing changed bindings. Admission is determined from the locked arming state so a concurrent disarm cannot bypass it. Historical evaluation uses the existing bounded backfill engine with suppressed actions and no review items. Stored GitCafe events must match the claimed immutable repository ID before subject deduplication. The dedicated worker neither consumes nor supervises the general forge backlog. Web and MCP entry points select the isolated queue factory for GitCafe arming and moderation instead of starting the general queue supervisor. Default general sweeps and schedule discovery exclude GitCafe; the isolated worker passes its explicit forge scope.
+
+GitCafe retains authenticated hydration and timestamped receipt ingress rather than the shared pure normalizer or HMAC path. The mirror warning remains beside the normal controls: upstream-imported subjects do not imply GitCafe events or GitHub merge enforcement. Existing rule capability declarations remain authoritative; GitHub-only account age, global merged history and rate signals are not advertised for GitCafe. Historical rule versions and prompts are unchanged.
+
+This change adds no dependency, permission or migration. Staging activation is separate from live external-contributor and required-check acceptance. The production application configuration and release remain a separate rollout; staging success alone is not a production-readiness claim.
+
+
+Activation retains the request-authorized organization ID through web and MCP entry points and compares it to the locked claim. A retained repository or workflow rebound to another organization cannot be activated by the old organization's request. Historical evaluations remain separate from live-event recovery: only a committed live run can bypass hydration, and backfill runs cannot acquire live surface intents. Setup labels name GitCafe, and rule packs list and install only rules supported by the repository's forge.
+
+## 2026-10-31 — Skullet owns web skeleton rendering
+
+`skullet@0.0.3` replaces the custom timing and box-rendering engine behind the
+existing Glaze skeleton facade. Page-specific skeleton layouts remain the source
+of their own geometry, while the shared facade supplies Skullet boxes and one
+coordinated `together` reveal. The root provider follows Tripwire's resolved
+light or dark theme and uses the existing neutral ink palette.
+
+React, TanStack Query, and Glaze can render fixed placeholders but do not supply
+Skullet's measured-content fallback, coordinated animation, reveal lifecycle,
+reduced-motion handling, or accessible loading region as one maintained unit.
+Keeping the dependency behind the existing Glaze primitive prevents package API
+from spreading through feature code. Skullet is MIT licensed and introduces no
+new service, permission, storage boundary, or production credential.
+
+## 2026-11-02 — Quartz design system registry tooling
+
+**Added:** `@tailwindcss/postcss` in `apps/web`, as required by the Quartz theme
+registry from design.how. The existing `tailwindcss` dependency remains at the
+registry's compatible version.
+
+**What it replaces:** nothing. This is installation support for the approved
+replacement of the in-app Glaze design system with Quartz.
+
+**Why the stack can't do it:** the Quartz registry owns its Tailwind v4 theme,
+source scanning, custom variants, and generated component styles. The existing
+Vite plugin compiles the application stylesheet, but it does not satisfy the
+registry package contract used to install and lint Quartz consistently. Keeping
+the registry's declared PostCSS adapter avoids maintaining a local fork of the
+upstream theme artifacts.
+
+## 2026-11-02 — Quartz icon and table engines
+
+**Added:** `@fortawesome/free-solid-svg-icons` and `@tanstack/react-table` in
+`apps/web`, as required by the approved Quartz component registry.
+
+**What they replace:** Font Awesome replaces Glaze's direct Phosphor icon
+surface as screens move to Quartz's single icon entry point. TanStack Table
+replaces Glaze's hand-owned table state and interaction layer once table
+screens are ported.
+
+**Why the stack can't do it:** Quartz specifies solid Font Awesome glyphs as
+part of its visual and accessibility contract, including status shapes and
+forced-color behavior. The existing Phosphor package cannot supply those exact
+definitions. Quartz's table primitive delegates sorting, selection, column
+visibility, and row models to TanStack Table; TanStack Query and Virtual do not
+implement those contracts, and recreating them locally would fork the upstream
+component.
+
+## 2026-11-03 — Application-owned design-system boundary
+
+**Decision:** Application code imports `#/design-system/ui/*`,
+`#/design-system/icon`, and `#/design-system/lib/*`. It does not import Glaze or
+Quartz directly. `VITE_DESIGN_SYSTEM` selects the root scope, providers, styles,
+and token compatibility layer; Quartz is the default.
+
+**Why:** Direct design-system imports made feature files responsible for vendor
+API differences and token vocabulary. A visual-system change then spread prop
+and class edits through unrelated product code. The application facade keeps the
+product contract stable. Backend component adaptation and token translation now
+have one owned boundary under `apps/web/src/design-system` and the alias mapping
+in `apps/web/package.json` and `apps/web/tsconfig.json`.
+
+**Migration rule:** Until Quartz implementations cover the complete application
+contract, the facade resolves component modules to the established Glaze API and
+the Quartz mode translates its visual tokens at the root. Component
+implementations can move behind the facade one at a time without changing their
+call sites. A swap is accepted only after both `glaze` and `quartz` builds and
+browser captures pass with no feature-file changes between them.
+
+## 2026-11-03 — Glaze-only semantic UI contract supersedes Quartz
+
+**Decision:** Stop the Quartz migration and remove its runtime mode, compatibility
+palette, generated registry, support code, and registry-only dependencies. Glaze
+is again the sole implementation behind `#/design-system/*`. The application-owned
+facade remains mandatory so feature code depends on Tripwire contracts rather
+than Glaze paths.
+
+**Why:** Root-level token translation let incompatible color meanings compose.
+That produced invalid foreground chains, mismatched hover and surface colors, and
+states whose visual indicators disappeared. Keeping two incomplete visual systems
+made regressions possible without a feature-file change. The replacement is a
+closed semantic contract for typography, color, layout, and component states,
+with static and rendered checks at the application boundary.
+
+**Supersedes:** the active migration and runtime-switch portions of the three
+Quartz decisions above. Their historical dependency rationale remains recorded,
+but `@tailwindcss/postcss`, `@fortawesome/free-solid-svg-icons`, and
+`@tanstack/react-table` are removed because they have no non-Quartz consumer.
+
+## 2026-11-03: `@tripwire/ui` owns the proven semantic contract
+
+**Decision:** Promote the proven, application-agnostic semantic layer into the
+existing `packages/ui` workspace. `@tripwire/ui` now owns semantic typography,
+semantic typography and color CSS, and the generic page, section, action-row,
+and form-section molecules. Web keeps thin compatibility facades at the existing
+feature import paths.
+
+**Why:** The contracts are now used across the members and settings families and
+contain no route, query, auth, contracts, or domain logic. Keeping them app-owned
+would leave package ownership different from the architecture they have already
+proven. Reusing the existing package slot avoids a second design-system package
+and preserves the dependency direction that only web consumes UI.
+
+**Implementation boundary:** Glaze components, providers, and implementation
+styles remain in web. Package CSS maps semantic roles to custom properties that
+Glaze currently supplies. Member and invite collection-row geometry remains
+app-owned because it encodes product-specific action placement. A later Glaze
+implementation move requires separate review and is not part of this decision.
+
+**Dependencies:** No new repository dependency is introduced. React is the
+package peer, with the existing React and React type packages declared for local
+development and tests. Web declares the existing workspace package as a direct
+dependency.
+
+**Supersedes:** the temporary pilot constraint in the application-owned boundary
+decision and semantic UI plan that deferred package ownership until the API was
+proven.
+
+## 2026-11-05: TypeScript SDK lives in its own repository
+
+**Decision (founder):** the public TypeScript SDK is approved as the standalone
+`tripwire-typescript-sdk` repository and the npm package `@tripwire-sh/sdk`.
+This is the first language SDK. It does not live as a new top-level package in
+the product monorepo. The existing private `@tripwire/sdk` workspace keeps its
+internal signal and forge role until a deliberate migration removes or renames
+it.
+
+The first public surface is typed workflow authoring and compilation. Pulled
+definitions live in `.tripwire/workflows/<slug>.ts`, default-export one workflow,
+and import the SDK rather than a copied runtime. Stable slugs remain mapped to
+remote workflow IDs in `.tripwire/project.json`.
+
+`apps/cli` may depend on `@tripwire-sh/sdk` in addition to
+`@tripwire/contracts`. The CLI and SDK must share compilation behavior; the CLI
+must not grow a second workflow engine. The product server still validates the
+canonical JSON definition and repository capabilities at its boundary.
+
+The package root is reserved for the authenticated resource client and
+`@tripwire-sh/sdk/workflows` owns pure authoring. Programmatic preview waits for
+an approved server capability and must not invent an endpoint. Publishing the
+package, creating a remote repository, changing production flags, or deploying
+still requires separate authorization.
+
+## 2026-11-07 · Shared spam blocklist review pilot
+
+Approved in #189 for the configured staging GitHub repository. A maintainer
+opts in per repo. A verified match on a fresh snapshot adds a Human review
+workflow with no automatic block or close action. Missing, expired, or invalid
+snapshots add no review. The feature stays off without an explicit repository
+ID in the web and worker environments. Automatic blocking and production
+rollout require separate approval.
+
+## 2026-11-07 · Public shared blocklist directory
+
+The public directory and read-only JSON snapshot are approved as a narrow REST
+exception. Both read the same validated GitHub snapshot as the review pilot.
+Anyone can browse without a Tripwire account. GitHub remains the place to
+propose additions and corrections. Dashboard access also requires the staging
+Databuddy flag and repository allowlist. The repo's opt-in controls the worker.
+
+## Shared blocklist publication
+
+The community blocklist repository keeps reviewed submissions on protected `main`. Its Actions publisher combines those entries with platform-admin submissions and writes a versioned snapshot to the separate `published` branch. Both the worker and public page consume that snapshot. Admin submissions remain inspectable in `published:staff-entries/`; community and staff removals follow their respective paths in the list repo's README.
+
+Set `TRIPWIRE_SHARED_BLOCKLIST_ACTIONS_TOKEN` on the web service to enable the staff form. Use a fine-grained GitHub token limited to `Boring-Software-Inc/Pilot` with **Actions: Read and write**. The publisher uses the repository's job token with **Contents: Write**. Unkey preview deployments dispatch to the GitHub Actions `staging` environment and read `published-staging`. Production uses `published`. Both snapshots include reviewed community entries. Staff entries are stored separately on each branch, and the repository is public.

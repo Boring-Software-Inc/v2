@@ -71,7 +71,16 @@ function lastCall(): ToolCall | undefined {
 describe("pull links the project", () => {
 	test("pull saves the repo and org beside tripwire.ts and says so", async () => {
 		const result = await runCli(
-			["--org", "acme", "workflows", "pull", "scratch"],
+			[
+				"--org",
+				"acme",
+				"workflows",
+				"pull",
+				"--repo",
+				"scratch",
+				"--file",
+				"tripwire.ts",
+			],
 			env(),
 			project,
 		);
@@ -85,9 +94,21 @@ describe("pull links the project", () => {
 	});
 
 	test("a second pull of the same repo leaves the link alone", async () => {
-		await runCli(["workflows", "pull", "scratch"], env(), project);
+		await runCli(
+			["workflows", "pull", "--repo", "scratch", "--file", "tripwire.ts"],
+			env(),
+			project,
+		);
 		const again = await runCli(
-			["workflows", "pull", "scratch", "--force"],
+			[
+				"workflows",
+				"pull",
+				"--repo",
+				"scratch",
+				"--force",
+				"--file",
+				"tripwire.ts",
+			],
 			env(),
 			project,
 		);
@@ -97,7 +118,15 @@ describe("pull links the project", () => {
 
 	test("pull --no-link writes no link", async () => {
 		const result = await runCli(
-			["workflows", "pull", "scratch", "--no-link"],
+			[
+				"workflows",
+				"pull",
+				"--repo",
+				"scratch",
+				"--no-link",
+				"--file",
+				"tripwire.ts",
+			],
 			env(),
 			project,
 		);
@@ -107,7 +136,15 @@ describe("pull links the project", () => {
 
 	test("pull --json names the link file", async () => {
 		const result = await runCli(
-			["--json", "workflows", "pull", "scratch"],
+			[
+				"--json",
+				"workflows",
+				"pull",
+				"--repo",
+				"scratch",
+				"--file",
+				"tripwire.ts",
+			],
 			env(),
 			project,
 		);
@@ -116,7 +153,11 @@ describe("pull links the project", () => {
 
 	test("pull with no repo pulls the linked one", async () => {
 		link('{"org":"acme","repo":"scratch"}');
-		const result = await runCli(["workflows", "pull"], env(), project);
+		const result = await runCli(
+			["workflows", "pull", "--file", "tripwire.ts"],
+			env(),
+			project,
+		);
 		expect(result.code).toBe(0);
 		expect(server.calls[0]).toEqual({
 			name: "get_workflow",
@@ -127,11 +168,19 @@ describe("pull links the project", () => {
 
 describe("commands use the link when org and repo are left out", () => {
 	test("diff from a nested folder reads the linked project's tripwire.ts", async () => {
-		await runCli(["workflows", "pull", "scratch"], env(), project);
+		await runCli(
+			["workflows", "pull", "--repo", "scratch", "--file", "tripwire.ts"],
+			env(),
+			project,
+		);
 		const nested = join(project, "src");
 		mkdirSync(nested);
 		server.calls.length = 0;
-		const result = await runCli(["workflows", "diff"], env(), nested);
+		const result = await runCli(
+			["workflows", "diff", "--file", join(project, "tripwire.ts")],
+			env(),
+			nested,
+		);
 		expect(result.code).toBe(0);
 		expect(lastCall()?.name).toBe("validate_workflow");
 		expect(lastCall()?.args).toMatchObject({ repo: "scratch" });

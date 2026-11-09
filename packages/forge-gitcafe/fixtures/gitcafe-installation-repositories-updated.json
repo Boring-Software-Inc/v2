@@ -1,0 +1,20 @@
+{
+	"id": "evt_01m60z9dq2fk1t8cjfq3c4cb19",
+	"version": "1",
+	"createdAt": "2026-10-28T10:01:00.898Z",
+	"actor": {
+		"id": "act_01m08gfttrfw3ba3xpz50vq38h"
+	},
+	"installation": {
+		"id": "ins_01m60z0mpmfffbfjmwdvzfjp6b"
+	},
+	"organization": {
+		"id": "org_01m601398vfdztay7fh3vaenpn"
+	},
+	"type": "installation.repositories_updated",
+	"repositorySelection": "selected",
+	"previousRepositorySelection": "all",
+	"repositoriesAdded": [],
+	"repositoriesRemoved": [],
+	"repositoriesRemovedTruncated": false
+}

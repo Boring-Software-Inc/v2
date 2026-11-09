@@ -42,6 +42,37 @@ const executed: ForgeAction[] = [];
 const REPO = "Codertocat/Hello-World";
 const NUMBER = pullRequestOpened.number;
 
+test("queue initialization refusal leaves GitHub disarmed and retry queues backfill exactly once", async () => {
+	let factoryCalls = 0;
+	const queue = async () => {
+		factoryCalls++;
+		if (factoryCalls === 1)
+			throw new Error("local queue initialization failed");
+		return boss;
+	};
+	expect(await repoServices.turnOnGate(db, queue, repoId)).toEqual({
+		ok: false,
+		armed: false,
+		reason: "queue-unavailable",
+	});
+	expect((await repoServices.getRepoById(db, repoId))?.armed).toBe(false);
+	expect(await boss.fetch(BACKFILL_REPO_QUEUE)).toHaveLength(0);
+	expect(await repoServices.turnOnGate(db, queue, repoId)).toEqual({
+		ok: true,
+		armed: true,
+	});
+	expect((await repoServices.getRepoById(db, repoId))?.armed).toBe(true);
+	const queued = await boss.fetch<{ repoId: string }>(BACKFILL_REPO_QUEUE);
+	expect(queued).toHaveLength(1);
+	expect(queued[0]?.data.repoId).toBe(repoId);
+	expect(await repoServices.turnOnGate(db, queue, repoId)).toEqual({
+		ok: true,
+		armed: true,
+	});
+	expect(await boss.fetch(BACKFILL_REPO_QUEUE)).toHaveLength(0);
+	expect(factoryCalls).toBe(2);
+});
+
 const MODERATED: WorkflowDefinition = {
 	id: "moderated@1",
 	name: "moderated gate",
@@ -180,11 +211,17 @@ async function drainBackfills(): Promise<number> {
 }
 
 async function runsOfChangeRequest() {
-	return await runServices.listRunsForChangeRequest(db, REPO, NUMBER);
+	return await runServices.listRunsForChangeRequest(
+		db,
+		{ forge: "github", fullName: REPO },
+		NUMBER,
+	);
 }
 
 async function approveOnlyPendingItem(): Promise<string> {
-	const items = await moderationServices.listPendingItems(db, REPO);
+	const items = await moderationServices.listPendingItems(db, [
+		{ forge: "github", fullName: REPO },
+	]);
 	expect(items).toHaveLength(1);
 	const item = items[0];
 	if (!item) {
@@ -213,17 +250,21 @@ function commentsExecuted(): string[] {
 
 describe("turning on a gate that is already on", () => {
 	test("queues no backfill, so the approved review reaches the change request", async () => {
-		await repoServices.turnOnGate(db, boss, repoId);
+		await repoServices.turnOnGate(db, async () => boss, repoId);
 		expect(await drainBackfills()).toBe(1);
 
 		await deliver(pullRequestOpened);
 		expect(await runsOfChangeRequest()).toHaveLength(1);
 
-		await repoServices.turnOnGate(db, boss, repoId);
-		await repoServices.turnOnGate(db, boss, repoId);
+		await repoServices.turnOnGate(db, async () => boss, repoId);
+		await repoServices.turnOnGate(db, async () => boss, repoId);
 		expect(await drainBackfills()).toBe(0);
 		expect(await runsOfChangeRequest()).toHaveLength(1);
-		expect(await moderationServices.listPendingItems(db, REPO)).toHaveLength(1);
+		expect(
+			await moderationServices.listPendingItems(db, [
+				{ forge: "github", fullName: REPO },
+			]),
+		).toHaveLength(1);
 
 		executed.length = 0;
 		const runId = await approveOnlyPendingItem();
@@ -247,20 +288,24 @@ describe("turning on a gate that is already on", () => {
 
 describe("turning a gate off and on again", () => {
 	test("the backfill skips an event that already has a run", async () => {
-		await repoServices.turnOnGate(db, boss, repoId);
+		await repoServices.turnOnGate(db, async () => boss, repoId);
 		await drainBackfills();
 		await deliver(pullRequestOpened);
 
 		await repoServices.setRepoArmed(db, repoId, false);
-		await repoServices.turnOnGate(db, boss, repoId);
+		await repoServices.turnOnGate(db, async () => boss, repoId);
 		expect(await drainBackfills()).toBe(1);
 
 		expect(await runsOfChangeRequest()).toHaveLength(1);
-		expect(await moderationServices.listPendingItems(db, REPO)).toHaveLength(1);
+		expect(
+			await moderationServices.listPendingItems(db, [
+				{ forge: "github", fullName: REPO },
+			]),
+		).toHaveLength(1);
 	});
 
 	test("an event stored while off replays as history and never takes the live run's surfaces", async () => {
-		await repoServices.turnOnGate(db, boss, repoId);
+		await repoServices.turnOnGate(db, async () => boss, repoId);
 		await drainBackfills();
 		await deliver(pullRequestOpened);
 
@@ -268,7 +313,7 @@ describe("turning a gate off and on again", () => {
 		await deliver(pullRequestSynchronize);
 		expect(await runsOfChangeRequest()).toHaveLength(1);
 
-		await repoServices.turnOnGate(db, boss, repoId);
+		await repoServices.turnOnGate(db, async () => boss, repoId);
 		expect(await drainBackfills()).toBe(1);
 
 		const runs = await runsOfChangeRequest();
@@ -280,9 +325,17 @@ describe("turning a gate off and on again", () => {
 		expect(replayed.rows).toEqual([
 			{ status: "completed", verdict: "needs_review" },
 		]);
-		expect(await moderationServices.listPendingItems(db, REPO)).toHaveLength(1);
 		expect(
-			await runServices.getLatestRunIdForChangeRequest(db, REPO, NUMBER),
+			await moderationServices.listPendingItems(db, [
+				{ forge: "github", fullName: REPO },
+			]),
+		).toHaveLength(1);
+		expect(
+			await runServices.getLatestRunIdForChangeRequest(
+				db,
+				{ forge: "github", fullName: REPO },
+				NUMBER,
+			),
 		).toBe(runs[0]?.id ?? "");
 
 		executed.length = 0;

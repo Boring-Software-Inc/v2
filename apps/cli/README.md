@@ -1,11 +1,35 @@
 # Tripwire CLI
 
-Production: `npx @tripwire-sh/cli@latest login`.
+Install globally with npm to run `tripwire` from your terminal.
 
-Staging: `npx @tripwire-sh/cli@staging login`, then
-`npx @tripwire-sh/cli@staging status` or `npx @tripwire-sh/cli@staging --help`.
-Sign in with the staging account in the browser. To set up coding agents, run
-`npx @tripwire-sh/cli@staging install`.
+```sh
+npm install -g @tripwire-sh/cli
+tripwire login
+```
+
+You can also run `npx @tripwire-sh/cli@latest login` without a global install.
+
+For TypeScript workflows, install the SDK in your project with
+`npm install @tripwire-sh/sdk@latest`. Workflow commands require SDK 0.1.2 or
+later and use the version resolved from each workflow file.
+
+Install the staging release with `npm install -g @tripwire-sh/cli@staging`,
+then run `tripwire-staging login` and sign in with your staging account.
+Use `tripwire-staging status` to check your session and
+`tripwire-staging install` to set up coding agents.
+
+To keep both releases on macOS or Linux, install staging to a separate npm
+prefix and add its bin directory to your shell's PATH:
+
+```sh
+npm install -g --prefix "$HOME/.local/tripwire-staging" @tripwire-sh/cli@staging
+export PATH="$HOME/.local/tripwire-staging/bin:$PATH"
+tripwire-staging --version
+```
+
+For a one-off run, use `npx @tripwire-sh/cli@staging login`. To test SDK
+changes with the staging CLI, install `@tripwire-sh/sdk@staging` in your
+project. The staging CLI also accepts the stable SDK.
 
 The staging release defaults to MCP at
 `https://tripwire-mcp-preview-tripwire.unkey.app/mcp` and auth at
@@ -36,17 +60,22 @@ custom URL overrides require a fresh login rather than reusing the old singleton
 
 ## Release
 
-After this change is merged into `staging/visual`, run:
+CLI and contracts changes release through CI when pushed to `staging` or
+`main`. CI installs the packaged CLI and tests workflow pull, compile, and
+push with the SDK from the same channel before it publishes. Staging uses
+the stable SDK until the SDK repository publishes its first staging build.
+
+To release staging on demand, run:
 
 ```sh
 bun run cli:release patch --staging
 ```
 
-This dispatches the existing `release-cli.yml` workflow on `staging/visual`
+This dispatches the existing `release-cli.yml` workflow on `staging`
 with `channel=staging`. The equivalent command is:
 
 ```sh
-gh workflow run release-cli.yml --ref staging/visual -f channel=staging -f bump=patch
+gh workflow run release-cli.yml --ref staging -f channel=staging -f bump=patch
 ```
 
 The workflow checks the CLI, chooses a version such as `0.1.1-staging.42`, bundles
@@ -59,4 +88,4 @@ without dispatching.
 For a local package, run `bun run scripts/cli-release/prepare.ts bump patch staging`,
 then `bun run --cwd apps/cli build` and `npm pack ./apps/cli`. The prepare step
 changes the local package version; restore it after packing. The tarball runs with
-`npx --package /absolute/path/to/tripwire-sh-cli-VERSION.tgz tripwire login`.
+`npx --package /absolute/path/to/tripwire-sh-cli-VERSION.tgz tripwire-staging login`.

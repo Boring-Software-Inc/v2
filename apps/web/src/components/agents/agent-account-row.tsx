@@ -1,13 +1,10 @@
 import { useState } from "react";
-import { Button } from "#/components/glaze/ui/button";
-import { toast } from "#/components/glaze/ui/toast";
+import { Button } from "#/design-system/ui/button";
+import { toast } from "#/design-system/ui/toast";
 import { authClient } from "#/lib/auth-client";
 import { oauthAuthorizeResume } from "#/lib/oauth-resume";
 
-export function switchAccountTargets(oauthQuery: string): {
-	resume: string | null;
-	login: string;
-} {
+export function switchAccountTargets(oauthQuery: string) {
 	const search = Object.fromEntries(new URLSearchParams(oauthQuery));
 	return {
 		resume: oauthAuthorizeResume(search),

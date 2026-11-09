@@ -1,13 +1,13 @@
 import type { HomeDigest } from "@tripwire/contracts";
+import { DigestActivityButton } from "#/components/organizations/digest-activity-button";
+import { DigestVerdictRow } from "#/components/organizations/digest-verdict-row";
 import {
 	Card,
 	CardContent,
 	CardFooter,
 	CardMeta,
-} from "#/components/glaze/ui/card";
-import { ItemGroup } from "#/components/glaze/ui/item";
-import { DigestActivityButton } from "#/components/organizations/digest-activity-button";
-import { DigestVerdictRow } from "#/components/organizations/digest-verdict-row";
+} from "#/design-system/ui/card";
+import { ItemGroup } from "#/design-system/ui/item";
 
 interface DigestCountsCardProps {
 	org: string;

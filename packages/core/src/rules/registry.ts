@@ -1,6 +1,11 @@
+import {
+	type JsonValue,
+	type RuleResult,
+	ruleEvidenceObjectSchema,
+} from "@tripwire/contracts";
 import { accountAge } from "./account-age.ts";
-import { aiReview, aiReviewV2 } from "./ai-review/rule.ts";
-import { cryptoAddress } from "./crypto-address.ts";
+import { aiReview, aiReviewV2, aiReviewV3 } from "./ai-review/rule.ts";
+import { cryptoAddress, cryptoAddressV2 } from "./crypto-address.ts";
 import { type RuleDefinition, ruleRef } from "./define.ts";
 import { englishOnly } from "./english-only.ts";
 import { honeypot } from "./honeypot.ts";
@@ -8,6 +13,8 @@ import { maxFilesChanged } from "./max-files-changed.ts";
 import { minMergedPrs, minMergedPrsV2 } from "./min-merged-prs.ts";
 import { prRateLimit } from "./pr-rate-limit.ts";
 import { profileReadme } from "./profile-readme.ts";
+import { sharedSpamBlocklist } from "./shared-spam-blocklist.ts";
+import { mergedPrRepoStars, ownedRepoStars } from "./starred-contributions.ts";
 
 /**
  * The typed registry, keyed by `id@version` (§6 versioning law): a stored run
@@ -28,14 +35,19 @@ register(accountAge);
 // @1 stays registered (frozen) so stored runs stay interpretable; @2 is current.
 register(minMergedPrs);
 register(minMergedPrsV2);
+register(ownedRepoStars);
+register(sharedSpamBlocklist);
+register(mergedPrRepoStars);
 register(prRateLimit);
 register(maxFilesChanged);
 register(englishOnly);
 register(cryptoAddress);
+register(cryptoAddressV2);
 register(honeypot);
 register(profileReadme);
 register(aiReview);
 register(aiReviewV2);
+register(aiReviewV3);
 
 /** Looks up `account-age@1`-style refs. Unknown refs are the caller's skipped case. */
 export function getRule(ref: string): RuleDefinition | null {
@@ -56,7 +68,7 @@ export const PUBLIC_VIEW_OPT_OUT: Record<string, string> = {};
 
 export interface RulePublicProjection {
 	/** Contributor-facing evidence subset, or null when none is safe. */
-	publicEvidence: Record<string, unknown> | null;
+	publicEvidence: Record<string, JsonValue> | null;
 	/** Plain-English outcome, or null when it can't be derived. */
 	summary: string | null;
 }
@@ -69,19 +81,18 @@ export interface RulePublicProjection {
  */
 export function projectRulePublic(
 	ref: string,
-	evidence: unknown,
+	evidence: RuleResult["evidence"],
 	passed: boolean,
 ): RulePublicProjection {
 	const rule = getRule(ref);
-	if (
-		!rule ||
-		typeof evidence !== "object" ||
-		evidence === null ||
-		Array.isArray(evidence)
-	) {
+	if (!rule) {
 		return { publicEvidence: null, summary: null };
 	}
-	const ev = evidence as Record<string, unknown>;
+	const parsed = ruleEvidenceObjectSchema.safeParse(evidence);
+	if (!parsed.success) {
+		return { publicEvidence: null, summary: null };
+	}
+	const ev = parsed.data;
 	return {
 		publicEvidence: rule.publicEvidence ? rule.publicEvidence(ev) : null,
 		summary: rule.summarize ? rule.summarize(ev, passed) : null,

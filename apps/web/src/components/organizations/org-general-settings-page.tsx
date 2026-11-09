@@ -2,26 +2,25 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { orgSlugSchema } from "@tripwire/contracts";
 import { useState } from "react";
-import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
-import { Button } from "#/components/glaze/ui/button";
-import { Field, FieldError, FieldLabel } from "#/components/glaze/ui/field";
-import { Input } from "#/components/glaze/ui/input";
-import {
-	Skeleton,
-	SkeletonSwap,
-	SkeletonText,
-} from "#/components/glaze/ui/skeleton";
-import { toast } from "#/components/glaze/ui/toast";
+import { DeleteOrgDialog } from "#/components/organizations/delete-org-dialog";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
 import {
 	SettingsHeader,
 	SettingsSection,
 } from "#/components/settings/settings-frame";
 import { TimezonePicker } from "#/components/timezones/timezone-picker";
+import { Button } from "#/design-system/ui/button";
+import { Field, FieldError, FieldLabel } from "#/design-system/ui/field";
+import { Input } from "#/design-system/ui/input";
+import {
+	Skeleton,
+	SkeletonSwap,
+	SkeletonText,
+} from "#/design-system/ui/skeleton";
+import { toast } from "#/design-system/ui/toast";
 import { useOrgPermission } from "#/hooks/use-org-permission";
-import { authQueryKeys } from "#/lib/auth.query";
 import type { OrgWithRole } from "#/lib/org.functions";
-import { deleteOrg, updateOrg } from "#/lib/org.functions";
+import { updateOrg } from "#/lib/org.functions";
 import { orgContextQueryOptions, orgQueryKeys } from "#/lib/org.query";
 import { setOrgTimezone } from "#/lib/timezone.functions";
 
@@ -80,6 +79,21 @@ function ReadOnlyCard({ orgContext }: { orgContext: OrgWithRole }) {
 	);
 }
 
+export function orgRenamePatch(
+	org: string,
+	previous: Pick<OrgWithRole, "name" | "slug">,
+	next: Pick<OrgWithRole, "name" | "slug">,
+) {
+	const data: Parameters<typeof updateOrg>[0]["data"] = { org };
+	if (next.name !== previous.name) {
+		data.name = next.name;
+	}
+	if (next.slug !== previous.slug) {
+		data.slug = next.slug;
+	}
+	return data;
+}
+
 function RenameCard({
 	org,
 	orgContext,
@@ -106,11 +120,7 @@ function RenameCard({
 	const saveMutation = useMutation({
 		mutationFn: () =>
 			updateOrg({
-				data: {
-					org,
-					...(name !== orgContext.name ? { name } : {}),
-					...(slug !== orgContext.slug ? { slug } : {}),
-				},
+				data: orgRenamePatch(org, orgContext, { name, slug }),
 			}),
 		onSuccess: (result) => {
 			if ("error" in result) {
@@ -142,14 +152,23 @@ function RenameCard({
 			}}
 		>
 			<div className="panel flex flex-col gap-4 p-4">
-				<Field className="max-w-90" invalid={nameError !== null}>
-					<FieldLabel>Name</FieldLabel>
-					<Input
-						onChange={(event) => setName(event.target.value)}
-						value={name}
+				<div data-layout-role="org-name-fields">
+					<OrgAvatar
+						animate
+						className="org-name-avatar"
+						hue={orgContext.avatarHue}
+						name={name}
+						size="lg"
 					/>
-					{nameError ? <FieldError>{nameError}</FieldError> : null}
-				</Field>
+					<Field className="max-w-90 flex-1" invalid={nameError !== null}>
+						<FieldLabel>Name</FieldLabel>
+						<Input
+							onChange={(event) => setName(event.target.value)}
+							value={name}
+						/>
+						{nameError ? <FieldError>{nameError}</FieldError> : null}
+					</Field>
+				</div>
 				<Field className="max-w-90" invalid={slugError !== null}>
 					<FieldLabel>Slug</FieldLabel>
 					<Input
@@ -161,30 +180,29 @@ function RenameCard({
 					{slugError ? <FieldError>{slugError}</FieldError> : null}
 				</Field>
 			</div>
-			{dirty ? (
-				<div className="shell-foot justify-end">
-					<Button
-						onClick={() => {
-							setName(orgContext.name);
-							setSlug(orgContext.slug);
-						}}
-						size="sm"
-						type="button"
-						variant="secondary"
-					>
-						Discard
-					</Button>
-					<Button
-						disabled={slugError !== null || nameError !== null}
-						pending={saveMutation.isPending}
-						pendingLabel="Saving"
-						size="sm"
-						type="submit"
-					>
-						Save changes
-					</Button>
-				</div>
-			) : null}
+			<div className="shell-foot justify-end">
+				<Button
+					disabled={!dirty}
+					onClick={() => {
+						setName(orgContext.name);
+						setSlug(orgContext.slug);
+					}}
+					size="sm"
+					type="button"
+					variant="secondary"
+				>
+					Discard
+				</Button>
+				<Button
+					disabled={!dirty || slugError !== null || nameError !== null}
+					pending={saveMutation.isPending}
+					pendingLabel="Saving"
+					size="sm"
+					type="submit"
+				>
+					Save changes
+				</Button>
+			</div>
 		</form>
 	);
 }
@@ -215,7 +233,7 @@ function TimezoneSection({
 					disabled={!canManage || save.isPending}
 					labelledBy="org-timezone-heading"
 					onChange={(next) => save.mutate(next)}
-					unsetLabel="UTC, the default"
+					unsetLabel="UTC"
 					value={timezone}
 				/>
 			</div>
@@ -230,65 +248,19 @@ function DeleteOrgRow({
 	org: string;
 	orgContext: OrgWithRole;
 }) {
-	const navigate = useNavigate();
-	const queryClient = useQueryClient();
 	const [open, setOpen] = useState(false);
-	const orgName = orgContext.name;
-
-	const deleteMutation = useMutation({
-		mutationFn: async () => {
-			const result = await deleteOrg({ data: { org, confirmName: orgName } });
-			if (!result.ok) {
-				throw new Error(
-					result.error ?? "Tripwire couldn't delete the org. Try again.",
-				);
-			}
-			return result;
-		},
-		onSuccess: async () => {
-			const remaining = (
-				queryClient.getQueryData<OrgWithRole[]>(orgQueryKeys.mine()) ?? []
-			).filter((entry) => entry.slug !== org);
-			const next = remaining.find((entry) => entry.isPersonal) ?? remaining[0];
-
-			queryClient.removeQueries({ queryKey: orgQueryKeys.detail(org) });
-			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: orgQueryKeys.mine() }),
-				queryClient.invalidateQueries({ queryKey: authQueryKeys.session() }),
-			]);
-
-			toast.success(`Deleted ${orgName}`);
-			if (next) {
-				navigate({ to: "/$org/home", params: { org: next.slug } });
-				return;
-			}
-			navigate({ to: "/" });
-		},
-	});
 
 	return (
 		<div className="flex items-center justify-between gap-3 border-line-faint border-t pt-4">
 			<p className="type-label">Delete org</p>
-			<Button onClick={() => setOpen(true)} size="sm" variant="secondary">
+			<Button onClick={() => setOpen(true)} size="sm" variant="destructive">
 				Delete org
 			</Button>
-			<ConfirmDeleteDialog
-				actionLabel="Delete org"
-				confirmText={orgName}
-				description="This can't be undone."
-				media={
-					<OrgAvatar
-						animate
-						hue={orgContext.avatarHue}
-						name={orgName}
-						replayToken={open ? 1 : 0}
-						size="xl"
-					/>
-				}
-				onConfirm={() => deleteMutation.mutateAsync()}
+			<DeleteOrgDialog
 				onOpenChange={setOpen}
 				open={open}
-				title={`Delete ${orgName}?`}
+				org={org}
+				orgContext={orgContext}
 			/>
 		</div>
 	);

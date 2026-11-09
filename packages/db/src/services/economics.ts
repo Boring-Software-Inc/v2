@@ -1,9 +1,14 @@
-import type { UsageSource } from "@tripwire/contracts";
+import type { MeteringEvidence, UsageSource } from "@tripwire/contracts";
 import {
 	creditRunwayMonths,
+	jsonValueSchema,
+	meteringEvidenceSchema,
 	PLANETSCALE_CREDITS_START,
 	PLANETSCALE_MONTHLY,
 	RAILWAY_FLOOR,
+	railwayPricesSchema,
+	railwayRatesMetadataSchema,
+	railwayServiceUsageSchema,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
 import type { AnyColumn } from "drizzle-orm";
@@ -15,6 +20,7 @@ import {
 	providerCostsDaily,
 	usageCounters,
 } from "../schema/economics.ts";
+import { events } from "../schema/events.ts";
 import { organization } from "../schema/organizations.ts";
 import { repos } from "../schema/repos.ts";
 import { runSteps, runs } from "../schema/runs.ts";
@@ -103,83 +109,27 @@ interface ExtractedUsage {
 	costUsd: number | null;
 }
 
-/**
- * Pull token usage out of a stored run_steps evidence envelope. Handles both
- * historical trace shapes: the bounded {input,output,cached} and the raw AI SDK
- * {inputTokens,outputTokens,inputTokenDetails.cacheReadTokens}. Seed rows
- * ({findings}) and any trace without a usage object return null and are skipped.
- */
-function extractTraceUsage(evidence: unknown): ExtractedUsage | null {
-	if (!evidence || typeof evidence !== "object") {
-		return null;
-	}
-	const inner = (evidence as { evidence?: unknown }).evidence;
-	const trace =
-		inner && typeof inner === "object"
-			? (inner as { trace?: unknown }).trace
-			: null;
-	if (!trace || typeof trace !== "object") {
-		return null;
-	}
-	const t = trace as {
-		model?: unknown;
-		stepsUsed?: unknown;
-		steps?: unknown;
-		costUsd?: unknown;
-		usage?: {
-			input?: unknown;
-			output?: unknown;
-			cached?: unknown;
-			inputTokens?: unknown;
-			outputTokens?: unknown;
-			inputTokenDetails?: { cachedTokens?: unknown; cacheReadTokens?: unknown };
-		};
-	};
-	const usage = t.usage;
-	if (!usage || typeof usage !== "object") {
-		return null;
-	}
-	const promptTokens =
-		typeof usage.input === "number"
-			? usage.input
-			: typeof usage.inputTokens === "number"
-				? usage.inputTokens
-				: null;
-	const completionTokens =
-		typeof usage.output === "number"
-			? usage.output
-			: typeof usage.outputTokens === "number"
-				? usage.outputTokens
-				: null;
+/** Bounded usage fields precede raw SDK fields; a missing token pair skips metering. */
+function extractTraceUsage({
+	evidence: { trace },
+}: MeteringEvidence): ExtractedUsage | null {
+	const { usage } = trace;
+	const promptTokens = usage.input ?? usage.inputTokens;
+	const completionTokens = usage.output ?? usage.outputTokens;
 	if (promptTokens === null || completionTokens === null) {
 		return null;
 	}
-	const cachedTokens =
-		typeof usage.cached === "number"
-			? usage.cached
-			: typeof usage.inputTokenDetails?.cacheReadTokens === "number"
-				? usage.inputTokenDetails.cacheReadTokens
-				: typeof usage.inputTokenDetails?.cachedTokens === "number"
-					? usage.inputTokenDetails.cachedTokens
-					: null;
-	const httpRequests =
-		typeof t.stepsUsed === "number"
-			? t.stepsUsed
-			: Array.isArray(t.steps)
-				? t.steps.length
-				: 1;
-	const model = typeof t.model === "string" ? t.model : "unknown";
-	const costUsd =
-		typeof t.costUsd === "number" && Number.isFinite(t.costUsd)
-			? t.costUsd
-			: null;
 	return {
-		model,
-		httpRequests,
+		model: trace.model,
+		httpRequests: trace.stepsUsed ?? trace.steps?.length ?? 1,
 		promptTokens,
 		completionTokens,
-		cachedTokens,
-		costUsd,
+		cachedTokens:
+			usage.cached ??
+			usage.inputTokenDetails?.cacheReadTokens ??
+			usage.inputTokenDetails?.cachedTokens ??
+			null,
+		costUsd: trace.costUsd,
 	};
 }
 
@@ -205,7 +155,8 @@ export async function recordRunAiReviewUsage(
 		);
 	let inserted = 0;
 	for (const step of steps) {
-		const usage = extractTraceUsage(step.evidence);
+		const parsed = meteringEvidenceSchema.safeParse(step.evidence);
+		const usage = parsed.success ? extractTraceUsage(parsed.data) : null;
 		if (!usage) {
 			continue;
 		}
@@ -259,7 +210,11 @@ export async function backfillAiReviewUsage(
 		})
 		.from(runSteps)
 		.innerJoin(runs, eq(runSteps.runId, runs.id))
-		.leftJoin(repos, eq(repos.fullName, runs.repoFullName))
+		.innerJoin(events, eq(events.id, runs.eventId))
+		.leftJoin(
+			repos,
+			and(eq(repos.fullName, runs.repoFullName), eq(repos.forge, events.forge)),
+		)
 		.where(like(runSteps.ruleId, "ai-review@%"));
 
 	const result: BackfillUsageResult = {
@@ -268,7 +223,8 @@ export async function backfillAiReviewUsage(
 		skipped: 0,
 	};
 	for (const row of rows) {
-		const usage = extractTraceUsage(row.evidence);
+		const parsed = meteringEvidenceSchema.safeParse(row.evidence);
+		const usage = parsed.success ? extractTraceUsage(parsed.data) : null;
 		if (!usage) {
 			result.skipped++;
 			continue;
@@ -397,7 +353,7 @@ export interface MonthlySummary {
 	evalSpendUsd: number;
 }
 
-function monthBounds(month: string): { start: string; next: string } {
+function monthBounds(month: string) {
 	const [y, m] = month.split("-").map(Number);
 	const start = `${month}-01`;
 	const nextMonth = m === 12 ? 1 : (m ?? 1) + 1;
@@ -636,13 +592,14 @@ export async function upsertProviderCost(
 		estimated: boolean;
 	},
 ): Promise<void> {
+	const usageJson = jsonValueSchema.parse(input.usageJson);
 	await db
 		.insert(providerCostsDaily)
 		.values({
 			day: input.day,
 			provider: input.provider,
 			service: input.service,
-			usageJson: input.usageJson,
+			usageJson,
 			costUsd: input.costUsd.toFixed(4),
 			estimated: input.estimated,
 		})
@@ -653,7 +610,7 @@ export async function upsertProviderCost(
 				providerCostsDaily.service,
 			],
 			set: {
-				usageJson: input.usageJson,
+				usageJson,
 				costUsd: input.costUsd.toFixed(4),
 				estimated: input.estimated,
 				pulledAt: sql`now()`,
@@ -693,7 +650,8 @@ function daysInUtcMonth(day: string): number {
 	return new Date(Date.UTC(y, m, 0)).getUTCDate();
 }
 
-const num = (v: unknown): number => (v == null ? 0 : Number(v));
+const num = (v: string | number | null | undefined): number =>
+	v == null ? 0 : Number(v);
 /** Map key for the org grain: null org uses the totals sentinel. */
 const orgKey = (orgId: string | null): string => orgId ?? "~platform";
 
@@ -730,7 +688,11 @@ export async function rollupEconomicsDay(
 			runs: sql<number>`count(*)::int`,
 		})
 		.from(runs)
-		.leftJoin(repos, eq(repos.fullName, runs.repoFullName))
+		.innerJoin(events, eq(events.id, runs.eventId))
+		.leftJoin(
+			repos,
+			and(eq(repos.fullName, runs.repoFullName), eq(repos.forge, events.forge)),
+		)
 		.where(onDay("runs.created_at"))
 		.groupBy(repos.orgId);
 
@@ -919,10 +881,8 @@ export async function getLastRailwayPrices(
 		)
 		.orderBy(desc(providerCostsDaily.day), desc(providerCostsDaily.pulledAt))
 		.limit(1);
-	const prices = (row?.usageJson as { prices?: unknown } | undefined)?.prices;
-	return prices && typeof prices === "object"
-		? (prices as Record<string, number>)
-		: null;
+	const parsed = railwayPricesSchema.safeParse(row?.usageJson);
+	return parsed.success ? parsed.data.prices : null;
 }
 
 export interface RailwayServiceBreakdown {
@@ -977,20 +937,21 @@ export async function getRailwayBreakdown(
 		if (row.pulledAt && row.pulledAt > lastPulledAt) {
 			lastPulledAt = row.pulledAt;
 		}
-		const j = (row.usageJson ?? {}) as Record<string, unknown>;
 		if (row.service === "rates") {
-			ratesDrift = j.ratesDrift === true;
-			ratesVerifiedAt = typeof j.verifiedAt === "string" ? j.verifiedAt : null;
+			const metadata = railwayRatesMetadataSchema.parse(row.usageJson);
+			ratesDrift = metadata.ratesDrift;
+			ratesVerifiedAt = metadata.verifiedAt;
 			continue;
 		}
+		const usage = railwayServiceUsageSchema.parse(row.usageJson);
 		const cost = num(row.costUsd);
 		totalUsd += cost;
 		services.push({
-			name: typeof j.name === "string" ? j.name : row.service,
+			name: usage.name ?? row.service,
 			costUsd: cost,
-			cpuUnits: num(j.cpuUnits),
-			memGbMin: num(j.memGbMin),
-			egressGb: num(j.egressGb),
+			cpuUnits: usage.cpuUnits,
+			memGbMin: usage.memGbMin,
+			egressGb: usage.egressGb,
 		});
 	}
 	services.sort((a, b) => b.costUsd - a.costUsd);

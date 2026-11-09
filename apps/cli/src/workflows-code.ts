@@ -1,15 +1,32 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
+import { createHash } from "node:crypto";
+import {
+	existsSync,
+	lstatSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	writeFileSync,
+} from "node:fs";
+import { createRequire } from "node:module";
+import { basename, dirname, extname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
 	AUTHORING_MODULE_PATH,
 	authoringModuleText,
 	type CompileResult,
 	compileWorkflowModule,
+	completeSchedule,
+	type WorkflowValue as LegacyWorkflowValue,
+	lockParamsSchema,
+	mergedPrRepoStarsConfigSchema,
+	ownedRepoStarsConfigSchema,
 	RULE_CATALOG,
+	type SettingValue,
+	stripWorkflowSecrets,
 	type ValidationCatalogEntry,
 	WORKFLOW_STATE_LABELS,
 	type WorkflowDefinition,
+	type WorkflowNode,
 	type WorkflowState,
 	workflowDefinitionSchema,
 	workflowKeys,
@@ -18,10 +35,647 @@ import {
 } from "@tripwire/contracts";
 import { z } from "zod";
 import { authoringSource } from "#/authoring-source" with { type: "macro" };
+import { IS_STAGING } from "#/config";
 import { pairs, type Style, workflowTriggerWords } from "#/format";
 import type { PickerItem } from "#/picker";
+import type { System } from "#/system";
 
 export const DEFAULT_WORKFLOW_FILE = "tripwire.ts";
+export const DEFAULT_WORKFLOW_DIRECTORY = join(".tripwire", "workflows");
+
+const WORKFLOW_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const WINDOWS_RESERVED_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/;
+
+export function validateWorkflowSlug(slug: string): string {
+	if (
+		slug.length > 48 ||
+		!WORKFLOW_SLUG.test(slug) ||
+		WINDOWS_RESERVED_NAME.test(slug)
+	) {
+		throw new Error(
+			`Invalid workflow slug ${slug}. Use up to 48 lowercase letters, numbers, and single hyphens; Windows device names are reserved.`,
+		);
+	}
+	return slug;
+}
+
+export interface WorkflowSourceFile {
+	slug: string;
+	file: string;
+}
+
+export function discoverWorkflowFiles(directory: string): WorkflowSourceFile[] {
+	const root = resolve(directory);
+	if (!existsSync(root)) {
+		return [];
+	}
+	const rootStat = lstatSync(root);
+	if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) {
+		throw new Error(
+			`${directory} must be a real directory, not a file or symlink.`,
+		);
+	}
+	const found: WorkflowSourceFile[] = [];
+	const folded = new Set<string>();
+	for (const entry of readdirSync(root, { withFileTypes: true })) {
+		if (!entry.name.endsWith(".ts")) {
+			continue;
+		}
+		if (entry.isSymbolicLink() || !entry.isFile()) {
+			throw new Error(
+				`${join(directory, entry.name)} must be a real file, not a symlink.`,
+			);
+		}
+		const slug = validateWorkflowSlug(entry.name.slice(0, -3));
+		const key = slug.toLocaleLowerCase("en-US");
+		if (folded.has(key)) {
+			throw new Error(`${directory} contains more than one file for ${slug}.`);
+		}
+		folded.add(key);
+		found.push({ slug, file: join(root, entry.name) });
+	}
+	return found.sort((a, b) => a.slug.localeCompare(b.slug));
+}
+
+export function selectWorkflowSources(
+	sources: readonly WorkflowSourceFile[],
+	wanted: readonly string[],
+): WorkflowSourceFile[] {
+	for (const slug of wanted) {
+		validateWorkflowSlug(slug);
+	}
+	const available = new Map(sources.map((source) => [source.slug, source]));
+	const unknown = wanted.filter((slug) => !available.has(slug));
+	if (unknown.length > 0) {
+		throw new Error(
+			`No local workflow ${unknown.join(", ")}. Available workflows: ${sources.map(({ slug }) => slug).join(", ") || "none"}.`,
+		);
+	}
+	return wanted.length === 0
+		? [...sources]
+		: [...new Set(wanted)].map(
+				(slug) => available.get(slug) as WorkflowSourceFile,
+			);
+}
+
+function hasProtoKey(value: unknown): boolean {
+	if (Array.isArray(value)) {
+		return value.some(hasProtoKey);
+	}
+	if (typeof value !== "object" || value === null) {
+		return false;
+	}
+	return Object.keys(value).some(
+		(key) => key === "__proto__" || hasProtoKey(Reflect.get(value, key)),
+	);
+}
+
+export function sdkWorkflowSource(definition: WorkflowDefinition): string {
+	const safe = stripWorkflowSecrets(definition);
+	if (hasProtoKey(safe)) {
+		throw new Error(
+			`Workflow ${definition.id} contains a __proto__ key that cannot be represented safely as TypeScript source.`,
+		);
+	}
+	return sdkHelperSource(safe) ?? sdkGraphSource(safe);
+}
+
+const SDK_EVENTS: Partial<
+	Record<Extract<WorkflowNode, { type: "trigger" }>["kinds"][number], string>
+> = {
+	"change-request.opened": "changeRequest.opened",
+	"change-request.updated": "changeRequest.updated",
+	"change-request.closed": "changeRequest.closed",
+	"comment.created": "comment.created",
+	push: "repository.pushed",
+};
+
+const SDK_ACTIONS = {
+	block: "block",
+	close: "closeConversation",
+	lock: "lockConversation",
+	note: "note",
+	webhook: "webhook",
+	discord: "discord",
+	"send-to-moderation": "humanReview",
+};
+
+const SDK_RULES = {
+	"account-age@1": "accountAge",
+	"max-files-changed@1": "maxFilesChanged",
+	"english-only@1": "englishOnly",
+	"honeypot@1": "honeypot",
+	"profile-readme@1": "profileReadme",
+	"min-merged-prs@2": "mergedChangeRequests",
+	"ai-review@3": "aiReview",
+} satisfies Record<string, string>;
+
+const SDK_RULE_CONFIGS = {
+	"account-age@1": z.strictObject({ minDays: z.int().min(0) }),
+	"max-files-changed@1": z.strictObject({ max: z.int().min(1) }),
+	"english-only@1": z.strictObject({
+		maxNonLatinRatio: z.number().min(0).max(1),
+	}),
+	"honeypot@1": z.strictObject({ paths: z.array(z.string().min(1)).min(1) }),
+	"profile-readme@1": z.strictObject({ minLength: z.int().min(1) }),
+	"min-merged-prs@2": z.strictObject({
+		min: z.int().min(0),
+		trustedAfter: z.int().min(1),
+	}),
+	"ai-review@3": z.strictObject({
+		maxSteps: z.int().min(1).max(15),
+		model: z.string().min(1).optional(),
+	}),
+} satisfies Record<keyof typeof SDK_RULES, z.ZodType>;
+
+function sdkStarRuleSource(
+	node: Extract<WorkflowNode, { type: "rule" }>,
+	imports: Set<string>,
+): string | undefined {
+	const integer = (value: number) =>
+		String(value).replace(/\B(?=(\d{3})+(?!\d))/g, "_");
+	if (node.ref === "owned-repo-stars@1") {
+		const config = ownedRepoStarsConfigSchema.safeParse(node.config);
+		if (!config.success) return;
+		imports.add("repositories");
+		imports.add("prAuthor");
+		return `repositories().ownedBy(prAuthor).withMinStars(${integer(config.data.minStars)}).atLeast(${integer(config.data.min)})`;
+	}
+	if (node.ref === "merged-pr-repo-stars@1") {
+		const config = mergedPrRepoStarsConfigSchema.safeParse(node.config);
+		if (!config.success) return;
+		imports.add("mergedChangeRequests");
+		imports.add("prAuthor");
+		const ownership =
+			config.data.repoOwnership === "exclude-author"
+				? ".excludeReposOwnedBy(prAuthor)"
+				: "";
+		return `mergedChangeRequests().authoredBy(prAuthor)${ownership}.withMinRepoStars(${integer(config.data.minRepoStars)}).atLeast(${integer(config.data.min)})`;
+	}
+}
+
+function graphLiteral(value: unknown): string {
+	if (Array.isArray(value)) return `[${value.map(graphLiteral).join(", ")}]`;
+	if (value === null || typeof value !== "object") return JSON.stringify(value);
+	const fields = Object.entries(value).map(([key, entry]) => {
+		const property = /^[A-Za-z_$][\w$]*$/.test(key) ? key : JSON.stringify(key);
+		return `${property}: ${graphLiteral(entry)}`;
+	});
+	return fields.length ? `{ ${fields.join(", ")} }` : "{}";
+}
+
+function sdkGraphSource(definition: WorkflowDefinition): string {
+	const imports = new Set(["graphNode", "workflowGraph"]);
+	const call = (helper: string, ...args: string[]) => {
+		imports.add(helper);
+		return `${helper}(${args.join(", ")})`;
+	};
+	const json = graphLiteral;
+	const step = (node: WorkflowNode): string => {
+		switch (node.type) {
+			case "trigger": {
+				const events = node.kinds.map((kind) => {
+					const event = SDK_EVENTS[kind];
+					if (!event) return json(kind);
+					imports.add(event.slice(0, event.indexOf(".")));
+					return event;
+				});
+				return call(
+					"on",
+					`[${events.join(", ")}]`,
+					...(node.schedule ? [json(node.schedule)] : []),
+				);
+			}
+			case "gate":
+				return call("gate", json(node.mode));
+			case "rule": {
+				const starred = sdkStarRuleSource(node, imports);
+				if (starred) return starred;
+				if (node.ref === "pr-rate-limit@1") {
+					const rate = z
+						.strictObject({
+							maxPerWindow: z.int().min(1),
+							windowHours: z.number().min(1),
+						})
+						.safeParse(node.config);
+					if (rate.success)
+						return call(
+							"changeRequestRate",
+							json({
+								max: rate.data.maxPerWindow,
+								windowHours: rate.data.windowHours,
+							}),
+						);
+				}
+				const entry = Object.entries(SDK_RULES).find(
+					([ref]) => ref === node.ref,
+				);
+				if (
+					entry &&
+					SDK_RULE_CONFIGS[entry[0] as keyof typeof SDK_RULE_CONFIGS].safeParse(
+						node.config,
+					).success
+				)
+					return call(entry[1], json(node.config));
+				if (node.ref === "crypto-address@2" && json(node.config) === "{}")
+					return call("cryptoAddress");
+				return call("rule", json(node.ref), json(node.config));
+			}
+			case "action": {
+				const helper = Object.entries(SDK_ACTIONS).find(
+					([kind]) => kind === node.action,
+				)?.[1];
+				if (helper && node.params === undefined) return call(helper);
+				const { params } = node;
+				const labels = z
+					.strictObject({ labels: z.array(z.string().min(1)).min(1) })
+					.safeParse(params);
+				if (
+					labels.success &&
+					labels.data.labels.every((label) => label.trim() === label) &&
+					(node.action === "label" || node.action === "remove-label")
+				)
+					return call(
+						node.action === "label" ? "label" : "removeLabel",
+						...labels.data.labels.map(json),
+					);
+				const message = z
+					.strictObject({ message: z.string().min(1).max(500) })
+					.safeParse(params);
+				if (
+					message.success &&
+					message.data.message.trim() === message.data.message
+				) {
+					if (node.action === "note")
+						return call("note", json(message.data.message));
+					if (node.action === "post-comment")
+						return call("postComment", json(message.data.message));
+					if (node.action === "request-fix")
+						return call("requestFix", json(message.data.message));
+				}
+				return call(
+					"action",
+					json(node.action),
+					...(params === undefined ? [] : [json(params)]),
+				);
+			}
+		}
+	};
+	const aliases = new Map<string, string>();
+	const used = new Set<string>();
+	const nodes = definition.nodes.map((node) => {
+		const label =
+			node.type === "rule"
+				? node.ref.split("@")[0]
+				: node.type === "gate"
+					? node.mode
+					: node.type === "action"
+						? node.action
+						: "trigger";
+		const base = (label ?? node.type).replace(
+			/-+([a-z0-9])/g,
+			(_, char: string) => char.toUpperCase(),
+		);
+		let alias = base;
+		for (let suffix = 2; used.has(alias); suffix++) alias = `${base}${suffix}`;
+		used.add(alias);
+		aliases.set(node.id, alias);
+		const expression = call(
+			"graphNode",
+			json(node.id),
+			step(node),
+			...(node.position ? [json(node.position)] : []),
+		);
+		return `\t${alias}: ${expression},`;
+	});
+	const endpoint = (id: string) => {
+		const alias = aliases.get(id);
+		return alias ? `nodes.${alias}.id` : json(id);
+	};
+	const edges = definition.edges.map(({ id, from, to, ...options }) =>
+		call(
+			"connect",
+			json(id),
+			endpoint(from),
+			endpoint(to),
+			...(Object.keys(options).length ? [json(options)] : []),
+		),
+	);
+	const array = (items: string[]) =>
+		items.length ? `[\n\t\t${items.join(",\n\t\t")},\n\t]` : "[]";
+	return `import {\n\t${[...imports].sort().join(",\n\t")},\n} from "@tripwire-sh/sdk/workflows";\n\nconst nodes = {\n${nodes.join("\n")}\n};\n\nexport default workflowGraph({\n\tname: ${json(definition.name)},\n\tversion: ${definition.version},\n\tnodes: Object.values(nodes),\n\tedges: ${array(edges)},\n});\n`;
+}
+
+const DURATION_SUFFIX = { hours: "h", days: "d", weeks: "w", months: "mo" };
+
+function sdkScheduleSource(
+	trigger: Extract<WorkflowNode, { type: "trigger" }>,
+): string | undefined {
+	const schedule = completeSchedule(trigger.schedule);
+	if (
+		trigger.kinds.length !== 1 ||
+		trigger.kinds[0] !== "schedule.matched" ||
+		!schedule ||
+		!("n" in schedule.every) ||
+		trigger.schedule?.match.skipLocked === undefined
+	)
+		return;
+	const { every, match, timezone } = schedule;
+	const duration = ({ n, unit }: typeof match.inactiveFor) =>
+		JSON.stringify(`${n}${DURATION_SUFFIX[unit]}`);
+	const find = [
+		`types: ${JSON.stringify(match.subjects.map((subject) => (subject === "change-request" ? "pull-request" : subject)))}`,
+		`state: ${JSON.stringify(match.state)}`,
+		`inactiveFor: ${duration(match.inactiveFor)}`,
+	];
+	if (match.labels !== undefined)
+		find.push(`labels: ${JSON.stringify(match.labels)}`);
+	if (match.excludeLabels !== undefined)
+		find.push(`excludeLabels: ${JSON.stringify(match.excludeLabels)}`);
+	if (!match.skipLocked) find.push("conversationLocked: true");
+	const options = [`every: ${duration(every)}`];
+	if (timezone !== undefined)
+		options.push(`timezone: ${JSON.stringify(timezone)}`);
+	options.push(`find: {\n\t\t\t${find.join(",\n\t\t\t")},\n\t\t}`);
+	return `schedule({\n\t\t${options.join(",\n\t\t")},\n\t})`;
+}
+
+function sdkHelperSource(
+	definition: WorkflowDefinition,
+	legacy?: "full-identity" | "otherwise",
+): string | undefined {
+	const fullIdentity = legacy === "full-identity";
+	const [trigger, rule, action] = definition.nodes;
+	if (
+		trigger?.type !== "trigger" ||
+		definition.name.trim() !== definition.name ||
+		!definition.name
+	)
+		return;
+	const scheduled = sdkScheduleSource(trigger);
+	const events = trigger.kinds.map((kind) => SDK_EVENTS[kind]);
+	if (
+		!scheduled &&
+		(trigger.schedule ||
+			events.length === 0 ||
+			events.some((event) => event === undefined))
+	)
+		return;
+	const triggerKey = scheduled ? "schedule" : "trigger";
+	const imports = new Set(
+		scheduled
+			? ["schedule"]
+			: events.map((event) => event?.split(".")[0] ?? ""),
+	);
+	const spec = [
+		...(!fullIdentity && definition.name === definition.id
+			? []
+			: [`name: ${JSON.stringify(definition.name)}`]),
+		`when: ${scheduled ?? (events.length === 1 ? events[0] : `[${events.join(", ")}]`)}`,
+	];
+	const nodes: Record<
+		string,
+		{ id: string; position?: { x: number; y: number } }
+	> = {
+		[triggerKey]: {
+			id: trigger.id,
+			...(trigger.position ? { position: trigger.position } : {}),
+		},
+	};
+	const edges: Record<string, { id: string; explicitPass?: boolean }> = {};
+	if (definition.nodes.length === 2 && rule?.type === "action") {
+		const [edge] = definition.edges;
+		const name = Object.entries(SDK_ACTIONS).find(
+			([kind]) => kind === rule.action,
+		)?.[1];
+		const lock = lockParamsSchema.safeParse(rule.params);
+		const reason =
+			rule.action === "lock" &&
+			lock.success &&
+			Object.keys(rule.params ?? {}).length === 1
+				? lock.data.reason
+				: undefined;
+		if (
+			!name ||
+			(rule.params !== undefined && reason === undefined) ||
+			(scheduled &&
+				(rule.action === "block" || rule.action === "send-to-moderation")) ||
+			definition.edges.length !== 1 ||
+			edge?.from !== trigger.id ||
+			edge.to !== rule.id ||
+			(edge.when ?? "pass") !== "pass" ||
+			edge.input
+		)
+			return;
+		imports.add(name);
+		spec.push(
+			`run: ${name}(${reason ? `{ reason: ${JSON.stringify(reason)} }` : ""})`,
+		);
+		const actionKey =
+			rule.action === "send-to-moderation" ? "human-review" : rule.action;
+		nodes[actionKey] = {
+			id: rule.id,
+			...(rule.position ? { position: rule.position } : {}),
+		};
+		edges[`${triggerKey}-pass-${actionKey}`] = {
+			id: edge.id,
+			...(edge.when ? { explicitPass: true } : {}),
+		};
+	} else if (definition.nodes.length !== 1 || definition.edges.length !== 0) {
+		const [check, failure] = definition.edges;
+		const elseAction =
+			action?.type === "action"
+				? Object.entries(SDK_ACTIONS).find(
+						([kind]) => kind === action.action,
+					)?.[1]
+				: undefined;
+		const config = SDK_RULE_CONFIGS["account-age@1"].safeParse(
+			rule?.type === "rule" && rule.ref === "account-age@1"
+				? rule.config
+				: null,
+		);
+		const starred =
+			!legacy && rule?.type === "rule"
+				? sdkStarRuleSource(rule, imports)
+				: undefined;
+		if (
+			scheduled ||
+			definition.nodes.length !== 3 ||
+			definition.edges.length !== 2 ||
+			rule?.type !== "rule" ||
+			(!starred && !config.success) ||
+			action?.type !== "action" ||
+			!elseAction ||
+			action.params !== undefined ||
+			check?.from !== trigger.id ||
+			check.to !== rule.id ||
+			(check.when ?? "pass") !== "pass" ||
+			check.input ||
+			failure?.from !== rule.id ||
+			failure.to !== action.id ||
+			failure.when !== "fail" ||
+			failure.input
+		)
+			return;
+		let requirement = starred;
+		if (!requirement && config.success) {
+			imports.add("accountAge");
+			requirement = fullIdentity
+				? `accountAge({ minDays: ${config.data.minDays} })`
+				: `accountAge({\n\t\tminDays: ${config.data.minDays},\n\t})`;
+		}
+		if (!requirement) return;
+		imports.add(elseAction);
+		spec.push(
+			`require: ${requirement}`,
+			`${legacy ? "otherwise" : "else"}: ${elseAction}()`,
+		);
+		const ruleKey = rule.ref.split("@")[0] ?? rule.id;
+		nodes[ruleKey] = {
+			id: rule.id,
+			...(rule.position ? { position: rule.position } : {}),
+		};
+		const actionKey =
+			action.action === "send-to-moderation" ? "human-review" : action.action;
+		nodes[actionKey] = {
+			id: action.id,
+			...(action.position ? { position: action.position } : {}),
+		};
+		edges[`trigger-pass-${ruleKey}`] = {
+			id: check.id,
+			...(check.when ? { explicitPass: true } : {}),
+		};
+		edges[`${ruleKey}-fail-${actionKey}`] = { id: failure.id };
+	}
+	imports.add("workflow");
+	const savedNodes = Object.entries(nodes).filter(
+		([key, node]) => fullIdentity || key !== node.id || node.position,
+	);
+	const savedEdges = Object.entries(edges).filter(
+		([key, edge]) => fullIdentity || key !== edge.id || edge.explicitPass,
+	);
+	let identityArg = "";
+	if (definition.version !== 1 || savedNodes.length || savedEdges.length) {
+		imports.add("workflowIdentityVersion");
+		const identity = {
+			version: definition.version,
+			nodes: Object.fromEntries(savedNodes),
+			...(savedEdges.length ? { edges: Object.fromEntries(savedEdges) } : {}),
+		};
+		identityArg = `, {\n\tformat: workflowIdentityVersion,${JSON.stringify(identity, null, "\t").slice(1)}`;
+	}
+	return `import { ${[...imports].sort().join(", ")} } from "@tripwire-sh/sdk/workflows";\n\nexport default workflow({\n\t${spec.join(",\n\t")},\n}${identityArg});\n`;
+}
+
+/** Match the complete old export so authored edits and comments keep their original source. */
+function isLegacyGeneratedSource(definition: WorkflowDefinition): boolean {
+	const source = definition.authoredSource?.replaceAll("\r\n", "\n");
+	if (!source?.includes("\n\totherwise: ")) return false;
+	const safe = stripWorkflowSecrets(definition);
+	return (
+		source === sdkHelperSource(safe, "full-identity") ||
+		source === sdkHelperSource(safe, "otherwise")
+	);
+}
+
+export interface SdkPullWrite {
+	files: string[];
+	unchanged: string[];
+	hashes: Record<string, string>;
+}
+
+function workflowSourceHash(source: string): string {
+	return createHash("sha256")
+		.update(source.replaceAll("\r\n", "\n"))
+		.digest("hex");
+}
+
+function assertNoSymlinkInPath(path: string): void {
+	const root = resolve(path);
+	for (const current of [root, dirname(root)]) {
+		if (existsSync(current) && lstatSync(current).isSymbolicLink()) {
+			throw new Error(
+				`${current} is a symlink; workflow paths must be real directories.`,
+			);
+		}
+	}
+}
+
+export function writeSdkWorkflows(
+	directory: string,
+	definitions: readonly WorkflowDefinition[],
+	keys: ReadonlyMap<string, string>,
+	force: boolean,
+	baselines: Readonly<Record<string, string>> = {},
+): SdkPullWrite {
+	const root = resolve(directory);
+	assertNoSymlinkInPath(root);
+	if (existsSync(root)) {
+		const stat = lstatSync(root);
+		if (stat.isSymbolicLink() || !stat.isDirectory()) {
+			throw new Error(
+				`${directory} must be a real directory, not a file or symlink.`,
+			);
+		}
+	}
+	const planned = new Set<string>();
+	const plans = definitions.map((definition) => {
+		const slug = validateWorkflowSlug(keys.get(definition.id) ?? definition.id);
+		if (planned.has(slug)) {
+			throw new Error(`More than one workflow resolves to ${slug}.`);
+		}
+		planned.add(slug);
+		const file = join(root, `${slug}.ts`);
+		if (dirname(resolve(file)) !== root) {
+			throw new Error(`Workflow ${slug} resolves outside ${directory}.`);
+		}
+		const localDefinition = { ...definition, id: slug };
+		const migrate = isLegacyGeneratedSource(localDefinition);
+		const source =
+			definition.authoredSource !== undefined && !migrate
+				? definition.authoredSource
+				: sdkWorkflowSource(localDefinition);
+		const hash = workflowSourceHash(source);
+		if (existsSync(file)) {
+			const stat = lstatSync(file);
+			if (stat.isSymbolicLink() || !stat.isFile()) {
+				throw new Error(`${file} must be a real file, not a symlink.`);
+			}
+			const current = readFileSync(file, "utf8");
+			const currentHash = workflowSourceHash(current);
+			if (current === source) {
+				return { file, source, slug, hash, unchanged: true };
+			}
+			const matchesSavedExport =
+				migrate &&
+				currentHash === workflowSourceHash(definition.authoredSource ?? "");
+			if (!force && !matchesSavedExport && currentHash !== baselines[slug]) {
+				throw new Error(
+					`${file} has local edits. Run tripwire workflows diff ${slug} first, or pass --force to replace that file.`,
+				);
+			}
+		}
+		return { file, source, slug, hash, unchanged: false };
+	});
+	mkdirSync(root, { recursive: true });
+	const files: string[] = [];
+	const unchanged: string[] = [];
+	for (const plan of plans) {
+		if (plan.unchanged) {
+			unchanged.push(plan.file);
+			continue;
+		}
+		writeFileSync(plan.file, plan.source, {
+			flag: existsSync(plan.file) ? "w" : "wx",
+		});
+		files.push(plan.file);
+	}
+	return {
+		files,
+		unchanged,
+		hashes: Object.fromEntries(plans.map(({ slug, hash }) => [slug, hash])),
+	};
+}
 
 const nodeFeaturesSchema = z.object({
 	typescript: z.union([z.string(), z.boolean()]).optional(),
@@ -44,25 +698,246 @@ export function writeAuthoringModule(file: string): string {
 	return target;
 }
 
-/** Loads a `tripwire.ts` and compiles its default export. */
-export async function loadWorkflowFile(file: string): Promise<CompileResult> {
+const sdkWorkflowSchema = z.union([
+	z.object({
+		kind: z.literal("workflow"),
+		spec: z.unknown(),
+		identity: z.unknown().optional(),
+	}),
+	z.object({ kind: z.literal("workflow"), definition: z.unknown() }),
+]);
+
+const sdkCompileResultSchema = z.discriminatedUnion("ok", [
+	z.object({ ok: z.literal(true), definition: z.unknown() }),
+	z.object({
+		ok: z.literal(false),
+		issues: z.array(
+			z.object({
+				message: z.string(),
+				path: z.string().optional(),
+			}),
+		),
+	}),
+]);
+
+const SDK_PACKAGE = "@tripwire-sh/sdk";
+const MIN_WORKFLOW_SDK = "0.1.2";
+const sdkPackageManifest = z.object({ name: z.string(), version: z.string() });
+
+/** Resolve from the workflow so a global CLI checks the SDK the project actually uses. */
+export function resolveWorkflowSdk(
+	file: string,
+	definition?: WorkflowDefinition,
+): string {
+	const stars =
+		definition?.nodes.some(
+			(node) =>
+				node.type === "rule" &&
+				(node.ref === "owned-repo-stars@1" ||
+					node.ref === "merged-pr-repo-stars@1"),
+		) === true;
+	const minimum = stars ? "0.1.4" : MIN_WORKFLOW_SDK;
+	const requirement = stars
+		? "Repository star checks need"
+		: "Workflow commands need";
+	const path = resolve(file);
+	const install = `Run npm install ${SDK_PACKAGE}@${IS_STAGING ? "staging" : "latest"} in your project.`;
+	let entry: string;
+	try {
+		entry = createRequire(pathToFileURL(path)).resolve(
+			`${SDK_PACKAGE}/workflows`,
+		);
+	} catch {
+		throw new Error(
+			`${requirement} ${SDK_PACKAGE} ${minimum} or later. ${install}`,
+		);
+	}
+	for (let directory = dirname(entry); ; directory = dirname(directory)) {
+		const manifest = join(directory, "package.json");
+		if (existsSync(manifest)) {
+			const parsed = sdkPackageManifest.safeParse(
+				JSON.parse(readFileSync(manifest, "utf8")),
+			);
+			if (parsed.success && parsed.data.name === SDK_PACKAGE) {
+				const { version } = parsed.data;
+				const release =
+					/^(\d+)\.(\d+)\.(\d+)(-staging\.[1-9]\d*)?(?:\+[^\s]+)?$/.exec(
+						version,
+					);
+				if (
+					release &&
+					(!release[4] || IS_STAGING) &&
+					(Number(release[1]) > 0 ||
+						Number(release[2]) > 1 ||
+						(Number(release[2]) === 1 &&
+							Number(release[3]) >= (stars ? 4 : release[4] ? 3 : 2)))
+				) {
+					return entry;
+				}
+				throw new Error(
+					`This project uses ${SDK_PACKAGE}@${version}. ${requirement} ${minimum} or later. ${install}`,
+				);
+			}
+		}
+		if (dirname(directory) === directory) break;
+	}
+	throw new Error(
+		`Cannot determine the version of ${SDK_PACKAGE} in this project. ${install}`,
+	);
+}
+
+async function compileSdkWorkflow(
+	path: string,
+	value: z.infer<typeof sdkWorkflowSchema>,
+): Promise<CompileResult> {
+	const slug = basename(path, extname(path));
+	const sdkPath = resolveWorkflowSdk(path);
+	const sdk: unknown = await import(pathToFileURL(sdkPath).href);
+	if (
+		typeof sdk !== "object" ||
+		sdk === null ||
+		!("compileWorkflow" in sdk) ||
+		typeof sdk.compileWorkflow !== "function"
+	) {
+		throw new Error(
+			`The @tripwire-sh/sdk/workflows installed for ${path} does not export compileWorkflow.`,
+		);
+	}
+	const compiled = sdkCompileResultSchema.parse(
+		sdk.compileWorkflow(slug, value),
+	);
+	if (!compiled.ok) {
+		return {
+			ok: false,
+			definitions: [],
+			issues: compiled.issues.map((issue) => ({
+				workflow: slug,
+				...(issue.path === undefined ? {} : { step: issue.path }),
+				message: issue.message,
+			})),
+		};
+	}
+	const definition = workflowDefinitionSchema.safeParse(compiled.definition);
+	if (!definition.success) {
+		return {
+			ok: false,
+			definitions: [],
+			issues: definition.error.issues.map((issue) => ({
+				workflow: slug,
+				step: issue.path.join("."),
+				message: issue.message,
+			})),
+		};
+	}
+	return { ok: true, definitions: [definition.data] };
+}
+
+export interface LoadedWorkflowFile {
+	format: "legacy" | "sdk";
+	result: CompileResult;
+	source?: string;
+}
+
+export async function loadWorkflowFileWithFormat(
+	file: string,
+): Promise<LoadedWorkflowFile> {
 	const path = resolve(file);
 	if (!existsSync(path)) {
 		throw new Error(
-			`No ${file} here. Run tripwire workflows pull <repo> to start one.`,
+			`No ${file} here. Run tripwire workflows pull --repo <repo> to get workflow files.`,
 		);
 	}
 	if (!canLoadTypeScript()) {
 		throw new Error(
-			"Loading tripwire.ts needs Node 22.18 or later, or Bun. Run it with bunx @tripwire-sh/cli instead.",
+			"Loading TypeScript workflows needs Node 22.18 or later, or Bun. Run it with bunx @tripwire-sh/cli instead.",
 		);
 	}
 	const moduleText = join(dirname(path), AUTHORING_MODULE_PATH);
-	if (!existsSync(moduleText)) {
+	const source = readFileSync(path, "utf8");
+	if (source.includes(AUTHORING_MODULE_PATH) && !existsSync(moduleText)) {
 		writeAuthoringModule(path);
 	}
+	if (/["']@tripwire-sh\/sdk(?:\/workflows)?["']/.test(source)) {
+		resolveWorkflowSdk(path);
+	}
 	const url = `${pathToFileURL(path).href}?at=${Date.now()}`;
-	return compileWorkflowModule(await import(url));
+	const workflowModule: unknown = await import(url);
+	if (
+		typeof workflowModule === "object" &&
+		workflowModule !== null &&
+		"default" in workflowModule
+	) {
+		const sdkWorkflow = sdkWorkflowSchema.safeParse(workflowModule.default);
+		if (sdkWorkflow.success) {
+			return {
+				format: "sdk",
+				result: await compileSdkWorkflow(path, sdkWorkflow.data),
+				source,
+			};
+		}
+	}
+	const defaultExport =
+		typeof workflowModule === "object" &&
+		workflowModule !== null &&
+		"default" in workflowModule
+			? workflowModule.default
+			: undefined;
+	return {
+		format: "legacy",
+		result: compileWorkflowModule({
+			default: defaultExport as
+				| SettingValue
+				| Readonly<Record<string, LegacyWorkflowValue>>,
+		}),
+	};
+}
+
+/** Loads either a legacy workflow collection or one SDK workflow default export. */
+export async function loadWorkflowFile(file: string): Promise<CompileResult> {
+	return (await loadWorkflowFileWithFormat(file)).result;
+}
+
+export type TypecheckResult = { ok: true } | { ok: false; message: string };
+
+/** Type-checks one SDK workflow with the TypeScript installed in its project. */
+export async function typecheckSdkWorkflow(
+	file: string,
+	system: System,
+): Promise<TypecheckResult> {
+	const path = resolve(file);
+	let tscPath: string;
+	try {
+		tscPath = createRequire(pathToFileURL(path)).resolve("typescript/bin/tsc");
+	} catch {
+		return {
+			ok: false,
+			message: `Cannot type-check ${file}. Install TypeScript in this project before pushing SDK workflows.`,
+		};
+	}
+	const checked = await system.run(process.execPath, [
+		tscPath,
+		"--noEmit",
+		"--pretty",
+		"false",
+		"--strict",
+		"--exactOptionalPropertyTypes",
+		"--skipLibCheck",
+		"--target",
+		"ES2022",
+		"--module",
+		"NodeNext",
+		"--moduleResolution",
+		"NodeNext",
+		path,
+	]);
+	if (checked.ok) {
+		return { ok: true };
+	}
+	return {
+		ok: false,
+		message:
+			checked.stderr || checked.stdout || `TypeScript could not check ${file}.`,
+	};
 }
 
 const pulledSchema = z.object({
@@ -264,7 +1139,12 @@ export function pulledCountText(
 
 export type LocalWorkflows =
 	| { kind: "none" }
-	| { kind: "code"; text: string; definitions: WorkflowDefinition[] }
+	| {
+			kind: "code";
+			format: "legacy" | "sdk";
+			text: string;
+			definitions: WorkflowDefinition[];
+	  }
 	| { kind: "unreadable" };
 
 export async function readLocalWorkflows(
@@ -275,12 +1155,13 @@ export async function readLocalWorkflows(
 		return { kind: "none" };
 	}
 	try {
-		const compiled = await loadWorkflowFile(file);
-		return compiled.ok
+		const loaded = await loadWorkflowFileWithFormat(file);
+		return loaded.result.ok
 			? {
 					kind: "code",
+					format: loaded.format,
 					text: readFileSync(path, "utf8"),
-					definitions: compiled.definitions,
+					definitions: loaded.result.definitions,
 				}
 			: { kind: "unreadable" };
 	} catch {
@@ -324,7 +1205,7 @@ function refusal(
 		.map((definition) => definition.name);
 	const name = basename(file);
 	if (differs.length > 0) {
-		return `${listText(differs)} in ${name} ${differs.length === 1 ? "differs" : "differ"} from the server. Run tripwire workflows diff <repo> to compare, or pass --force to take the server's version.`;
+		return `${listText(differs)} in ${name} ${differs.length === 1 ? "differs" : "differ"} from the server. Run tripwire workflows diff --repo <repo> --file ${name} to compare, or pass --force to take the server's version.`;
 	}
 	if (codeOf(local.definitions, keys) !== local.text) {
 		return `${name} has edits a pull would rewrite. Pass --force to rewrite it, or diff it first.`;
@@ -340,6 +1221,11 @@ export function writePulled(
 	local: LocalWorkflows = { kind: "none" },
 	localKeys: ReadonlyMap<string, string> = new Map(),
 ): PullWrite {
+	if (local.kind === "code" && local.format === "sdk") {
+		throw new Error(
+			`${file} is an SDK workflow. Pull cannot rewrite SDK files yet; choose a legacy tripwire.ts output instead.`,
+		);
+	}
 	const path = resolve(file);
 	const merged = mergeDefinitions(
 		local.kind === "code" ? local.definitions : [],

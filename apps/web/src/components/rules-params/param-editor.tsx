@@ -1,10 +1,14 @@
-import type { RuleParam } from "@tripwire/contracts";
+import type { JsonValue, RuleParam } from "@tripwire/contracts";
 import { useRef, useState } from "react";
-import { Checkbox } from "#/components/glaze/ui/checkbox";
-import { Chip, ChipGroup } from "#/components/glaze/ui/chip";
-import { Input } from "#/components/glaze/ui/input";
-import { NativeSelect } from "#/components/glaze/ui/select";
+import { z } from "zod";
+import { Checkbox } from "#/design-system/ui/checkbox";
+import { Chip, ChipGroup } from "#/design-system/ui/chip";
+import { Input } from "#/design-system/ui/input";
+import { NativeSelect } from "#/design-system/ui/select";
 import { coerceParamInput } from "./coerce";
+
+const TEXT_VALUE_SCHEMA = z.string();
+const NUMBER_VALUE_SCHEMA = z.number();
 
 /**
  * Schema-driven inline editor for ONE param (§9). Number/string/enum edit in
@@ -20,8 +24,8 @@ export function ParamEditor({
 	onCancel,
 }: {
 	param: RuleParam;
-	value: unknown;
-	onSave: (value: unknown) => void;
+	value: JsonValue | undefined;
+	onSave: (value: JsonValue) => void;
 	onCancel: () => void;
 }) {
 	if (param.kind === "string-list") {
@@ -42,7 +46,7 @@ export function ParamEditor({
 			<NativeSelect
 				aria-label={param.label}
 				className="inline-block w-auto align-middle"
-				defaultValue={typeof value === "string" ? value : param.default}
+				defaultValue={TEXT_VALUE_SCHEMA.safeParse(value).data ?? param.default}
 				onBlur={onCancel}
 				onChange={(e) => onSave(e.target.value)}
 				size="sm"
@@ -72,24 +76,20 @@ function ScalarEditor({
 	onCancel,
 }: {
 	param: Extract<RuleParam, { kind: "number" | "string" }>;
-	value: unknown;
-	onSave: (value: unknown) => void;
+	value: JsonValue | undefined;
+	onSave: (value: JsonValue) => void;
 	onCancel: () => void;
 }) {
-	const initial =
-		param.kind === "number"
-			? String(
-					param.percent
-						? Math.round(
-								(typeof value === "number" ? value : param.default) * 100,
-							)
-						: typeof value === "number"
-							? value
-							: param.default,
-				)
-			: typeof value === "string"
-				? value
-				: (param.default ?? "");
+	let initial: string;
+	if (param.kind === "number") {
+		const numericValue =
+			NUMBER_VALUE_SCHEMA.safeParse(value).data ?? param.default;
+		initial = String(
+			param.percent ? Math.round(numericValue * 100) : numericValue,
+		);
+	} else {
+		initial = TEXT_VALUE_SCHEMA.safeParse(value).data ?? param.default ?? "";
+	}
 	const [raw, setRaw] = useState(initial);
 	const [error, setError] = useState<string | null>(null);
 
@@ -163,8 +163,8 @@ function StringListEditor({
 	onSave,
 }: {
 	param: Extract<RuleParam, { kind: "string-list" }>;
-	value: unknown;
-	onSave: (value: unknown) => void;
+	value: JsonValue | undefined;
+	onSave: (value: JsonValue) => void;
 }) {
 	const items = Array.isArray(value) ? (value as string[]) : [...param.default];
 	const [draft, setDraft] = useState("");

@@ -1,9 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import {
-	type EmptyArtSize,
-	emptyArtClass,
-} from "#/components/glaze/ui/empty-state";
-import {
 	DEFAULT_SETTINGS,
 	MascotEngine,
 	type MascotSettings,
@@ -17,7 +13,11 @@ import {
 } from "#/components/mascot/moods";
 import { registerRunnerHost } from "#/components/mascot/runner/trigger";
 import { useReducedMotion } from "#/components/mascot/use-reduced-motion";
-import { cn } from "#/lib/glaze/utils";
+import { cn } from "#/design-system/lib/utils";
+import {
+	type EmptyArtSize,
+	emptyArtClass,
+} from "#/design-system/ui/empty-state";
 
 export type MascotArtProps = {
 	mood: MascotMoodKey;

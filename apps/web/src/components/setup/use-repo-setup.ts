@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { toast } from "#/components/glaze/ui/toast";
 import { useInstallRules } from "#/components/rules/use-install-rules";
+import { toast } from "#/design-system/ui/toast";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { rerunChangeRequest } from "#/lib/activity.functions";
 import { armRepo } from "#/lib/arm.functions";
@@ -25,7 +25,7 @@ export function useRepoSetup(org: string, repo: string) {
 	return {
 		query,
 		state,
-		progress: state ? setupProgress(state.facts) : null,
+		progress: state ? setupProgress(state.facts, state.forge) : null,
 	};
 }
 
@@ -49,7 +49,9 @@ export function useOnboardingEvents(org: string, repo: string) {
 		onSettled: invalidate,
 	});
 	const due =
-		canClaim && state && progress ? onboardingDue(state.facts, progress) : null;
+		canClaim && state && state.forge !== "gitcafe" && progress
+			? onboardingDue(state.facts, progress)
+			: null;
 	const repoId = state?.repoId ?? null;
 	useEffect(() => {
 		if (due && repoId) {
@@ -139,7 +141,10 @@ export function useSetupInstallRules(input: {
 				const result = await armRepo({
 					data: { org: input.org, repo: input.repo },
 				});
-				return result.armed ? null : "Tripwire did not turn on. Try again.";
+				if (result.armed) return null;
+				return !result.ok && result.reason === "queue-unavailable"
+					? "Tripwire did not turn on. Try again in a moment."
+					: "Tripwire did not turn on. Try again.";
 			} catch {
 				return "Only an org admin can turn on Tripwire for this repo.";
 			}

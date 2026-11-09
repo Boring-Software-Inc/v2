@@ -111,6 +111,8 @@ const plainBlock = <T extends string>(type: T) =>
 export const failedRulesStyleSchema = z.enum(["full", "one-liner"]);
 export type FailedRulesStyle = z.infer<typeof failedRulesStyleSchema>;
 
+export const DEFAULT_HELP_SUMMARY = "How do I fix this?";
+
 const BLOCK_OPTIONS = [
 	plainBlock("headline"),
 	plainBlock("verdict-line"),
@@ -139,7 +141,11 @@ const BLOCK_OPTIONS = [
 	plainBlock("ai-notice"),
 	plainBlock("rerun-notice"),
 	plainBlock("run-link"),
-	plainBlock("help"),
+	z.object({
+		id: blockId,
+		type: z.literal("help"),
+		content: z.string().max(TEXT_BLOCK_MAX).optional(),
+	}),
 ] as const;
 
 const gifBlockSchema = z.object({

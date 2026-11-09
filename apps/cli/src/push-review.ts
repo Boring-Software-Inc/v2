@@ -27,7 +27,15 @@ export function canOpenBrowser(
 	if (platform === "darwin" || platform === "win32") {
 		return true;
 	}
-	return display;
+	return display || (platform === "linux" && Boolean(env.WSL_INTEROP));
+}
+
+export function reviewLink(url: string, tty: boolean): string {
+	const text = `Open review in browser  ${url}`;
+	if (!tty || !/^https?:\/\/[^\s\p{Cc}]+$/u.test(url)) {
+		return text;
+	}
+	return `\u001b]8;;${url}\u001b\\${text}\u001b]8;;\u001b\\`;
 }
 
 export interface WaitDeps {
@@ -84,20 +92,24 @@ export function pushRefusalText(view: WorkflowPushView, repo: string): string {
 		case "expired":
 			return "The review link expired. Nothing was saved. Push again.";
 		case "stale":
-			return `These workflows changed on the server after the push. Nothing was saved. Run tripwire workflows diff ${repo}, then push again.`;
+			return `These workflows changed on the server after the push. Nothing was saved. Run tripwire workflows diff --repo ${repo}, then push again.`;
 		default:
 			return "The push was not accepted. Nothing was saved.";
 	}
 }
 
 export function blockedText(
-	workflows: readonly { name: string; issues: readonly string[] }[],
+	workflows: readonly {
+		name: string;
+		issues: readonly string[];
+		file?: string;
+	}[],
 	style: Style,
 ): string {
 	return workflows
 		.map((workflow) =>
 			errorLine(
-				`${workflow.name} was not sent for review. ${workflow.issues.join(" ")}`,
+				`${workflow.file ? `${workflow.file} (${workflow.name})` : workflow.name} was not sent for review. ${workflow.issues.map((issue) => (issue.startsWith("Another workflow on this repo is named ") ? `Duplicate workflow name ${JSON.stringify(workflow.name)}. Choose a different name.` : issue)).join(" ")}`,
 				style,
 			),
 		)

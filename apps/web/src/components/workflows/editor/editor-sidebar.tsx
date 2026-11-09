@@ -24,14 +24,6 @@ import {
 	PickerRow,
 	PickerRowAction,
 } from "#/components/common/grouped-picker";
-import { Add, Close, Icon } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "#/components/glaze/ui/tabs";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/glaze/ui/tooltip";
 import {
 	hasEditableParams,
 	PropertiesPanel,
@@ -46,7 +38,19 @@ import {
 	triggerIcon,
 } from "#/components/workflows/editor/step-meta";
 import { PortGlyph } from "#/components/workflows/editor/typed-connections";
-import { cn } from "#/lib/glaze/utils";
+import { Add, Close, Icon } from "#/design-system/icon";
+import { cn } from "#/design-system/lib/utils";
+import { Button } from "#/design-system/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "#/design-system/ui/tabs";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/design-system/ui/tooltip";
+import {
+	SupportingText,
+	Label as TextLabel,
+} from "#/design-system/ui/typography";
 
 /**
  * The floating left sidebar. With nothing selected it is the toolbox
@@ -293,7 +297,7 @@ export function EditorSidebar({
 				)}
 			>
 				<div className="panel flex min-h-0 flex-1 flex-col overflow-hidden">
-					<div className="flex shrink-0 items-center justify-between gap-2 border-line-faint border-b px-2 py-1.5">
+					<div data-layout-role="workflow-sidebar-tabs">
 						<Tabs
 							onValueChange={(value) =>
 								setToolboxFor(
@@ -378,13 +382,13 @@ function Toolbox({
 	return (
 		<>
 			{connect ? (
-				<div className="flex shrink-0 items-center gap-2 border-line-faint border-b py-1 ps-3 pe-2">
+				<div data-layout-role="workflow-toolbox-connect">
 					<PortGlyph look={{ ...outputLook(connect.port), io: "out" }} />
-					<span className="min-w-0 flex-1 truncate type-label">
+					<TextLabel data-layout-role="workflow-toolbox-connect-label">
 						{connect.insert
 							? "Insert a rule"
 							: `Connect from ${WORKFLOW_PORT_LABELS[connect.port]}`}
-					</span>
+					</TextLabel>
 					{connect.pending ? (
 						<Button
 							aria-label="Cancel connection"
@@ -411,7 +415,7 @@ function Toolbox({
 				renderFooter={(group, allOpen) =>
 					group.key === "rule" && !allOpen ? (
 						<Button
-							className="ms-0.5 mt-1"
+							data-layout-role="workflow-toolbox-create-rule"
 							nativeButton={false}
 							render={<Link params={{ org, repo }} to="/$org/$repo/rules" />}
 							size="sm"
@@ -555,14 +559,12 @@ function StepProperties({
 	}, [focusKey, onFocused]);
 
 	return (
-		<div className="flex min-h-0 flex-1 flex-col overflow-y-auto" ref={bodyRef}>
-			<div className="flex shrink-0 items-center gap-2 px-4 pt-3.5">
-				<Icon className="text-text-1" icon={stepIcon(node)} />
-				<h2 className="min-w-0 flex-1 type-label-lg [overflow-wrap:anywhere]">
-					{name}
-				</h2>
+		<div data-layout-role="workflow-step-properties" ref={bodyRef}>
+			<div data-layout-role="workflow-step-properties-heading">
+				<Icon icon={stepIcon(node)} />
+				<h2>{name}</h2>
 			</div>
-			<div className="flex flex-col gap-3 px-4 pt-2.5 pb-4">
+			<div data-layout-role="workflow-step-properties-body">
 				{hasEditableParams(node) ? (
 					<PropertiesPanel
 						node={node}
@@ -571,9 +573,7 @@ function StepProperties({
 						readOnly={readOnly}
 					/>
 				) : (
-					<p className="type-body-sm text-text-2">
-						This step has no settings to change.
-					</p>
+					<SupportingText>This step has no settings to change.</SupportingText>
 				)}
 			</div>
 		</div>

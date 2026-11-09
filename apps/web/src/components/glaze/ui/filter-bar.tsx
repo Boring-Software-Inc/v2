@@ -7,7 +7,7 @@ import {toolbarControlClass, toolbarFieldClass, toolbarFieldControlClass} from '
 import {cn, mergeClass} from '#/lib/glaze/utils.ts';
 import {Chip, ChipGroup, type ChipProps} from '#/components/glaze/ui/chip.tsx';
 import {
-  DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuLabel, DropdownMenuRadioGroup,
+  DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuRadioGroup,
   DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '#/components/glaze/ui/dropdown-menu.tsx';
 import {Input, type SearchModeProps} from '#/components/glaze/ui/input.tsx';
@@ -259,7 +259,6 @@ function FilterBarSelect(props: FilterBarSelectProps) {
   const sunk = empty.length > 0 && <>
     <DropdownMenuSeparator/>
     <DropdownMenuGroup>
-      <DropdownMenuLabel inset>None left with the other filters</DropdownMenuLabel>
       {empty.map(o => row(o, true))}
     </DropdownMenuGroup>
   </>;

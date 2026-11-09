@@ -1,15 +1,15 @@
 import { useMatch, useParams } from "@tanstack/react-router";
 import { useState } from "react";
-import { Button } from "#/components/glaze/ui/button";
+import { compactStepAction } from "#/components/setup/setup-step-actions";
+import { StepDoneMark } from "#/components/setup/step-done-mark";
+import { useRepoSetup } from "#/components/setup/use-repo-setup";
+import { cn } from "#/design-system/lib/utils";
+import { Button } from "#/design-system/ui/button";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "#/components/glaze/ui/popover";
-import { compactStepAction } from "#/components/setup/setup-step-actions";
-import { StepDoneMark } from "#/components/setup/step-done-mark";
-import { useRepoSetup } from "#/components/setup/use-repo-setup";
-import { cn } from "#/lib/glaze/utils";
+} from "#/design-system/ui/popover";
 
 const RING_RADIUS = 6;
 const RING_LENGTH = 2 * Math.PI * RING_RADIUS;

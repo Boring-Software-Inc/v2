@@ -7,9 +7,28 @@ import { DeleteAccountDialog } from "#/components/account/delete-account-dialog"
 import { ForgeMark } from "#/components/common/forge-marks";
 import { MetaRow } from "#/components/common/meta-row";
 import { ItemRouterLink } from "#/components/common/router-links";
-import { ArrowRight, Icon } from "#/components/glaze/icon";
-import { Avatar } from "#/components/glaze/ui/avatar";
-import { Button } from "#/components/glaze/ui/button";
+import { OrgAvatar } from "#/components/organizations/org-avatar";
+import {
+	SettingsHeader,
+	SettingsSection,
+} from "#/components/settings/settings-frame";
+import { TimezonePicker } from "#/components/timezones/timezone-picker";
+import { ZonedTime } from "#/components/timezones/zoned-time";
+import { ArrowRight, Icon } from "#/design-system/icon";
+import { Avatar } from "#/design-system/ui/avatar";
+import { Button } from "#/design-system/ui/button";
+import {
+	Dialog,
+	DialogAction,
+	DialogBody,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from "#/design-system/ui/dialog";
 import {
 	Item,
 	ItemActions,
@@ -18,23 +37,18 @@ import {
 	ItemGroup,
 	ItemMedia,
 	ItemTitle,
-} from "#/components/glaze/ui/item";
+} from "#/design-system/ui/item";
 import {
 	SegmentedControl,
 	SegmentedControlItem,
-} from "#/components/glaze/ui/segmented-control";
-import { SkeletonSwap, SkeletonText } from "#/components/glaze/ui/skeleton";
-import { Status } from "#/components/glaze/ui/status";
-import { Switch } from "#/components/glaze/ui/switch";
-import { toast } from "#/components/glaze/ui/toast";
-import { OrgAvatar } from "#/components/organizations/org-avatar";
-import {
-	SettingsHeader,
-	SettingsSection,
-} from "#/components/settings/settings-frame";
-import { TimezonePicker } from "#/components/timezones/timezone-picker";
-import { ZonedTime } from "#/components/timezones/zoned-time";
+} from "#/design-system/ui/segmented-control";
+import { SkeletonSwap, SkeletonText } from "#/design-system/ui/skeleton";
+import { Status } from "#/design-system/ui/status";
+import { Switch } from "#/design-system/ui/switch";
+import { toast } from "#/design-system/ui/toast";
+import { SupportingText } from "#/design-system/ui/typography";
 import { useHasMounted } from "#/hooks/use-has-mounted";
+import { useSignOut } from "#/hooks/use-sign-out";
 import { useDeviceTimezone } from "#/hooks/use-timezones";
 import {
 	type AccountSession,
@@ -48,7 +62,6 @@ import {
 import { setAgentMotion } from "#/lib/agent-motion.functions";
 import type { CurrentUser } from "#/lib/auth.functions";
 import { authQueryKeys, sessionInfoQueryOptions } from "#/lib/auth.query";
-import { authClient } from "#/lib/auth-client";
 import { connectionsQueryOptions } from "#/lib/connections.query";
 import { reconnectForge } from "#/lib/forge-connect";
 import { myOrgsQueryOptions } from "#/lib/org.query";
@@ -294,15 +307,35 @@ function SessionsSection() {
 		<SettingsSection
 			action={
 				others > 0 ? (
-					<Button
-						onClick={() => revokeOthers.mutate()}
-						pending={revokeOthers.isPending}
-						pendingLabel="Signing out"
-						size="sm"
-						variant="secondary"
-					>
-						Sign out everywhere else
-					</Button>
+					<Dialog>
+						<DialogTrigger render={<Button size="sm" variant="destructive" />}>
+							Sign out everywhere else
+						</DialogTrigger>
+						<DialogContent role="alertdialog">
+							<DialogHeader>
+								<DialogTitle>Sign out everywhere else?</DialogTitle>
+								<DialogDescription>
+									This keeps this device signed in and ends {others} other{" "}
+									{others === 1 ? "session" : "sessions"}.
+								</DialogDescription>
+							</DialogHeader>
+							<DialogBody>
+								<SupportingText>
+									You will need to sign in again on those devices.
+								</SupportingText>
+							</DialogBody>
+							<DialogFooter>
+								<DialogClose>Cancel</DialogClose>
+								<DialogAction
+									onAction={() => revokeOthers.mutateAsync()}
+									pendingLabel="Signing out"
+									variant="destructive"
+								>
+									Sign out
+								</DialogAction>
+							</DialogFooter>
+						</DialogContent>
+					</Dialog>
 				) : null
 			}
 			id="sessions"
@@ -401,7 +434,7 @@ function PreferencesSection() {
 									disabled={!signedIn || saveTimezone.isPending}
 									labelledBy="timezone-label"
 									onChange={(next) => saveTimezone.mutate(next)}
-									unsetLabel={`Org timezone, or this device (${device})`}
+									unsetLabel={`Organization timezone · ${device}`}
 									value={session?.user?.timezone ?? null}
 								/>
 							</div>
@@ -456,20 +489,11 @@ function OrgsSection() {
 }
 
 function AccountFooter() {
+	const signOut = useSignOut();
 	const [deleting, setDeleting] = useState(false);
 	return (
 		<div className="flex flex-wrap items-center justify-between gap-3 border-line-faint border-t pt-4">
-			<Button
-				onClick={() =>
-					authClient.signOut({
-						fetchOptions: {
-							onSuccess: () => window.location.assign("/login"),
-						},
-					})
-				}
-				size="sm"
-				variant="secondary"
-			>
+			<Button onClick={() => signOut.mutate()} size="sm" variant="secondary">
 				Sign out
 			</Button>
 			<Button onClick={() => setDeleting(true)} size="sm" variant="secondary">

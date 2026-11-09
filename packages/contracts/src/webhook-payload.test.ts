@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	formatDiscordMessage,
 	type WebhookPayload,
+	webhookDeliveryUrlSchema,
 	webhookPayloadSchema,
 } from "./webhook-payload.ts";
 
@@ -88,5 +89,21 @@ describe("formatDiscordMessage — own formatter, verdict-colored", () => {
 		const msg = formatDiscordMessage({ ...PAYLOAD, verdict: "needs_review" });
 		expect(msg.content).toBe("acme/web #42 needs human review.");
 		expect(msg.embeds[0]?.color).toBe(0xf59e0b);
+	});
+});
+
+describe("webhookDeliveryUrlSchema", () => {
+	test("keeps URL syntax checks at the guarded transport", () => {
+		for (const url of [
+			"",
+			"not a URL",
+			"http://127.0.0.1/private",
+			"https://receiver.example/hook",
+		]) {
+			expect(webhookDeliveryUrlSchema.parse(url)).toBe(url);
+		}
+		for (const value of [null, undefined, 42, {}, []]) {
+			expect(webhookDeliveryUrlSchema.safeParse(value).success).toBe(false);
+		}
 	});
 });

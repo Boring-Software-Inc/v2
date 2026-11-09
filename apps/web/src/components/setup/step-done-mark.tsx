@@ -1,4 +1,4 @@
-import { cn } from "#/lib/glaze/utils";
+import { cn } from "#/design-system/lib/utils";
 
 export function StepDoneMark({
 	size = 20,

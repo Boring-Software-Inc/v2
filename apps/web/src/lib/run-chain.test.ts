@@ -16,6 +16,7 @@ import {
 	branchSummary,
 	buildBranches,
 	buildRunChain,
+	formatDuration,
 	formatOffset,
 	outcomeChips,
 	passedNote,
@@ -132,6 +133,7 @@ function view(overrides: Partial<RunView> = {}): RunView {
 		],
 		previousRun: null,
 		nextRun: null,
+		relatedRuns: [],
 		backfill: false,
 		aiReviewNotRun: false,
 		...overrides,
@@ -144,6 +146,15 @@ describe("formatOffset", () => {
 		expect(formatOffset(2700)).toBe("+2.7s");
 		expect(formatOffset(30_000)).toBe("+30s");
 		expect(formatOffset(22 * 60_000)).toBe("+22m");
+	});
+});
+
+describe("formatDuration", () => {
+	test("hides implementation noise and formats useful elapsed time", () => {
+		expect(formatDuration(0)).toBeNull();
+		expect(formatDuration(45)).toBeNull();
+		expect(formatDuration(1234)).toBe("1.2s");
+		expect(formatDuration(62_000)).toBe("1m 2s");
 	});
 });
 
@@ -734,18 +745,30 @@ describe("a run whose AI review did not run (out of credits)", () => {
 
 describe("re-runs and superseded runs", () => {
 	test("a newer run on the same change request supersedes this one", () => {
+		const current = {
+			id: "run-1",
+			createdAt: AT,
+			status: "completed",
+			verdict: "block" as const,
+			eventKind: "change-request.opened" as const,
+			actor: "g-r-i-m",
+			headSha: "3f9a2c1ffff",
+			rerun: false,
+		};
+		const newer = {
+			id: "run-2",
+			createdAt: "2026-10-21T14:12:07.000Z",
+			status: "completed",
+			verdict: "pass" as const,
+			eventKind: "change-request.updated" as const,
+			actor: "g-r-i-m",
+			headSha: "3f9a2c1ffff",
+			rerun: false,
+		};
 		const chain = buildRunChain(
 			view({
-				nextRun: {
-					id: "run-2",
-					createdAt: "2026-10-21T14:12:07.000Z",
-					status: "completed",
-					verdict: "pass",
-					eventKind: "change-request.updated",
-					actor: "g-r-i-m",
-					headSha: "3f9a2c1ffff",
-					rerun: false,
-				},
+				nextRun: newer,
+				relatedRuns: [current, newer],
 			}),
 		);
 		expect(chain.outcome.title).toBe("Superseded");
@@ -761,6 +784,12 @@ describe("re-runs and superseded runs", () => {
 			},
 		]);
 		expect(chain.steps.map((step) => step.title)).toEqual(["Blocked by Rules"]);
+		expect(chain.history).toEqual({
+			runs: [current, newer],
+			selectedRunId: "run-1",
+			replaces: null,
+			placement: "outcome",
+		});
 	});
 
 	test("a push says what was pushed and which run it replaces", () => {
@@ -774,9 +803,20 @@ describe("re-runs and superseded runs", () => {
 			headSha: "aaaa",
 			rerun: false,
 		};
+		const current = {
+			id: "run-1",
+			createdAt: AT,
+			status: "completed",
+			verdict: "block" as const,
+			eventKind: "change-request.updated" as const,
+			actor: "g-r-i-m",
+			headSha: "3f9a2c1aa",
+			rerun: false,
+		};
 		const chain = buildRunChain(
 			view({
 				previousRun: previous,
+				relatedRuns: [previous, current],
 				event: {
 					kind: "change-request.updated",
 					actor: "g-r-i-m",
@@ -788,12 +828,18 @@ describe("re-runs and superseded runs", () => {
 		);
 		expect(chain.event.title).toBe("g-r-i-m pushed 3f9a2c1 to #91");
 		expect(chain.event.replaces?.id).toBe("run-0");
+		expect(chain.history).toEqual({
+			runs: [previous, current],
+			selectedRunId: "run-1",
+			replaces: previous,
+			placement: "event",
+		});
 	});
 
-	test("a manual re-run names the admin only for members", () => {
+	test("a manual re-run keeps the timeline title concise", () => {
 		const rerun = view({ rerun: true, rerunBy: "Grim" });
 		expect(buildRunChain(toFullRunView(rerun)).event.title).toBe(
-			"Grim re-ran the rules on #91",
+			"Rules re-run on #91",
 		);
 		expect(buildRunChain(toPublicRunView(rerun, 0)).event.title).toBe(
 			"Rules re-run on #91",

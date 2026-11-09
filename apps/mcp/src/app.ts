@@ -1,9 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { assertApproved } from "@tripwire/auth/access-gate";
-import type { AgentScope } from "@tripwire/contracts";
+import { type Forge, mcpToolCallScopeProbeSchema } from "@tripwire/contracts";
 import { agentServices, type Db } from "@tripwire/db";
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import { cors } from "hono/cors";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
@@ -28,32 +28,22 @@ import { registerTools } from "./tools.ts";
 export interface McpDeps {
 	db: Db;
 	pool: Pool;
-	getBoss: () => Promise<PgBoss>;
+	getBoss: (forge?: Forge) => Promise<PgBoss>;
 	config: McpConfig;
 	logger: Logger;
 	verifyToken?: typeof verifyAgentToken;
 }
 
-const TOOL_NAME_SET = new Set<string>(TOOL_NAMES);
-
-function calledTools(body: unknown): ToolName[] {
+/** Only Request.json output is inspected; the original body remains SDK-owned. */
+function calledTools(
+	body: Parameters<typeof mcpToolCallScopeProbeSchema.safeParse>[0],
+): ToolName[] {
 	const messages = Array.isArray(body) ? body : [body];
 	return messages.flatMap((message) => {
-		if (
-			typeof message === "object" &&
-			message !== null &&
-			"method" in message &&
-			message.method === "tools/call" &&
-			"params" in message &&
-			typeof message.params === "object" &&
-			message.params !== null &&
-			"name" in message.params &&
-			typeof message.params.name === "string" &&
-			TOOL_NAME_SET.has(message.params.name)
-		) {
-			return [message.params.name as ToolName];
-		}
-		return [];
+		const parsed = mcpToolCallScopeProbeSchema.safeParse(message);
+		if (!parsed.success) return [];
+		const name = TOOL_NAMES.find((name) => name === parsed.data.params.name);
+		return name ? [name] : [];
 	});
 }
 
@@ -80,8 +70,7 @@ export function createApp(deps: McpDeps) {
 
 	app.get("/health", (c) => c.json({ ok: true }));
 
-	const metadata = (c: { json: (body: unknown) => Response }) =>
-		c.json(protectedResourceMetadata(config));
+	const metadata = (c: Context) => c.json(protectedResourceMetadata(config));
 	app.get("/.well-known/oauth-protected-resource", metadata);
 	app.get(`/.well-known/oauth-protected-resource${mcpPath}`, metadata);
 
@@ -114,7 +103,7 @@ export function createApp(deps: McpDeps) {
 			orgIds: token.agent.orgIds.filter((id) => grant.orgIds.includes(id)),
 		};
 
-		let body: unknown;
+		let body: Parameters<typeof mcpToolCallScopeProbeSchema.safeParse>[0];
 		if (request.method === "POST") {
 			try {
 				body = await request.json();
@@ -134,7 +123,7 @@ export function createApp(deps: McpDeps) {
 						.map((name) => TOOL_SPECS[name].scope)
 						.filter((scope) => !agent.scopes.includes(scope)),
 				),
-			] as AgentScope[];
+			];
 			if (missing.length > 0) {
 				return insufficientScope(config, missing);
 			}
@@ -143,7 +132,7 @@ export function createApp(deps: McpDeps) {
 		const denial = await assertApproved(db, agent.userId);
 		agentServices
 			.touchAgentGrant(db, { userId: agent.userId, clientId: agent.clientId })
-			.catch((error: unknown) => {
+			.catch((error) => {
 				logger.warn({ error }, "agent grant touch failed");
 			});
 

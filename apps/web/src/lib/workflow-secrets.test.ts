@@ -1,11 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import {
+	type JsonValue,
 	redactWorkflowSecrets,
 	type WorkflowDefinition,
 } from "@tripwire/contracts";
 import { restoreWorkflowSecrets } from "./workflow-secrets";
 
-function def(params: Record<string, unknown>): WorkflowDefinition {
+function def(params: Record<string, JsonValue>): WorkflowDefinition {
 	return {
 		id: "wf1",
 		name: "wf",
@@ -15,7 +16,7 @@ function def(params: Record<string, unknown>): WorkflowDefinition {
 			{ id: "w", type: "action", action: "webhook", params },
 		],
 		edges: [],
-	} as WorkflowDefinition;
+	};
 }
 
 const webhookNode = (d: WorkflowDefinition) =>

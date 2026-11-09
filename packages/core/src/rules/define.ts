@@ -1,5 +1,6 @@
 import {
 	FORGE_BY_ID,
+	type JsonValue,
 	type RuleResult,
 	type RuleSkipCause,
 	ruleForgeBlockReason,
@@ -40,7 +41,7 @@ export interface RuleDefinition<
 	 * Optional so a rule with no public-safe evidence can opt out — but then it
 	 * must be listed in PUBLIC_VIEW_OPT_OUT with a reason (enforced by test).
 	 */
-	publicEvidence?: (evidence: z.infer<TEvidence>) => Record<string, unknown>;
+	publicEvidence?: (evidence: z.infer<TEvidence>) => Record<string, JsonValue>;
 	/** §10 plain-English outcome for the public view — constitution voice. */
 	summarize?: (evidence: z.infer<TEvidence>, passed: boolean) => string | null;
 	/**
@@ -93,21 +94,21 @@ export function ruleRef(rule: Pick<RuleDefinition, "id" | "version">): string {
 export async function evaluateRule(
 	rule: RuleDefinition,
 	ctx: RuleContext,
-	config: unknown,
+	config: z.input<RuleDefinition["configSchema"]>,
 ): Promise<RuleResult> {
 	const base = { ruleId: rule.id, version: rule.version, evaluatedAt: ctx.now };
 	// Forge support first — before config, before evaluate. A rule the forge
 	// cannot feed would otherwise skip on whatever happened to be missing
 	// ("contributor createdAt unparseable"), which reads as a parse bug rather
 	// than a capability gap and hides that the rule can NEVER fire here.
-	if (!ruleSupportsForge(rule.id, ctx.event.forge)) {
+	if (!ruleSupportsForge(rule.id, ctx.event.forge, rule.version)) {
 		return {
 			...base,
 			status: "skipped",
 			passed: false,
 			evidence: null,
 			reason:
-				ruleForgeBlockReason(rule.id, ctx.event.forge) ??
+				ruleForgeBlockReason(rule.id, ctx.event.forge, rule.version) ??
 				`This rule cannot run on ${FORGE_BY_ID[ctx.event.forge]?.label ?? ctx.event.forge}.`,
 		};
 	}

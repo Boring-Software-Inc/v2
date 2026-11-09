@@ -1,3 +1,4 @@
+import type { RepoIdentity } from "@tripwire/contracts";
 import {
 	HELD_VERDICTS,
 	type ModStat,
@@ -5,6 +6,7 @@ import {
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
 import { and, desc, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
+import { z } from "zod";
 import type { Db } from "../client.ts";
 import { events } from "../schema/events.ts";
 import { moderationItems } from "../schema/moderation.ts";
@@ -42,22 +44,22 @@ export async function computeRollupsBetween(
 			SELECT generate_series(${fromDay}::date, ${toDay}::date, interval '1 day')::date AS day
 		) d
 		LEFT JOIN (
-			SELECT repo_full_name, received_at::date AS day, count(*)::int AS n
+			SELECT forge, repo_full_name, received_at::date AS day, count(*)::int AS n
 			FROM events
 			WHERE received_at::date BETWEEN ${fromDay}::date AND ${toDay}::date
-			GROUP BY repo_full_name, received_at::date
-		) e ON e.repo_full_name = r.full_name AND e.day = d.day
+			GROUP BY forge, repo_full_name, received_at::date
+		) e ON e.forge = r.forge AND e.repo_full_name = r.full_name AND e.day = d.day
 		LEFT JOIN (
-			SELECT repo_full_name, created_at::date AS day,
+			SELECT ev.forge, runs.repo_full_name, runs.created_at::date AS day,
 				count(*)::int AS n,
 				count(*) FILTER (WHERE verdict = 'pass')::int AS passed,
 				count(*) FILTER (WHERE verdict IN ('block', 'changes_required', 'close'))::int AS blocked,
 				count(*) FILTER (WHERE verdict = 'needs_review')::int AS review
-			FROM runs
-			WHERE created_at::date BETWEEN ${fromDay}::date AND ${toDay}::date
+			FROM runs JOIN events ev ON ev.id = runs.event_id
+			WHERE runs.created_at::date BETWEEN ${fromDay}::date AND ${toDay}::date
 			  AND ${runBearsVerdict}
-			GROUP BY repo_full_name, created_at::date
-		) x ON x.repo_full_name = r.full_name AND x.day = d.day
+			GROUP BY ev.forge, runs.repo_full_name, runs.created_at::date
+		) x ON x.forge = r.forge AND x.repo_full_name = r.full_name AND x.day = d.day
 		ON CONFLICT (repo_id, day) DO UPDATE SET
 			events = EXCLUDED.events,
 			runs = EXCLUDED.runs,
@@ -67,9 +69,27 @@ export async function computeRollupsBetween(
 	`);
 }
 
-interface AgoRow {
-	h: number;
-	n: number;
+const hourlyCountRowsSchema = z.array(
+	z.object({
+		h: z.coerce.number(),
+		n: z.coerce.number(),
+	}),
+);
+const countRowSchema = z.object({ n: z.coerce.number().nullish() }).optional();
+const ruleCountRowsSchema = z.array(
+	z.object({
+		ref: z.string(),
+		h: z.coerce.number(),
+		n: z.coerce.number(),
+	}),
+);
+
+async function scalarCount(
+	db: Db,
+	query: ReturnType<typeof sql>,
+): Promise<number> {
+	const result = await db.execute(query);
+	return countRowSchema.parse(result.rows[0])?.n ?? 0;
 }
 
 /**
@@ -80,7 +100,7 @@ interface AgoRow {
  */
 async function rollingSeries(db: Db, query: ReturnType<typeof sql>) {
 	const result = await db.execute(query);
-	const rows = result.rows as unknown as AgoRow[];
+	const rows = hourlyCountRowsSchema.parse(result.rows);
 	const series = Array.from({ length: 24 }, () => 0);
 	for (const row of rows) {
 		const h = Number(row.h);
@@ -100,18 +120,13 @@ async function rollingSeries(db: Db, query: ReturnType<typeof sql>) {
  */
 export async function getHomeStats(
 	db: Db,
-	repoFullName: string,
+	repo: RepoIdentity,
 ): Promise<ModStats> {
-	const scalar = async (query: ReturnType<typeof sql>): Promise<number> => {
-		const result = await db.execute(query);
-		return Number(
-			(result.rows[0] as Record<string, unknown> | undefined)?.n ?? 0,
-		);
-	};
+	const scalar = (query: ReturnType<typeof sql>) => scalarCount(db, query);
 
 	// moderation_items carry no repo column — scope them through their run.
-	const inRepo = sql`run_id IN (SELECT id FROM runs WHERE repo_full_name = ${repoFullName})`;
-	const ofRepo = sql`repo_full_name = ${repoFullName}`;
+	const inRepo = sql`run_id IN (SELECT id FROM runs WHERE repo_full_name = ${repo.fullName} AND EXISTS (SELECT 1 FROM events scope_event WHERE scope_event.id = runs.event_id AND scope_event.forge = ${repo.forge}))`;
+	const ofRepo = sql`repo_full_name = ${repo.fullName} AND EXISTS (SELECT 1 FROM events scope_event WHERE scope_event.id = runs.event_id AND scope_event.forge = ${repo.forge})`;
 
 	// A rolling 24h flow series bucketed by hours-ago, for a run verdict.
 	const verdictIn = (verdicts: readonly string[]) =>
@@ -173,7 +188,7 @@ export async function getHomeStats(
 		           (SELECT count(*)::int FROM moderation_items mi
 		            WHERE mi.created_at <= b.t
 		              AND (mi.decided_at IS NULL OR mi.decided_at > b.t)
-		              AND mi.run_id IN (SELECT id FROM runs WHERE repo_full_name = ${repoFullName})
+		              AND mi.run_id IN (SELECT id FROM runs WHERE repo_full_name = ${repo.fullName} AND EXISTS (SELECT 1 FROM events scope_event WHERE scope_event.id = runs.event_id AND scope_event.forge = ${repo.forge}))
 		           ) AS n
 		    FROM b`,
 	);
@@ -215,7 +230,7 @@ export async function listRecentRuns(
 	opts: {
 		verdicts?: string[];
 		limit?: number;
-		repoFullName?: string;
+		repo?: RepoIdentity;
 		since?: Date;
 		until?: Date;
 	} = {},
@@ -238,8 +253,11 @@ export async function listRecentRuns(
 				opts.verdicts ? inArray(runs.verdict, opts.verdicts) : undefined,
 				opts.verdicts ? eventBearsVerdict : undefined,
 				opts.verdicts ? ne(runs.status, "closed") : undefined,
-				opts.repoFullName
-					? eq(runs.repoFullName, opts.repoFullName)
+				opts.repo
+					? and(
+							eq(runs.repoFullName, opts.repo.fullName),
+							sql`${events.forge} = ${opts.repo.forge}`,
+						)
 					: undefined,
 				opts.since ? gte(runs.createdAt, opts.since) : undefined,
 				opts.until ? lt(runs.createdAt, opts.until) : undefined,
@@ -327,25 +345,20 @@ export interface RulesStats {
  */
 export async function getRulesStats(
 	db: Db,
-	repoFullName: string,
+	repo: RepoIdentity,
 ): Promise<RulesStats> {
-	const scalar = async (query: ReturnType<typeof sql>): Promise<number> => {
-		const result = await db.execute(query);
-		return Number(
-			(result.rows[0] as Record<string, unknown> | undefined)?.n ?? 0,
-		);
-	};
+	const scalar = (query: ReturnType<typeof sql>) => scalarCount(db, query);
 
 	const matches24h = await scalar(sql`
 		SELECT count(*)::int AS n FROM run_steps s
 		JOIN runs r ON r.id = s.run_id
-		WHERE r.repo_full_name = ${repoFullName}
+		WHERE r.repo_full_name = ${repo.fullName} AND EXISTS (SELECT 1 FROM events scope_event WHERE scope_event.id = r.event_id AND scope_event.forge = ${repo.forge})
 		  AND s.node_kind = 'rule' AND s.status = 'fail'
 		  AND s.started_at > now() - interval '24 hours'`);
 	const matchesPrev = await scalar(sql`
 		SELECT count(*)::int AS n FROM run_steps s
 		JOIN runs r ON r.id = s.run_id
-		WHERE r.repo_full_name = ${repoFullName}
+		WHERE r.repo_full_name = ${repo.fullName} AND EXISTS (SELECT 1 FROM events scope_event WHERE scope_event.id = r.event_id AND scope_event.forge = ${repo.forge})
 		  AND s.node_kind = 'rule' AND s.status = 'fail'
 		  AND s.started_at BETWEEN now() - interval '48 hours' AND now() - interval '24 hours'`);
 	const matchesSeries = await rollingSeries(
@@ -353,7 +366,7 @@ export async function getRulesStats(
 		sql`SELECT floor(extract(epoch FROM (now() - s.started_at)) / 3600)::int AS h,
 		           count(*)::int AS n
 		    FROM run_steps s JOIN runs r ON r.id = s.run_id
-		    WHERE r.repo_full_name = ${repoFullName}
+		    WHERE r.repo_full_name = ${repo.fullName} AND EXISTS (SELECT 1 FROM events scope_event WHERE scope_event.id = r.event_id AND scope_event.forge = ${repo.forge})
 		      AND s.node_kind = 'rule' AND s.status = 'fail'
 		      AND s.started_at > now() - interval '24 hours'
 		    GROUP BY 1`,
@@ -362,13 +375,13 @@ export async function getRulesStats(
 	const actioned24h = await scalar(sql`
 		SELECT count(*)::int AS n FROM run_actions a
 		JOIN runs r ON r.id = a.run_id
-		WHERE r.repo_full_name = ${repoFullName}
+		WHERE r.repo_full_name = ${repo.fullName} AND EXISTS (SELECT 1 FROM events scope_event WHERE scope_event.id = r.event_id AND scope_event.forge = ${repo.forge})
 		  AND a.status = 'executed' AND a.kind IN (${ENFORCEMENT_LIST})
 		  AND a.executed_at > now() - interval '24 hours'`);
 	const actionedPrev = await scalar(sql`
 		SELECT count(*)::int AS n FROM run_actions a
 		JOIN runs r ON r.id = a.run_id
-		WHERE r.repo_full_name = ${repoFullName}
+		WHERE r.repo_full_name = ${repo.fullName} AND EXISTS (SELECT 1 FROM events scope_event WHERE scope_event.id = r.event_id AND scope_event.forge = ${repo.forge})
 		  AND a.status = 'executed' AND a.kind IN (${ENFORCEMENT_LIST})
 		  AND a.executed_at BETWEEN now() - interval '48 hours' AND now() - interval '24 hours'`);
 	const actionedSeries = await rollingSeries(
@@ -376,7 +389,7 @@ export async function getRulesStats(
 		sql`SELECT floor(extract(epoch FROM (now() - a.executed_at)) / 3600)::int AS h,
 		           count(*)::int AS n
 		    FROM run_actions a JOIN runs r ON r.id = a.run_id
-		    WHERE r.repo_full_name = ${repoFullName}
+		    WHERE r.repo_full_name = ${repo.fullName} AND EXISTS (SELECT 1 FROM events scope_event WHERE scope_event.id = r.event_id AND scope_event.forge = ${repo.forge})
 		      AND a.status = 'executed' AND a.kind IN (${ENFORCEMENT_LIST})
 		      AND a.executed_at > now() - interval '24 hours'
 		    GROUP BY 1`,
@@ -384,29 +397,25 @@ export async function getRulesStats(
 
 	const perRuleResult = await db.execute(sql`
 		SELECT s.rule_id AS ref,
-		       extract(hour FROM s.started_at)::int AS bucket,
+		       floor(extract(epoch FROM (now() - s.started_at)) / 3600)::int AS h,
 		       count(*)::int AS n
 		FROM run_steps s JOIN runs r ON r.id = s.run_id
-		WHERE r.repo_full_name = ${repoFullName}
+		WHERE r.repo_full_name = ${repo.fullName} AND EXISTS (SELECT 1 FROM events scope_event WHERE scope_event.id = r.event_id AND scope_event.forge = ${repo.forge})
 		  AND s.node_kind = 'rule' AND s.status = 'fail'
 		  AND s.rule_id IS NOT NULL
 		  AND s.started_at > now() - interval '24 hours'
 		GROUP BY 1, 2`);
 	const perRuleMap = new Map<string, RuleStat>();
-	for (const row of perRuleResult.rows as unknown as {
-		ref: string;
-		bucket: number;
-		n: number;
-	}[]) {
+	for (const row of ruleCountRowsSchema.parse(perRuleResult.rows)) {
 		let stat = perRuleMap.get(row.ref);
 		if (!stat) {
 			stat = { ref: row.ref, matches24h: 0, series: Array(24).fill(0) };
 			perRuleMap.set(row.ref, stat);
 		}
-		const index = Number(row.bucket);
+		const h = Number(row.h);
 		stat.matches24h += Number(row.n);
-		if (index >= 0 && index < 24) {
-			stat.series[index] = Number(row.n);
+		if (h >= 0 && h < 24) {
+			stat.series[23 - h] = Number(row.n);
 		}
 	}
 

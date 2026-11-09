@@ -1,12 +1,29 @@
 import { describe, expect, test } from "bun:test";
-import {
-	commentRows,
-	pendingCheckIsStale,
-	supersededBy,
-	toForgeAction,
-} from "./pr-surface.ts";
+import { actionCommentMarker } from "@tripwire/contracts";
+import { pendingCheckIsStale, supersededBy } from "@tripwire/utils";
+import { commentRows, toForgeAction } from "./pr-surface.ts";
+import { actionPayload } from "./run-workflows.ts";
 
 describe("toForgeAction — request-review", () => {
+	test("GitCafe string identities reach the forge without mutable-handle substitution", () => {
+		expect(
+			toForgeAction(
+				{
+					kind: "request-review",
+					payload: {
+						reviewers: [{ id: "act_stable-reviewer", login: "renamed_handle" }],
+					},
+				},
+				"boring/scratch",
+				1,
+				"stamp",
+			),
+		).toMatchObject({
+			reviewers: [],
+			reviewerIds: ["act_stable-reviewer"],
+			teamReviewers: [],
+		});
+	});
 	test("carries the recorded people and teams onto the forge action", () => {
 		expect(
 			toForgeAction(
@@ -48,26 +65,26 @@ describe("toForgeAction — request-review", () => {
 		).toMatchObject({ reviewers: ["octocat", "hubot"], teamReviewers: [] });
 	});
 
-	test("a row recorded before targets existed maps to empty lists", () => {
-		expect(
+	test("a row without review targets cannot execute", () => {
+		expect(() =>
 			toForgeAction(
 				{ kind: "request-review", payload: { nodeId: "w:review" } },
 				"a/b",
 				7,
 				"stamp",
 			),
-		).toMatchObject({ reviewers: [], teamReviewers: [] });
+		).toThrow();
 	});
 
-	test("a malformed payload maps to empty lists, never a bad request", () => {
-		expect(
+	test("malformed review targets cannot execute", () => {
+		expect(() =>
 			toForgeAction(
 				{ kind: "request-review", payload: { reviewers: ["bad name"] } },
 				"a/b",
 				7,
 				"stamp",
 			),
-		).toMatchObject({ reviewers: [], teamReviewers: [] });
+		).toThrow();
 	});
 });
 
@@ -181,6 +198,42 @@ describe("commentRows: one row per comment plan", () => {
 	});
 });
 
+describe("toForgeAction: delivery kinds never become a forge block", () => {
+	test("a webhook row throws instead of falling through to block", () => {
+		expect(() =>
+			toForgeAction(
+				{ kind: "webhook", payload: { url: "https://hook.example/x" } },
+				"a/b",
+				7,
+				"Blocked. See the comment.",
+			),
+		).toThrow();
+	});
+
+	test("a discord row throws instead of falling through to block", () => {
+		expect(() =>
+			toForgeAction(
+				{ kind: "discord", payload: { url: "https://discord.example/x" } },
+				"a/b",
+				7,
+				"Blocked. See the comment.",
+			),
+		).toThrow();
+	});
+
+	test("a discord row throws even with a live review id", () => {
+		expect(() =>
+			toForgeAction(
+				{ kind: "discord", payload: { url: "https://discord.example/x" } },
+				"a/b",
+				7,
+				"Blocked. See the comment.",
+				"rev-91",
+			),
+		).toThrow();
+	});
+});
+
 describe("toForgeAction: lock and close never become a block", () => {
 	test("lock carries its reason", () => {
 		expect(
@@ -194,12 +247,28 @@ describe("toForgeAction: lock and close never become a block", () => {
 		).toEqual({ kind: "lock", repoFullName: "a/b", number: 7, reason: "spam" });
 	});
 
-	test("lock with no or a bad reason locks without one", () => {
-		for (const payload of [{ nodeId: "w:l" }, { reason: "boring" }]) {
-			expect(
-				toForgeAction({ kind: "lock", payload }, "a/b", 7, "x", "91"),
-			).toEqual({ kind: "lock", repoFullName: "a/b", number: 7 });
-		}
+	test("lock without a reason locks without one", () => {
+		expect(
+			toForgeAction(
+				{ kind: "lock", payload: { nodeId: "w:l" } },
+				"a/b",
+				7,
+				"x",
+				"91",
+			),
+		).toEqual({ kind: "lock", repoFullName: "a/b", number: 7 });
+	});
+
+	test("lock with an invalid reason cannot execute", () => {
+		expect(() =>
+			toForgeAction(
+				{ kind: "lock", payload: { reason: "boring" } },
+				"a/b",
+				7,
+				"x",
+				"91",
+			),
+		).toThrow();
 	});
 
 	test("close", () => {
@@ -289,5 +358,40 @@ describe("pendingCheckIsStale", () => {
 				"sha-b",
 			),
 		).toBe(false);
+	});
+});
+
+describe("actionPayload", () => {
+	test("post-comment markers use the original node identity and override supplied metadata", () => {
+		const action = {
+			nodeId: "message",
+			action: "post-comment",
+			params: { message: "hello", marker: "untrusted", nodeId: "untrusted" },
+		};
+		const payload = actionPayload(action, "workflow", "run");
+		expect(payload).toEqual({
+			message: "hello",
+			nodeId: "workflow:message",
+			marker: actionCommentMarker({
+				workflowId: "workflow",
+				nodeId: "message",
+				runId: "run",
+			}),
+		});
+		expect(action.params).toEqual({
+			message: "hello",
+			marker: "untrusted",
+			nodeId: "untrusted",
+		});
+	});
+
+	test("other actions preserve their params without adding a comment marker", () => {
+		expect(
+			actionPayload(
+				{ nodeId: "label", action: "label", params: { labels: ["triage"] } },
+				"workflow",
+				"run",
+			),
+		).toEqual({ nodeId: "workflow:label", labels: ["triage"] });
 	});
 });

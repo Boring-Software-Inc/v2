@@ -1,10 +1,10 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
-import { Alert, AlertTitle } from "#/components/glaze/ui/alert";
-import { Button } from "#/components/glaze/ui/button";
-import { toast } from "#/components/glaze/ui/toast";
 import { InvitePageSkeleton } from "#/components/organizations/invite-page-skeleton";
+import { Alert, AlertTitle } from "#/design-system/ui/alert";
+import { Button } from "#/design-system/ui/button";
+import { toast } from "#/design-system/ui/toast";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
 import { redeemOrgInvite } from "#/lib/org.functions";
 
@@ -108,15 +108,12 @@ export function InvitePage() {
 	);
 }
 
-const INVALID_COPY: Record<
-	"not-found" | "revoked" | "expired" | "exhausted",
-	string
-> = {
+const INVALID_COPY = {
 	"not-found": "This invite link does not work",
 	revoked: "An admin withdrew this invite",
 	expired: "This invite has expired",
 	exhausted: "This invite has no uses left",
-};
+} satisfies Record<"not-found" | "revoked" | "expired" | "exhausted", string>;
 
 function InviteCopy({ title, body }: { title: string; body: string }) {
 	return (

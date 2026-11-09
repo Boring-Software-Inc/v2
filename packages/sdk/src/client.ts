@@ -144,7 +144,7 @@ const NUMBER_TYPE: SignalValueType<number, "number"> = { kind: "number" };
 const SCAN_MATCHES_TYPE: SignalValueType<readonly ScanMatch[], "scanMatches"> =
 	{ kind: "scanMatches" };
 
-function bindSignal(signal: AnySignal): Record<string, unknown> {
+function bindSignal(signal: AnySignal) {
 	const base = {
 		ref: { id: signal.id as SignalId },
 		valueType: signal.type,
@@ -178,7 +178,7 @@ function bindSignal(signal: AnySignal): Record<string, unknown> {
 	if (signal.type.kind === "textMap") {
 		return {
 			...base,
-			scan(patterns: readonly ScanPattern[]): Record<string, unknown> {
+			scan(patterns: readonly ScanPattern[]) {
 				return {
 					ref: {
 						id: signal.id as SignalId,
@@ -195,7 +195,7 @@ function bindSignal(signal: AnySignal): Record<string, unknown> {
 	}
 	return {
 		...base,
-		last(window: WindowSpec): Record<string, unknown> {
+		last(window: WindowSpec) {
 			const history = signal.history;
 			if (history === undefined || windowMs(window) > windowMs(history)) {
 				throw new Error(
@@ -220,8 +220,8 @@ function bindSignal(signal: AnySignal): Record<string, unknown> {
 	};
 }
 
-function buildSignals(produces: Record<string, unknown>) {
-	const out: Record<string, Record<string, unknown>> = {};
+function buildSignals(produces: AnyForgeDefinition["produces"]) {
+	const out: Record<string, Record<string, ReturnType<typeof bindSignal>>> = {};
 	const tree = signalTree as Record<string, Record<string, AnySignal>>;
 	for (const [scope, group] of Object.entries(tree)) {
 		out[scope] = {};

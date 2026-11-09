@@ -1,12 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import type { AiReviewOutput } from "@tripwire/contracts";
+import type { AiReviewResponse } from "../../context.ts";
 import { evaluateRule } from "../define.ts";
-import { fixtureContext } from "../test-context.ts";
-import { aiReview, aiReviewV2 } from "./rule.ts";
+import { fixtureContext, fixtureContributor } from "../test-context.ts";
+import { aiReview, aiReviewV2, aiReviewV3 } from "./rule.ts";
 
 const CONFIG = { model: "claude-fable-5", maxSteps: 12 };
 
-function mockGenerate(output: unknown, trace: unknown = { tokens: 42 }) {
+function mockGenerate(
+	output: AiReviewOutput,
+	trace: AiReviewResponse["trace"] = { tokens: 42 },
+) {
 	const calls: { instructions: string; prompt: string }[] = [];
 	const generate = (req: { instructions: string; prompt: string }) => {
 		calls.push(req);
@@ -22,6 +26,68 @@ const PASS_OUTPUT: AiReviewOutput = {
 	findings: [],
 };
 
+for (const rule of [aiReviewV3]) {
+	test(`AI review @${rule.version} skips explicitly unavailable patches without changing its prompt`, async () => {
+		const { generate, calls } = mockGenerate(PASS_OUTPUT);
+		const ctx = await fixtureContext({
+			generate,
+			diff: [
+				{
+					path: "omitted.txt",
+					status: null,
+					additions: null,
+					deletions: null,
+					patchUnavailable: "omitted",
+				},
+			],
+		});
+		const result = await evaluateRule(rule, ctx, CONFIG);
+		expect(result.status).toBe("skipped");
+		expect(calls).toHaveLength(0);
+	});
+}
+
+for (const rule of [aiReview, aiReviewV2]) {
+	test(`stored AI review @${rule.version} retains its omitted-patch behavior`, async () => {
+		const { generate, calls } = mockGenerate(PASS_OUTPUT);
+		const result = await evaluateRule(
+			rule,
+			await fixtureContext({
+				generate,
+				diff: [
+					{
+						path: "omitted.txt",
+						status: null,
+						additions: null,
+						deletions: null,
+						patchUnavailable: "omitted",
+					},
+				],
+			}),
+			CONFIG,
+		);
+		expect(result.status).toBe("evaluated");
+		expect(result.passed).toBe(true);
+		expect(calls).toHaveLength(1);
+	});
+}
+
+test("AI review @3 retains @2 prompt bytes when patches are available", async () => {
+	const old = mockGenerate(PASS_OUTPUT);
+	const current = mockGenerate(PASS_OUTPUT);
+	await evaluateRule(
+		aiReviewV2,
+		await fixtureContext({ generate: old.generate }),
+		CONFIG,
+	);
+	await evaluateRule(
+		aiReviewV3,
+		await fixtureContext({ generate: current.generate }),
+		CONFIG,
+	);
+	expect(current.calls).toEqual(old.calls);
+});
+
 describe("ai-review@1", () => {
 	test("pass verdict ⇒ passed, evidence carries output + trace", async () => {
 		const { generate, calls } = mockGenerate(PASS_OUTPUT);
@@ -29,14 +95,32 @@ describe("ai-review@1", () => {
 		const result = await evaluateRule(aiReview, ctx, CONFIG);
 		expect(result.status).toBe("evaluated");
 		expect(result.passed).toBe(true);
-		const evidence = result.evidence as {
-			output: AiReviewOutput;
-			trace: { tokens: number };
-		};
-		expect(evidence.output.verdict).toBe("pass");
-		expect(evidence.trace.tokens).toBe(42);
+		expect(result.evidence).toEqual({
+			output: PASS_OUTPUT,
+			trace: { tokens: 42 },
+		});
 		expect(calls[0]?.instructions).toContain("submit_review");
 		expect(calls[0]?.prompt).toContain("Codertocat/Hello-World");
+	});
+
+	test.each(
+		[null, "raw trace", ["tool call"], { raw: undefined }].map((trace) => ({
+			trace,
+		})),
+	)("injected trace %p is retained without normalization", async ({
+		trace,
+	}) => {
+		const { generate } = mockGenerate(PASS_OUTPUT, trace);
+		const result = await evaluateRule(
+			aiReview,
+			await fixtureContext({ generate }),
+			CONFIG,
+		);
+		expect(result.status).toBe("evaluated");
+		expect(result.evidence).toEqual({
+			output: PASS_OUTPUT,
+			trace,
+		});
 	});
 
 	test("block verdict ⇒ failed with findings in evidence", async () => {
@@ -145,6 +229,43 @@ describe("ai-review@1", () => {
 });
 
 describe("ai-review@1 hardening (unit 4)", () => {
+	test.each([
+		aiReview,
+		aiReviewV2,
+	])("unavailable contributor facts are explicit in the prompt for @$version", async (rule) => {
+		const { generate, calls } = mockGenerate(PASS_OUTPUT);
+		const result = await evaluateRule(
+			rule,
+			await fixtureContext({
+				generate,
+				contributor: fixtureContributor({
+					createdAt: null,
+					mergedInRepo: null,
+				}),
+			}),
+			CONFIG,
+		);
+		expect(result.status).toBe("evaluated");
+		expect(calls[0]?.prompt).toContain(
+			"not exposed by github — do not treat as suspicious",
+		);
+		expect(calls[0]?.prompt).toContain("unknown merged here");
+		expect(calls[0]?.prompt).not.toContain("0 merged here");
+	});
+
+	test("available contributor facts keep their actual prompt values", async () => {
+		const { generate, calls } = mockGenerate(PASS_OUTPUT);
+		const contributor = fixtureContributor({ mergedInRepo: 0 });
+		await evaluateRule(
+			aiReviewV2,
+			await fixtureContext({ generate, contributor }),
+			CONFIG,
+		);
+		expect(calls[0]?.prompt).toContain("2020-01-01T00:00:00.000Z");
+		expect(calls[0]?.prompt).toContain("0 merged here");
+		expect(calls[0]?.prompt).not.toContain("unavailable;");
+	});
+
 	test("instructions passed to generate carry the trust + truncation rules", async () => {
 		const { generate, calls } = mockGenerate(PASS_OUTPUT);
 		await evaluateRule(aiReview, await fixtureContext({ generate }), CONFIG);

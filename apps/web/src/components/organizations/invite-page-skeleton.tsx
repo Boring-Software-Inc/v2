@@ -1,5 +1,5 @@
 import { TripwireLogo } from "#/components/common/tripwire-logo";
-import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
+import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 
 export function InvitePageSkeleton() {
 	return (

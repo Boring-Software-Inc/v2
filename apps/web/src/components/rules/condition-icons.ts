@@ -60,7 +60,7 @@ import {
 	UserList,
 	Verified,
 	Waiting,
-} from "#/components/glaze/icon";
+} from "#/design-system/icon";
 
 export const CONDITION_GROUP_ICON = {
 	"The account": UserAvatar,
@@ -72,7 +72,7 @@ export const CONDITION_GROUP_ICON = {
 	"The comment": Comment,
 } satisfies Record<CustomSignalDisplay["group"], GlazeIcon>;
 
-export const CONDITION_ICON: Record<string, GlazeIcon> = {
+export const CONDITION_ICON = {
 	"contributor.accountAge": Waiting,
 	"contributor.followers": Members,
 	"contributor.following": UserFocus,
@@ -125,8 +125,12 @@ export const CONDITION_ICON: Record<string, GlazeIcon> = {
 	"pr.conventionalCommits": Rules,
 	"pr.maxCommitMessageLength": Ruler,
 	"comment.body": CommentText,
-};
+} satisfies Record<CustomSignalDisplay["id"], GlazeIcon>;
+
+const CONDITION_ICONS_BY_ID = new Map(Object.entries(CONDITION_ICON));
 
 export function conditionIcon(signal: CustomSignalDisplay): GlazeIcon {
-	return CONDITION_ICON[signal.id] ?? CONDITION_GROUP_ICON[signal.group];
+	return (
+		CONDITION_ICONS_BY_ID.get(signal.id) ?? CONDITION_GROUP_ICON[signal.group]
+	);
 }

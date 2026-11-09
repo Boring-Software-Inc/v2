@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
-import { External, Icon } from "#/components/glaze/icon";
-import { Button, buttonVariants } from "#/components/glaze/ui/button";
+import { OrgAvatar } from "#/components/organizations/org-avatar";
+import { External, Icon } from "#/design-system/icon";
+import { Button, buttonVariants } from "#/design-system/ui/button";
 import {
 	Dialog,
 	DialogAction,
@@ -14,7 +15,7 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "#/components/glaze/ui/dialog";
+} from "#/design-system/ui/dialog";
 import {
 	Item,
 	ItemActions,
@@ -23,9 +24,9 @@ import {
 	ItemGroup,
 	ItemMedia,
 	ItemTitle,
-} from "#/components/glaze/ui/item";
-import { SkeletonSwap, SkeletonText } from "#/components/glaze/ui/skeleton";
-import { Status, type StatusValue } from "#/components/glaze/ui/status";
+} from "#/design-system/ui/item";
+import { SkeletonSwap, SkeletonText } from "#/design-system/ui/skeleton";
+import { Status, type StatusValue } from "#/design-system/ui/status";
 import {
 	Step,
 	StepIndicator,
@@ -34,8 +35,7 @@ import {
 	StepText,
 	StepTitle,
 	StepTrigger,
-} from "#/components/glaze/ui/steps";
-import { OrgAvatar } from "#/components/organizations/org-avatar";
+} from "#/design-system/ui/steps";
 import {
 	type AccountDeletionView,
 	deleteMyAccount,

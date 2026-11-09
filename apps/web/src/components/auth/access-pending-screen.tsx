@@ -1,8 +1,8 @@
 import type { AccessStatus } from "@tripwire/contracts";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
-import { Avatar } from "#/components/glaze/ui/avatar";
-import { Button } from "#/components/glaze/ui/button";
-import { authClient } from "#/lib/auth-client";
+import { Avatar } from "#/design-system/ui/avatar";
+import { Button } from "#/design-system/ui/button";
+import { useSignOut } from "#/hooks/use-sign-out";
 
 /**
  * Minimal full-screen waitlist / access-status screen. Shared by the `/queue`
@@ -24,20 +24,21 @@ export function AccessPendingScreen({
 	onCheck?: () => void;
 	checking?: boolean;
 }) {
+	const signOut = useSignOut();
 	const rejected = status === "rejected";
 
 	return (
-		<div className="flex min-h-dvh w-full items-center justify-center bg-page px-4 py-10">
-			<div className="flex w-full max-w-sm flex-col items-center gap-6 text-center">
-				<TripwireLogo className="text-text-1" size={28} />
+		<div data-layout-role="access-pending-shell">
+			<div data-layout-role="access-pending-content">
+				<TripwireLogo className="access-pending-logo" size={28} />
 
-				<div className="flex flex-col gap-2">
-					<h1 className="type-title">
+				<div data-layout-role="access-pending-message">
+					<h1>
 						{rejected
 							? "Your access request was declined"
 							: "You're on the waitlist"}
 					</h1>
-					<p className="type-body text-text-2">
+					<p>
 						{rejected
 							? "Tripwire is in a closed beta with limited places. We are letting more people in over time, so check back later."
 							: "Your request to join the closed beta is in. We review each request by hand and email you when you are approved."}
@@ -57,7 +58,7 @@ export function AccessPendingScreen({
 					</Button>
 				) : null}
 
-				<div className="flex items-center gap-2 type-body-sm text-text-2">
+				<div data-layout-role="access-pending-account">
 					{email ? (
 						<>
 							<Avatar
@@ -66,11 +67,11 @@ export function AccessPendingScreen({
 								size="sm"
 								src={image ?? undefined}
 							/>
-							<span className="min-w-0 truncate">{email}</span>
+							<span>{email}</span>
 						</>
 					) : null}
 					<Button
-						onClick={() => authClient.signOut()}
+						onClick={() => signOut.mutate()}
 						size="sm"
 						type="button"
 						variant="ghost"

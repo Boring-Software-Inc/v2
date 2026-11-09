@@ -1,11 +1,12 @@
 import { Button as InlineTrigger } from "@base-ui/react/button";
 import {
 	formatParamValue,
+	type JsonValue,
 	type RuleParam,
 	ruleUiSchema,
 } from "@tripwire/contracts";
 import { Fragment, type ReactNode, useState } from "react";
-import { cn } from "#/lib/glaze/utils";
+import { cn } from "#/design-system/lib/utils";
 import { ParamEditor } from "./param-editor";
 import { ParamValue } from "./param-value";
 
@@ -37,9 +38,9 @@ export function ParamSentence({
 	className,
 }: {
 	ruleId: string;
-	config: unknown;
+	config: JsonValue;
 	canEdit: boolean;
-	onSaveParam: (key: string, value: unknown) => void;
+	onSaveParam: (key: string, value: JsonValue) => void;
 	className?: string;
 }) {
 	const ui = ruleUiSchema(ruleId);
@@ -47,9 +48,10 @@ export function ParamSentence({
 	if (!ui || ui.params.length === 0) {
 		return null;
 	}
-	const cfg = (
-		typeof config === "object" && config !== null ? config : {}
-	) as Record<string, unknown>;
+	const cfg =
+		config === null || Array.isArray(config) || Object(config) !== config
+			? {}
+			: (config as Record<string, JsonValue>);
 	const byKey = new Map(ui.params.map((p) => [p.key, p] as const));
 
 	const renderValue = (param: RuleParam): ReactNode => {

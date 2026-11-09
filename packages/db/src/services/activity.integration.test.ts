@@ -1,5 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { activityFeedSchema, DEFAULT_WORKFLOW } from "@tripwire/contracts";
+import {
+	activityFeedSchema,
+	DEFAULT_WORKFLOW,
+	normalizedEventSchema,
+} from "@tripwire/contracts";
+import { sql } from "drizzle-orm";
 import {
 	applyMigrations,
 	createDb,
@@ -119,7 +124,7 @@ describe("listActivity — events joined to runs", () => {
 		]);
 
 		const page = await listActivity(db, {});
-		const row = page.items.find((i) => i.event.id === "evt-run");
+		const row = page.items.find((i) => i.eventId === "evt-run");
 		expect(row?.run?.verdict).toBe("block");
 		expect(row?.run?.status).toBe("completed");
 		expect(row?.run?.reason).toBe("found 2 crypto addresses in DONATE.md");
@@ -130,7 +135,7 @@ describe("listActivity — events joined to runs", () => {
 		await seedEvent("evt-none", "push");
 		const row = await getActivityForEvent(db, "evt-none");
 		expect(row?.run).toBeNull();
-		expect(row?.event.id).toBe("evt-none");
+		expect(row?.event?.id).toBe("evt-none");
 	});
 
 	test("getActivityForEvent returns null for an unknown event", async () => {
@@ -185,7 +190,7 @@ describe("listActivityFeed — grouped by change request", () => {
 
 	async function seedGrouped(
 		id: string,
-		normalized: Record<string, unknown>,
+		normalized: ReturnType<typeof changeRequest | typeof push>,
 		opts: { subjectNumber: number | null; repoFullName: string | null },
 	): Promise<void> {
 		await db.insert(events).values({
@@ -229,7 +234,9 @@ describe("listActivityFeed — grouped by change request", () => {
 			verdict: "block",
 			triggeredBy: "admin-1",
 		});
-		const feed = await listActivityFeed(db, { repoFullName: "acme/y" });
+		const feed = await listActivityFeed(db, {
+			repo: { forge: "github", fullName: "acme/y" },
+		});
 		const group = feed.items.find(
 			(i) => i.type === "group" && i.group.subjectNumber === 42,
 		);
@@ -297,7 +304,7 @@ describe("listActivityFeed — grouped by change request", () => {
 		});
 
 		const feed = await listActivityFeed(db, {
-			repoFullName: "acme/y",
+			repo: { forge: "github", fullName: "acme/y" },
 			limit: 50,
 		});
 
@@ -314,15 +321,220 @@ describe("listActivityFeed — grouped by change request", () => {
 		expect(group.group.currentVerdict).toBe("block");
 		expect(group.group.eventCount).toBe(2);
 		// The timestamp is a real ISO string, not a Date coerced to "[object …]".
-		expect(typeof group.group.latestActivityAt).toBe("string");
+		expect(group.group.latestActivityAt).toBeString();
 		expect(Number.isNaN(Date.parse(group.group.latestActivityAt))).toBe(false);
 		const reason = group.group.timeline.find((t) => t.run)?.run?.reason;
 		expect(reason).toBe("your account is 2 days old");
 
 		// The repo-scoped standalone (subject_number IS NULL) push is present.
 		const standalone = feed.items.find(
-			(i) => i.type === "event" && i.entry.event.kind === "push",
+			(i) => i.type === "event" && i.entry.event?.kind === "push",
 		);
 		expect(standalone).toBeDefined();
 	});
+});
+
+describe("invalid persisted historical activity", () => {
+	test("mixed malformed rows remain visible and never poison valid history or nested extras", async () => {
+		const malformed = [
+			null,
+			false,
+			0,
+			"historical",
+			[],
+			{ kind: "push" },
+			{ kind: "change-request.opened", actor: null },
+		];
+		for (const [index, normalized] of malformed.entries()) {
+			const id = `history-invalid-${index}`;
+			await db.insert(events).values({
+				id,
+				deliveryId: id,
+				rawKind: "pull_request",
+				raw: {},
+				kind: "change-request.opened",
+				repoFullName: "history/mixed",
+				subjectNumber: 91,
+				normalized: normalized === null ? sql`'null'::jsonb` : normalized,
+				normalizedAt: new Date(),
+				receivedAt: new Date(`2026-07-12T00:00:0${index}.000Z`),
+			});
+			const row = await getActivityForEvent(db, id);
+			expect(row).toMatchObject({
+				eventId: id,
+				event: null,
+				unavailableReason: "Historical event data is unavailable",
+				run: null,
+			});
+		}
+		const fixture = normalizedEventSchema.parse(
+			await Bun.file(
+				new URL(
+					"../../../core/fixtures/change-request.opened.event.json",
+					import.meta.url,
+				),
+			).json(),
+		);
+		const normalized = {
+			...fixture,
+			id: "history-valid",
+			extra: [null, { kept: true }],
+			actor: { ...fixture.actor, extra: { kept: "nested" } },
+		};
+		await db.insert(events).values({
+			id: normalized.id,
+			deliveryId: normalized.id,
+			rawKind: "pull_request",
+			raw: {},
+			kind: normalized.kind,
+			repoFullName: "history/mixed",
+			subjectNumber: 91,
+			normalized,
+			normalizedAt: new Date(),
+			receivedAt: new Date("2026-07-12T00:00:07.000Z"),
+		});
+		expect((await getActivityForEvent(db, normalized.id))?.event).toEqual(
+			normalized,
+		);
+		const page = await listActivity(db, { limit: 100 });
+		expect(
+			page.items.filter((entry) => entry.eventId.startsWith("history-invalid-"))
+				.length,
+		).toBe(malformed.length);
+		const feed = activityFeedSchema.parse(
+			await listActivityFeed(db, {
+				repo: { forge: "github", fullName: "history/mixed" },
+			}),
+		);
+		const item = feed.items[0];
+		expect(item?.type).toBe("group");
+		if (item?.type !== "group") throw new Error("expected historical group");
+		expect(item.group.eventCount).toBe(8);
+		expect(item.group.timeline.map((entry) => entry.eventId)).toEqual([
+			...malformed.map((_, index) => `history-invalid-${index}`),
+			normalized.id,
+		]);
+		expect(
+			item.group.timeline.filter((entry) => entry.event === null),
+		).toHaveLength(7);
+		expect(item.group.timeline.at(-1)?.event).toEqual(normalized);
+		expect(item.group.actor.login).toBe(fixture.actor.login);
+		expect(item.group.latestActivityAt).toBe("2026-07-12T00:00:07.000Z");
+	});
+});
+
+test("unavailable event bodies preserve real run summaries, with valid body kind taking precedence", async () => {
+	const cases = [
+		{
+			id: "history-real-block",
+			columnKind: "change-request.opened",
+			normalized: { kind: "push" },
+			run: true,
+			verdict: "block",
+		},
+		{
+			id: "history-no-run",
+			columnKind: "change-request.opened",
+			normalized: { kind: "push" },
+			run: false,
+			verdict: null,
+		},
+		{
+			id: "history-unknown-kind",
+			columnKind: "unknown-history",
+			normalized: { kind: "push" },
+			run: true,
+			verdict: null,
+		},
+		{
+			id: "history-valid-push",
+			columnKind: "change-request.opened",
+			normalized: NORMALIZED("history-valid-push", "push"),
+			run: true,
+			verdict: null,
+		},
+	];
+	for (const [index, entry] of cases.entries()) {
+		const subjectNumber = index + 100;
+		await db.insert(events).values({
+			id: entry.id,
+			deliveryId: entry.id,
+			rawKind: "pull_request",
+			raw: {},
+			kind: entry.columnKind,
+			repoFullName: "history/verdict",
+			subjectNumber,
+			normalized: entry.normalized,
+			normalizedAt: new Date(),
+		});
+		const runId = entry.run
+			? await createRun(db, {
+					eventId: entry.id,
+					repoFullName: "history/verdict",
+					subjectNumber,
+					headSha: "head",
+					snapshot: [DEFAULT_WORKFLOW],
+					status: "completed",
+					verdict: "block",
+				})
+			: null;
+		const feed = await listActivityFeed(db, {
+			repo: { forge: "github", fullName: "history/verdict" },
+		});
+		const item = feed.items.find(
+			(item) =>
+				item.type === "group" && item.group.subjectNumber === subjectNumber,
+		);
+		if (item?.type !== "group") throw new Error("expected historical group");
+		expect(item.group.currentVerdict).toBe(entry.verdict);
+		expect(item.group.currentRunId).toBe(entry.verdict ? runId : null);
+		expect(item.group.timeline[0]?.run?.runId ?? null).toBe(runId);
+		if (entry.id !== "history-valid-push")
+			expect(item.group.timeline[0]).toMatchObject({
+				event: null,
+				unavailableReason: "Historical event data is unavailable",
+			});
+		else expect(item.group.timeline[0]?.event?.kind).toBe("push");
+	}
+});
+
+test("an unavailable historical header uses only a validated verdict title", async () => {
+	const cases = [
+		{
+			kind: "change-request.opened",
+			title: "original title",
+			expected: "original title",
+		},
+		{ kind: "change-request.opened", title: 23, expected: "#201" },
+		{ kind: "push", title: "unrelated extra", expected: "#202" },
+	];
+	for (const [index, entry] of cases.entries()) {
+		const id = `history-title-${index}`;
+		await db.insert(events).values({
+			id,
+			deliveryId: id,
+			rawKind: "pull_request",
+			raw: {},
+			kind: entry.kind,
+			repoFullName: "history/titles",
+			subjectNumber: 200 + index,
+			normalized: { kind: entry.kind, changeRequest: { title: entry.title } },
+			normalizedAt: new Date(),
+		});
+		const feed = await listActivityFeed(db, {
+			repo: { forge: "github", fullName: "history/titles" },
+		});
+		const item = feed.items.find(
+			(item) =>
+				item.type === "group" && item.group.subjectNumber === 200 + index,
+		);
+		if (item?.type !== "group") throw new Error("expected historical group");
+		expect(item.group.title).toBe(entry.expected);
+		expect(item.group.timeline[0]).toMatchObject({
+			event: null,
+			unavailableReason: "Historical event data is unavailable",
+			run: null,
+		});
+		expect(item.group.url).toBeNull();
+	}
 });

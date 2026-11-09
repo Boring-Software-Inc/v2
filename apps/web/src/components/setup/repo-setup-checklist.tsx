@@ -1,16 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { Button } from "#/components/glaze/ui/button";
-import {
-	Card,
-	CardAction,
-	CardDescription,
-	CardFooter,
-	CardHeader,
-	CardMeta,
-	CardTitle,
-} from "#/components/glaze/ui/card";
-import { StatusMark } from "#/components/glaze/ui/status";
+import { GitCafeMirrorNotice } from "#/components/forges/gitcafe-mirror-notice";
 import { RulePacks } from "#/components/rules/rule-packs";
 import { AgentSetupCard } from "#/components/setup/agent-setup-card";
 import {
@@ -23,9 +13,20 @@ import {
 	useSetupInstallRules,
 	useTakeOver,
 } from "#/components/setup/use-repo-setup";
+import { cn } from "#/design-system/lib/utils";
+import { Button } from "#/design-system/ui/button";
+import {
+	Card,
+	CardAction,
+	CardDescription,
+	CardFooter,
+	CardHeader,
+	CardMeta,
+	CardTitle,
+} from "#/design-system/ui/card";
+import { StatusMark } from "#/design-system/ui/status";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { useTimezones } from "#/hooks/use-timezones";
-import { cn } from "#/lib/glaze/utils";
 import {
 	agentActivity,
 	formatStepTime,
@@ -129,6 +130,7 @@ function RulesStep({
 	});
 	return (
 		<RulePacks
+			forge={state.forge}
 			canEdit={canEdit}
 			heading={false}
 			onInstall={install}
@@ -145,7 +147,7 @@ function currentAction(
 ): ReactNode {
 	switch (step.key) {
 		case "install":
-			return <InstallAction org={props.org} />;
+			return <InstallAction org={props.org} forge={props.state.forge} />;
 		case "rules":
 			return <RulesStep {...props} />;
 		case "check":
@@ -191,7 +193,7 @@ function AgentChecklist({ org, repo, state, progress }: ChecklistProps) {
 	if (!agent) {
 		return null;
 	}
-	const activity = agentActivity(agent);
+	const activity = agentActivity(agent, state.forge);
 	const line = activity?.line ?? null;
 	return (
 		<>
@@ -253,9 +255,14 @@ function AgentChecklist({ org, repo, state, progress }: ChecklistProps) {
 }
 
 export function RepoSetupChecklist(props: ChecklistProps) {
-	return props.state.agent ? (
-		<AgentChecklist {...props} />
-	) : (
-		<ManualChecklist {...props} />
+	return (
+		<>
+			{props.state.agent ? (
+				<AgentChecklist {...props} />
+			) : (
+				<ManualChecklist {...props} />
+			)}
+			{props.state.forge === "gitcafe" ? <GitCafeMirrorNotice /> : null}
+		</>
 	);
 }

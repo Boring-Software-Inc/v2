@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { fieldIssueSentence } from "./issue-copy.ts";
-import { RULE_CATALOG } from "./rules.ts";
+import { HISTORICAL_RULE_CONFIG_SCHEMAS, RULE_CATALOG } from "./rules.ts";
 import {
 	ACTION_CATALOG,
 	GATE_CATALOG,
+	gitCafeReviewerRefSchema,
 	isRemovedAction,
 	isScheduleTrigger,
 	type JsonValue,
@@ -834,9 +835,17 @@ function checkScheduleActions(ctx: LintContext): Finding[] {
 
 function catalogEntry(ctx: LintContext, ref: string) {
 	const [ruleId, version] = ref.split("@");
-	return ctx.catalog.find(
+	const exact = ctx.catalog.find(
 		(entry) => entry.ruleId === ruleId && entry.version === Number(version),
 	);
+	if (exact) return exact;
+	const configSchema = Object.entries(HISTORICAL_RULE_CONFIG_SCHEMAS).find(
+		([key]) => key === ref,
+	)?.[1];
+	const current = ctx.catalog.find((entry) => entry.ruleId === ruleId);
+	return configSchema && current
+		? { ...current, version: Number(version), configSchema }
+		: undefined;
 }
 
 function checkUnknownRules(ctx: LintContext): Finding[] {
@@ -966,7 +975,11 @@ function checkStaleReviewers(ctx: LintContext): Finding[] {
 			return [];
 		}
 		return parsed.data.reviewers
-			.filter((chosen) => !synced.some((known) => sameReviewer(known, chosen)))
+			.filter(
+				(chosen) =>
+					!gitCafeReviewerRefSchema.safeParse(chosen).success &&
+					!synced.some((known) => sameReviewer(known, chosen)),
+			)
 			.map((reviewer) => ({
 				nodeId: node.id,
 				message: `Remove ${reviewer.login}. They can no longer review this repo.`,
@@ -1092,6 +1105,7 @@ function lintParsed(
 		: results;
 }
 
+const rawWorkflowEnvelopeSchema = z.looseObject({});
 const rawGraphSchema = z.object({
 	nodes: z.array(
 		z.looseObject({
@@ -1151,7 +1165,7 @@ export interface LintReport {
 }
 
 export function lintWorkflowReport(
-	definition: WorkflowDefinition,
+	definition: Parameters<typeof workflowDefinitionSchema.safeParse>[0],
 	options: LintOptions = {},
 ): LintReport {
 	const catalog = options.catalog ?? RULE_CATALOG;
@@ -1175,12 +1189,16 @@ export function lintWorkflowReport(
 	const silent = rawNodes.filter(
 		(node) => node.type === "trigger" && node.kinds?.length === 0,
 	);
-	const patched = workflowDefinitionSchema.safeParse({
-		...definition,
-		nodes: rawNodes.map((node) =>
-			silent.includes(node) ? { ...node, kinds: ["push"] } : node,
-		),
-	});
+	const envelope = rawWorkflowEnvelopeSchema.safeParse(definition);
+	const patched =
+		envelope.success && raw.success
+			? workflowDefinitionSchema.safeParse({
+					...envelope.data,
+					nodes: rawNodes.map((node) =>
+						silent.includes(node) ? { ...node, kinds: ["push"] } : node,
+					),
+				})
+			: parsed;
 	if (silent.length === 0 || !patched.success) {
 		return {
 			definition: null,

@@ -1,0 +1,27 @@
+{
+	"id": "prcomment_01m62h49eheh6s2zdw8z2dxhh3",
+	"threadId": "prcomment_01m62h49eheh6s2zdw8z2dxhh3",
+	"reviewId": null,
+	"authorActorId": "act_01m08gfttrfw3ba3xpz50vq38h",
+	"author": {
+		"kind": "local",
+		"actorId": "act_01m08gfttrfw3ba3xpz50vq38h",
+		"handle": "grim",
+		"displayName": "grim",
+		"avatarUrl": null
+	},
+	"body": "Tripwire staging comment-event acceptance. <!-- tripwire-qa:01a18511-6d2c-7069-8a1d-d5f00dacee0b -->",
+	"version": 0,
+	"createdAt": "2026-10-29T00:32:01.482Z",
+	"updatedAt": "2026-10-29T00:32:01.482Z",
+	"path": null,
+	"line": null,
+	"side": null,
+	"commitOid": null,
+	"startLine": null,
+	"startSide": null,
+	"providerAnchor": null,
+	"resolvedAt": null,
+	"hiddenAt": null,
+	"deletedAt": null
+}

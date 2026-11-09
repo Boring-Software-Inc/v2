@@ -1,12 +1,11 @@
-import {
-	DATABUDDY_WEBSITE_ID,
-	type FlagOverrideChoice,
-	type FlagSource,
-	type FlagSyncStatus,
+import type {
+	FlagOverrideChoice,
+	FlagSource,
+	FlagSyncStatus,
 } from "@tripwire/contracts";
 
-export function databuddyUserUrl(userId: string): string {
-	return `https://app.databuddy.cc/websites/${DATABUDDY_WEBSITE_ID}/users/${encodeURIComponent(userId)}`;
+export function databuddyUserUrl(userId: string, websiteId: string): string {
+	return `https://app.databuddy.cc/websites/${encodeURIComponent(websiteId)}/users/${encodeURIComponent(userId)}`;
 }
 
 export type SheetStep =
@@ -106,21 +105,7 @@ const SOURCE_LABELS = {
 	unknown: "Unknown",
 } satisfies Record<FlagSource, string>;
 
-export function flagSourceLabel(
-	source: FlagSource,
-	override: {
-		choice: FlagOverrideChoice;
-		syncStatus: FlagSyncStatus;
-	} | null = null,
-): string {
-	if (
-		source === "rule" &&
-		override?.choice !== undefined &&
-		override.choice !== "default" &&
-		override.syncStatus === "synced"
-	) {
-		return "Tripwire override";
-	}
+export function flagSourceLabel(source: FlagSource): string {
 	return SOURCE_LABELS[source];
 }
 

@@ -179,6 +179,9 @@ describe("each block type", () => {
 		expect(one({ id: "j", type: "help" })).toStartWith(
 			"<details><summary>How do I fix this?</summary>",
 		);
+		expect(
+			one({ id: "j", type: "help", content: "Try this instead." }),
+		).toContain("\n\nTry this instead.\n</details>");
 		expect(one({ id: "k", type: "gif", gif: GIF })).toBe(
 			`![door closing](${GIF.url})`,
 		);

@@ -3,6 +3,7 @@ import {
 	type AccessStatus,
 	type OrgRole,
 	orgRoleSchema,
+	staffBlocklistAdditionSchema,
 	staffReviewAccessInputSchema,
 	staffSetRerunExemptInputSchema,
 } from "@tripwire/contracts";
@@ -250,4 +251,21 @@ export const setUserRerunCooldownExempt = createServerFn({ method: "POST" })
 			});
 		}
 		return result;
+	});
+
+export const addSharedBlocklistAccount = createServerFn({ method: "POST" })
+	.middleware([
+		accessGuardMiddleware,
+		platformAdminMiddleware,
+		sameOriginMiddleware,
+	])
+	.inputValidator(staffBlocklistAdditionSchema)
+	.handler(async ({ data, context }) => {
+		if (context.staff.userId === "dev") {
+			return { status: "unavailable" } as const;
+		}
+		const { queueSharedBlocklistAddition } = await import(
+			"#/lib/server/staff-blocklist"
+		);
+		return queueSharedBlocklistAddition(data, context.staff.userId);
 	});

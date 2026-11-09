@@ -13,8 +13,18 @@ coverage/
 .demo/
 .tests/
 .turbo/
-/docs
+/docs/*
+!/docs/research/
+/docs/research/*
+!/docs/research/workflow-authoring-sdk-cli.md
+!/docs/releases/
 /repo_docs
+/plans/
+/PLAN.md
+/.design-system/*
+!/.design-system/design-system-lint-baseline.json
+/.ui-review/
+/.unipi/
 
 # local QA artifacts (screenshots, videos, db dumps) — never committed
 dogfood-output/

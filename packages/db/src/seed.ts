@@ -634,11 +634,7 @@ function takeSome<T>(arr: readonly T[], n: number, rng: SeedRng): T[] {
  * summary. Shared by the year-long story and single-run seeds so EVERY run
  * (incl. the public one) reads real, never the fallback.
  */
-export function ruleProjection(
-	ref: string,
-	failed: boolean,
-	rng: SeedRng,
-): { evidence: unknown; publicEvidence: unknown; summary: string | null } {
+export function ruleProjection(ref: string, failed: boolean, rng: SeedRng) {
 	const id = ref.split("@")[0];
 	if (id === "account-age") {
 		const age = failed ? rng.rint(0, 6) : rng.rint(30, 900);
@@ -874,7 +870,12 @@ export async function seedStory(
 		nodeId: string,
 		ref: string,
 		passed: boolean,
-		evidence: unknown,
+		evidence:
+			| ReturnType<typeof ruleProjection>["evidence"]
+			| {
+					output: AiReviewOutput;
+					trace: { findings: number };
+			  },
 		at: Date,
 		extra?: { publicEvidence?: unknown; summary?: string },
 	): StepInsert => {

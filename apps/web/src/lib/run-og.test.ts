@@ -61,6 +61,7 @@ const memberView: RunView = {
 	reviews: [],
 	previousRun: null,
 	nextRun: null,
+	relatedRuns: [],
 	backfill: false,
 	aiReviewNotRun: false,
 };

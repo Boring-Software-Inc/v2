@@ -1,6 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
+import type { ForgeId } from "@tripwire/contracts";
 import {
 	type Forge,
+	type ForgeAccountType,
 	forgeSchema,
 	INSTALL_ACCESS_CHECK_TTL_SECONDS,
 	type InstallStatus,
@@ -10,7 +12,17 @@ import {
 	suffixSlug,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
-import { and, eq, gt, inArray, isNull, lt, type SQL, sql } from "drizzle-orm";
+import {
+	and,
+	eq,
+	gt,
+	inArray,
+	isNull,
+	lt,
+	or,
+	type SQL,
+	sql,
+} from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "../client.ts";
 import { user } from "../schema/auth.ts";
@@ -24,6 +36,10 @@ import {
 import { repos, ruleConfigs, workflowDefinitions } from "../schema/repos.ts";
 import { promoteUserAccess } from "./access.ts";
 import { getFreshInstallAccessCheck } from "./installation-access.ts";
+import {
+	readObservedInstallationAccounts,
+	recordObservedInstallationAccount,
+} from "./installation-accounts.ts";
 import { runBearsVerdict } from "./runs.ts";
 
 /**
@@ -618,6 +634,21 @@ export async function linkOrgInstallation(
 	},
 ): Promise<{ claimed: boolean }> {
 	const forge = input.forge ?? "github";
+	if (forge === "gitcafe") return { claimed: false };
+	const observed =
+		forge === "github"
+			? (
+					await readObservedInstallationAccounts(db, forge, [
+						input.installationId,
+					])
+				).get(input.installationId)
+			: undefined;
+	const sameAccount =
+		input.accountLogin === undefined ||
+		observed?.account.toLowerCase() === input.accountLogin.toLowerCase();
+	const accountType =
+		input.accountType ?? (sameAccount ? observed?.accountType : undefined);
+	const accountLogin = input.accountLogin ?? observed?.account;
 	await db
 		.insert(organizationInstallations)
 		.values({
@@ -625,8 +656,8 @@ export async function linkOrgInstallation(
 			organizationId: input.orgId,
 			forge,
 			installationId: input.installationId,
-			accountType: input.accountType,
-			accountLogin: input.accountLogin,
+			accountType,
+			accountLogin,
 		})
 		.onConflictDoNothing({
 			target: [
@@ -646,6 +677,21 @@ export async function linkOrgInstallation(
 		.limit(1);
 	const claimed = owner[0]?.organizationId === input.orgId;
 	if (claimed) {
+		if (accountType !== undefined || accountLogin !== undefined) {
+			await db
+				.update(organizationInstallations)
+				.set({
+					accountType: sql`coalesce(${organizationInstallations.accountType}, ${accountType ?? null})`,
+					accountLogin: sql`coalesce(${organizationInstallations.accountLogin}, ${accountLogin ?? null})`,
+				})
+				.where(
+					and(
+						eq(organizationInstallations.forge, forge),
+						eq(organizationInstallations.installationId, input.installationId),
+						eq(organizationInstallations.organizationId, input.orgId),
+					),
+				);
+		}
 		await db
 			.update(repos)
 			.set({ orgId: input.orgId })
@@ -660,7 +706,7 @@ export async function linkOrgInstallation(
 }
 
 /**
- * Record webhook-observed account metadata on an already-claimed installation.
+ * Record verified account metadata independently, and update an existing claim.
  * Never creates a claim — an unclaimed GitHub-side install stays unclaimed
  * until a human binds it on the claim screen (§10: never auto-attach).
  */
@@ -669,18 +715,25 @@ export async function recordInstallationAccount(
 	input: {
 		installationId: string;
 		forge?: Forge;
-		accountType?: string;
+		accountType?: ForgeAccountType;
 		accountLogin?: string;
 	},
 ): Promise<void> {
 	if (!input.accountType && !input.accountLogin) {
 		return;
 	}
+	if ((input.forge ?? "github") === "github" && input.accountLogin) {
+		await recordObservedInstallationAccount(db, "github", {
+			externalId: input.installationId,
+			account: input.accountLogin,
+			accountType: input.accountType,
+		});
+	}
 	await db
 		.update(organizationInstallations)
 		.set({
-			...(input.accountType ? { accountType: input.accountType } : {}),
-			...(input.accountLogin ? { accountLogin: input.accountLogin } : {}),
+			accountType: input.accountType || undefined,
+			accountLogin: input.accountLogin || undefined,
 		})
 		.where(
 			and(
@@ -700,6 +753,7 @@ export async function moveInstallation(
 	input: { installationId: string; toOrgId: string; forge?: Forge },
 ): Promise<{ moved: boolean }> {
 	const forge = input.forge ?? "github";
+	if (forge === "gitcafe") return { moved: false };
 	return await db.transaction(async (tx) => {
 		const updated = await tx
 			.update(organizationInstallations)
@@ -817,13 +871,6 @@ function installationOwnedBy(
 			  AND c.installation_id = ${installationId}
 			  AND c.result = 'granted-admin'
 			  ${fresh}
-		))
-		OR (${forge} <> 'github' AND EXISTS (
-			SELECT 1
-			FROM account a
-			WHERE a.provider_id = ${forge}
-			  AND a.user_id = ${userId}
-			  AND a.account_id = ${installationId}
 		))
 	)`;
 }
@@ -959,6 +1006,7 @@ export async function resolveInstallStatus(
 	db: Db,
 	input: {
 		userId: string | null;
+		forge: Forge;
 		installationId: string;
 		stateOrgId: string | null;
 	},
@@ -973,11 +1021,12 @@ export async function resolveInstallStatus(
 		.where(
 			and(
 				eq(repos.installationId, input.installationId),
+				eq(repos.forge, input.forge),
 				isNull(repos.removedAt),
 			),
 		)
 		.groupBy(repos.owner, repos.forge);
-	const forge = repoRows[0]?.forge ?? "github";
+	const forge = input.forge;
 	const base = { installationId: input.installationId, forge };
 	const userId = input.userId;
 	if (!userId) {
@@ -993,6 +1042,9 @@ export async function resolveInstallStatus(
 		return owner
 			? { ...base, status: "claimed-by-your-org", orgSlug: owner.slug }
 			: { ...base, status: "not-yours", recoverable: false };
+	}
+	if (forge !== "github") {
+		return { ...base, status: "not-yours", recoverable: false };
 	}
 	const claimable = await userCanClaimInstallation(db, {
 		userId,
@@ -1034,11 +1086,13 @@ export async function resolveInstallStatus(
 	if (events.normalized) {
 		return { ...base, status: "not-yours", recoverable: check === null };
 	}
-	if (events.processing) {
-		return { ...base, status: "processing" };
-	}
 	if (result === "denied") {
 		return { ...base, status: "not-yours", recoverable: false };
+	}
+	if (events.processing) {
+		return result === "failed"
+			? { ...base, status: "unreadable" }
+			: { ...base, status: "processing" };
 	}
 	if (events.quarantined) {
 		return { ...base, status: "unreadable" };
@@ -1175,15 +1229,7 @@ const ORG_REPO_LITE = {
 	backfillDone: repos.backfillDone,
 } as const;
 
-/**
- * Every non-removed repo the org owns, ON A FORGE THIS BUILD SUPPORTS.
- *
- * The `forge` column is `$type<Forge>()` — a compile-time cast, not a runtime
- * check — so a row written while another forge was live would flow out of here
- * wearing a type it does not satisfy. Filtering in SQL keeps the cast honest and
- * matches `listOrgSwitcherRepos`: an unsupported repo has no adapter, no token
- * and no reads, so there is nothing truthful to show for it.
- */
+/** Connected repositories are visible independently of their evaluation capability. */
 export async function listOrgRepos(db: Db, orgId: string): Promise<RepoLite[]> {
 	return await db
 		.select(ORG_REPO_LITE)
@@ -1198,15 +1244,10 @@ export async function listOrgRepos(db: Db, orgId: string): Promise<RepoLite[]> {
 		.orderBy(repos.fullName);
 }
 
-/**
- * Resolve /:org/:repo — the repo NAME within the org. Ambiguity (two
- * installations granting same-named repos under different owners) picks the
- * most recently installed; the switcher always links canonical names so this
- * is a fallback, not the norm. Null ⇒ the route 404s.
- */
+/** Resolve a unique repo within an org; ambiguous names require owner/forge qualification. */
 export async function getOrgRepo(
 	db: Db,
-	input: { orgId: string; repoName: string },
+	input: { orgId: string; repoName: string; owner?: string; forge?: ForgeId },
 ): Promise<RepoLite | null> {
 	const rows = await db
 		.select(ORG_REPO_LITE)
@@ -1215,12 +1256,26 @@ export async function getOrgRepo(
 			and(
 				eq(repos.orgId, input.orgId),
 				eq(repos.name, input.repoName),
+				input.owner
+					? or(
+							and(
+								eq(repos.forge, "github"),
+								sql`lower(${repos.owner}) = lower(${input.owner})`,
+							),
+							and(
+								sql`${repos.forge} <> 'github'`,
+								eq(repos.owner, input.owner),
+							),
+						)
+					: undefined,
+				input.forge ? sql`${repos.forge} = ${input.forge}` : undefined,
+				inArray(repos.forge, [...forgeSchema.options]),
 				isNull(repos.removedAt),
 			),
 		)
 		.orderBy(sql`${repos.installedAt} DESC`)
-		.limit(1);
-	return rows[0] ?? null;
+		.limit(2);
+	return rows.length === 1 ? (rows[0] ?? null) : null;
 }
 
 /** The org switcher list — repos with triage signal, org-scoped. */
@@ -1255,36 +1310,26 @@ export async function listOrgSwitcherRepos(
 		       act.last AS "lastActivityAt"
 		FROM repos r
 		LEFT JOIN (
-		  SELECT run.repo_full_name AS repo, count(*) AS n
+		  SELECT e.forge, run.repo_full_name AS repo, count(*) AS n
 		  FROM moderation_items mi JOIN runs run ON run.id = mi.run_id
-		  WHERE mi.status = 'pending' GROUP BY run.repo_full_name
-		) pend ON pend.repo = r.full_name
+          JOIN events e ON e.id = run.event_id
+		  WHERE mi.status = 'pending' GROUP BY e.forge, run.repo_full_name
+		) pend ON pend.forge = r.forge AND pend.repo = r.full_name
 		LEFT JOIN (
-		  SELECT repo_full_name AS repo, count(*) AS n FROM runs
+		  SELECT e.forge, runs.repo_full_name AS repo, count(*) AS n FROM runs
+          JOIN events e ON e.id = runs.event_id
 		  WHERE verdict IN ('block', 'changes_required', 'close') AND created_at > now() - make_interval(hours => 24)
 		    AND ${runBearsVerdict}
-		  GROUP BY repo_full_name
-		) blk ON blk.repo = r.full_name
+		  GROUP BY e.forge, runs.repo_full_name
+        ) blk ON blk.forge = r.forge AND blk.repo = r.full_name
 		LEFT JOIN (
-		  SELECT repo_full_name AS repo, max(received_at) AS last
-		  FROM events GROUP BY repo_full_name
-		) act ON act.repo = r.full_name
+		  SELECT forge, repo_full_name AS repo, max(received_at) AS last
+		  FROM events GROUP BY forge, repo_full_name
+		) act ON act.forge = r.forge AND act.repo = r.full_name
 		WHERE r.removed_at IS NULL AND r.org_id = ${orgId}
 		ORDER BY act.last DESC NULLS LAST, r.full_name
 	`);
-	// SKIP rows whose forge this build does not support — do not coerce, do not
-	// throw. Raw SQL hands back untyped text, and a database outlives any one
-	// build: rows written while another forge was live (a branch, a rollback, a
-	// half-finished migration) are still sitting there.
-	//
-	// Coercing to github was the original bug — it mislabels someone else's repo.
-	// Throwing was the overcorrection — one unsupported row took down every
-	// org-scoped page. Skipping is the honest third option: without an adapter
-	// there is no token, no reads and no actions for that repo, so listing it
-	// would promise something this build cannot do.
-	//
-	// The parse below is what performs that skip: `forgeSchema` refuses an
-	// unknown forge, the row fails, and it never reaches the page.
+	/** Unknown stored forge IDs are excluded without relabeling their repositories. */
 	return result.rows.flatMap((row) => {
 		const parsed = switcherRepoRowSchema.safeParse(row);
 		return parsed.success ? [parsed.data] : [];

@@ -1,5 +1,8 @@
+import type { Forge, RepoIdentity } from "@tripwire/contracts";
 import {
 	forgeSchema,
+	GITCAFE_RESUME_RUN_QUEUE,
+	ingestForgeSchema,
 	RUN_RESULT_LABELS,
 	renderClosedBeforeReviewComment,
 	VERDICT_EVENT_KINDS,
@@ -20,8 +23,10 @@ import type { PgBoss } from "pg-boss";
 import { z } from "zod";
 import type { Db } from "../client.ts";
 import { RESUME_RUN_QUEUE } from "../queue.ts";
+import { events } from "../schema/events.ts";
 import { moderationItems } from "../schema/moderation.ts";
 import { runActions, runs } from "../schema/runs.ts";
+import type { DbLike } from "./access.ts";
 import { getRepoByFullName, getResponseConfig } from "./repos.ts";
 import {
 	getLatestRunIdForChangeRequest,
@@ -66,12 +71,10 @@ export const PENDING_ITEMS_LIMIT = 200;
 /** The moderation queue, SCOPED to the user's active repo (§10). */
 export async function listPendingItems(
 	db: Db,
-	repoFullName: string | readonly string[],
+	repos: readonly RepoIdentity[],
 	limit = PENDING_ITEMS_LIMIT,
 ) {
-	const names =
-		typeof repoFullName === "string" ? [repoFullName] : repoFullName;
-	if (names.length === 0) {
+	if (repos.length === 0) {
 		return [];
 	}
 	const result = await db.execute(sql`
@@ -90,10 +93,13 @@ export async function listPendingItems(
 			ORDER BY s.started_at ASC LIMIT 1
 		) fr ON true
 		WHERE m.status = 'pending'
-		  AND r.repo_full_name IN (${sql.join(
-				names.map((name) => sql`${name}`),
-				sql`, `,
-			)})
+          AND (${sql.join(
+						repos.map(
+							(repo) =>
+								sql`(e.forge = ${repo.forge} AND r.repo_full_name = ${repo.fullName})`,
+						),
+						sql` OR `,
+					)})
 		ORDER BY m.id DESC
 		LIMIT ${limit}
 	`);
@@ -131,8 +137,16 @@ export async function decideModerationItem(
 		);
 		const decided = updated.rowCount === 1;
 		if (decided) {
+			const [scope] = (
+				await client.query<{ forge: Forge }>(
+					"SELECT e.forge FROM moderation_items m JOIN runs r ON r.id = m.run_id JOIN events e ON e.id = r.event_id WHERE m.id = $1",
+					[input.itemId],
+				)
+			).rows;
 			await boss.insert(
-				RESUME_RUN_QUEUE,
+				scope?.forge === "gitcafe"
+					? GITCAFE_RESUME_RUN_QUEUE
+					: RESUME_RUN_QUEUE,
 				[{ data: { itemId: input.itemId, decision: input.decision } }],
 				{
 					db: {
@@ -189,7 +203,7 @@ const waitingRunRow = z.object({
 	repoFullName: z.string(),
 	subjectNumber: z.number(),
 	actorLogin: z.string().nullable(),
-	forge: forgeSchema.catch("github"),
+	forge: forgeSchema,
 });
 
 const postedCheckSchema = z.object({
@@ -213,6 +227,7 @@ export type ClosedCommentPayload = {
 };
 
 export interface ClosedReview {
+	forge: Forge;
 	runId: string;
 	repoFullName: string;
 	subjectNumber: number;
@@ -227,34 +242,39 @@ export interface ClosedReview {
 export async function closeReviewsForChangeRequest(
 	db: Db,
 	appUrl: string,
-	repoFullName: string,
+	repo: RepoIdentity,
 	subjectNumber: number,
 ): Promise<ClosedReview[]> {
 	return await closeWaitingRuns(
 		db,
 		appUrl,
-		sql`r.repo_full_name = ${repoFullName} AND r.subject_number = ${subjectNumber}`,
+		sql`e.forge = ${repo.forge} AND r.repo_full_name = ${repo.fullName} AND r.subject_number = ${subjectNumber}`,
+		forgeSchema.safeParse(repo.forge).success
+			? forgeSchema.parse(repo.forge)
+			: undefined,
 	);
 }
 
 export async function closeReviewsOfClosedChangeRequests(
 	db: Db,
 	appUrl: string,
+	forge?: Forge,
 ): Promise<ClosedReview[]> {
 	return await closeWaitingRuns(
 		db,
 		appUrl,
-		sql`r.subject_number IS NOT NULL AND (
-			SELECT e.kind FROM events e
-			WHERE e.repo_full_name = r.repo_full_name
-			  AND e.subject_number = r.subject_number
-			  AND e.kind IN (${sql.join(
+		sql`${forge === undefined ? sql`true` : sql`e.forge = ${forge}`} AND r.subject_number IS NOT NULL AND (
+			SELECT lifecycle.kind FROM events lifecycle
+            WHERE lifecycle.forge = e.forge AND lifecycle.repo_full_name = r.repo_full_name
+			  AND lifecycle.subject_number = r.subject_number
+			  AND lifecycle.kind IN (${sql.join(
 					VERDICT_EVENT_KINDS.map((kind) => sql`${kind}`),
 					sql`, `,
 				)})
-			ORDER BY e.received_at DESC, e.id DESC
+			ORDER BY lifecycle.received_at DESC, lifecycle.id DESC
 			LIMIT 1
 		) = 'change-request.closed'`,
+		forge,
 	);
 }
 
@@ -262,6 +282,18 @@ async function closeWaitingRuns(
 	db: Db,
 	appUrl: string,
 	scope: SQL,
+	forge?: Forge,
+): Promise<ClosedReview[]> {
+	return db.transaction((tx) =>
+		closeWaitingRunsInTransaction(tx, appUrl, scope, forge),
+	);
+}
+
+async function closeWaitingRunsInTransaction(
+	db: DbLike,
+	appUrl: string,
+	scope: SQL,
+	forge?: Forge,
 ): Promise<ClosedReview[]> {
 	const waiting = z.array(waitingRunRow).parse(
 		(
@@ -271,7 +303,14 @@ async function closeWaitingRuns(
 				       e.actor_login AS "actorLogin", e.forge
 				FROM runs r
 				LEFT JOIN events e ON e.id = r.event_id
-				WHERE r.status = 'paused' AND ${scope}
+				WHERE r.status = 'paused' AND e.forge IN (${sql.join(
+					(forge === undefined
+						? ingestForgeSchema.options.filter((item) => item !== "gitcafe")
+						: [forge]
+					).map((item) => sql`${item}`),
+					sql`, `,
+				)}) AND ${scope}
+				ORDER BY r.id FOR UPDATE OF r
 			`)
 		).rows,
 	);
@@ -326,7 +365,7 @@ async function closeWaitingRuns(
 		}
 		const latestId = await getLatestRunIdForChangeRequest(
 			db,
-			run.repoFullName,
+			{ forge: run.forge, fullName: run.repoFullName },
 			run.subjectNumber,
 		);
 		const check = await closedCheck(db, run, latestId);
@@ -339,6 +378,7 @@ async function closeWaitingRuns(
 		);
 		out.push({
 			runId: run.id,
+			forge: run.forge,
 			repoFullName: run.repoFullName,
 			subjectNumber: run.subjectNumber,
 			check,
@@ -351,7 +391,7 @@ async function closeWaitingRuns(
 const SURFACE_KINDS = ["comment", "delete-comment", "set-check"];
 
 async function retireWaitingSurfaces(
-	db: Db,
+	db: DbLike,
 	runId: string,
 	keep: readonly string[],
 ): Promise<void> {
@@ -369,7 +409,7 @@ async function retireWaitingSurfaces(
 }
 
 async function closedComment(
-	db: Db,
+	db: DbLike,
 	appUrl: string,
 	run: z.infer<typeof waitingRunRow>,
 ): Promise<ClosedReview["comment"]> {
@@ -397,7 +437,7 @@ async function closedComment(
 }
 
 async function closedCheck(
-	db: Db,
+	db: DbLike,
 	run: z.infer<typeof waitingRunRow>,
 	latestId: string | null,
 ): Promise<ClosedReview["check"]> {
@@ -464,7 +504,7 @@ export async function decideRepoModerationItem(
 	db: Db,
 	queue: { pool: Pool; boss: PgBoss } | null,
 	input: {
-		repoFullName: string;
+		repo: RepoIdentity;
 		itemId: string;
 		decision: ModerationDecision;
 		decidedBy: string | null;
@@ -474,10 +514,12 @@ export async function decideRepoModerationItem(
 		.select({ id: moderationItems.id })
 		.from(moderationItems)
 		.innerJoin(runs, eq(runs.id, moderationItems.runId))
+		.innerJoin(events, eq(events.id, runs.eventId))
 		.where(
 			and(
 				eq(moderationItems.id, input.itemId),
-				eq(runs.repoFullName, input.repoFullName),
+				eq(runs.repoFullName, input.repo.fullName),
+				sql`${events.forge} = ${input.repo.forge}`,
 			),
 		)
 		.limit(1);

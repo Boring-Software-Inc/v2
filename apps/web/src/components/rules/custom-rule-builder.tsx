@@ -14,8 +14,13 @@ import {
 	PickerRow,
 	PickerRowAction,
 } from "#/components/common/grouped-picker";
-import { Check, type GlazeIcon, Icon } from "#/components/glaze/icon";
-import { ComboboxField } from "#/components/glaze/ui/combobox";
+import {
+	CONDITION_GROUP_ICON,
+	conditionIcon,
+} from "#/components/rules/condition-icons";
+import { Check, type GlazeIcon, Icon } from "#/design-system/icon";
+import { cn } from "#/design-system/lib/utils";
+import { ComboboxField } from "#/design-system/ui/combobox";
 import {
 	Dialog,
 	DialogAction,
@@ -25,25 +30,20 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "#/components/glaze/ui/dialog";
+} from "#/design-system/ui/dialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "#/components/glaze/ui/dropdown-menu";
-import { Field, FieldLabel } from "#/components/glaze/ui/field";
-import { Input } from "#/components/glaze/ui/input";
+} from "#/design-system/ui/dropdown-menu";
+import { Field, FieldLabel } from "#/design-system/ui/field";
+import { Input } from "#/design-system/ui/input";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "#/components/glaze/ui/popover";
-import {
-	CONDITION_GROUP_ICON,
-	conditionIcon,
-} from "#/components/rules/condition-icons";
-import { cn } from "#/lib/glaze/utils";
+} from "#/design-system/ui/popover";
 import { repoSuggestionsQueryOptions } from "#/lib/rules.query";
 
 /**
@@ -183,7 +183,7 @@ function parseValue(
 		: null;
 }
 
-function draftFromState(state: BuilderState): CustomRuleDraft | null {
+export function draftFromState(state: BuilderState): CustomRuleDraft | null {
 	const comparison = parseValue(state);
 	if (!state.signal || !comparison) {
 		return null;
@@ -195,17 +195,13 @@ function draftFromState(state: BuilderState): CustomRuleDraft | null {
 	if (needsWindow && !state.window) {
 		return null;
 	}
+	const when: CustomRuleDefinition["when"] = { id: state.signal.id };
+	if (needsWindow && state.window) {
+		when.transform = { kind: "lastCount", window: state.window };
+	}
 	return {
 		name: state.name.trim(),
-		definition: {
-			when: {
-				id: state.signal.id,
-				...(needsWindow && state.window
-					? { transform: { kind: "lastCount", window: state.window } }
-					: {}),
-			},
-			comparison,
-		} as CustomRuleDefinition,
+		definition: { when, comparison },
 	};
 }
 
@@ -458,8 +454,7 @@ export function CustomRuleBuilder({
 											? `${state.value}${isPercentSignal ? "%" : ""}`
 											: "value"
 									}
-								>
-									{(close) => (
+									render={(close) => (
 										<>
 											<Input
 												aria-invalid={valueMessage !== null}
@@ -486,7 +481,7 @@ export function CustomRuleBuilder({
 											) : null}
 										</>
 									)}
-								</ValueWord>
+								/>
 							)
 						) : null}
 					</div>
@@ -641,11 +636,14 @@ function ValueWord({
 	label,
 	empty,
 	children,
+	render,
 }: {
 	label: string;
 	empty: boolean;
-	children: ReactNode | ((close: () => void) => ReactNode);
-}) {
+} & (
+	| { children: ReactNode; render?: never }
+	| { children?: never; render: (close: () => void) => ReactNode }
+)) {
 	const [open, setOpen] = useState(false);
 	const close = () => setOpen(false);
 	return (
@@ -658,7 +656,7 @@ function ValueWord({
 						close();
 					}}
 				>
-					{typeof children === "function" ? children(close) : children}
+					{render ? render(close) : children}
 				</form>
 			</PopoverContent>
 		</Popover>

@@ -52,6 +52,16 @@ describe("a workflow's key in tripwire.ts", () => {
 		expect(keys.get("b")).toBe("old-name-2");
 	});
 
+	test("a collision suffix fits the SDK's 48-character slug limit", () => {
+		const name = "a".repeat(48);
+		const keys = workflowKeys([
+			{ id: "a", name },
+			{ id: "b", name },
+		]);
+		expect(keys.get("a")).toBe(name);
+		expect(keys.get("b")).toBe(`${"a".repeat(46)}-2`);
+	});
+
 	test("a kept key that two ids claim goes to the first", () => {
 		const keys = workflowKeys(
 			[

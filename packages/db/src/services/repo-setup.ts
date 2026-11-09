@@ -3,6 +3,7 @@ import { generateId } from "@tripwire/utils";
 import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "../client.ts";
+import { events } from "../schema/events.ts";
 import {
 	organizationInstallations,
 	organizationResponseDefaults,
@@ -121,9 +122,11 @@ export async function getRepoSetupFacts(
 		db
 			.select({ number: runs.subjectNumber, at: runs.createdAt })
 			.from(runs)
+			.innerJoin(events, eq(events.id, runs.eventId))
 			.where(
 				and(
 					eq(runs.repoFullName, repo.fullName),
+					eq(events.forge, repo.forge),
 					isNotNull(runs.subjectNumber),
 					isNull(runs.subjectKind),
 					eq(runs.backfill, false),

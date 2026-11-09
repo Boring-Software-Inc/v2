@@ -1,0 +1,35 @@
+{
+	"id": "evt_01m612sxpnen8rx593kqb9fxf7",
+	"git": {
+		"source": "push",
+		"refUpdates": [
+			{
+				"ref": "refs/heads/tripwire-qa/adapter-20261028",
+				"forced": false,
+				"created": true,
+				"deleted": false,
+				"afterOid": "2bff66c45a9e2241fc2482bc63bac23281a7377f",
+				"beforeOid": null
+			}
+		],
+		"operationId": "push_1e51218be67033ea39fe2a24d88a85c1e60f02f870f01e3a37e9b79c147500fa",
+		"refUpdatesCount": 1,
+		"authorityOrdinal": 2,
+		"refUpdatesTruncated": false
+	},
+	"type": "git.push",
+	"actor": {
+		"id": "act_01m08gfttrfw3ba3xpz50vq38h"
+	},
+	"version": "1",
+	"createdAt": "2026-10-28T11:02:27.294Z",
+	"repository": {
+		"id": "repo_01m608d2crfqzt2vc8akngqsc0",
+		"name": "scratch",
+		"orgId": "org_01m601398vfdztay7fh3vaenpn",
+		"owner": "boring"
+	},
+	"installation": {
+		"id": "ins_01m60zef0bfzzbx050fw4rymhr"
+	}
+}

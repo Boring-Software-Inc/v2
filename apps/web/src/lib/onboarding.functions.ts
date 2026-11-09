@@ -3,8 +3,10 @@ import type { InstallUrlState } from "@tripwire/auth/install-state";
 import {
 	type ClaimableInstallStatus,
 	type Forge,
+	type ForgeId,
 	forgeConnectable,
 	type InstallStatus,
+	recoverInstallationInputSchema,
 } from "@tripwire/contracts";
 import type {
 	ApprovedInstallRequest,
@@ -65,7 +67,7 @@ export const getOrgInstallUrl = createServerFn({ method: "GET" })
 		accessGuardMiddleware,
 		orgPermissionMiddleware("connections:manage"),
 	])
-	.inputValidator((input: { org: string; forge?: Forge }) => input)
+	.inputValidator((input: { org: string; forge?: ForgeId }) => input)
 	.handler(async ({ context, data }): Promise<InstallUrlState> => {
 		const org = (context as { org: OrgWithRole }).org;
 		const { requireSession } = await import("#/lib/server/session");
@@ -73,13 +75,23 @@ export const getOrgInstallUrl = createServerFn({ method: "GET" })
 		if (!userId) {
 			return { status: "no-session" };
 		}
+		const { readProviderAvailability } = await import(
+			"#/lib/server/provider-availability"
+		);
+		const forge = data.forge ?? "github";
+		if (!(await readProviderAvailability()).available.includes(forge))
+			return { status: "not-configured" };
 		const { signInstallState } = await import("#/lib/server/install-state");
-		const state = signInstallState({ userId, orgId: org.id });
+		const hint = { userId, orgId: org.id };
+		const state = signInstallState(
+			forge === "gitcafe" ? { ...hint, forge: "gitcafe" } : hint,
+		);
 		const { installUrlFor } = await import("@tripwire/auth/install-state");
 		return installUrlFor(
 			data.forge ?? "github",
 			state,
 			process.env.GITHUB_APP_SLUG,
+			process.env.GITCAFE_APP_SLUG,
 		);
 	});
 
@@ -94,9 +106,11 @@ export const getInstallPreview = createServerFn({ method: "GET" })
 		const { verifyInstallState } = await import("#/lib/server/install-state");
 		const bound = data.state ? verifyInstallState(data.state) : null;
 		const status = await orgServices.resolveInstallStatus(getDb().db, {
+			forge: "github",
 			userId,
 			installationId: data.installationId,
-			stateOrgId: bound && bound.userId === userId ? bound.orgId : null,
+			stateOrgId:
+				bound && !bound.forge && bound.userId === userId ? bound.orgId : null,
 		});
 		if (forgeConnectable(status.forge)) {
 			return status;
@@ -111,7 +125,7 @@ export const getInstallPreview = createServerFn({ method: "GET" })
 
 export const recoverInstallation = createServerFn({ method: "POST" })
 	.middleware([accessGuardMiddleware])
-	.inputValidator((input: { installationId: string }) => input)
+	.inputValidator(recoverInstallationInputSchema)
 	.handler(async ({ data }): Promise<{ queued: boolean }> => {
 		const { requireSession } = await import("#/lib/server/session");
 		const userId = await requireSession();
@@ -119,25 +133,16 @@ export const recoverInstallation = createServerFn({ method: "POST" })
 			return { queued: false };
 		}
 		const { getBoss, getDb } = await import("#/lib/server/db");
-		const {
-			installationAccessServices,
-			RECOVER_INSTALLATION_QUEUE,
-			recoverInstallationOptions,
-		} = await import("@tripwire/db");
-		const job = { userId, installationId: data.installationId };
-		await installationAccessServices.recordInstallAccessCheck(getDb().db, {
-			userId,
-			forge: "github",
-			installationId: data.installationId,
-			result: "pending",
-		});
-		const boss = await getBoss();
-		await boss.send(
-			RECOVER_INSTALLATION_QUEUE,
-			job,
-			recoverInstallationOptions(job),
+		const { installationAccessServices } = await import("@tripwire/db");
+		const result = await installationAccessServices.requestInstallationRecovery(
+			getDb().db,
+			await getBoss(),
+			{ userId, installationId: data.installationId },
 		);
-		return { queued: true };
+		if (result === "rate-limited") {
+			throw new Error("Too many recovery attempts. Please try again later.");
+		}
+		return { queued: result === "queued" };
 	});
 
 /**

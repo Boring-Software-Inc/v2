@@ -77,7 +77,7 @@ export function PickOutline({
 	return (
 		<div
 			aria-hidden
-			className="pointer-events-none fixed top-(--pick-top) left-(--pick-left) z-(--z-overlay) h-(--pick-height) w-(--pick-width) rounded-(--pick-radius) focus-ring"
+			className="pointer-events-none fixed top-(--pick-top) left-(--pick-left) z-(--z-overlay) h-(--pick-height) w-(--pick-width) rounded-(--pick-radius) feedback-selection-outline"
 			data-feedback-chrome
 			data-screenshot-ignore
 			style={

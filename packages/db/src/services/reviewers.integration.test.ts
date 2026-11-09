@@ -13,7 +13,10 @@ import { repoReviewers, repos } from "../schema/repos.ts";
 import {
 	lastReviewerSync,
 	listRepoReviewers,
+	replaceGitCafeReviewerSuggestions,
 	replaceRepoReviewers,
+	reviewersNeedSync,
+	stampRepoReviewerSync,
 } from "./reviewers.ts";
 import {
 	createWorkflow,
@@ -62,6 +65,38 @@ const HUBOT = {
 };
 
 describe("repo reviewers", () => {
+	test("GitCafe cache preserves stable string IDs, empty syncs and other repositories", async () => {
+		const repoId = await newRepo();
+		await db
+			.update(repos)
+			.set({ forge: "gitcafe" })
+			.where(eq(repos.id, repoId));
+		const other = await newRepo();
+		await replaceRepoReviewers(db, other, [OCTOCAT]);
+		const person = {
+			id: "act_synthetic-stable",
+			login: "provider_handle",
+			avatarUrl: "",
+			permission: "review-candidate",
+		};
+		await replaceGitCafeReviewerSuggestions(db, repoId, [person, person]);
+		expect((await listRepoReviewers(db, repoId)).reviewers).toEqual([person]);
+		await replaceGitCafeReviewerSuggestions(db, repoId, [
+			{ ...person, login: "renamed_handle" },
+		]);
+		expect((await listRepoReviewers(db, repoId)).reviewers).toEqual([
+			{ ...person, login: "renamed_handle" },
+		]);
+		await expect(
+			replaceGitCafeReviewerSuggestions(db, repoId, [OCTOCAT]),
+		).rejects.toThrow();
+		expect((await listRepoReviewers(db, repoId)).reviewers).toHaveLength(1);
+		await replaceGitCafeReviewerSuggestions(db, repoId, []);
+		const empty = await listRepoReviewers(db, repoId);
+		expect(empty.reviewers).toEqual([]);
+		expect(empty.syncedAt).not.toBeNull();
+		expect((await listRepoReviewers(db, other)).reviewers).toEqual([OCTOCAT]);
+	});
 	test("an unsynced repo lists nothing and has no sync time", async () => {
 		const repoId = await newRepo();
 		expect(await listRepoReviewers(db, repoId)).toEqual({
@@ -139,6 +174,94 @@ describe("repo reviewers", () => {
 			.from(repoReviewers)
 			.where(eq(repoReviewers.repoId, repoId));
 		expect(left).toEqual([]);
+	});
+});
+
+describe("empty reviewer sync", () => {
+	test("an empty sync records the sync time and the throttle engages", async () => {
+		const repoId = await newRepo();
+		const at = new Date("2026-10-23T10:00:00Z");
+		await replaceRepoReviewers(db, repoId, [], at);
+		const list = await listRepoReviewers(db, repoId);
+		expect(list.reviewers).toEqual([]);
+		expect(list.syncedAt).not.toBeNull();
+		expect(list.syncedAt?.toISOString()).toBe(at.toISOString());
+		expect(
+			reviewersNeedSync(list.syncedAt, new Date("2026-10-23T10:30:00Z")),
+		).toBe(false);
+		expect(
+			reviewersNeedSync(list.syncedAt, new Date("2026-10-24T11:00:00Z")),
+		).toBe(true);
+		expect((await lastReviewerSync(db, repoId))?.toISOString()).toBe(
+			at.toISOString(),
+		);
+	});
+
+	test("two empty syncs a day apart both record their time", async () => {
+		const repoId = await newRepo();
+		const first = new Date("2026-10-23T10:00:00Z");
+		const second = new Date("2026-10-24T10:00:00Z");
+		await replaceRepoReviewers(db, repoId, [], first);
+		await replaceRepoReviewers(db, repoId, [], second);
+		const list = await listRepoReviewers(db, repoId);
+		expect(list.reviewers).toEqual([]);
+		expect(list.syncedAt?.toISOString()).toBe(second.toISOString());
+		expect(reviewersNeedSync(list.syncedAt, second)).toBe(false);
+	});
+
+	test("a non-empty sync after an empty one keeps the later stamp", async () => {
+		const repoId = await newRepo();
+		const emptyAt = new Date("2026-10-23T10:00:00Z");
+		const fullAt = new Date("2026-10-23T11:00:00Z");
+		await replaceRepoReviewers(db, repoId, [], emptyAt);
+		await replaceRepoReviewers(db, repoId, [OCTOCAT], fullAt);
+		const list = await listRepoReviewers(db, repoId);
+		expect(list.reviewers).toEqual([OCTOCAT]);
+		expect(list.syncedAt?.toISOString()).toBe(fullAt.toISOString());
+	});
+
+	test("an empty sync after a non-empty one updates the stamp", async () => {
+		const repoId = await newRepo();
+		const fullAt = new Date("2026-10-23T10:00:00Z");
+		const emptyAt = new Date("2026-10-23T11:00:00Z");
+		await replaceRepoReviewers(db, repoId, [OCTOCAT], fullAt);
+		await replaceRepoReviewers(db, repoId, [], emptyAt);
+		const list = await listRepoReviewers(db, repoId);
+		expect(list.reviewers).toEqual([]);
+		expect(list.syncedAt?.toISOString()).toBe(emptyAt.toISOString());
+	});
+
+	test("stampRepoReviewerSync records the time without touching rows", async () => {
+		const repoId = await newRepo();
+		const rowAt = new Date("2026-10-23T10:00:00Z");
+		await replaceRepoReviewers(db, repoId, [OCTOCAT], rowAt);
+		const before = await listRepoReviewers(db, repoId);
+		expect(before.reviewers).toEqual([OCTOCAT]);
+		const stampAt = new Date("2026-10-24T10:00:00Z");
+		await stampRepoReviewerSync(db, repoId, stampAt);
+		const after = await listRepoReviewers(db, repoId);
+		expect(after.reviewers).toEqual([OCTOCAT]);
+		expect(after.syncedAt?.toISOString()).toBe(stampAt.toISOString());
+	});
+
+	test("stampRepoReviewerSync on an unsynced repo makes it fresh", async () => {
+		const repoId = await newRepo();
+		const at = new Date("2026-10-24T10:00:00Z");
+		await stampRepoReviewerSync(db, repoId, at);
+		const list = await listRepoReviewers(db, repoId);
+		expect(list.reviewers).toEqual([]);
+		expect(list.syncedAt?.toISOString()).toBe(at.toISOString());
+		expect(
+			reviewersNeedSync(list.syncedAt, new Date("2026-10-24T10:30:00Z")),
+		).toBe(false);
+	});
+
+	test("deleting the repo deletes its sync stamp", async () => {
+		const repoId = await newRepo();
+		await stampRepoReviewerSync(db, repoId);
+		expect(await lastReviewerSync(db, repoId)).not.toBeNull();
+		await db.delete(repos).where(eq(repos.id, repoId));
+		expect(await lastReviewerSync(db, repoId)).toBeNull();
 	});
 });
 

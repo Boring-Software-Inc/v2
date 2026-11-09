@@ -2,7 +2,11 @@ import { describe, expect, test } from "bun:test";
 import {
 	creditRunwayMonths,
 	deriveUsageSource,
+	meteringEvidenceSchema,
 	PLANETSCALE_MONTHLY,
+	railwayPricesSchema,
+	railwayRatesMetadataSchema,
+	railwayServiceUsageSchema,
 } from "./economics.ts";
 
 /**
@@ -34,6 +38,100 @@ describe("deriveUsageSource", () => {
 	test("unknown or missing key is dev", () => {
 		expect(deriveUsageSource({ keyKind: "dev", isProdEnv: true })).toBe("dev");
 		expect(deriveUsageSource({ keyKind: null, isProdEnv: true })).toBe("dev");
+	});
+});
+
+describe("stored economics schemas", () => {
+	test("metering projects each optional field without erasing alternate SDK evidence", () => {
+		const parsed = meteringEvidenceSchema.parse({
+			evidence: {
+				trace: {
+					model: null,
+					costUsd: Infinity,
+					stepsUsed: "bad",
+					steps: [],
+					usage: {
+						input: "bad",
+						inputTokens: 0,
+						output: 341,
+						cached: null,
+						inputTokenDetails: { cacheReadTokens: "bad", cachedTokens: 1041 },
+					},
+				},
+			},
+		});
+		expect(parsed.evidence.trace).toEqual({
+			model: "unknown",
+			costUsd: null,
+			stepsUsed: null,
+			steps: [],
+			usage: {
+				input: null,
+				inputTokens: 0,
+				output: 341,
+				outputTokens: null,
+				cached: null,
+				inputTokenDetails: { cacheReadTokens: null, cachedTokens: 1041 },
+			},
+		});
+		for (const value of [
+			null,
+			[],
+			{},
+			{ evidence: { trace: { findings: 2 } } },
+			{ evidence: { trace: { usage: [] } } },
+		]) {
+			expect(meteringEvidenceSchema.safeParse(value).success).toBe(false);
+		}
+	});
+
+	test("Railway prices require finite numeric dictionaries, including a valid zero or empty baseline", () => {
+		expect(railwayPricesSchema.parse({ prices: {} })).toEqual({ prices: {} });
+		expect(railwayPricesSchema.parse({ prices: { cpu: 0 } })).toEqual({
+			prices: { cpu: 0 },
+		});
+		for (const prices of [
+			null,
+			[],
+			[0],
+			Array(2),
+			{ cpu: "0" },
+			{ cpu: {} },
+			{ cpu: NaN },
+			{ cpu: Infinity },
+			{ cpu: -Infinity },
+		]) {
+			expect(railwayPricesSchema.safeParse({ prices }).success).toBe(false);
+		}
+	});
+
+	test("Railway read quantities preserve historical Number conversion and independent metadata fallback", () => {
+		expect(
+			railwayServiceUsageSchema.parse({
+				name: "",
+				cpuUnits: "2.5",
+				memGbMin: false,
+				egressGb: [2],
+			}),
+		).toEqual({ name: "", cpuUnits: 2.5, memGbMin: 0, egressGb: 2 });
+		expect(railwayServiceUsageSchema.parse({})).toEqual({
+			name: null,
+			cpuUnits: 0,
+			memGbMin: 0,
+			egressGb: 0,
+		});
+		expect(
+			railwayServiceUsageSchema.parse({ cpuUnits: "bad" }).cpuUnits,
+		).toBeNaN();
+		expect(
+			railwayServiceUsageSchema.parse({ memGbMin: {} }).memGbMin,
+		).toBeNaN();
+		expect(
+			railwayRatesMetadataSchema.parse({ ratesDrift: "true", verifiedAt: "" }),
+		).toEqual({ ratesDrift: false, verifiedAt: "" });
+		expect(
+			railwayRatesMetadataSchema.parse({ ratesDrift: true, verifiedAt: 42 }),
+		).toEqual({ ratesDrift: true, verifiedAt: null });
 	});
 });
 

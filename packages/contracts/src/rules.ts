@@ -105,6 +105,15 @@ export const ruleResultSchema = z.object({
 });
 export type RuleResult = z.infer<typeof ruleResultSchema>;
 
+/** Public projectors accept object evidence without cloning or validating its fields. */
+export const ruleEvidenceObjectSchema = z.custom<object>(
+	(value) =>
+		Object(value) === value &&
+		!Array.isArray(value) &&
+		!z.function().safeParse(value).success,
+);
+export type RuleEvidenceObject = z.infer<typeof ruleEvidenceObjectSchema>;
+
 const stepRuleSchema = ruleResultSchema.pick({ ruleId: true });
 
 /**
@@ -154,6 +163,38 @@ export const minMergedPrsConfigSchemaV2 = z.object({
 		.default(1)
 		.describe("merges in this repo that exempt a proven local contributor"),
 });
+const explicitMergedPrsTrustSchema = z.object({
+	trustedAfter: minMergedPrsConfigSchemaV2.shape.trustedAfter.removeDefault(),
+});
+export const ownedRepoStarsConfigSchema = z.strictObject({
+	minStars: z.int().min(0).describe("Minimum stars per repository"),
+	min: z.int().min(1).describe("Minimum owned repositories"),
+});
+export const mergedPrRepoStarsConfigSchema = z.strictObject({
+	minRepoStars: z
+		.int()
+		.min(0)
+		.describe("Minimum stars per destination repository"),
+	min: z.int().min(1).describe("Minimum merged pull requests"),
+	repoOwnership: z
+		.enum(["any", "exclude-author"])
+		.describe("Destination repository ownership"),
+});
+
+export type StarredContributionQuery =
+	| ({ kind: "owned-repositories" } & z.infer<
+			typeof ownedRepoStarsConfigSchema
+	  >)
+	| ({ kind: "merged-pull-requests" } & z.infer<
+			typeof mergedPrRepoStarsConfigSchema
+	  >);
+
+export interface StarredContributionCount {
+	count: number;
+	/** False means the count is a lower bound, so it cannot prove failure. */
+	complete: boolean;
+}
+
 export const prRateLimitConfigSchema = z.object({
 	maxPerWindow: z.number().int().min(1),
 	windowHours: z.number().min(0.1).default(24),
@@ -216,11 +257,52 @@ export const RULE_CATALOG = [
 		/** §6 (b) — what @2 changed vs the pinned prior version; the Rules-page
 		 * "update available" note. Only bumped rules carry one. */
 		changeNote: "counts merges globally, not per-repo",
+		/**
+		 * §6 (b) — `trustedAfter` is the field @2 introduced; a config without
+		 * it was authored under @1 (where `min` meant merges in THIS repo, not
+		 * elsewhere). Such a config parses under the @2 schema only because
+		 * `trustedAfter` carries a Zod default — carrying it forward would
+		 * silently re-interpret the maintainer's tuned `min` on a different
+		 * signal and auto-create an exemption they never set. Hold for
+		 * re-confirmation instead.
+		 */
+		carriesForward: (config: JsonValue) =>
+			explicitMergedPrsTrustSchema.safeParse(config).success,
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Requires N merged change requests in other people's repos, as proof that someone else accepted their work.",
 		contributorLabel:
 			"you need merged change requests in other people's repositories first.",
+	},
+	{
+		ruleId: "owned-repo-stars",
+		forges: ["github"],
+		version: 1,
+		name: "Owned repositories by stars",
+		blurb:
+			"Counts public repositories the pull request author owns that meet a star threshold.",
+		configSchema: ownedRepoStarsConfigSchema,
+		defaultConfig: { minStars: 50_000, min: 1 },
+		optIn: true,
+		description:
+			"Require the pull request author to own public repositories with a minimum number of stars.",
+		contributorLabel:
+			"you need more public repositories that meet this project's star requirement.",
+	},
+	{
+		ruleId: "merged-pr-repo-stars",
+		forges: ["github"],
+		version: 1,
+		name: "Merged pull requests by repository stars",
+		blurb:
+			"Counts the author's merged pull requests in public repositories that meet a star threshold.",
+		configSchema: mergedPrRepoStarsConfigSchema,
+		defaultConfig: { minRepoStars: 50_000, min: 1, repoOwnership: "any" },
+		optIn: true,
+		description:
+			"Require prior merges in public repositories with a minimum number of stars. You can exclude the author's own repositories.",
+		contributorLabel:
+			"you need more merged pull requests in public repositories that meet this project's requirements.",
 	},
 	{
 		ruleId: "pr-rate-limit",
@@ -243,7 +325,7 @@ export const RULE_CATALOG = [
 		ruleId: "max-files-changed",
 		/** reads the diff; open-git exposes no files endpoint — see the forge-capability audit in
 		 * `core/src/rules/forge-support.test.ts`. */
-		forges: ["github"],
+		forges: ["github", "gitcafe"],
 		version: 1,
 		name: "Max files changed",
 		blurb: "caps the number of files a change request may touch.",
@@ -272,8 +354,10 @@ export const RULE_CATALOG = [
 		ruleId: "crypto-address",
 		/** reads the diff; open-git exposes no files endpoint — see the forge-capability audit in
 		 * `core/src/rules/forge-support.test.ts`. */
-		forges: ["github"],
-		version: 1,
+		forges: ["github", "gitcafe"],
+		version: 2,
+		changeNote:
+			"skips clean verdicts when patch evidence is explicitly unavailable",
 		name: "Crypto address",
 		blurb: "blocks cryptocurrency addresses in titles, comments, and diffs.",
 		configSchema: cryptoAddressConfigSchema,
@@ -294,7 +378,7 @@ export const RULE_CATALOG = [
 		ruleId: "honeypot",
 		/** reads the diff; open-git exposes no files endpoint — see the forge-capability audit in
 		 * `core/src/rules/forge-support.test.ts`. */
-		forges: ["github"],
+		forges: ["github", "gitcafe"],
 		version: 1,
 		name: "Honeypot paths",
 		blurb: "no legitimate change request touches these paths.",
@@ -312,7 +396,7 @@ export const RULE_CATALOG = [
 		ruleId: "profile-readme",
 		/** needs the contributor's profile text; open-git exposes no users endpoint — see the forge-capability audit in
 		 * `core/src/rules/forge-support.test.ts`. */
-		forges: ["github"],
+		forges: ["github", "gitcafe"],
 		version: 1,
 		name: "Profile README",
 		blurb:
@@ -329,17 +413,16 @@ export const RULE_CATALOG = [
 		ruleId: "ai-review",
 		/** reads the diff; open-git exposes no files endpoint — see the forge-capability audit in
 		 * `core/src/rules/forge-support.test.ts`. */
-		forges: ["github"],
-		// @2 — findings quote code in backticks. @1 stays registered for stored
-		// runs, but a repo enabling ai-review now pins the current version.
-		version: 2,
+		forges: ["github", "gitcafe"],
+		/** @3 requires available patches; stored @1 and @2 retain their semantics. */
+		version: 3,
 		name: "AI review",
 		blurb: "reads the change like a reviewer and flags slop.",
 		configSchema: aiReviewConfigSchema,
 		defaultConfig: { maxSteps: 12 },
 		optIn: true,
-		/** §6 (b) — what @2 changed vs the pinned prior version. */
-		changeNote: "findings must quote code",
+		/** §6 (b) — the current upgrade's behavior change. */
+		changeNote: "skips review when patch evidence is explicitly unavailable",
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description: "Reads the change like a reviewer and flags slop.",
 		contributorLabel: "this change request has problems a reviewer would flag.",
@@ -364,6 +447,18 @@ export const RULE_CATALOG = [
 	evidenceRedaction?: Partial<Record<RedactionItem, readonly string[]>>;
 	changeNote?: string;
 	/**
+	 * §6 (b) — for rules whose config SEMANTICS changed between versions, a
+	 * predicate that decides whether a stored config was authored under the
+	 * current version's shape (and so carries forward losslessly). Absent ⇒
+	 * schema-parse success alone is sufficient (the rule's config didn't
+	 * change meaning across versions, e.g. ai-review). Present ⇒ the config
+	 * must also match the current version's shape, not just parse under its
+	 * schema — a prior-version config that parses only because the new schema
+	 * fills new fields with Zod defaults is NOT lossless and must be held for
+	 * re-confirmation.
+	 */
+	carriesForward?: (config: JsonValue) => boolean;
+	/**
 	 * Forges this rule can run on. Absent ⇒ all of them. Present ⇒ the rule needs
 	 * something the other forges do not expose, and both the engine and the rules
 	 * page treat it as unusable there rather than quietly inert.
@@ -372,6 +467,13 @@ export const RULE_CATALOG = [
 }>;
 
 export type RuleCatalogEntry = (typeof RULE_CATALOG)[number];
+
+/** Frozen schemas keep saved workflow references valid after the current catalog advances. */
+export const HISTORICAL_RULE_CONFIG_SCHEMAS = {
+	"ai-review@1": aiReviewConfigSchema,
+	"ai-review@2": aiReviewConfigSchema,
+	"crypto-address@1": cryptoAddressConfigSchema,
+} satisfies Readonly<Record<string, z.ZodType>>;
 
 /**
  * Which forges a rule can actually run on. Absent ⇒ every forge — the common
@@ -386,7 +488,18 @@ export type RuleCatalogEntry = (typeof RULE_CATALOG)[number];
  * core: the engine reads it to skip with a named reason, the rules page reads it
  * to disable the card and say why.
  */
-export function ruleSupportsForge(ruleId: string, forge: ForgeId): boolean {
+export function ruleSupportsForge(
+	ruleId: string,
+	forge: ForgeId,
+	version?: number,
+): boolean {
+	if (
+		forge === "gitcafe" &&
+		version !== undefined &&
+		((ruleId === "ai-review" && version < 3) ||
+			(ruleId === "crypto-address" && version < 2))
+	)
+		return false;
 	const entry = RULE_CATALOG.find((rule) => rule.ruleId === ruleId) as
 		| { forges?: readonly string[] }
 		| undefined;
@@ -397,9 +510,23 @@ export function ruleSupportsForge(ruleId: string, forge: ForgeId): boolean {
 export function ruleForgeBlockReason(
 	ruleId: string,
 	forge: ForgeId,
+	version?: number,
 ): string | null {
-	if (ruleSupportsForge(ruleId, forge)) {
+	if (ruleSupportsForge(ruleId, forge, version)) {
 		return null;
+	}
+	if (forge === "gitcafe") {
+		if (
+			(ruleId === "ai-review" || ruleId === "crypto-address") &&
+			version !== undefined
+		)
+			return "Update this rule to its current version for GitCafe.";
+		if (ruleId === "account-age")
+			return "GitCafe does not expose account creation dates.";
+		if (ruleId === "min-merged-prs")
+			return "GitCafe does not expose complete contributor history across repositories.";
+		if (ruleId === "pr-rate-limit")
+			return "GitCafe does not expose complete recent history across repositories.";
 	}
 	return `This rule cannot run on ${FORGE_BY_ID[forge]?.label ?? forge}.`;
 }
@@ -563,6 +690,62 @@ export const RULE_PARAMS = {
 			},
 		],
 	},
+	"owned-repo-stars": {
+		sentences: [
+			"requires {min} owned public repositories with at least {minStars} each",
+		],
+		params: [
+			{
+				key: "min",
+				label: "Minimum owned repositories",
+				kind: "number",
+				int: true,
+				min: 1,
+				default: 1,
+			},
+			{
+				key: "minStars",
+				label: "Minimum stars per repository",
+				kind: "number",
+				int: true,
+				min: 0,
+				unit: "stars",
+				default: 50_000,
+			},
+		],
+	},
+	"merged-pr-repo-stars": {
+		sentences: [
+			"requires {min} merges in public repositories with at least {minRepoStars} each",
+			"destination repository ownership: {repoOwnership}",
+		],
+		params: [
+			{
+				key: "min",
+				label: "Minimum merged pull requests",
+				kind: "number",
+				int: true,
+				min: 1,
+				default: 1,
+			},
+			{
+				key: "minRepoStars",
+				label: "Minimum stars per destination repository",
+				kind: "number",
+				int: true,
+				min: 0,
+				unit: "stars",
+				default: 50_000,
+			},
+			{
+				key: "repoOwnership",
+				label: "Destination repository ownership",
+				kind: "enum",
+				options: ["any", "exclude-author"],
+				default: "any",
+			},
+		],
+	},
 	"pr-rate-limit": {
 		sentences: [
 			"caps each contributor at {maxPerWindow} change requests per {windowHours}",
@@ -674,31 +857,48 @@ export const RULE_PARAMS = {
 
 /** The display schema for a rule ref (version-agnostic), or null if unknown. */
 export function ruleUiSchema(ref: string): RuleUiSchema | null {
-	return (RULE_PARAMS as Record<string, RuleUiSchema>)[ruleIdOf(ref)] ?? null;
+	return (
+		Object.entries(RULE_PARAMS).find(([id]) => id === ruleIdOf(ref))?.[1] ??
+		null
+	);
 }
+
+const paramNumberValueSchema = z.union([
+	z.number(),
+	z.nan(),
+	z.literal(Infinity),
+	z.literal(-Infinity),
+]);
+const paramStringListValueSchema = z.custom<unknown[]>(Array.isArray);
+const paramStringValueSchema = z.string().min(1);
 
 /**
  * Format a scalar param's value for the readable sentence — the ONE place the
  * unit/percent rules live, so display and tests agree. String-lists render as
  * chips in the component and are not handled here.
  */
-export function formatParamValue(param: RuleParam, value: unknown): string {
+export function formatParamValue(
+	param: RuleParam,
+	value: Parameters<typeof paramNumberValueSchema.safeParse>[0],
+): string {
+	const number = paramNumberValueSchema.safeParse(value);
 	if (param.kind === "number") {
-		const n = typeof value === "number" ? value : param.default;
+		const n = number.success ? number.data : param.default;
 		if (param.percent) {
 			return `${Math.round(n * 100)}%`;
 		}
 		return param.unit ? `${n} ${param.unit}` : String(n);
 	}
 	if (param.kind === "string-list") {
-		const arr = Array.isArray(value) ? (value as string[]) : [...param.default];
-		return arr.join(", ");
+		const array = paramStringListValueSchema.safeParse(value);
+		return (array.success ? array.data : [...param.default]).join(", ");
 	}
 	if (param.kind === "boolean") {
 		return value === true ? "on" : "off";
 	}
-	if (typeof value === "string" && value.length > 0) {
-		return value;
+	const text = paramStringValueSchema.safeParse(value);
+	if (text.success) {
+		return text.data;
 	}
 	return param.kind === "string" ? (param.default ?? "") : "";
 }
@@ -764,9 +964,12 @@ export interface ResolvedRuleConfig {
 	config: JsonValue;
 	/**
 	 * True when the repo is HELD on an older version: it's pinned behind AND its
-	 * saved config can't parse under the current version's schema, so advancing
-	 * would silently discard the maintainer's settings. Held rules keep running
-	 * their pinned (frozen, still-registered) version until an admin re-confirms.
+	 * saved config can't carry forward losslessly to the current version's
+	 * schema (parse failure, or a prior-version shape the new schema would
+	 * silently re-interpret via Zod defaults), so advancing would silently
+	 * discard or alter the maintainer's settings. Held rules keep running
+	 * their pinned (frozen, still-registered) version until an admin
+	 * re-confirms.
 	 */
 	held: boolean;
 }
@@ -777,14 +980,18 @@ export interface ResolvedRuleConfig {
  * ACTUALLY runs:
  *
  * - pinned ≥ current (or unknown rule): run as pinned — nothing to do.
- * - pinned < current, config still parses under the new schema: AUTO-ADVANCE to
+ * - pinned < current, config carries forward (parses under the new schema AND
+ *   was authored under the current version's shape — rules whose config
+ *   semantics changed declare a `carriesForward` shape gate): AUTO-ADVANCE to
  *   current, carrying the config forward. Lossless and silent — the set-and-
- *   forget path that covers ~all upgrades. No DB write: the pin is the config's
- *   schema anchor; the effective version is derived here on every evaluation.
- * - pinned < current, config CANNOT parse under the new schema: HOLD on the
- *   pinned version (the append-only law keeps it registered + running) and flag
- *   it, so an admin re-confirms rather than losing tuned settings to a silent
- *   reset.
+ *   forget path that covers ~all upgrades. No DB write: the pin is the
+ *   config's schema anchor; the effective version is derived here on every
+ *   evaluation.
+ * - pinned < current, config CANNOT carry forward (parse failure, or a
+ *   prior-version shape the new schema would silently re-interpret via
+ *   defaults): HOLD on the pinned version (the append-only law keeps it
+ *   registered + running) and flag it, so an admin re-confirms rather than
+ *   losing tuned settings to a silent reset.
  */
 export function resolveEffectiveRuleConfig(
 	row: StoredRuleConfig,
@@ -798,7 +1005,17 @@ export function resolveEffectiveRuleConfig(
 			held: false,
 		};
 	}
-	const carriesForward = entry.configSchema.safeParse(row.config).success;
+	// A config carries forward losslessly only when it parses under the
+	// current schema AND was authored under the current version's shape.
+	// Parse success alone is not enough: a prior-version config can parse
+	// under the new schema when the new schema fills new fields with Zod
+	// defaults, silently re-interpreting the maintainer's tuned settings
+	// under different semantics. The optional `carriesForward` gate (present
+	// only on rules whose config semantics changed between versions) checks
+	// the config's shape, not just its parseability.
+	const carriesForward =
+		entry.configSchema.safeParse(row.config).success &&
+		("carriesForward" in entry ? entry.carriesForward(row.config) : true);
 	return carriesForward
 		? {
 				ref: `${row.ruleId}@${entry.version}`,

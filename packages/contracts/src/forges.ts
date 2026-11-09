@@ -1,28 +1,12 @@
 import { z } from "zod";
 
 /**
- * THE forge list. Every forge-shaped thing in the product derives from this one
- * array — the persisted `forge` enum, better-auth's trusted providers, the login
- * grid, the connect dialog, the brand marks. Adding a forge is editing this
- * array; nothing else is a list of forges.
- *
- * `status` is the whole trick:
- * - `live`     — an adapter exists, so tripwire can INGEST events for it and
- *                store them on a row. These and only these widen `Forge`.
- *                It does NOT promise reads or a connect flow: open-git is live
- *                for ingest while its API still has no read endpoints, so
- *                its connect cell is disabled.
- * - `planned`  — not built. It shows as a disabled cell in every forge grid,
- *                and CANNOT reach the database, because `forgeSchema` never
- *                sees it.
- *
- * Flipping a `planned` entry to `live` widens `Forge`, which breaks every
- * exhaustive `Record<Forge, …>` in the app until the new arm exists. That
- * compile error is the checklist — don't route around it.
- *
- * Array ORDER is display order in the login and connect grids.
+ * Forge storage and capability catalog. `live` admits storage and ingest;
+ * `connection` admits verified connections and storage only; `planned` admits neither.
+ * Display order follows this array. Runtime registries remain exhaustive;
+ * GitCafe normalization requires authenticated hydration in its isolated worker.
  */
-export type ForgeStatus = "live" | "planned";
+export type ForgeStatus = "live" | "connection" | "planned";
 
 /**
  * How a forge authenticates, or absent when you cannot sign in with it yet.
@@ -38,12 +22,7 @@ export interface ForgeCatalogEntry {
 	/** Brand casing, shown verbatim in the grids — not a slug. */
 	readonly label: string;
 	readonly status: ForgeStatus;
-	/**
-	 * Sign-in is a SEPARATE capability from `status`, because the two arrive at
-	 * different times. A forge's OAuth can exist long before its adapter does:
-	 * you can authenticate with it, but there is nothing to read a repo with, so
-	 * it must not widen `Forge` or reach a row. Absent ⇒ no sign-in button.
-	 */
+	/** Sign-in availability is registered independently of repository capabilities. */
 	readonly signIn?: ForgeSignIn;
 	readonly reviews?: boolean;
 	readonly paused?: boolean;
@@ -62,36 +41,51 @@ export const FORGE_CATALOG = [
 	// continues; sign-in and new connections are off.
 	{ id: "opengit", label: "OpenGit", status: "live", paused: true },
 	{ id: "gitlab", label: "GitLab", status: "planned" },
-	{ id: "gitcafe", label: "GitCafe", status: "planned" },
+	{
+		id: "gitcafe",
+		label: "GitCafe",
+		status: "live",
+		signIn: "social",
+		reviews: true,
+	},
 ] as const satisfies readonly ForgeCatalogEntry[];
 
 type CatalogEntry = (typeof FORGE_CATALOG)[number];
 type LiveEntry = Extract<CatalogEntry, { status: "live" }>;
+type StoredEntry = Extract<CatalogEntry, { status: "live" | "connection" }>;
 
 /** Every forge the UI advertises, built or not. The grids iterate this. */
 export type ForgeId = CatalogEntry["id"];
 
-/**
- * The forges Tripwire can actually ingest. A discriminant carried on every event
- * and stored on the row — NOT a routing dimension (see architecture: one app
- * shell, per-forge adapters + webhook entrypoints). A strict subset of
- * `ForgeId`: a `planned` forge has no adapter, so it can never reach a row.
- */
-export type Forge = LiveEntry["id"];
+export const forgeIdSchema = z.enum(
+	FORGE_CATALOG.map((entry) => entry.id) as [ForgeId, ...ForgeId[]],
+);
+
+/** Forge-qualified identities admitted to persisted repository rows. */
+export type Forge = StoredEntry["id"];
+export type IngestForge = LiveEntry["id"];
 
 function isLive(entry: CatalogEntry): entry is LiveEntry {
 	return entry.status === "live";
 }
 
-/**
- * Cast because `z.enum` wants a non-empty tuple and `filter` can only prove an
- * array. The ELEMENT type is honest — `isLive` narrows it to `Forge` — so the
- * only thing asserted here is non-emptiness, which the catalog literal above
- * satisfies by inspection.
- */
+/** Only the tuple non-emptiness is asserted; the catalog determines its members. */
 export const forgeSchema = z.enum(
-	FORGE_CATALOG.filter(isLive).map((entry) => entry.id) as [Forge, ...Forge[]],
+	FORGE_CATALOG.filter((entry) => entry.status !== "planned").map(
+		(entry) => entry.id,
+	) as [Forge, ...Forge[]],
 );
+
+export const ingestForgeSchema = z.enum(
+	FORGE_CATALOG.filter(isLive).map((entry) => entry.id) as [
+		IngestForge,
+		...IngestForge[],
+	],
+);
+
+export function forgeEvaluates(id: ForgeId): boolean {
+	return FORGE_BY_ID[id].status === "live";
+}
 
 /** Brand labels by status — so UI copy that names forges ("github and gitlab
  * today") is generated from the catalog instead of drifting out of sync. */
@@ -100,16 +94,26 @@ export const LIVE_FORGE_LABELS: readonly string[] = FORGE_CATALOG.filter(
 ).map((entry) => entry.label);
 
 /**
- * Every forge you can authenticate with, adapter or not. This — NOT
- * `forgeSchema.options` — is what better-auth trusts for same-email account
- * linking: a sign-in-only forge still has to link to an existing user, and
- * gating that on the persisted enum would reject it.
+ * Forges with sign-in support, adapter or not. Deployment availability also
+ * requires server registration. Auth applies its own account-linking policy;
+ * GitCafe must never become trusted for same-email linking.
  */
 export const SIGN_IN_FORGE_IDS: readonly ForgeId[] = FORGE_CATALOG.filter(
 	// `in`, not a property read: the catalog is `as const`, so entries without a
 	// sign-in do not carry the key at all and the union has no such property.
 	(entry) => "signIn" in entry,
 ).map((entry) => entry.id);
+
+/** Public auth availability contains only provider IDs, never configuration. */
+export const configuredSignInProviderIdsSchema = z.array(forgeIdSchema);
+export type ConfiguredSignInProviderIds = z.infer<
+	typeof configuredSignInProviderIdsSchema
+>;
+
+export const providerAvailabilitySchema = z.strictObject({
+	available: configuredSignInProviderIdsSchema,
+});
+export type ProviderAvailability = z.infer<typeof providerAvailabilitySchema>;
 
 /** How to sign in with a forge, or null when it offers no sign-in. */
 export function forgeSignIn(id: ForgeId): ForgeSignIn | null {
@@ -119,7 +123,9 @@ export function forgeSignIn(id: ForgeId): ForgeSignIn | null {
 
 export function forgeConnectable(id: ForgeId): boolean {
 	const entry = FORGE_BY_ID[id];
-	return entry !== undefined && isLive(entry) && !("paused" in entry);
+	return (
+		entry !== undefined && entry.status !== "planned" && !("paused" in entry)
+	);
 }
 
 export function forgePostsReviews(id: ForgeId): boolean {
@@ -155,7 +161,8 @@ export function changeRequestUrl(input: {
 		/\/$/,
 		"",
 	);
-	const segment = input.forge === "github" ? "pull" : "pulls";
+	const segment =
+		input.forge === "github" || input.forge === "gitcafe" ? "pull" : "pulls";
 	return `${base}/${input.repoFullName}/${segment}/${input.number}`;
 }
 
@@ -163,9 +170,9 @@ export function changeRequestUrl(input: {
  * Public host per forge. A self-hosted deployment overrides this by passing an
  * origin; a planned forge still needs an entry so the Record stays exhaustive.
  */
-const DEFAULT_FORGE_ORIGIN = {
+export const DEFAULT_FORGE_ORIGIN = {
 	github: "https://github.com",
 	opengit: "https://open-git.com",
 	gitlab: "https://gitlab.com",
-	gitcafe: "https://gitcafe.com",
+	gitcafe: "https://git.cafe",
 } satisfies Record<ForgeId, string>;

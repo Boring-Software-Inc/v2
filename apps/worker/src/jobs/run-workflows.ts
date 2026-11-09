@@ -1,4 +1,5 @@
 import type {
+	GitCafeRepositoryBinding,
 	JsonValue,
 	RepoScopedEvent,
 	RuleResult,
@@ -10,6 +11,8 @@ import {
 	AI_REVIEW_RULE_ID,
 	actionCommentMarker,
 	type CustomRuleRecord,
+	commentObservedEvidenceSchema,
+	commentRuleEnvelopeSchema,
 	customRuleRef,
 	customRuleSummary,
 	isAiReviewNotRunStep,
@@ -18,11 +21,14 @@ import {
 	resolveEffectiveRuleConfig,
 	ruleIdOf,
 	ruleResultSchema,
+	SHARED_BLOCKLIST_RULE_ID,
+	sharedBlocklistAvailable,
 	unrunnableIssues,
 } from "@tripwire/contracts";
 import {
 	type AiReviewGenerate,
 	deriveDefaultWorkflow,
+	type ExecutionResult,
 	evaluateRule,
 	executeWorkflow,
 	getRule,
@@ -41,7 +47,8 @@ import {
 } from "@tripwire/db";
 import type { CommentReason, GithubHttp } from "@tripwire/forge-github";
 import { createForgeSignalCtx } from "@tripwire/sdk";
-import { getErrorMessage } from "@tripwire/utils";
+import { generateId, getErrorMessage } from "@tripwire/utils";
+import { loadSharedBlocklist } from "@tripwire/utils/shared-blocklist";
 import type { Logger } from "pino";
 import { buildRuleContext, type WorkerReads } from "../context.ts";
 import {
@@ -62,6 +69,7 @@ import {
 	customRuleSource,
 	evaluateCustomRule,
 } from "./custom-rules.ts";
+import { sharedBlocklistReviewWorkflow } from "./shared-blocklist.ts";
 
 /**
  * §5.7–5.12: match enabled workflows by trigger → build RuleContext (reads
@@ -71,23 +79,25 @@ import {
  */
 
 export function actionPayload(
-	action: { nodeId: string; action: string; params: Record<string, unknown> },
+	action: ExecutionResult["actions"][number],
 	definitionId: string,
 	runId: string,
-): Record<string, unknown> {
-	return {
+): ExecutionResult["actions"][number]["params"] & { nodeId: string } {
+	const payload = {
 		...action.params,
 		nodeId: `${definitionId}:${action.nodeId}`,
-		...(action.action === "post-comment"
-			? {
-					marker: actionCommentMarker({
-						workflowId: definitionId,
-						nodeId: action.nodeId,
-						runId,
-					}),
-				}
-			: {}),
 	};
+	if (action.action === "post-comment") {
+		return {
+			...payload,
+			marker: actionCommentMarker({
+				workflowId: definitionId,
+				nodeId: action.nodeId,
+				runId,
+			}),
+		};
+	}
+	return payload;
 }
 
 export function postsSomething(action: { action: string }): boolean {
@@ -182,6 +192,7 @@ export interface RunWorkflowsDeps {
 	 * owns the change request's surfaces. Default true.
 	 */
 	surface?: boolean;
+	gitCafeHistoryBinding?: GitCafeRepositoryBinding;
 	/** Manual re-run: the triggering admin's user id, stamped on the run. */
 	triggeredBy?: string;
 	/**
@@ -203,7 +214,7 @@ export interface RunWorkflowsResult {
 	runId: string | null;
 	verdict: Verdict | null;
 	paused: boolean;
-	actionRows: { id: string; kind: string; payload: Record<string, unknown> }[];
+	actionRows: Awaited<ReturnType<typeof runServices.recordActions>>;
 	/** The failing rules' reasons for the PR comment (§7/§12). */
 	reasons: CommentReason[];
 	/** True when the fail-closed floor fired (evaluation degraded). */
@@ -255,6 +266,12 @@ async function runWorkflowsInner(
 		event.repo.fullName,
 		event.forge,
 	);
+	if (
+		deps.gitCafeHistoryBinding &&
+		(repo?.id !== deps.gitCafeHistoryBinding.repoId ||
+			event.repoExternalId !== deps.gitCafeHistoryBinding.repositoryId)
+	)
+		return none;
 
 	/**
 	 * §4 arming gate — an unarmed repo is skipped ENTIRELY: no run, no check, no
@@ -314,14 +331,16 @@ async function runWorkflowsInner(
 	// id, so a held old version replaces — never doubles — the baseline.
 	const derived = deriveDefaultWorkflow(
 		[
-			...ruleConfigs.map((config) =>
-				resolveEffectiveRuleConfig({
-					ruleId: config.ruleId,
-					version: config.version,
-					enabled: config.enabled,
-					config: config.config as JsonValue,
-				}),
-			),
+			...ruleConfigs
+				.filter((config) => config.ruleId !== SHARED_BLOCKLIST_RULE_ID)
+				.map((config) =>
+					resolveEffectiveRuleConfig({
+						ruleId: config.ruleId,
+						version: config.version,
+						enabled: config.enabled,
+						config: config.config as JsonValue,
+					}),
+				),
 			// Custom rules join the toggle set like any non-baseline rule: they
 			// run when enabled, and workflow ownership excludes them like any id.
 			...customRows.map((row) => ({
@@ -343,6 +362,26 @@ async function runWorkflowsInner(
 				? [...custom, derived]
 				: custom
 			: [derived];
+	if (
+		event.kind === "change-request.opened" &&
+		(!event.repoExternalId || event.repoExternalId === repo.externalId) &&
+		sharedBlocklistAvailable(
+			process.env.TRIPWIRE_SHARED_BLOCKLIST_PILOT_REPOSITORY_ID,
+			repo,
+		) &&
+		ruleConfigs.some(
+			(config) => config.ruleId === SHARED_BLOCKLIST_RULE_ID && config.enabled,
+		)
+	) {
+		const pilot = sharedBlocklistReviewWorkflow(
+			event,
+			await loadSharedBlocklist(() =>
+				logger.warn("Shared blocklist snapshot could not be refreshed"),
+			),
+			Date.now(),
+		);
+		if (pilot) definitions.push(pilot);
+	}
 	const triggeredBy = (def: WorkflowDefinition) =>
 		def.nodes.some(
 			(node) => node.type === "trigger" && node.kinds.includes(event.kind),
@@ -361,7 +400,13 @@ async function runWorkflowsInner(
 	}
 
 	const headShaEarly =
-		"changeRequest" in event ? event.changeRequest.headSha : null;
+		"changeRequest" in event
+			? event.changeRequest.headSha
+			: event.forge === "gitcafe" &&
+					event.kind === "comment.created" &&
+					event.comment.subjectKind === "change-request"
+				? (event.comment.subjectHeadSha ?? null)
+				: null;
 	/**
 	 * Live progress: pin the real definition set and flip to running before
 	 * the DAG walk so the run page can list planned rules and stream steps.
@@ -423,7 +468,7 @@ async function runWorkflowsInner(
 		deps.surface !== false &&
 		(await eventServices.changeRequestIsClosed(
 			db,
-			event.repo.fullName,
+			{ forge: event.forge, fullName: event.repo.fullName },
 			event.changeRequest.number,
 		));
 	if (!closedNow) {
@@ -449,20 +494,21 @@ async function runWorkflowsInner(
 					now: () => new Date().toISOString(),
 					// Stream each finished step onto the pre-materialized run so the
 					// run page can list completed checks as the DAG walks.
-					onStep: liveRunId
-						? async (step) => {
-								const projected = withPublicProjection(
-									[
-										{
-											...step,
-											nodeId: `${definition.id}:${step.nodeId}`,
-										},
-									],
-									customSignals.records,
-								);
-								await runServices.recordSteps(db, liveRunId, projected);
-							}
-						: undefined,
+					onStep:
+						liveRunId && event.forge !== "gitcafe"
+							? async (step) => {
+									const projected = withPublicProjection(
+										[
+											{
+												...step,
+												nodeId: `${definition.id}:${step.nodeId}`,
+											},
+										],
+										customSignals.records,
+									);
+									await runServices.recordSteps(db, liveRunId, projected);
+								}
+							: undefined,
 				}),
 			});
 		}
@@ -606,20 +652,22 @@ async function runWorkflowsInner(
 		}
 	}
 	if (degraded) {
+		const degradationOutput = {
+			degradedReads,
+			skippedRules: skippedCount,
+			ruleNodes: floorSteps.length,
+			/** false means the run passed with a partial evaluation, on purpose. */
+			enforced: failClosed,
+		};
 		const startedAt = new Date().toISOString();
 		const degradationStep: StepRecord = {
 			nodeId: "run:degradation",
 			nodeKind: "gate",
 			status: "skipped",
 			input: { rule: "fail-closed floor", enforced: failClosed },
-			output: {
-				degradedReads,
-				skippedRules: skippedCount,
-				ruleNodes: floorSteps.length,
-				/** false ⇒ the run passed with a partial evaluation, on purpose. */
-				enforced: failClosed,
-				...(heldBack ? { tookNoAction: true } : {}),
-			},
+			output: heldBack
+				? { ...degradationOutput, tookNoAction: true }
+				: degradationOutput,
 			startedAt,
 			finishedAt: startedAt,
 			durationMs: 0,
@@ -647,7 +695,7 @@ async function runWorkflowsInner(
 		);
 	}
 
-	const headSha = "changeRequest" in event ? event.changeRequest.headSha : null;
+	const headSha = headShaEarly;
 	/**
 	 * A COMMENT names its change request too, in `comment.subjectNumber`. Taking
 	 * it only from a change-request event stored null for every comment-triggered
@@ -659,7 +707,7 @@ async function runWorkflowsInner(
 	 *     recorded block or comment was never delivered and the give-up window
 	 *     eventually abandoned it
 	 *
-	 * There is no head sha on a comment: it judges the thread, not a commit.
+	 * GitCafe additionally pins a verified PR head for commit-bound review actions.
 	 */
 	const subjectNumber =
 		"changeRequest" in event
@@ -673,69 +721,116 @@ async function runWorkflowsInner(
 	const silent = backfill || closedNow;
 	const terminalStatus = paused && !silent ? "paused" : "completed";
 	let runId: string;
-	if (liveRunId) {
-		runId = liveRunId;
-		await runServices.finalizeRun(db, runId, {
-			eventId,
-			headSha,
-			snapshot: matching,
-			status: terminalStatus,
-			verdict,
-		});
-		// Steps already streamed via onStep — do not insert them again.
-	} else {
-		// Missing claim row (legacy job or race) — create as a normal run.
-		runId = await runServices.createRun(db, {
-			eventId,
-			repoFullName: event.repo.fullName,
-			subjectNumber,
-			subjectKind: scheduled ? scheduled.thread.kind : null,
-			headSha,
-			snapshot: matching,
-			status: terminalStatus,
-			verdict,
-			triggeredBy: deps.triggeredBy ?? null,
-			backfill,
-		});
-		await runServices.recordSteps(
-			db,
-			runId,
-			withPublicProjection(steps, customSignals.records),
+	let actionRows: Awaited<ReturnType<typeof runServices.recordActions>>;
+	if (event.forge === "gitcafe") {
+		const id = liveRunId ?? generateId();
+		const moderationNodeIds = (silent ? [] : executions).flatMap((execution) =>
+			execution.result.pausedAtNodeIds.map(
+				(node) => `${execution.definition.id}:${node}`,
+			),
 		);
-	}
+		if (
+			!silent &&
+			((degraded && !heldBack) || (unrunnableFloored && failClosed))
+		)
+			moderationNodeIds.push("run:degraded");
+		const persisted = await runServices.persistRunEvaluation(db, {
+			gitCafeHistoryBinding: deps.gitCafeHistoryBinding,
+			run: {
+				id,
+				eventId,
+				repoFullName: event.repo.fullName,
+				subjectNumber,
+				subjectKind: scheduled ? scheduled.thread.kind : null,
+				headSha,
+				snapshot: matching,
+				status: terminalStatus,
+				verdict,
+				triggeredBy: deps.triggeredBy ?? null,
+				backfill,
+			},
+			existingRunId: liveRunId ?? undefined,
+			steps: withPublicProjection(steps, customSignals.records),
+			moderationNodeIds,
+			actions: executions.flatMap((execution) =>
+				(heldBack ? [] : execution.result.actions.filter(postsSomething)).map(
+					(action) => ({
+						kind: action.action,
+						payload: actionPayload(action, execution.definition.id, id),
+						idempotencyKey: `${action.action}:${execution.definition.id}:${action.nodeId}`,
+					}),
+				),
+			),
+			suppressed: silent,
+		});
+		if (!persisted) return none;
+		runId = persisted.runId;
+		actionRows = persisted.actionRows;
+	} else {
+		if (liveRunId) {
+			runId = liveRunId;
+			await runServices.finalizeRun(db, runId, {
+				eventId,
+				headSha,
+				snapshot: matching,
+				status: terminalStatus,
+				verdict,
+			});
+			// Steps already streamed via onStep — do not insert them again.
+		} else {
+			// Missing claim row (legacy job or race) — create as a normal run.
+			runId = await runServices.createRun(db, {
+				eventId,
+				repoFullName: event.repo.fullName,
+				subjectNumber,
+				subjectKind: scheduled ? scheduled.thread.kind : null,
+				headSha,
+				snapshot: matching,
+				status: terminalStatus,
+				verdict,
+				triggeredBy: deps.triggeredBy ?? null,
+				backfill,
+			});
+			await runServices.recordSteps(
+				db,
+				runId,
+				withPublicProjection(steps, customSignals.records),
+			);
+		}
 
-	for (const execution of silent ? [] : executions) {
-		for (const pausedNodeId of execution.result.pausedAtNodeIds) {
+		for (const execution of silent ? [] : executions) {
+			for (const pausedNodeId of execution.result.pausedAtNodeIds) {
+				await moderationServices.createModerationItem(db, {
+					runId,
+					nodeId: `${execution.definition.id}:${pausedNodeId}`,
+				});
+			}
+		}
+		if (
+			!silent &&
+			((degraded && !heldBack) || (unrunnableFloored && failClosed))
+		) {
 			await moderationServices.createModerationItem(db, {
 				runId,
-				nodeId: `${execution.definition.id}:${pausedNodeId}`,
+				nodeId: "run:degraded",
 			});
 		}
-	}
-	if (
-		!silent &&
-		((degraded && !heldBack) || (unrunnableFloored && failClosed))
-	) {
-		await moderationServices.createModerationItem(db, {
-			runId,
-			nodeId: "run:degraded",
-		});
-	}
 
-	const actionRows = await runServices.recordActions(
-		db,
-		runId,
-		executions.flatMap((execution) =>
-			(heldBack ? [] : execution.result.actions.filter(postsSomething)).map(
-				(action) => ({
-					kind: action.action,
-					payload: actionPayload(action, execution.definition.id, runId),
-					idempotencyKey: `${action.action}:${execution.definition.id}:${action.nodeId}`,
-				}),
+		actionRows = await runServices.recordActions(
+			db,
+			runId,
+			executions.flatMap((execution) =>
+				(heldBack ? [] : execution.result.actions.filter(postsSomething)).map(
+					(action) => ({
+						kind: action.action,
+						payload: actionPayload(action, execution.definition.id, runId),
+						idempotencyKey: `${action.action}:${execution.definition.id}:${action.nodeId}`,
+					}),
+				),
 			),
-		),
-		silent ? "suppressed" : "recorded",
-	);
+			silent ? "suppressed" : "recorded",
+		);
+	}
 
 	const reasons = buildCommentReasons(steps, customSignals.records);
 	logger.info({ runId, verdict, paused, steps: steps.length }, "run persisted");
@@ -852,7 +947,7 @@ async function holdCloses(input: {
 		: changeRequest &&
 				(await runServices.closedOnHead(
 					input.db,
-					event.repo.fullName,
+					{ forge: event.forge, fullName: event.repo.fullName },
 					changeRequest.number,
 					changeRequest.headSha,
 				))
@@ -954,15 +1049,9 @@ export function withPublicProjection(
 		if (step.nodeKind !== "rule" || !step.ruleRef) {
 			return step;
 		}
-		const envelope = step.output;
-		const inner =
-			envelope && typeof envelope === "object" && "evidence" in envelope
-				? (envelope as { evidence: unknown }).evidence
-				: null;
-		const reason =
-			envelope && typeof envelope === "object" && "reason" in envelope
-				? (envelope as { reason?: unknown }).reason
-				: undefined;
+		const envelope = commentRuleEnvelopeSchema.safeParse(step.output);
+		const inner = envelope.success ? envelope.data.evidence : null;
+		const reason = envelope.success ? envelope.data.reason : undefined;
 		const stored = customRecords?.get(step.ruleRef);
 		let publicEvidence: unknown;
 		let summary: string | null;
@@ -970,10 +1059,8 @@ export function withPublicProjection(
 			// Custom rules project generically: the observed value is public
 			// (it is the contributor's own footprint); the configured threshold
 			// lives in comparison args and never reaches evidence (§10).
-			const observed =
-				inner && typeof inner === "object" && "observed" in inner
-					? (inner as { observed: unknown }).observed
-					: null;
+			const parsed = commentObservedEvidenceSchema.safeParse(inner);
+			const observed = parsed.success ? parsed.data.observed : null;
 			publicEvidence = observed === null ? null : { observed };
 			summary =
 				observed === null
@@ -990,11 +1077,7 @@ export function withPublicProjection(
 		// is invisible failure — the class that let custom rules sit inert). The
 		// reason is sanitized so a thrown-rule stack trace or a schema error never
 		// reaches a contributor (§10); the raw reason stays on the gated output.
-		if (
-			summary === null &&
-			step.status === "skipped" &&
-			typeof reason === "string"
-		) {
+		if (summary === null && step.status === "skipped" && reason !== undefined) {
 			summary = publicSkipReason(reason);
 		}
 		return { ...step, publicEvidence, summary };
@@ -1022,7 +1105,7 @@ export function makeEvaluator(
 	logger: Logger,
 	custom?: CustomRuleSource,
 ) {
-	return async (ref: string, config: unknown): Promise<RuleResult> => {
+	return async (ref: string, config: JsonValue): Promise<RuleResult> => {
 		const stored = custom?.records.get(ref);
 		if (stored && custom) {
 			try {
@@ -1031,6 +1114,7 @@ export function makeEvaluator(
 					custom.signalCtx,
 					ctx.now,
 					ctx.event.forge,
+					ctx,
 				);
 			} catch (error) {
 				logger.error(

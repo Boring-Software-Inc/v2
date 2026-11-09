@@ -54,14 +54,17 @@ afterAll(async () => {
 });
 
 async function deliver(body: string, deliveryId: string, sign = true) {
+	const headers = new Headers({
+		"x-github-delivery": deliveryId,
+		"x-github-event": "pull_request",
+		"content-type": "application/json",
+	});
+	if (sign) {
+		headers.set("x-hub-signature-256", signWebhookBody(body, SECRET));
+	}
 	return await app.request("/webhooks/github", {
 		method: "POST",
-		headers: {
-			"x-github-delivery": deliveryId,
-			"x-github-event": "pull_request",
-			...(sign ? { "x-hub-signature-256": signWebhookBody(body, SECRET) } : {}),
-			"content-type": "application/json",
-		},
+		headers,
 		body,
 	});
 }
@@ -147,4 +150,19 @@ describe("POST /webhooks/github", () => {
 		});
 		expect(noHeaders.status).toBe(400);
 	});
+});
+
+test("GitCafe identity alone does not enable a webhook endpoint", async () => {
+	const before = await pool.query<{ n: number }>(
+		"SELECT count(*)::int AS n FROM events",
+	);
+	const res = await app.request("/webhooks/gitcafe", {
+		method: "POST",
+		body: "not a payload",
+	});
+	expect(res.status).toBe(404);
+	const after = await pool.query<{ n: number }>(
+		"SELECT count(*)::int AS n FROM events",
+	);
+	expect(after.rows[0]?.n).toBe(before.rows[0]?.n);
 });

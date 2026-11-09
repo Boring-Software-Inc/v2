@@ -1,4 +1,8 @@
-import { type CredentialStore, credentialStore } from "#/auth/credentials";
+import {
+	type Credential,
+	type CredentialStore,
+	credentialStore,
+} from "#/auth/credentials";
 import {
 	type AuthDeps,
 	AuthUnreachableError,
@@ -40,16 +44,15 @@ export async function loadSession(
 		throw new NotSignedInError();
 	}
 	if (credential.expiresAt && credential.expiresAt - SKEW_MS < deps.now()) {
-		const fresh = await refreshCredential(deps, credential).catch(
-			(error: unknown) => {
-				if (error instanceof AuthUnreachableError) {
-					throw error;
-				}
-				throw new NotSignedInError(
-					`Session expired. Run ${CLI_COMMAND} login.`,
-				);
-			},
-		);
+		let fresh: Credential;
+		try {
+			fresh = await refreshCredential(deps, credential);
+		} catch (error) {
+			if (error instanceof AuthUnreachableError) {
+				throw error;
+			}
+			throw new NotSignedInError(`Session expired. Run ${CLI_COMMAND} login.`);
+		}
 		await store.write(fresh);
 		return {
 			token: fresh.accessToken,

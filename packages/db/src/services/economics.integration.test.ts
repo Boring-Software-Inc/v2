@@ -1,4 +1,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import {
+	type JsonValue,
+	jsonValueSchema,
+	ruleResultSchema,
+} from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
 import { eq } from "drizzle-orm";
 import {
@@ -8,7 +13,11 @@ import {
 	type Db,
 	type TestDatabase,
 } from "../index.ts";
-import { aiReviewUsage, economicsDaily } from "../schema/economics.ts";
+import {
+	aiReviewUsage,
+	economicsDaily,
+	providerCostsDaily,
+} from "../schema/economics.ts";
 import { events } from "../schema/events.ts";
 import { repos } from "../schema/repos.ts";
 import { runSteps, runs } from "../schema/runs.ts";
@@ -16,7 +25,9 @@ import {
 	backfillAiReviewUsage,
 	getDailyTotals,
 	getLastCreditBalance,
+	getLastRailwayPrices,
 	getMonthlySummary,
+	getRailwayBreakdown,
 	recordAiReviewUsage,
 	recordRunAiReviewUsage,
 	recordUsageCounters,
@@ -33,11 +44,12 @@ import {
 let container: TestDatabase;
 let db: Db;
 let pool: { end(): Promise<void> };
+let econRunId: string;
 
 const REPO = "acme/economics";
 const ORG = "org_econ";
 
-function envelope(trace: unknown) {
+function envelope(trace: JsonValue) {
 	return {
 		status: "evaluated",
 		passed: false,
@@ -51,7 +63,7 @@ function envelope(trace: unknown) {
 async function seedStep(input: {
 	runId: string;
 	ruleId: string | null;
-	evidence: unknown;
+	evidence: JsonValue;
 }): Promise<string> {
 	const id = generateId();
 	const started = new Date("2026-07-21T14:22:00.000Z");
@@ -62,7 +74,7 @@ async function seedStep(input: {
 		nodeKind: input.ruleId ? "rule" : "gate",
 		ruleId: input.ruleId,
 		status: "evaluated",
-		evidence: input.evidence,
+		evidence: ruleResultSchema.parse(input.evidence),
 		startedAt: started,
 		finishedAt: started,
 		durationMs: 1200,
@@ -138,7 +150,7 @@ beforeAll(async () => {
 	// A non-ai-review step — never scanned.
 	await seedStep({ runId, ruleId: "account-age@1", evidence: envelope({}) });
 
-	globalThis.__econRunId = runId;
+	econRunId = runId;
 }, 120_000);
 
 afterAll(async () => {
@@ -156,7 +168,7 @@ describe("backfillAiReviewUsage", () => {
 		const rows = await db
 			.select()
 			.from(aiReviewUsage)
-			.where(eq(aiReviewUsage.runId, globalThis.__econRunId as string));
+			.where(eq(aiReviewUsage.runId, econRunId));
 		expect(rows).toHaveLength(2);
 		for (const row of rows) {
 			expect(row.orgId).toBe(ORG);
@@ -183,7 +195,7 @@ describe("backfillAiReviewUsage", () => {
 
 describe("live writers", () => {
 	test("recordAiReviewUsage stores exact cost and is idempotent", async () => {
-		const runId = globalThis.__econRunId as string;
+		const runId = econRunId;
 		// A fresh step with no backfill row, so the live write is the first insert.
 		const stepId = await seedStep({
 			runId,
@@ -214,7 +226,7 @@ describe("live writers", () => {
 	});
 
 	test("recordUsageCounters is idempotent on run_id", async () => {
-		const runId = globalThis.__econRunId as string;
+		const runId = econRunId;
 		const input = {
 			runId,
 			orgId: ORG,
@@ -472,7 +484,236 @@ describe("rollupEconomicsDay", () => {
 	});
 });
 
-declare global {
-	// eslint-disable-next-line no-var
-	var __econRunId: string | undefined;
-}
+describe("stored economics projections", () => {
+	test("provider writes validate JSON without stripping raw audit fields or modifying a row on failure", async () => {
+		const input = {
+			day: "2026-09-01",
+			provider: "planetscale",
+			service: "main",
+			costUsd: 1.23456,
+			estimated: true,
+		};
+		const usageJson = {
+			tokens: 0,
+			raw: { invoice: [null, false, "", { extra: "retained" }] },
+		};
+		await upsertProviderCost(db, { ...input, usageJson });
+		for (const payload of [
+			undefined,
+			{ missing: undefined },
+			new Date(),
+			{ cost: Infinity },
+			{ cost: NaN },
+		]) {
+			await expect(
+				upsertProviderCost(db, { ...input, usageJson: payload, costUsd: 99 }),
+			).rejects.toThrow();
+		}
+		const [row] = await db
+			.select()
+			.from(providerCostsDaily)
+			.where(eq(providerCostsDaily.day, input.day));
+		expect(row?.usageJson).toEqual(usageJson);
+		expect(row?.costUsd).toBe("1.2346");
+	});
+	test("mixed historical fields preserve zeroes, precedence, and per-field fallbacks", async () => {
+		const runId = econRunId;
+		const cases = [
+			{
+				trace: {
+					model: "",
+					stepsUsed: 0,
+					steps: [{}, {}],
+					costUsd: 0,
+					usage: {
+						input: 0,
+						inputTokens: 99,
+						output: 0,
+						outputTokens: 99,
+						cached: 0,
+						inputTokenDetails: { cacheReadTokens: 99 },
+					},
+				},
+				expected: {
+					model: "",
+					httpRequests: 0,
+					promptTokens: 0,
+					completionTokens: 0,
+					cachedTokens: 0,
+					costUsd: "0.000000",
+				},
+			},
+			{
+				trace: {
+					model: null,
+					stepsUsed: "bad",
+					steps: [{}, {}],
+					costUsd: "0.5",
+					usage: {
+						input: "bad",
+						inputTokens: 1784,
+						output: null,
+						outputTokens: 1150,
+						cached: "bad",
+						inputTokenDetails: { cacheReadTokens: 128, cachedTokens: 99 },
+					},
+				},
+				expected: {
+					model: "unknown",
+					httpRequests: 2,
+					promptTokens: 1784,
+					completionTokens: 1150,
+					cachedTokens: 128,
+					costUsd: null,
+				},
+			},
+			{
+				trace: {
+					usage: {
+						input: 2047,
+						output: 341,
+						inputTokenDetails: { cacheReadTokens: "bad", cachedTokens: 1041 },
+					},
+				},
+				expected: {
+					model: "unknown",
+					httpRequests: 1,
+					promptTokens: 2047,
+					completionTokens: 341,
+					cachedTokens: 1041,
+					costUsd: null,
+				},
+			},
+			{
+				trace: {
+					steps: [],
+					usage: { input: 2047, output: 341, inputTokenDetails: [] },
+				},
+				expected: { httpRequests: 0, cachedTokens: null },
+			},
+		];
+		for (const entry of cases) {
+			const stepId = await seedStep({
+				runId,
+				ruleId: "ai-review@2",
+				evidence: envelope(jsonValueSchema.parse(entry.trace)),
+			});
+			await recordRunAiReviewUsage(db, { runId, orgId: null, source: "dev" });
+			const [row] = await db
+				.select()
+				.from(aiReviewUsage)
+				.where(eq(aiReviewUsage.runStepId, stepId));
+			expect(row).toMatchObject({
+				...entry.expected,
+				orgId: null,
+				source: "dev",
+			});
+		}
+		for (const trace of [
+			null,
+			[],
+			{},
+			{ usage: null },
+			{ usage: [] },
+			{ usage: { input: 1 } },
+			{ usage: { input: "1", output: 2 } },
+		]) {
+			const stepId = await seedStep({
+				runId,
+				ruleId: "ai-review@2",
+				evidence: envelope(jsonValueSchema.parse(trace)),
+			});
+			await recordRunAiReviewUsage(db, { runId, orgId: null, source: "dev" });
+			const rows = await db
+				.select()
+				.from(aiReviewUsage)
+				.where(eq(aiReviewUsage.runStepId, stepId));
+			expect(rows).toEqual([]);
+		}
+	});
+
+	test("Railway rate dictionaries retain valid zeroes and reject unavailable baselines", async () => {
+		expect(await getLastRailwayPrices(db)).toBeNull();
+		await upsertProviderCost(db, {
+			day: "2026-08-01",
+			provider: "railway",
+			service: "rates",
+			usageJson: { prices: { cpu: 0, memory: 0.25 } },
+			costUsd: 0,
+			estimated: false,
+		});
+		expect(await getLastRailwayPrices(db)).toEqual({ cpu: 0, memory: 0.25 });
+		await upsertProviderCost(db, {
+			day: "2026-08-01",
+			provider: "railway",
+			service: "rates",
+			usageJson: { prices: {} },
+			costUsd: 0,
+			estimated: false,
+		});
+		expect(await getLastRailwayPrices(db)).toEqual({});
+		for (const prices of [{ cpu: "0" }, { cpu: {} }, [], ["0"], null, 42]) {
+			await upsertProviderCost(db, {
+				day: "2026-08-01",
+				provider: "railway",
+				service: "rates",
+				usageJson: { prices },
+				costUsd: 0,
+				estimated: false,
+			});
+			expect(await getLastRailwayPrices(db)).toBeNull();
+		}
+	});
+
+	test("Railway breakdown uses the latest provider day, excludes rates, and preserves numeric fallbacks", async () => {
+		await upsertProviderCost(db, {
+			day: "2026-08-02",
+			provider: "railway",
+			service: "rates",
+			usageJson: { ratesDrift: true, verifiedAt: "2026-07-22" },
+			costUsd: 99,
+			estimated: false,
+		});
+		await upsertProviderCost(db, {
+			day: "2026-08-02",
+			provider: "railway",
+			service: "worker",
+			usageJson: {
+				name: "",
+				cpuUnits: "2.5",
+				memGbMin: null,
+				egressGb: 0,
+				audit: { keep: true },
+			},
+			costUsd: 1.23456,
+			estimated: true,
+		});
+		await upsertProviderCost(db, {
+			day: "2026-08-02",
+			provider: "railway",
+			service: "api",
+			usageJson: { name: 42, cpuUnits: true, memGbMin: "", egressGb: [2] },
+			costUsd: 0,
+			estimated: true,
+		});
+		await upsertProviderCost(db, {
+			day: "2026-08-03",
+			provider: "openrouter",
+			service: "prod-key",
+			usageJson: {},
+			costUsd: 999,
+			estimated: false,
+		});
+		const result = await getRailwayBreakdown(db);
+		expect(result).toMatchObject({
+			day: "2026-08-02",
+			totalUsd: 1.2346,
+			ratesDrift: true,
+			ratesVerifiedAt: "2026-07-22",
+			services: [
+				{ name: "", costUsd: 1.2346, cpuUnits: 2.5, memGbMin: 0, egressGb: 0 },
+				{ name: "api", costUsd: 0, cpuUnits: 1, memGbMin: 0, egressGb: 2 },
+			],
+		});
+	});
+});

@@ -110,20 +110,37 @@ describe("a comment run between two blocks (staging PR 135)", () => {
 	});
 
 	test("the second block sees block as the verdict on the change request", async () => {
-		expect(await getPreviousVerdict(db, REPO, PR, secondBlock)).toBe("block");
+		expect(
+			await getPreviousVerdict(
+				db,
+				{ forge: "github", fullName: REPO },
+				PR,
+				secondBlock,
+			),
+		).toBe("block");
 	});
 
 	test("the comment run is not in the chain, so the second block replaces the first", async () => {
-		const chain = await listRunsForChangeRequest(db, REPO, PR);
-		expect(chain.map((row) => row.id)).toEqual([firstBlock, secondBlock]);
-		expect(await getLatestRunIdForChangeRequest(db, REPO, PR)).toBe(
-			secondBlock,
+		const chain = await listRunsForChangeRequest(
+			db,
+			{ forge: "github", fullName: REPO },
+			PR,
 		);
+		expect(chain.map((row) => row.id)).toEqual([firstBlock, secondBlock]);
+		expect(
+			await getLatestRunIdForChangeRequest(
+				db,
+				{ forge: "github", fullName: REPO },
+				PR,
+			),
+		).toBe(secondBlock);
 	});
 
 	test("activity reads block as the change request's verdict", async () => {
 		await seedRun(PR, "comment.created", "pass");
-		const feed = await listActivityFeed(db, { repoFullName: REPO });
+		const feed = await listActivityFeed(db, {
+			repo: { forge: "github", fullName: REPO },
+		});
 		const group = feed.items.find(
 			(item) => item.type === "group" && item.group.subjectNumber === PR,
 		);
@@ -134,19 +151,30 @@ describe("a comment run between two blocks (staging PR 135)", () => {
 	});
 
 	test("a later block on the change request is still open after a comment", async () => {
-		const rows = await listOpenBlockedRuns(db, REPO, new Date(start - MINUTE));
+		const rows = await listOpenBlockedRuns(
+			db,
+			{ forge: "github", fullName: REPO },
+			new Date(start - MINUTE),
+		);
 		expect(rows.map((row) => row.runId)).toContain(secondBlock);
 	});
 
 	test("the fix push sees block as the verdict it clears", async () => {
 		fix = await seedRun(PR, "change-request.updated", "pass");
-		expect(await getPreviousVerdict(db, REPO, PR, fix)).toBe("block");
+		expect(
+			await getPreviousVerdict(
+				db,
+				{ forge: "github", fullName: REPO },
+				PR,
+				fix,
+			),
+		).toBe("block");
 		expect(commentRun).not.toBe(fix);
 	});
 
 	test("comment runs do not count toward verdict metrics", async () => {
 		const recent = await listRecentRuns(db, {
-			repoFullName: REPO,
+			repo: { forge: "github", fullName: REPO },
 			verdicts: ["pass"],
 		});
 		expect(recent.map((row) => row.runId)).toEqual([fix]);
@@ -158,12 +186,37 @@ describe("control: two blocks then a fix with no comment (staging PR 136)", () =
 
 	test("block, block, pass read as one transition", async () => {
 		const first = await seedRun(PR, "change-request.opened", "block");
-		expect(await getPreviousVerdict(db, REPO, PR, first)).toBeNull();
+		expect(
+			await getPreviousVerdict(
+				db,
+				{ forge: "github", fullName: REPO },
+				PR,
+				first,
+			),
+		).toBeNull();
 		const second = await seedRun(PR, "change-request.updated", "block");
-		expect(await getPreviousVerdict(db, REPO, PR, second)).toBe("block");
+		expect(
+			await getPreviousVerdict(
+				db,
+				{ forge: "github", fullName: REPO },
+				PR,
+				second,
+			),
+		).toBe("block");
 		const fix = await seedRun(PR, "change-request.updated", "pass");
-		expect(await getPreviousVerdict(db, REPO, PR, fix)).toBe("block");
-		const chain = await listRunsForChangeRequest(db, REPO, PR);
+		expect(
+			await getPreviousVerdict(
+				db,
+				{ forge: "github", fullName: REPO },
+				PR,
+				fix,
+			),
+		).toBe("block");
+		const chain = await listRunsForChangeRequest(
+			db,
+			{ forge: "github", fullName: REPO },
+			PR,
+		);
 		expect(chain.map((row) => row.id)).toEqual([first, second, fix]);
 	});
 });
@@ -176,7 +229,11 @@ describe("a backfill run on a change request (R7-1)", () => {
 		await seedRun(PR, "change-request.updated", "needs_review", {
 			backfill: true,
 		});
-		const chain = await listRunsForChangeRequest(db, REPO, PR);
+		const chain = await listRunsForChangeRequest(
+			db,
+			{ forge: "github", fullName: REPO },
+			PR,
+		);
 		expect(chain.map((row) => row.id)).toEqual([live]);
 	});
 });
@@ -240,18 +297,52 @@ describe("a slow run for an older event (same-head retarget)", () => {
 		);
 		const stale = await seedRunFor(pushed, "block", new Date(t0 + 3 * MINUTE));
 
-		expect(await getLatestRunIdForChangeRequest(db, REPO, PR)).toBe(fresh);
-		expect(await getLatestRunForChangeRequest(db, REPO, PR)).toEqual({
+		expect(
+			await getLatestRunIdForChangeRequest(
+				db,
+				{ forge: "github", fullName: REPO },
+				PR,
+			),
+		).toBe(fresh);
+		expect(
+			await getLatestRunForChangeRequest(
+				db,
+				{ forge: "github", fullName: REPO },
+				PR,
+			),
+		).toEqual({
 			id: fresh,
 			eventId: retargeted,
 			headSha: "same-head",
 		});
-		expect(await getPreviousVerdict(db, REPO, PR, fresh)).toBe("block");
-		expect(await getPreviousVerdict(db, REPO, PR, stale)).toBe("pass");
+		expect(
+			await getPreviousVerdict(
+				db,
+				{ forge: "github", fullName: REPO },
+				PR,
+				fresh,
+			),
+		).toBe("block");
+		expect(
+			await getPreviousVerdict(
+				db,
+				{ forge: "github", fullName: REPO },
+				PR,
+				stale,
+			),
+		).toBe("pass");
 
-		const chain = await listRunsForChangeRequest(db, REPO, PR);
+		const chain = await listRunsForChangeRequest(
+			db,
+			{ forge: "github", fullName: REPO },
+			PR,
+		);
 		expect(chain.map((row) => row.id)).toEqual([stale, fresh]);
-		const open = await listOpenBlockedRuns(db, REPO, new Date(t0 - MINUTE));
+		const open = await listOpenBlockedRuns(
+			db,
+			{ forge: "github", fullName: REPO },
+			new Date(t0 - MINUTE),
+		);
 		expect(open.map((row) => row.subjectNumber)).not.toContain(PR);
 	});
 
@@ -265,14 +356,26 @@ describe("a slow run for an older event (same-head retarget)", () => {
 			.where(eq(runs.id, claim));
 		const edited = await seedEvent(new Date(t0 + MINUTE));
 		const editRun = await seedRunFor(edited, "pass", new Date(t0 + MINUTE));
-		expect(await getLatestRunIdForChangeRequest(db, REPO, PR)).toBe(editRun);
+		expect(
+			await getLatestRunIdForChangeRequest(
+				db,
+				{ forge: "github", fullName: REPO },
+				PR,
+			),
+		).toBe(editRun);
 
 		await beginRunEvaluation(db, claim, {
 			snapshot: [TRIGGER_ONLY],
 			headSha: "same-head",
 			eventId: edited,
 		});
-		expect(await getLatestRunIdForChangeRequest(db, REPO, PR)).toBe(claim);
+		expect(
+			await getLatestRunIdForChangeRequest(
+				db,
+				{ forge: "github", fullName: REPO },
+				PR,
+			),
+		).toBe(claim);
 
 		await finalizeRun(db, claim, {
 			eventId: edited,
@@ -281,7 +384,13 @@ describe("a slow run for an older event (same-head retarget)", () => {
 			status: "completed",
 			verdict: "block",
 		});
-		expect(await getLatestRunForChangeRequest(db, REPO, PR)).toEqual({
+		expect(
+			await getLatestRunForChangeRequest(
+				db,
+				{ forge: "github", fullName: REPO },
+				PR,
+			),
+		).toEqual({
 			id: claim,
 			eventId: edited,
 			headSha: "same-head",
@@ -289,11 +398,21 @@ describe("a slow run for an older event (same-head retarget)", () => {
 	});
 
 	test("a re-run of the newest event outranks the run it repeats", async () => {
-		const latest = await getLatestRunForChangeRequest(db, REPO, PR);
+		const latest = await getLatestRunForChangeRequest(
+			db,
+			{ forge: "github", fullName: REPO },
+			PR,
+		);
 		if (!latest) {
 			throw new Error("no latest run");
 		}
 		const rerun = await seedRunFor(latest.eventId, "block", new Date());
-		expect(await getLatestRunIdForChangeRequest(db, REPO, PR)).toBe(rerun);
+		expect(
+			await getLatestRunIdForChangeRequest(
+				db,
+				{ forge: "github", fullName: REPO },
+				PR,
+			),
+		).toBe(rerun);
 	});
 });

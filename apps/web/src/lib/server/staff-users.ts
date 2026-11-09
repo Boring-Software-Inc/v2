@@ -1,12 +1,12 @@
 import type { AccountDeletionResult } from "@tripwire/auth/account-deletion";
 import type { FlagEvaluator } from "@tripwire/auth/flag-evaluation";
-import { DATABUDDY_WEBSITE_ID } from "@tripwire/contracts";
 import type { Db, SessionGuardState } from "@tripwire/db";
 import {
 	createDatabuddyApi,
 	type DatabuddyApi,
 	getErrorMessage,
 } from "@tripwire/utils";
+import { getDatabuddyApiConfig } from "@tripwire/utils/databuddy-server";
 
 let api: DatabuddyApi | null | undefined;
 let evaluator: FlagEvaluator | undefined;
@@ -15,14 +15,8 @@ export function getDatabuddyApi(): DatabuddyApi | null {
 	if (api !== undefined) {
 		return api;
 	}
-	const apiKey = process.env.DATABUDDY_API_KEY;
-	api = apiKey
-		? createDatabuddyApi({
-				apiKey,
-				websiteId: DATABUDDY_WEBSITE_ID,
-				baseUrl: process.env.DATABUDDY_API_URL,
-			})
-		: null;
+	const config = getDatabuddyApiConfig();
+	api = config ? createDatabuddyApi(config) : null;
 	return api;
 }
 

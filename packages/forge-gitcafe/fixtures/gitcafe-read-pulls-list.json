@@ -1,0 +1,34 @@
+{
+	"items": [
+		{
+			"id": "pr_01m612t72sfhj9j6226knf5kqz",
+			"number": 1,
+			"title": "Tripwire staging adapter acceptance fixture",
+			"state": "open",
+			"draft": false,
+			"createdAt": "2026-10-28T11:02:36.787Z",
+			"author": {
+				"kind": "local",
+				"actorId": "act_01m08gfttrfw3ba3xpz50vq38h",
+				"handle": "grim",
+				"displayName": "grim",
+				"avatarUrl": null
+			},
+			"sourceBranch": "tripwire-qa/adapter-20261028",
+			"targetBranch": "main",
+			"headOid": "2bff66c45a9e2241fc2482bc63bac23281a7377f",
+			"authorActorId": "act_01m08gfttrfw3ba3xpz50vq38h",
+			"updatedAt": "2026-10-28T23:29:28.722Z",
+			"version": 1,
+			"additions": null,
+			"deletions": null,
+			"changedFiles": null,
+			"labels": [],
+			"assignees": [],
+			"reviewers": [],
+			"milestone": null,
+			"stack": null
+		}
+	],
+	"next": null
+}

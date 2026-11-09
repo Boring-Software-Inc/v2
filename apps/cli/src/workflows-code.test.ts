@@ -1,13 +1,357 @@
-import { describe, expect, test } from "bun:test";
-import { workflowDefinitionSchema } from "@tripwire/contracts";
+import { afterAll, describe, expect, test } from "bun:test";
 import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	symlinkSync,
+	writeFileSync,
+} from "node:fs";
+import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { workflowDefinitionSchema } from "@tripwire/contracts";
+import { realSystem } from "#/system";
+import {
+	discoverWorkflowFiles,
 	initialPicks,
+	loadWorkflowFile,
 	mergeDefinitions,
 	type PulledWorkflow,
 	pulledCountText,
+	readLocalWorkflows,
+	resolveWorkflowSdk,
+	sdkWorkflowSource,
 	selectPulled,
+	selectWorkflowSources,
+	typecheckSdkWorkflow,
 	workflowChoices,
+	writePulled,
+	writeSdkWorkflows,
 } from "#/workflows-code";
+
+const SDK_PROJECTS: string[] = [];
+const TYPESCRIPT_PACKAGE = dirname(
+	createRequire(import.meta.url).resolve("typescript/package.json"),
+);
+
+function sdkWorkflowProject(
+	validDefinition: boolean,
+	typeError = false,
+	version = "0.1.2",
+): string {
+	const root = mkdtempSync(join(tmpdir(), "tripwire-sdk-workflow-"));
+	SDK_PROJECTS.push(root);
+	const packageDir = join(root, "node_modules", "@tripwire-sh", "sdk");
+	mkdirSync(packageDir, { recursive: true });
+	writeFileSync(
+		join(packageDir, "package.json"),
+		JSON.stringify({
+			name: "@tripwire-sh/sdk",
+			version,
+			type: "module",
+			exports: {
+				"./workflows": {
+					types: "./workflows.d.ts",
+					default: "./workflows.js",
+				},
+			},
+		}),
+	);
+	writeFileSync(
+		join(packageDir, "workflows.d.ts"),
+		`export interface EventRef { readonly kind: string; readonly name: string; }
+export interface ActionStep { readonly kind: "action"; readonly action: string; }
+export interface WorkflowValue { readonly kind: "workflow"; readonly spec: { readonly when: EventRef; readonly run: ActionStep }; }
+export function workflow(spec: WorkflowValue["spec"]): WorkflowValue;
+export const changeRequest: { readonly opened: EventRef };
+export function block(): ActionStep;
+export function compileWorkflow(slug: string, value: WorkflowValue): unknown;
+`,
+	);
+	writeFileSync(
+		join(packageDir, "workflows.js"),
+		`export function workflow(spec) { return { kind: "workflow", spec }; }
+export const changeRequest = { opened: { kind: "change-request.opened", name: "changeRequest.opened" } };
+export function block() { return { kind: "action", action: "block" }; }
+export function compileWorkflow(slug) {
+  return { ok: true, definition: ${
+		validDefinition
+			? `{ id: slug, name: slug, version: 1, nodes: [{ id: "trigger", type: "trigger", kinds: ["change-request.opened"] }, { id: "block", type: "action", action: "block" }], edges: [{ id: "trigger-block", from: "trigger", to: "block" }] }`
+			: `{ id: slug, name: slug, version: 1, nodes: [], edges: [] }`
+	} };
+}`,
+	);
+	const file = join(root, ".tripwire", "workflows", "new-contributors.ts");
+	mkdirSync(dirname(file), { recursive: true });
+	symlinkSync(
+		TYPESCRIPT_PACKAGE,
+		join(root, "node_modules", "typescript"),
+		process.platform === "win32" ? "junction" : "dir",
+	);
+	writeFileSync(
+		file,
+		`import { block, changeRequest, workflow } from "@tripwire-sh/sdk/workflows";
+export default workflow({ when: ${typeError ? "42" : "changeRequest.opened"}, run: block() });
+`,
+	);
+	return file;
+}
+
+afterAll(() => {
+	for (const root of SDK_PROJECTS) {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+describe("loading one SDK workflow", () => {
+	test("resolves the project-installed compiler and returns one contracts definition", async () => {
+		const compiled = await loadWorkflowFile(sdkWorkflowProject(true));
+		expect(compiled.ok).toBe(true);
+		expect(compiled.definitions).toHaveLength(1);
+		expect(compiled.definitions[0]?.id).toBe("new-contributors");
+		expect(
+			workflowDefinitionSchema.safeParse(compiled.definitions[0]).success,
+		).toBe(true);
+	});
+
+	test("rejects an outdated project SDK with the upgrade command", async () => {
+		await expect(
+			loadWorkflowFile(sdkWorkflowProject(true, false, "0.1.1")),
+		).rejects.toThrow(
+			"This project uses @tripwire-sh/sdk@0.1.1. Workflow commands need 0.1.2 or later. Run npm install @tripwire-sh/sdk@latest in your project.",
+		);
+	});
+
+	test("rejects SDK output that does not satisfy contracts", async () => {
+		const compiled = await loadWorkflowFile(sdkWorkflowProject(false));
+		expect(compiled.ok).toBe(false);
+		if (!compiled.ok) {
+			expect(compiled.issues[0]?.workflow).toBe("new-contributors");
+			expect(compiled.issues[0]?.step).toBe("nodes");
+		}
+	});
+
+	test("pull cannot replace an SDK workflow with legacy collection source", async () => {
+		const file = sdkWorkflowProject(true);
+		const local = await readLocalWorkflows(file);
+		expect(local.kind).toBe("code");
+		if (local.kind !== "code") {
+			throw new Error("Expected a readable SDK workflow fixture");
+		}
+		expect(local.format).toBe("sdk");
+		expect(() => writePulled(file, local.definitions, true, local)).toThrow(
+			"Pull cannot rewrite SDK files yet",
+		);
+	});
+
+	test("the project TypeScript rejects an SDK workflow before push", async () => {
+		const checked = await typecheckSdkWorkflow(
+			sdkWorkflowProject(true, true),
+			realSystem(process.env, process.platform),
+		);
+		expect(checked.ok).toBe(false);
+		if (!checked.ok) {
+			expect(checked.message).toContain(
+				"Type 'number' is not assignable to type 'EventRef'",
+			);
+		}
+	});
+});
+
+describe("SDK workflow directory", () => {
+	test("pull refreshes an exact older export but preserves authored edits", () => {
+		const root = mkdtempSync(join(tmpdir(), "tripwire-legacy-export-"));
+		SDK_PROJECTS.push(root);
+		const file = join(root, "clean-workflow.ts");
+		const identity = {
+			version: 1,
+			nodes: {
+				trigger: { id: "trigger" },
+				"account-age": { id: "account-age" },
+				block: { id: "block" },
+			},
+			edges: {
+				"trigger-pass-account-age": { id: "trigger-pass-account-age" },
+				"account-age-fail-block": { id: "account-age-fail-block" },
+			},
+		};
+		const old = `import { accountAge, block, changeRequest, workflow, workflowIdentityVersion } from "@tripwire-sh/sdk/workflows";
+
+export default workflow({
+	name: "Renamed workflow",
+	when: changeRequest.opened,
+	require: accountAge({ minDays: 30 }),
+	otherwise: block(),
+}, {
+	format: workflowIdentityVersion,${JSON.stringify(identity, null, "\t").slice(1)});
+`;
+		const definition = workflowDefinitionSchema.parse({
+			id: "clean-workflow",
+			name: "Renamed workflow",
+			version: 1,
+			nodes: [
+				{ id: "trigger", type: "trigger", kinds: ["change-request.opened"] },
+				{
+					id: "account-age",
+					type: "rule",
+					ref: "account-age@1",
+					config: { minDays: 30 },
+				},
+				{ id: "block", type: "action", action: "block" },
+			],
+			edges: [
+				{ id: "trigger-pass-account-age", from: "trigger", to: "account-age" },
+				{
+					id: "account-age-fail-block",
+					from: "account-age",
+					to: "block",
+					when: "fail",
+				},
+			],
+			authoredSource: old,
+		});
+		writeFileSync(file, old);
+		const pulled = writeSdkWorkflows(root, [definition], new Map(), false);
+		const source = readFileSync(file, "utf8");
+		expect(source).toContain("else: block()");
+		expect(source).not.toContain("workflowIdentityVersion");
+		const authoredSource = `// Keep this comment.\n${old}`;
+		writeSdkWorkflows(
+			root,
+			[{ ...definition, authoredSource }],
+			new Map(),
+			false,
+			pulled.hashes,
+		);
+		expect(readFileSync(file, "utf8")).toBe(authoredSource);
+	});
+
+	test("discovers canonical slugs in stable order and selects explicitly", () => {
+		const root = mkdtempSync(join(tmpdir(), "tripwire-sdk-discovery-"));
+		SDK_PROJECTS.push(root);
+		writeFileSync(join(root, "z-last.ts"), "export default {}\n");
+		writeFileSync(join(root, "a-first.ts"), "export default {}\n");
+		writeFileSync(join(root, "notes.md"), "ignored\n");
+		const sources = discoverWorkflowFiles(root);
+		expect(sources.map(({ slug }) => slug)).toEqual(["a-first", "z-last"]);
+		expect(selectWorkflowSources(sources, ["z-last"])).toEqual(
+			sources[1] ? [sources[1]] : [],
+		);
+		expect(() => selectWorkflowSources(sources, ["missing"])).toThrow(
+			"Available workflows: a-first, z-last",
+		);
+		expect(selectWorkflowSources(sources, ["z-last", "z-last"])).toHaveLength(
+			1,
+		);
+	});
+
+	test("writes one lossless SDK source per workflow without deleting others", () => {
+		const root = mkdtempSync(join(tmpdir(), "tripwire-sdk-pull-"));
+		SDK_PROJECTS.push(root);
+		const first = workflowDefinitionSchema.parse(
+			gate("remote-1", "First", ["change-request.opened"]),
+		);
+		const second = workflowDefinitionSchema.parse(
+			gate("remote-2", "Second", ["comment.created"]),
+		);
+		const keys = new Map([
+			["remote-1", "first"],
+			["remote-2", "second"],
+		]);
+		writeFileSync(join(root, "local-only.ts"), "export default {}\n");
+		const written = writeSdkWorkflows(root, [first, second], keys, false);
+		expect(written.files).toHaveLength(2);
+		expect(discoverWorkflowFiles(root).map(({ slug }) => slug)).toEqual([
+			"first",
+			"local-only",
+			"second",
+		]);
+		writeFileSync(join(root, "first.ts"), "local edit\n");
+		expect(() => writeSdkWorkflows(root, [first], keys, false)).toThrow(
+			"has local edits",
+		);
+		writeSdkWorkflows(root, [first], keys, true);
+		expect(
+			discoverWorkflowFiles(root).some(({ slug }) => slug === "second"),
+		).toBe(true);
+	});
+
+	test("strips delivery secrets and refuses unsafe object-literal keys", () => {
+		const secret = workflowDefinitionSchema.parse({
+			id: "delivery",
+			name: "Delivery",
+			version: 1,
+			nodes: [
+				{ id: "t", type: "trigger", kinds: ["comment.created"] },
+				{
+					id: "w",
+					type: "action",
+					action: "webhook",
+					params: { url: "https://secret.example", signingSecret: "secret" },
+				},
+			],
+			edges: [{ id: "e", from: "t", to: "w" }],
+		});
+		const source = sdkWorkflowSource(secret);
+		expect(source).not.toContain("secret.example");
+		expect(source).not.toContain("signingSecret");
+		const unsafe = JSON.parse(JSON.stringify(secret)) as typeof secret;
+		Object.defineProperty(
+			(unsafe.nodes[1] as { params: Record<string, unknown> }).params,
+			"__proto__",
+			{ value: "unsafe", enumerable: true },
+		);
+		expect(() => sdkWorkflowSource(unsafe)).toThrow("contains a __proto__ key");
+	});
+
+	test("preflights every selected file before writing any of them", () => {
+		const root = mkdtempSync(join(tmpdir(), "tripwire-sdk-preflight-"));
+		SDK_PROJECTS.push(root);
+		const first = workflowDefinitionSchema.parse(
+			gate("one", "One", ["comment.created"]),
+		);
+		const second = workflowDefinitionSchema.parse(
+			gate("two", "Two", ["comment.created"]),
+		);
+		writeFileSync(join(root, "two.ts"), "local edit\n");
+		expect(() =>
+			writeSdkWorkflows(
+				root,
+				[first, second],
+				new Map([
+					["one", "one"],
+					["two", "two"],
+				]),
+				false,
+			),
+		).toThrow("has local edits");
+		expect(existsSync(join(root, "one.ts"))).toBe(false);
+	});
+
+	test("refuses a symlink in the workflow directory path", () => {
+		if (process.platform === "win32") {
+			return;
+		}
+		const root = mkdtempSync(join(tmpdir(), "tripwire-sdk-symlink-"));
+		SDK_PROJECTS.push(root);
+		const actual = join(root, "actual");
+		mkdirSync(actual);
+		symlinkSync(actual, join(root, ".tripwire"), "dir");
+		const definition = workflowDefinitionSchema.parse(
+			gate("one", "One", ["comment.created"]),
+		);
+		expect(() =>
+			writeSdkWorkflows(
+				join(root, ".tripwire", "workflows"),
+				[definition],
+				new Map([["one", "one"]]),
+				false,
+			),
+		).toThrow("is a symlink");
+	});
+});
 
 describe("pull says how many workflows it wrote", () => {
 	test("the count is what the file holds", () => {
@@ -174,3 +518,62 @@ describe("picking workflows to pull", () => {
 function never(): never {
 	throw new Error("missing fixture");
 }
+
+test("editor star rules export named SDK helpers and preserve an explicit owner exclusion", () => {
+	const definition = workflowDefinitionSchema.parse({
+		id: "stars",
+		name: "stars",
+		version: 1,
+		nodes: [
+			{ id: "trigger", type: "trigger", kinds: ["change-request.opened"] },
+			{
+				id: "merged-pr-repo-stars",
+				type: "rule",
+				ref: "merged-pr-repo-stars@1",
+				config: {
+					minRepoStars: 50_000,
+					min: 5,
+					repoOwnership: "exclude-author",
+				},
+			},
+			{ id: "block", type: "action", action: "block" },
+		],
+		edges: [
+			{
+				id: "trigger-pass-merged-pr-repo-stars",
+				from: "trigger",
+				to: "merged-pr-repo-stars",
+			},
+			{
+				id: "merged-pr-repo-stars-fail-block",
+				from: "merged-pr-repo-stars",
+				to: "block",
+				when: "fail",
+			},
+		],
+	});
+	const source = sdkWorkflowSource(definition);
+	expect(source).toContain(
+		"require: mergedChangeRequests().authoredBy(prAuthor).excludeReposOwnedBy(prAuthor).withMinRepoStars(50_000).atLeast(5)",
+	);
+	expect(source).not.toContain("workflowGraph");
+	const owned = workflowDefinitionSchema.parse({
+		...definition,
+		nodes: definition.nodes.map((node) =>
+			node.type === "rule"
+				? {
+						...node,
+						ref: "owned-repo-stars@1",
+						config: { minStars: 50_000, min: 1 },
+					}
+				: node,
+		),
+		edges: [],
+	});
+	expect(sdkWorkflowSource(owned)).toContain(
+		"repositories().ownedBy(prAuthor).withMinStars(50_000).atLeast(1)",
+	);
+	expect(() =>
+		resolveWorkflowSdk(sdkWorkflowProject(true, false, "0.1.3"), definition),
+	).toThrow("Repository star checks need 0.1.4");
+});

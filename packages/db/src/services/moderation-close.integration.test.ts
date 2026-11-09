@@ -114,12 +114,23 @@ describe("closing a change request", () => {
 		const otherNumber = await pausedItem("evt-141", REPO, 141);
 		const otherRepo = await pausedItem("evt-other", "acme/elsewhere", 140);
 
-		await closeReviewsForChangeRequest(db, APP_URL, REPO, 140);
+		await closeReviewsForChangeRequest(
+			db,
+			APP_URL,
+			{ forge: "github", fullName: REPO },
+			140,
+		);
 
 		expect((await getModerationItem(db, open))?.status).toBe("closed");
 		expect((await getModerationItem(db, open))?.decidedAt).not.toBeNull();
 		expect((await getModerationItem(db, decided))?.status).toBe("approved");
-		const pending = await listPendingItems(db, [REPO, "acme/elsewhere"]);
+		const pending = await listPendingItems(
+			db,
+			[REPO, "acme/elsewhere"].map((fullName) => ({
+				forge: "github" as const,
+				fullName,
+			})),
+		);
 		expect(pending.map((item) => item.id).sort()).toEqual(
 			[otherNumber, otherRepo].sort(),
 		);
@@ -127,7 +138,12 @@ describe("closing a change request", () => {
 
 	test("a closed item can no longer be decided", async () => {
 		const item = await pausedItem("evt-142", REPO, 142);
-		await closeReviewsForChangeRequest(db, APP_URL, REPO, 142);
+		await closeReviewsForChangeRequest(
+			db,
+			APP_URL,
+			{ forge: "github", fullName: REPO },
+			142,
+		);
 		expect(
 			await markModerationDecided(db, {
 				itemId: item,
@@ -141,7 +157,12 @@ describe("closing a change request", () => {
 		const { runId } = await pausedRun("evt-143", REPO, 143);
 		await withPostedCheck(runId, "sha-evt-143");
 
-		const closed = await closeReviewsForChangeRequest(db, APP_URL, REPO, 143);
+		const closed = await closeReviewsForChangeRequest(
+			db,
+			APP_URL,
+			{ forge: "github", fullName: REPO },
+			143,
+		);
 
 		const run = await getRunById(db, runId);
 		expect(run?.status).toBe("closed");
@@ -150,6 +171,7 @@ describe("closing a change request", () => {
 		expect(closed).toEqual([
 			{
 				runId,
+				forge: "github",
 				repoFullName: REPO,
 				subjectNumber: 143,
 				check: {
@@ -179,11 +201,16 @@ describe("closing a change request", () => {
 				},
 			},
 		]);
-		expect(await closeReviewsForChangeRequest(db, APP_URL, REPO, 143)).toEqual(
-			[],
-		);
+		expect(
+			await closeReviewsForChangeRequest(
+				db,
+				APP_URL,
+				{ forge: "github", fullName: REPO },
+				143,
+			),
+		).toEqual([]);
 		const awaiting = await listRecentRuns(db, {
-			repoFullName: REPO,
+			repo: { forge: "github", fullName: REPO },
 			verdicts: ["needs_review"],
 			limit: 100,
 		});
@@ -192,10 +219,16 @@ describe("closing a change request", () => {
 
 	test("a waiting run that never posted a check closes without one", async () => {
 		const { runId } = await pausedRun("evt-144", REPO, 144);
-		const closed = await closeReviewsForChangeRequest(db, APP_URL, REPO, 144);
+		const closed = await closeReviewsForChangeRequest(
+			db,
+			APP_URL,
+			{ forge: "github", fullName: REPO },
+			144,
+		);
 		expect(closed).toMatchObject([
 			{
 				runId,
+				forge: "github",
 				repoFullName: REPO,
 				subjectNumber: 144,
 				check: null,
@@ -228,7 +261,7 @@ describe("closing a change request", () => {
 		const [closed] = await closeReviewsForChangeRequest(
 			db,
 			APP_URL,
-			"acme/quiet",
+			{ forge: "github", fullName: "acme/quiet" },
 			146,
 		);
 		expect(closed?.comment?.payload.body).toBe(
@@ -261,7 +294,12 @@ describe("closing a change request", () => {
 			status: "completed",
 			verdict: "pass",
 		});
-		const [closed] = await closeReviewsForChangeRequest(db, APP_URL, REPO, 145);
+		const [closed] = await closeReviewsForChangeRequest(
+			db,
+			APP_URL,
+			{ forge: "github", fullName: REPO },
+			145,
+		);
 		expect(closed?.runId).toBe(runId);
 		expect(closed?.check).toBeNull();
 		expect(closed?.comment).toBeNull();
@@ -274,7 +312,12 @@ describe("reviews left waiting on change requests closed earlier", () => {
 		await withPostedCheck(stale.runId, "sha-evt-150");
 		await closedEvent("evt-150-closed", REPO, 150);
 		const itemOnly = await pausedRun("evt-151", REPO, 151);
-		await closeReviewsForChangeRequest(db, APP_URL, REPO, 151);
+		await closeReviewsForChangeRequest(
+			db,
+			APP_URL,
+			{ forge: "github", fullName: REPO },
+			151,
+		);
 		await db.execute(
 			sql`UPDATE runs SET status = 'paused', completed_at = NULL WHERE id = ${itemOnly.runId}`,
 		);

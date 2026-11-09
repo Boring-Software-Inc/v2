@@ -3,10 +3,9 @@ import { getRouteApi, Link } from "@tanstack/react-router";
 import { ChartAtRest } from "#/components/analytics/chart-at-rest";
 import { BackfillProgress } from "#/components/arming/backfill-progress";
 import { Collection } from "#/components/collection/collection";
-import { Button } from "#/components/glaze/ui/button";
-import { Chart } from "#/components/glaze/ui/chart";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { MODERATION_COLLECTION } from "#/components/moderation/moderation-collection";
+import { ModerationPageFrame } from "#/components/moderation/moderation-page-frame";
 import {
 	ModerationPageSkeleton,
 	QueueSkeleton,
@@ -20,9 +19,16 @@ import { RegionGate } from "#/components/organizations/region-gate";
 import { RepoSetupChecklist } from "#/components/setup/repo-setup-checklist";
 import { SetupDoneStrip } from "#/components/setup/setup-done-strip";
 import { useRepoSetup } from "#/components/setup/use-repo-setup";
+import { Button } from "#/design-system/ui/button";
+import { Chart } from "#/design-system/ui/chart";
+import {
+	DataValue,
+	PageTitle,
+	SectionHeading,
+	SupportingText,
+} from "#/design-system/ui/typography";
 import { useCollection } from "#/hooks/use-collection";
 import { useOrgPermission } from "#/hooks/use-org-permission";
-import { cn } from "#/lib/glaze/utils";
 import { moderationStatsQueryOptions } from "#/lib/moderation.query";
 import type { ModStats } from "#/lib/moderation.types";
 import { showsReviewQueue } from "#/lib/repo-setup";
@@ -85,11 +91,7 @@ export function ModerationPage() {
 	) {
 		return (
 			<DashboardLayout counts={{}}>
-				<div className="px-4 py-6 md:px-8 md:py-10">
-					<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-						{checklist}
-					</div>
-				</div>
+				<ModerationPageFrame>{checklist}</ModerationPageFrame>
 			</DashboardLayout>
 		);
 	}
@@ -103,141 +105,135 @@ export function ModerationPage() {
 	const atRest = rows.every((row) => row.passed === 0 && row.blocked === 0);
 	const queue = queueQuery.data;
 	const counts = { queue: queue?.items.length };
+	const queueContent = (
+		<Collection
+			collection={collection}
+			empty={<ModerationQueueEmpty org={org} repo={repoName} />}
+			error={queueQuery.isError}
+			onRetry={async () => {
+				await queueQuery.refetch({ throwOnError: true });
+			}}
+			skeleton={<QueueSkeleton />}
+		>
+			{(visibleRows) => (
+				<>
+					<ModerationQueue
+						items={visibleRows}
+						org={org}
+						repo={repoName}
+						title={
+							<>
+								Waiting{" "}
+								<DataValue>
+									{queue?.truncated ? `${queue.limit}+` : queue?.items.length}
+								</DataValue>
+							</>
+						}
+					/>
+					{queue?.truncated ? (
+						<SupportingText>Showing the newest {queue.limit}.</SupportingText>
+					) : null}
+				</>
+			)}
+		</Collection>
+	);
+	const analyticsContent = (
+		<RegionGate
+			org={org}
+			placeholder={
+				<Chart
+					config={verdictConfig}
+					data={[]}
+					empty=""
+					label="Verdicts by hour, last 24 hours"
+					stacked
+					type="bar"
+					unit="count"
+					xKey="hour"
+				/>
+			}
+			region="analytics"
+		>
+			{rows.length > 0 && atRest ? (
+				<ChartAtRest
+					action={
+						<Button
+							nativeButton={false}
+							render={
+								<Link params={{ org, repo: repoName }} to="/$org/$repo/rules" />
+							}
+							size="sm"
+							variant="ghost"
+						>
+							Review rules
+						</Button>
+					}
+					config={verdictConfig}
+					data={rows}
+					label="Verdicts by hour, last 24 hours"
+					message="No verdicts in the last 24 hours"
+					stacked
+					type="bar"
+					unit="count"
+					xKey="hour"
+				/>
+			) : (
+				<Chart
+					actions={
+						<Button
+							nativeButton={false}
+							render={
+								<Link
+									params={{ org, repo: repoName }}
+									search={{ metric: "blocked" }}
+									to="/$org/$repo/analytics"
+								/>
+							}
+							size="sm"
+							variant="ghost"
+						>
+							Open analytics
+						</Button>
+					}
+					config={verdictConfig}
+					data={rows}
+					empty="No verdicts in the last 24 hours"
+					label="Verdicts by hour, last 24 hours"
+					loading={!stats}
+					stacked
+					type="bar"
+					unit="count"
+					xKey="hour"
+				/>
+			)}
+		</RegionGate>
+	);
 
 	return (
 		<DashboardLayout counts={counts}>
-			<div className="px-4 py-6 md:px-8 md:py-10">
-				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-					{checklist}
-					{setup.progress?.complete ? (
-						<SetupDoneStrip
-							org={org}
-							progress={setup.progress}
-							repo={repoName}
-						/>
-					) : null}
-					<header className={cn("flex flex-col gap-1", checklist && "pt-6")}>
-						{checklist ? (
-							<h2 className="type-title">Human review</h2>
-						) : (
-							<h1 className="type-title">Human review</h1>
-						)}
-						<p className="type-body text-text-2">
-							Approve to continue the workflow, or block.
-						</p>
-					</header>
-
-					<BackfillProgress org={org} repo={repoName} />
-
-					<Collection
-						collection={collection}
-						empty={<ModerationQueueEmpty org={org} repo={repoName} />}
-						error={queueQuery.isError}
-						onRetry={async () => {
-							await queueQuery.refetch({ throwOnError: true });
-						}}
-						skeleton={<QueueSkeleton />}
-					>
-						{(rows) => (
-							<>
-								<ModerationQueue
-									items={rows}
-									org={org}
-									repo={repoName}
-									title={
-										<>
-											Waiting{" "}
-											<span className="text-text-2 tabular-nums">
-												{queue?.truncated
-													? `${queue.limit}+`
-													: queue?.items.length}
-											</span>
-										</>
-									}
-								/>
-								{queue?.truncated ? (
-									<p className="type-body-sm text-text-2">
-										Showing the newest {queue.limit}.
-									</p>
-								) : null}
-							</>
-						)}
-					</Collection>
-
-					<RegionGate
-						org={org}
-						placeholder={
-							<Chart
-								config={verdictConfig}
-								data={[]}
-								empty=""
-								label="Verdicts by hour, last 24 hours"
-								stacked
-								type="bar"
-								unit="count"
-								xKey="hour"
-							/>
-						}
-						region="analytics"
-					>
-						{rows.length > 0 && atRest ? (
-							<ChartAtRest
-								action={
-									<Button
-										nativeButton={false}
-										render={
-											<Link
-												params={{ org, repo: repoName }}
-												to="/$org/$repo/rules"
-											/>
-										}
-										size="sm"
-										variant="ghost"
-									>
-										Review rules
-									</Button>
-								}
-								config={verdictConfig}
-								data={rows}
-								label="Verdicts by hour, last 24 hours"
-								message="No verdicts in the last 24 hours"
-								stacked
-								type="bar"
-								unit="count"
-								xKey="hour"
-							/>
-						) : (
-							<Chart
-								actions={
-									<Button
-										nativeButton={false}
-										render={
-											<Link
-												params={{ org, repo: repoName }}
-												search={{ metric: "blocked" }}
-												to="/$org/$repo/analytics"
-											/>
-										}
-										size="sm"
-										variant="ghost"
-									>
-										Open analytics
-									</Button>
-								}
-								config={verdictConfig}
-								data={rows}
-								empty="No verdicts in the last 24 hours"
-								label="Verdicts by hour, last 24 hours"
-								loading={!stats}
-								stacked
-								type="bar"
-								unit="count"
-								xKey="hour"
-							/>
-						)}
-					</RegionGate>
+			<ModerationPageFrame>
+				{checklist}
+				{setup.progress?.complete ? (
+					<SetupDoneStrip org={org} progress={setup.progress} repo={repoName} />
+				) : null}
+				<header data-layout-role="moderation-header">
+					{checklist ? (
+						<SectionHeading>Human review</SectionHeading>
+					) : (
+						<PageTitle>Human review</PageTitle>
+					)}
+					<SupportingText>
+						Approve to continue the workflow, or block.
+					</SupportingText>
+				</header>
+				<div data-layout-role="moderation-workspace">
+					<div data-layout-role="moderation-primary">
+						<BackfillProgress org={org} repo={repoName} />
+						<div data-layout-role="moderation-queue">{queueContent}</div>
+					</div>
+					<div data-layout-role="moderation-secondary">{analyticsContent}</div>
 				</div>
-			</div>
+			</ModerationPageFrame>
 		</DashboardLayout>
 	);
 }

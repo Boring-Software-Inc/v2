@@ -15,7 +15,7 @@ import {
 
 /** Representative evidence per rule — observed fields AND thresholds present, */
 /** so the test proves the thresholds are dropped, not merely absent. */
-const SAMPLE_EVIDENCE: Record<string, Record<string, unknown>> = {
+const SAMPLE_EVIDENCE = {
 	"account-age": { accountAgeDays: 2038, minDays: 7 },
 	// @2 evidence — observed counts AND both thresholds, so the leak guard proves
 	// `min` and `trustedAfter` are dropped, not merely absent.
@@ -24,6 +24,24 @@ const SAMPLE_EVIDENCE: Record<string, Record<string, unknown>> = {
 		mergedInRepo: 3,
 		min: 5,
 		trustedAfter: 3,
+	},
+	"shared-spam-blocklist": {
+		accountId: "123",
+		reason: "fixture match",
+		revision: 1,
+	},
+	"owned-repo-stars": {
+		matchingCount: 2,
+		complete: false,
+		minStars: 50_000,
+		min: 2,
+	},
+	"merged-pr-repo-stars": {
+		matchingCount: 2,
+		complete: true,
+		minRepoStars: 50_000,
+		min: 5,
+		repoOwnership: "exclude-author",
 	},
 	"pr-rate-limit": {
 		count: 2,
@@ -46,15 +64,16 @@ const SAMPLE_EVIDENCE: Record<string, Record<string, unknown>> = {
 
 /** Evidence that TRIGGERS a wait-rule's hint (a positive remainder), so the */
 /** leak guard checks a real string, not a vacuous null. */
-const WAIT_SAMPLE: Record<string, Record<string, unknown>> = {
+const WAIT_SAMPLE = {
 	"account-age": { accountAgeDays: 2, minDays: 7 },
 };
 
 function configKeys(schema: z.ZodType): string[] {
-	const shape = (schema as unknown as { shape?: Record<string, unknown> })
-		.shape;
-	return shape ? Object.keys(shape) : [];
+	return Object.keys(schema.toJSONSchema().properties ?? {});
 }
+
+const SAMPLE_EVIDENCE_BY_RULE = new Map(Object.entries(SAMPLE_EVIDENCE));
+const WAIT_SAMPLE_BY_RULE = new Map(Object.entries(WAIT_SAMPLE));
 
 describe("§10 public partition", () => {
 	test("every registry rule defines both members or opts out with a reason", () => {
@@ -77,7 +96,7 @@ describe("§10 public partition", () => {
 			if (rule.id in PUBLIC_VIEW_OPT_OUT) {
 				continue;
 			}
-			const sample = SAMPLE_EVIDENCE[rule.id];
+			const sample = SAMPLE_EVIDENCE_BY_RULE.get(rule.id);
 			if (!sample) {
 				throw new Error(`no SAMPLE_EVIDENCE for ${rule.id} — add one`);
 			}
@@ -94,7 +113,9 @@ describe("§10 public partition", () => {
 			if (!rule.waitHint) {
 				continue;
 			}
-			const sample = WAIT_SAMPLE[rule.id] ?? SAMPLE_EVIDENCE[rule.id];
+			const sample =
+				WAIT_SAMPLE_BY_RULE.get(rule.id) ??
+				SAMPLE_EVIDENCE_BY_RULE.get(rule.id);
 			// The hint must be derivable (a real remainder), else the guard is vacuous.
 			const hint = rule.waitHint(sample) ?? "";
 			for (const key of configKeys(rule.configSchema)) {
@@ -108,7 +129,7 @@ describe("§10 public partition", () => {
 			if (!rule.fixHint) {
 				continue;
 			}
-			const hint = rule.fixHint(SAMPLE_EVIDENCE[rule.id]) ?? "";
+			const hint = rule.fixHint(SAMPLE_EVIDENCE_BY_RULE.get(rule.id)) ?? "";
 			expect(hint).not.toBe("");
 			for (const key of configKeys(rule.configSchema)) {
 				expect(hint).not.toContain(key);
@@ -231,6 +252,48 @@ describe("§10 public partition", () => {
 				false,
 			).summary,
 		).toBe("Your GitHub profile README is too short.");
+	});
+
+	test.each(
+		[null, undefined, [], [1], "evidence", 1, true, () => ({})].map(
+			(evidence) => ({ evidence }),
+		),
+	)("non-object evidence %p projects to nothing", ({ evidence }) => {
+		expect(projectRulePublic("account-age@1", evidence, false)).toEqual({
+			publicEvidence: null,
+			summary: null,
+		});
+	});
+
+	test("unknown refs do not inspect evidence", () => {
+		expect(projectRulePublic("missing@1", {}, false)).toEqual({
+			publicEvidence: null,
+			summary: null,
+		});
+	});
+
+	test("object evidence keeps malformed fields and inherited observations", () => {
+		const malformed = projectRulePublic("account-age@1", {}, false);
+		expect(Object.keys(malformed.publicEvidence ?? {})).toEqual([
+			"accountAgeDays",
+		]);
+		expect(malformed.publicEvidence?.accountAgeDays).toBeUndefined();
+		expect(malformed.summary).toBe("Your account is undefined days old.");
+		expect(
+			projectRulePublic("account-age@1", { accountAgeDays: "unparsed" }, false),
+		).toEqual({
+			publicEvidence: { accountAgeDays: "unparsed" },
+			summary: "Your account is unparsed days old.",
+		});
+		const inherited = Object.create({ accountAgeDays: 12 });
+		expect(projectRulePublic("account-age@1", inherited, true)).toEqual({
+			publicEvidence: { accountAgeDays: 12 },
+			summary: "Your account is 12 days old.",
+		});
+	});
+
+	test("malformed object evidence retains projector failures", () => {
+		expect(() => projectRulePublic("ai-review@1", {}, false)).toThrow();
 	});
 
 	test("skipped evidence (null) projects to nothing — safe by default", () => {

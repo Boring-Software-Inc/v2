@@ -1,3 +1,4 @@
+import type { EventActor, StarredContributionQuery } from "@tripwire/contracts";
 import type {
 	ChangeRequestHead,
 	ContributorProfile,
@@ -14,18 +15,21 @@ import { z } from "zod";
  */
 
 import { GithubHttp, type GithubHttpOptions } from "./http.ts";
+import { countStarredContributions } from "./starred-contributions.ts";
 
 export type GithubReadsOptions = GithubHttpOptions;
 
-const STATUS_MAP: Record<string, DiffFile["status"]> = {
-	added: "added",
-	modified: "modified",
-	removed: "removed",
-	renamed: "renamed",
-	changed: "modified",
-	copied: "added",
-	unchanged: "modified",
-};
+const STATUS_MAP = new Map(
+	Object.entries({
+		added: "added",
+		modified: "modified",
+		removed: "removed",
+		renamed: "renamed",
+		changed: "modified",
+		copied: "added",
+		unchanged: "modified",
+	} satisfies Record<string, DiffFile["status"]>),
+);
 
 const diffFileSchema = z.object({
 	filename: z.string(),
@@ -53,7 +57,7 @@ const compareSchema = z.object({
 function toDiffFile(file: z.infer<typeof diffFileSchema>): DiffFile {
 	return {
 		path: file.filename,
-		status: STATUS_MAP[file.status] ?? "modified",
+		status: STATUS_MAP.get(file.status) ?? "modified",
 		additions: file.additions,
 		deletions: file.deletions,
 		patch: file.patch,
@@ -76,6 +80,14 @@ export class GithubReads {
 
 	constructor(options: GithubReadsOptions) {
 		this.http = new GithubHttp(options);
+	}
+
+	countStarredContributions(
+		repoFullName: string,
+		author: EventActor,
+		query: StarredContributionQuery,
+	) {
+		return countStarredContributions(this.http, repoFullName, author, query);
 	}
 
 	private get(repoFullName: string, path: string): Promise<unknown> {

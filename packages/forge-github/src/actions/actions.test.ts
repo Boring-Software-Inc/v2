@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import {
 	CHECK_NAME,
 	COMMENT_MARKER,
+	type JsonValue,
+	jsonValueSchema,
 	REVIEW_POINTER,
 	renderCommentBody,
 } from "@tripwire/contracts";
@@ -25,10 +27,10 @@ function ours(id: number, body: string) {
 interface RecordedCall {
 	method: string;
 	path: string;
-	body: unknown;
+	body: JsonValue | undefined;
 }
 
-function fakeHttp(responses: Record<string, unknown>) {
+function fakeHttp(responses: Record<string, JsonValue>) {
 	const calls: RecordedCall[] = [];
 	const http = new GithubHttp({
 		tokenFor: () => Promise.resolve("test-token"),
@@ -40,7 +42,9 @@ function fakeHttp(responses: Record<string, unknown>) {
 			calls.push({
 				method: init?.method ?? "GET",
 				path,
-				body: init?.body ? JSON.parse(String(init.body)) : undefined,
+				body: init?.body
+					? jsonValueSchema.parse(JSON.parse(String(init.body)))
+					: undefined,
 			});
 			const match = Object.entries(responses).find(([pattern]) =>
 				key.startsWith(pattern),
@@ -95,6 +99,9 @@ describe("upsertComment — verdict-aware lifecycle (§7)", () => {
 			supersededId: null,
 		});
 		expect(calls.map((c) => c.method)).toEqual(["GET", "POST"]);
+		expect(calls.find((c) => c.method === "POST")?.body).toEqual({
+			body: BLOCK_COMMENT,
+		});
 	});
 
 	test("SAME verdict edits in place — never a new comment", async () => {
@@ -118,6 +125,9 @@ describe("upsertComment — verdict-aware lifecycle (§7)", () => {
 		expect(calls.find((c) => c.method === "PATCH")?.path).toBe(
 			"/repos/a/b/issues/comments/9",
 		);
+		expect(calls.find((c) => c.method === "PATCH")?.body).toEqual({
+			body: BLOCK_COMMENT,
+		});
 	});
 
 	test("ten same-verdict re-runs = ONE comment (ten edits, zero posts)", async () => {
@@ -224,7 +234,7 @@ describe("upsertComment — verdict-aware lifecycle (§7)", () => {
 			"block",
 			true,
 		);
-		expect(result.externalId).toBe("61");
+		expect(result).toMatchObject({ externalId: "61" });
 		expect(calls.map((c) => c.method)).toEqual(["GET", "PATCH", "POST"]);
 	});
 
@@ -333,6 +343,13 @@ describe("setCheck", () => {
 		});
 		expect(result).toEqual({ externalId: "56", created: false });
 		expect(calls.some((c) => c.method === "POST")).toBe(false);
+		expect(calls.find((c) => c.method === "PATCH")?.body).toEqual({
+			name: CHECK_NAME,
+			head_sha: state.sha,
+			status: "in_progress",
+			details_url: state.detailsUrl,
+			output: { title: "Blocked", summary: state.summary },
+		});
 	});
 
 	test("a queued check counts as not completed", async () => {
@@ -415,7 +432,7 @@ describe("setCheck", () => {
 		await setCheck(http, "a/b", { ...state, conclusion: "pending" });
 		const post = calls.find((c) => c.method === "POST");
 		expect(post?.body).toMatchObject({ status: "in_progress" });
-		expect((post?.body as Record<string, unknown>).conclusion).toBeUndefined();
+		expect(post?.body).not.toHaveProperty("conclusion");
 	});
 });
 
@@ -431,7 +448,7 @@ describe("executeAction — block files a request-changes review", () => {
 			number: 7,
 			reason: REVIEW_POINTER.block,
 		});
-		expect(result.externalId).toBe("91");
+		expect(result).toMatchObject({ externalId: "91" });
 		const post = calls.find((c) => c.method === "POST");
 		expect(post?.path).toBe("/repos/a/b/pulls/7/reviews");
 		expect(post?.body).toEqual({
@@ -461,7 +478,7 @@ describe("executeAction: update-review edits the live review, never stacks", () 
 		});
 		const { executeAction } = await import("./execute.ts");
 		const result = await executeAction(http, update);
-		expect(result.externalId).toBe("91");
+		expect(result).toMatchObject({ externalId: "91" });
 		expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
 			"GET /repos/a/b/pulls/7/reviews/91",
 			"PUT /repos/a/b/pulls/7/reviews/91",
@@ -479,7 +496,7 @@ describe("executeAction: update-review edits the live review, never stacks", () 
 		});
 		const { executeAction } = await import("./execute.ts");
 		const result = await executeAction(http, update);
-		expect(result.externalId).toBe("91");
+		expect(result).toMatchObject({ externalId: "91" });
 		expect(calls.map((c) => c.method)).toEqual(["GET"]);
 	});
 
@@ -490,7 +507,7 @@ describe("executeAction: update-review edits the live review, never stacks", () 
 		});
 		const { executeAction } = await import("./execute.ts");
 		const result = await executeAction(http, update);
-		expect(result.externalId).toBe("92");
+		expect(result).toMatchObject({ externalId: "92" });
 		expect(calls.find((c) => c.method === "POST")?.body).toEqual({
 			event: "REQUEST_CHANGES",
 			body: REVIEW_POINTER.block,
@@ -521,7 +538,7 @@ describe("executeAction: update-review edits the live review, never stacks", () 
 		const { http, calls } = statusHttp(404);
 		const { executeAction } = await import("./execute.ts");
 		const result = await executeAction(http, update);
-		expect(result.externalId).toBe("93");
+		expect(result).toMatchObject({ externalId: "93" });
 		expect(calls).toEqual(["GET", "POST"]);
 	});
 
@@ -545,7 +562,7 @@ describe("executeAction — dismiss-review clears a stale request-changes", () =
 			number: 7,
 			reviewId: "91",
 		});
-		expect(result.externalId).toBe("91");
+		expect(result).toMatchObject({ externalId: "91" });
 		const put = calls.find((c) => c.method === "PUT");
 		expect(put?.path).toBe("/repos/a/b/pulls/7/reviews/91/dismissals");
 		expect(put?.body).toMatchObject({ event: "DISMISS" });
@@ -567,7 +584,7 @@ describe("executeAction: delete-comment removes the active comment", () => {
 			repoFullName: "a/b",
 			number: 7,
 		});
-		expect(result.externalId).toBe("4");
+		expect(result).toMatchObject({ externalId: "4" });
 		expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
 			"GET /repos/a/b/issues/7/comments?per_page=100",
 			"DELETE /repos/a/b/issues/comments/4",
@@ -584,7 +601,7 @@ describe("executeAction: delete-comment removes the active comment", () => {
 			repoFullName: "a/b",
 			number: 7,
 		});
-		expect(result.externalId).toBeNull();
+		expect(result).toMatchObject({ externalId: null });
 		expect(calls.map((c) => c.method)).toEqual(["GET"]);
 	});
 
@@ -608,11 +625,26 @@ describe("executeAction: delete-comment removes the active comment", () => {
 			repoFullName: "a/b",
 			number: 7,
 		});
-		expect(result.externalId).toBeNull();
+		expect(result).toMatchObject({ externalId: null });
 	});
 });
 
 describe("executeAction — request-review asks named people and teams", () => {
+	test("foreign exact actor IDs cannot be dropped while submitting the remaining people", async () => {
+		const { http, calls } = fakeHttp({});
+		const { executeAction } = await import("./execute.ts");
+		await expect(
+			executeAction(http, {
+				kind: "request-review",
+				repoFullName: "a/b",
+				number: 7,
+				reviewers: ["octocat"],
+				reviewerIds: ["act_foreign"],
+				teamReviewers: [],
+			}),
+		).rejects.toThrow("GitHub review requests require GitHub usernames");
+		expect(calls).toEqual([]);
+	});
 	test("POSTs reviewers and team_reviewers to requested_reviewers", async () => {
 		const { http, calls } = fakeHttp({
 			"POST /repos/a/b/pulls/7/requested_reviewers": { number: 7 },
@@ -625,7 +657,7 @@ describe("executeAction — request-review asks named people and teams", () => {
 			reviewers: ["octocat", "hubot"],
 			teamReviewers: ["core"],
 		});
-		expect(result.externalId).toBeNull();
+		expect(result).toMatchObject({ externalId: null });
 		expect(calls).toEqual([
 			{
 				method: "POST",
@@ -750,7 +782,7 @@ describe("only objects this app created are ever touched", () => {
 			"block",
 			"block",
 		);
-		expect(result.externalId).toBe("70");
+		expect(result).toMatchObject({ externalId: "70" });
 		expect(calls.some((c) => c.method === "PATCH")).toBe(false);
 	});
 
@@ -799,7 +831,7 @@ describe("only objects this app created are ever touched", () => {
 			repoFullName: "a/b",
 			number: 7,
 		});
-		expect(result.externalId).toBeNull();
+		expect(result).toMatchObject({ externalId: null });
 		expect(calls.some((c) => c.method === "DELETE")).toBe(false);
 	});
 

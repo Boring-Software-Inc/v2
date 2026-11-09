@@ -4,7 +4,10 @@
 	"private": true,
 	"type": "module",
 	"exports": {
-		".": "./src/index.ts"
+		".": "./src/index.ts",
+		"./forge-sign-in": "./src/forge-sign-in.ts",
+		"./databuddy-server": "./src/databuddy.server.ts",
+		"./shared-blocklist": "./src/shared-blocklist.ts"
 	},
 	"types": "./src/index.ts",
 	"scripts": {

@@ -53,7 +53,7 @@ const file = () => join(sandbox.root, "tripwire.ts");
 
 async function pulled() {
 	const result = await runCli(
-		["workflows", "pull", "scratch", "--file", file()],
+		["workflows", "pull", "--repo", "scratch", "--file", file()],
 		env(),
 	);
 	expect(result.code).toBe(0);
@@ -73,11 +73,11 @@ describe("workflows push sends tripwire.ts for review", () => {
 		await pulled();
 		server.answerNext("get_workflow_push", pending());
 		const result = await runCli(
-			["workflows", "push", "scratch", "--file", file()],
+			["workflows", "push", "--repo", "scratch", "--file", file()],
 			env(),
 		);
 		expect(result.code).toBe(0);
-		expect(result.stderr).toContain(`review    ${REVIEW_URL}`);
+		expect(result.stderr).toContain(`Open review in browser  ${REVIEW_URL}`);
 		expect(result.stderr).toContain(
 			"Waiting for someone to accept 1 workflow on grim/scratch",
 		);
@@ -96,10 +96,39 @@ describe("workflows push sends tripwire.ts for review", () => {
 		]);
 	});
 
+	test.skipIf(process.platform !== "linux")(
+		"opens the Windows browser from WSL without a display",
+		async () => {
+			await pulled();
+			sandbox.addBinary("rundll32.exe", 'printf "%s\\n" "$*" >> "$ARGV_LOG"');
+			const result = await runCli(
+				["workflows", "push", "--repo", "scratch", "--file", file()],
+				env({
+					DISPLAY: "",
+					WAYLAND_DISPLAY: "",
+					WSL_INTEROP: "/run/WSL/1_interop",
+				}),
+			);
+			expect(result.code).toBe(0);
+			expect(result.stderr).toContain(`Open review in browser  ${REVIEW_URL}`);
+			expect(sandbox.argv()).toEqual([
+				`url.dll,FileProtocolHandler ${REVIEW_URL}`,
+			]);
+		},
+	);
+
 	test("--no-browser prints the link and opens nothing", async () => {
 		await pulled();
 		const result = await runCli(
-			["workflows", "push", "scratch", "--no-browser", "--file", file()],
+			[
+				"workflows",
+				"push",
+				"--repo",
+				"scratch",
+				"--no-browser",
+				"--file",
+				file(),
+			],
 			env(),
 		);
 		expect(result.code).toBe(0);
@@ -115,7 +144,7 @@ describe("workflows push sends tripwire.ts for review", () => {
 		];
 		for (const extra of extras) {
 			const result = await runCli(
-				["workflows", "push", "scratch", "--file", file()],
+				["workflows", "push", "--repo", "scratch", "--file", file()],
 				env(extra),
 			);
 			expect(result.code).toBe(0);
@@ -124,22 +153,31 @@ describe("workflows push sends tripwire.ts for review", () => {
 		expect(sandbox.argv()).toEqual([]);
 	});
 
-	for (const [status, line] of [
-		["rejected", "The push was declined. Nothing was saved."],
-		["expired", "The review link expired. Nothing was saved. Push again."],
+	for (const [status, line, code] of [
+		["rejected", "The push was declined. Nothing was saved.", 0],
+		["expired", "The review link expired. Nothing was saved. Push again.", 1],
 		[
 			"stale",
-			"These workflows changed on the server after the push. Nothing was saved. Run tripwire workflows diff scratch, then push again.",
+			"These workflows changed on the server after the push. Nothing was saved. Run tripwire workflows diff --repo scratch, then push again.",
+			1,
 		],
 	] as const) {
-		test(`a ${status} push exits 1 and says nothing was saved`, async () => {
+		test(`a ${status} push says nothing was saved`, async () => {
 			await pulled();
 			server.answerNext("get_workflow_push", { ...pending(), status });
 			const result = await runCli(
-				["workflows", "push", "scratch", "--no-browser", "--file", file()],
+				[
+					"workflows",
+					"push",
+					"--repo",
+					"scratch",
+					"--no-browser",
+					"--file",
+					file(),
+				],
 				env(),
 			);
-			expect(result.code).toBe(1);
+			expect(result.code).toBe(code);
 			expect(result.stdout).toBe("");
 			expect(result.stderr).toContain(`error     ${line}`);
 		});
@@ -149,7 +187,7 @@ describe("workflows push sends tripwire.ts for review", () => {
 		await pulled();
 		server.answerNext("propose_workflow_push", { result: "unchanged" });
 		const result = await runCli(
-			["workflows", "push", "scratch", "--file", file()],
+			["workflows", "push", "--repo", "scratch", "--file", file()],
 			env(),
 		);
 		expect(result.code).toBe(0);
@@ -171,12 +209,12 @@ describe("workflows push sends tripwire.ts for review", () => {
 			],
 		});
 		const result = await runCli(
-			["workflows", "push", "scratch", "--file", file()],
+			["workflows", "push", "--repo", "scratch", "--file", file()],
 			env(),
 		);
 		expect(result.code).toBe(1);
 		expect(result.stderr).toBe(
-			"error     New accounts was not sent for review. Any of: It takes no inputs.\n",
+			`error     ${file()} (New accounts) was not sent for review. Any of: It takes no inputs.\n`,
 		);
 		expect(sandbox.argv()).toEqual([]);
 	});
@@ -184,7 +222,7 @@ describe("workflows push sends tripwire.ts for review", () => {
 	test("--json prints the review link and does not wait", async () => {
 		await pulled();
 		const result = await runCli(
-			["--json", "workflows", "push", "scratch", "--file", file()],
+			["--json", "workflows", "push", "--repo", "scratch", "--file", file()],
 			env(),
 		);
 		expect(result.code).toBe(0);
@@ -208,6 +246,7 @@ describe("workflows push sends tripwire.ts for review", () => {
 				"--json",
 				"workflows",
 				"push",
+				"--repo",
 				"scratch",
 				"--wait",
 				"--no-browser",
@@ -216,7 +255,7 @@ describe("workflows push sends tripwire.ts for review", () => {
 			],
 			env(),
 		);
-		expect(result.code).toBe(1);
+		expect(result.code).toBe(0);
 		expect(JSON.parse(result.stdout)).toMatchObject({ status: "rejected" });
 		expect(result.stderr).toBe("");
 	});
@@ -224,7 +263,7 @@ describe("workflows push sends tripwire.ts for review", () => {
 	test("--force saves at once through apply_workflow", async () => {
 		await pulled();
 		const result = await runCli(
-			["workflows", "push", "scratch", "--force", "--file", file()],
+			["workflows", "push", "--repo", "scratch", "--force", "--file", file()],
 			env(),
 		);
 		expect(result.code).toBe(0);

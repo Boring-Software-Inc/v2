@@ -50,6 +50,20 @@ describe("mcp challenge", () => {
 		expect(header).not.toContain("invalid_token");
 	});
 
+	test("authentication precedes malformed-body processing", async () => {
+		const res = await app.request("/mcp", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: "[",
+		});
+		expect(res.status).toBe(401);
+		expect(await res.json()).toMatchObject({
+			jsonrpc: "2.0",
+			id: null,
+			error: { code: -32001 },
+		});
+	});
+
 	test("a forged token is invalid_token", async () => {
 		const res = await app.request("/mcp", {
 			method: "POST",
@@ -135,6 +149,46 @@ describe("tool selection", () => {
 		expect(TOOL_NAMES.filter((name) => toolVisible(name, selection))).toEqual([
 			...TOOL_NAMES,
 		]);
+	});
+
+	test("inherited skill names and mixed lists are rejected without partial selection", async () => {
+		for (const query of [
+			"skills=constructor",
+			"skills=toString",
+			"skills=__proto__",
+			"skills=configure,constructor",
+			"skills=read&disable-skills=toString",
+			"disable-skills=__proto__",
+		]) {
+			const selection = selectTools(new URL(`http://x/mcp?${query}`));
+			expect(selection.ok).toBe(false);
+			if (selection.ok) throw new Error("expected unknown skill rejection");
+			expect(selection.message).toStartWith("Unknown skills:");
+			const response = await app.request(`/mcp?${query}`, {
+				method: "POST",
+				body: "[",
+			});
+			expect(response.status).toBe(400);
+			expect(await response.json()).toEqual({
+				jsonrpc: "2.0",
+				id: null,
+				error: { code: -32602, message: selection.message },
+			});
+		}
+	});
+
+	test("valid skills preserve requested scope order and deduplication", () => {
+		expect(
+			selectTools(
+				new URL(
+					"http://x/mcp?skills=admin,configure,admin&disable-skills=moderate",
+				),
+			),
+		).toEqual({
+			ok: true,
+			readOnly: false,
+			scopes: ["tripwire:read", "tripwire:admin", "tripwire:configure"],
+		});
 	});
 
 	test("disable-skills cannot remove everything", () => {

@@ -9,6 +9,7 @@ import {
 	eq,
 	gt,
 	ilike,
+	inArray,
 	isNotNull,
 	isNull,
 	or,
@@ -39,10 +40,7 @@ const onlineWindow = sql`now() - interval '5 minutes'`;
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_PAGE_SIZE = 50;
 
-function clampPage(input: { limit?: number; offset?: number }): {
-	limit: number;
-	offset: number;
-} {
+function clampPage(input: { limit?: number; offset?: number }) {
 	const limit = Math.min(
 		Math.max(1, Math.floor(input.limit ?? DEFAULT_PAGE_SIZE)),
 		MAX_PAGE_SIZE,
@@ -296,7 +294,8 @@ function liveInstallations(db: Db) {
 						"installation_id",
 					),
 			})
-			.from(organizationInstallations),
+			.from(organizationInstallations)
+			.where(inArray(organizationInstallations.forge, forgeSchema.options)),
 		db
 			.select({
 				forge: sql<string>`${repos.forge}`.as("forge"),
@@ -305,7 +304,13 @@ function liveInstallations(db: Db) {
 				),
 			})
 			.from(repos)
-			.where(and(isNull(repos.removedAt), isNotNull(repos.installationId))),
+			.where(
+				and(
+					inArray(repos.forge, forgeSchema.options),
+					isNull(repos.removedAt),
+					isNotNull(repos.installationId),
+				),
+			),
 	).as("live_installations");
 }
 
@@ -348,7 +353,7 @@ export async function getStaffOverview(db: Db): Promise<StaffOverview> {
 			.select({
 				total: count(),
 				blocked:
-					sql<number>`count(distinct (${runs.repoFullName}, ${runs.subjectNumber})) filter (where ${runs.verdict} in ('block', 'changes_required', 'close') and ${runs.subjectNumber} is not null and ${runBearsVerdict})`.mapWith(
+					sql<number>`count(distinct ((SELECT forge FROM events WHERE id = ${runs.eventId}), ${runs.repoFullName}, ${runs.subjectNumber})) filter (where ${runs.verdict} in ('block', 'changes_required', 'close') and ${runs.subjectNumber} is not null and ${runBearsVerdict})`.mapWith(
 						Number,
 					),
 			})

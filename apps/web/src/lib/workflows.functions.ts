@@ -355,6 +355,7 @@ export const setRepoWorkflowEnabled = createServerFn({ method: "POST" })
 		const { workflowServices } = await import("@tripwire/db");
 		const { getDb } = await import("#/lib/server/db");
 		return await workflowServices.setWorkflowEnabled(getDb().db, {
+			organizationId: (context as { org: OrgWithRole }).org.id,
 			repoId: data.repoId,
 			workflowId: data.workflowId,
 			enabled: data.enabled,

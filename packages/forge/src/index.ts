@@ -29,6 +29,8 @@ export interface RawForgeEvent {
 	body: string;
 	/** Signature header for HMAC verification, when present. */
 	signature: string | null;
+	timestamp?: string | null;
+	keyVersion?: string | null;
 }
 
 export interface ChangeRequestHead {
@@ -39,9 +41,11 @@ export interface ChangeRequestHead {
 /** One file in a change request's diff. */
 export interface DiffFile {
 	path: string;
-	status: "added" | "modified" | "removed" | "renamed";
-	additions: number;
-	deletions: number;
+	/** Missing per-file metadata must not erase a complete file list. */
+	status: "added" | "modified" | "removed" | "renamed" | null;
+	additions: number | null;
+	deletions: number | null;
+	patchUnavailable?: "binary" | "too-large" | "omitted" | "unavailable" | null;
 	/** Unified diff hunk text, when the forge provides it. */
 	patch?: string;
 	previousPath?: string;
@@ -59,14 +63,15 @@ export interface ForgeCommit {
 export interface ContributorProfile {
 	login: string;
 	externalId: string;
-	createdAt: string;
-	followers: number;
-	following: number;
-	publicRepos: number;
+	/** Null facts are unavailable, never evidence of an empty or new account. */
+	createdAt: string | null;
+	followers: number | null;
+	following: number | null;
+	publicRepos: number | null;
 	/** Profile README / bio text, when the forge exposes one. */
 	profileText: string | null;
 	/** Merged change requests by this contributor in the subject repo. */
-	mergedInRepo: number;
+	mergedInRepo: number | null;
 	/**
 	 * Merged change requests by this contributor in repos they do NOT own — the
 	 * "someone else accepted their work" signal (min-merged-prs@2). null when the
@@ -74,12 +79,20 @@ export interface ContributorProfile {
 	 */
 	mergedElsewhere: number | null;
 	/** ISO timestamps of the contributor's recent change requests, newest first. */
-	recentChangeRequestTimes: string[];
+	recentChangeRequestTimes: string[] | null;
 	/** Whether the contributor is a member/owner of the repo's org. */
-	isOrgMember: boolean;
+	isOrgMember: boolean | null;
 	/** Whether the contributor has write access to the repo (maintainer). */
-	isMaintainer: boolean;
+	isMaintainer: boolean | null;
 }
+
+export type ForgeReadResult<T> =
+	| {
+			ok: true;
+			value: T;
+			diagnostics?: { source: string; reason: string; status?: number }[];
+	  }
+	| { ok: false; reason: string; status?: number };
 
 export type ForgeAction =
 	| { kind: "block"; repoFullName: string; number: number; reason: string }
@@ -114,6 +127,8 @@ export type ForgeAction =
 			repoFullName: string;
 			number: number;
 			reviewers: string[];
+			/** Exact forge actor IDs must never fall back to mutable handle lookup. */
+			reviewerIds?: string[];
 			teamReviewers: string[];
 	  }
 	| {
@@ -125,7 +140,8 @@ export type ForgeAction =
 			kind: "dismiss-review";
 			repoFullName: string;
 			number: number;
-			reviewId: string;
+			/** Null reconciles every owned blocking review, including submissions with lost receipts. */
+			reviewId: string | null;
 	  }
 	| { kind: "set-check"; repoFullName: string; check: CheckState }
 	| {
@@ -170,9 +186,11 @@ export interface ThreadListResult {
 }
 
 /** The result of executing an action — the forge-side artifact id, if any. */
-export interface ForgeActionResult {
-	externalId: string | null;
-}
+export type ForgeActionResult =
+	| { externalId: string | null }
+	| { refused: true; reason: string; status?: number };
+
+export type ForgeActionContext = { actionId: string } | { eventId: string };
 
 export interface ForgeAdapter {
 	/**
@@ -199,24 +217,28 @@ export interface ForgeAdapter {
 		repoFullName: string,
 		number: number,
 		head?: ChangeRequestHead,
-	): Promise<DiffFile[]>;
+	): Promise<DiffFile[] | ForgeReadResult<DiffFile[]>>;
 	getCommits(
 		repoFullName: string,
 		number: number,
 		head?: ChangeRequestHead,
-	): Promise<ForgeCommit[]>;
+	): Promise<ForgeCommit[] | ForgeReadResult<ForgeCommit[]>>;
 	readFile(
 		repoFullName: string,
 		path: string,
 		ref: string,
-	): Promise<string | null>;
+	): Promise<string | null | ForgeReadResult<string>>;
 	getContributorProfile(
 		repoFullName: string,
 		login: string,
-	): Promise<ContributorProfile>;
+		expectedActorId?: string,
+	): Promise<ContributorProfile | ForgeReadResult<ContributorProfile>>;
 
 	/** Actions — idempotent; comment/check upsert their existing artifact. */
-	execute(action: ForgeAction): Promise<ForgeActionResult>;
+	execute(
+		action: ForgeAction,
+		context?: ForgeActionContext,
+	): Promise<ForgeActionResult>;
 }
 
 export type { CheckState, Forge, NormalizedEvent, Verdict };

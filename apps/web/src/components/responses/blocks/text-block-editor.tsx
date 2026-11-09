@@ -6,7 +6,6 @@ import {
 	VARIABLE_HIDDEN_AT,
 } from "@tripwire/contracts";
 import { type ClipboardEvent, type KeyboardEvent, useRef } from "react";
-import { Hide, Icon } from "#/components/glaze/icon";
 import {
 	INSERTABLE_VARIABLES,
 	VARIABLE_LABELS,
@@ -21,6 +20,7 @@ import {
 	VARIABLE_CHIP_CLASS,
 	VariableChip,
 } from "#/components/responses/blocks/variable-chip";
+import { Hide, Icon } from "#/design-system/icon";
 
 type TextBlock = Extract<ResponseBlock, { type: "text" }>;
 

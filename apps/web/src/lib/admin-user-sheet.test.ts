@@ -122,12 +122,8 @@ describe("flag labels", () => {
 	test("source labels", () => {
 		expect(flagSourceLabel("rule")).toBe("Their rule");
 		expect(flagSourceLabel("default")).toBe("Default");
-		expect(
-			flagSourceLabel("rule", { choice: "off", syncStatus: "synced" }),
-		).toBe("Tripwire override");
-		expect(
-			flagSourceLabel("rule", { choice: "off", syncStatus: "pending" }),
-		).toBe("Their rule");
+		expect(flagSourceLabel("group")).toBe("Group");
+		expect(flagSourceLabel("rollout")).toBe("Rollout");
 	});
 
 	test("sync labels", () => {
@@ -198,8 +194,23 @@ describe("activeSectionAt", () => {
 });
 
 describe("databuddyUserUrl", () => {
+	test("uses the resolved staging project and encodes both path segments", () => {
+		expect(
+			databuddyUserUrl("user/with ?#", "a512e6bc-385f-4b92-bceb-0692519edfc7"),
+		).toBe(
+			"https://app.databuddy.cc/websites/a512e6bc-385f-4b92-bceb-0692519edfc7/users/user%2Fwith%20%3F%23",
+		);
+		expect(databuddyUserUrl("user", "project/other")).toBe(
+			"https://app.databuddy.cc/websites/project%2Fother/users/user",
+		);
+	});
 	test("opens the user's page on the Tripwire website in Databuddy", () => {
-		expect(databuddyUserUrl("01a16721-882b-75a0-85a5-276c79b03e8f")).toBe(
+		expect(
+			databuddyUserUrl(
+				"01a16721-882b-75a0-85a5-276c79b03e8f",
+				"09661145-7249-45d9-a9e3-f1a93e9c7266",
+			),
+		).toBe(
 			"https://app.databuddy.cc/websites/09661145-7249-45d9-a9e3-f1a93e9c7266/users/01a16721-882b-75a0-85a5-276c79b03e8f",
 		);
 	});

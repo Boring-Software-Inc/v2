@@ -51,7 +51,10 @@ test("seedStory + seedPublicRun produce contract-valid, renderable data", async 
 	// A year-old active repo — a LOT of runs, not a handful.
 	expect(await runCount(db, repo.fullName)).toBeGreaterThan(800);
 
-	const stats = await insightServices.getHomeStats(db, repo.fullName);
+	const stats = await insightServices.getHomeStats(db, {
+		forge: "github",
+		fullName: repo.fullName,
+	});
 	// The queue card's last series point IS the number (the §13.10 invariant).
 	expect(stats.sentToReview.series[23]).toBe(stats.sentToReview.value);
 	expect(stats.blocked.series).toHaveLength(24);
@@ -59,7 +62,9 @@ test("seedStory + seedPublicRun produce contract-valid, renderable data", async 
 	// A dense recent window means recent activity exists.
 	expect(stats.blocked.value + stats.passed.value).toBeGreaterThan(0);
 
-	const pending = await moderationServices.listPendingItems(db, repo.fullName);
+	const pending = await moderationServices.listPendingItems(db, [
+		{ forge: "github", fullName: repo.fullName },
+	]);
 	expect(pending.length).toBe(stats.sentToReview.value);
 	expect(pending.length).toBeGreaterThan(0);
 	expect(pending.every((item) => item.title && item.actorLogin)).toBe(true);

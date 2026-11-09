@@ -1,50 +1,62 @@
 import { useQuery } from "@tanstack/react-query";
-import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Page, PageBody, PageHeader } from "#/components/layouts/page";
+import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 import { currentUserQueryOptions } from "#/lib/auth.query";
 
 const NODE_SLOTS = [
-	{ key: "event", title: "w-48", detail: "w-32" },
-	{ key: "checks", title: "w-40", detail: null },
-	{ key: "outcome", title: "w-36", detail: "w-64" },
-];
+	{ key: "event", titleSize: "wide", detailSize: "medium" },
+	{ key: "checks", titleSize: "medium", detailSize: null },
+	{ key: "outcome", titleSize: "narrow", detailSize: "wide" },
+] as const;
 
 function RunSkeletonBody() {
 	return (
-		<div aria-hidden className="px-4 py-6 md:px-8 md:py-10">
-			<div className="mx-auto flex w-full max-w-220 flex-col gap-10">
-				<header className="flex flex-col gap-2">
-					<div className="flex items-center justify-between gap-3">
-						<SkeletonText className="w-40" type="heading" />
-						<div className="flex gap-2">
-							<Skeleton className="h-(--control-sm) w-20 rounded-pill" />
-							<Skeleton className="h-(--control-sm) w-24 rounded-pill" />
-						</div>
-					</div>
-					<SkeletonText className="w-64" type="body-sm" />
-				</header>
-				<ol className="flex flex-col">
+		<Page purpose="task">
+			<PageHeader
+				actions={
+					<>
+						<Skeleton data-layout-role="run-skeleton-action-small" />
+						<Skeleton data-layout-role="run-skeleton-action-wide" />
+					</>
+				}
+				metadata={
+					<SkeletonText
+						data-layout-role="run-skeleton-metadata"
+						type="body-sm"
+					/>
+				}
+				title="Run"
+			/>
+			<PageBody>
+				<ol aria-hidden data-layout-role="run-skeleton-chain">
 					{NODE_SLOTS.map((slot, index) => (
-						<li className="flex gap-4" key={slot.key}>
-							<div className="flex w-6 shrink-0 flex-col items-center">
-								<Skeleton className="size-6 rounded-pill" />
+						<li data-layout-role="run-skeleton-node" key={slot.key}>
+							<div data-layout-role="run-skeleton-rail">
+								<Skeleton data-layout-role="run-skeleton-mark" />
 								{index < NODE_SLOTS.length - 1 ? (
-									<span className="w-px grow bg-line" />
+									<span data-layout-role="run-skeleton-connector" />
 								) : null}
 							</div>
-							<div className="flex min-w-0 flex-1 flex-col gap-2 pb-8">
-								<SkeletonText className={slot.title} type="label" />
-								{slot.detail ? (
-									<SkeletonText className={slot.detail} type="body-sm" />
-								) : (
-									<Skeleton className="h-32 w-full max-w-140 rounded-shell" />
-								)}
+							<div data-layout-role="run-skeleton-content">
+								<SkeletonText
+									data-layout-role="run-skeleton-title"
+									data-layout-size={slot.titleSize}
+									type="body"
+								/>
+								{slot.detailSize ? (
+									<SkeletonText
+										data-layout-role="run-skeleton-detail"
+										data-layout-size={slot.detailSize}
+										type="body-sm"
+									/>
+								) : null}
 							</div>
 						</li>
 					))}
 				</ol>
-			</div>
-		</div>
+			</PageBody>
+		</Page>
 	);
 }
 
@@ -58,7 +70,7 @@ export function RunPageSkeleton() {
 		);
 	}
 	return (
-		<div className="min-h-dvh bg-page">
+		<div data-layout-role="public-run-shell">
 			<RunSkeletonBody />
 		</div>
 	);

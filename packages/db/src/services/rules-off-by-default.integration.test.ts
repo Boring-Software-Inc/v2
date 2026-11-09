@@ -1,7 +1,11 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { RULE_CATALOG } from "@tripwire/contracts";
+import {
+	jsonValueSchema,
+	RULE_CATALOG,
+	resolveEffectiveRuleConfig,
+} from "@tripwire/contracts";
 import { sql } from "drizzle-orm";
 import {
 	applyMigrations,
@@ -94,7 +98,15 @@ test("armed repos keep the rules that ran by default, unarmed repos start empty"
 	for (const row of freshRows) {
 		const entry = RULE_CATALOG.find((rule) => rule.ruleId === row.ruleId);
 		expect(row.enabled).toBe(true);
-		expect(row.version).toBe(entry?.version ?? -1);
+		expect(row.version).toBe(
+			row.ruleId === "crypto-address" ? 1 : (entry?.version ?? -1),
+		);
+		expect(
+			resolveEffectiveRuleConfig({
+				...row,
+				config: jsonValueSchema.parse(row.config),
+			}).ref,
+		).toBe(`${row.ruleId}@${entry?.version}`);
 		expect(row.config).toEqual(entry?.defaultConfig ?? null);
 	}
 

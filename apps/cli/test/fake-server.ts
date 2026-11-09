@@ -43,224 +43,226 @@ export interface FakeServer {
 	stop(): Promise<void>;
 }
 
-const RESULTS: Record<string, z.infer<ReturnType<typeof z.json>>> = {
-	whoami: {
-		signedInAs: "@grim on GitHub",
-		user: {
-			id: "u1",
-			name: "grim",
-			email: "vysvisuals@gmail.com",
-			accessStatus: "approved",
-			githubLogin: "grim",
+const RESULTS = new Map(
+	Object.entries({
+		whoami: {
+			signedInAs: "@grim on GitHub",
+			user: {
+				id: "u1",
+				name: "grim",
+				email: "vysvisuals@gmail.com",
+				accessStatus: "approved",
+				githubLogin: "grim",
+			},
+			access: { approved: true },
+			orgs: [{ slug: "grim", name: "grim", role: "admin", agentAllowed: true }],
+			scopes: ["tripwire:read"],
 		},
-		access: { approved: true },
-		orgs: [{ slug: "grim", name: "grim", role: "admin", agentAllowed: true }],
-		scopes: ["tripwire:read"],
-	},
-	setup_status: {
-		org: "grim",
-		role: "admin",
-		hasInstallation: false,
-		repos: [],
-		nextStep: "install_app",
-		guide: "Give installUrl to the user to open.",
-		installUrl: "https://github.com/apps/tripwire/installations/new?state=s1",
-		home: "https://app.tripwire.sh/grim/home",
-	},
-	list_repos: [
-		{
-			name: "scratch",
-			fullName: "grim/scratch",
-			forge: "github",
-			gateOn: true,
-			toReview: 2,
-			blocked24h: 5,
-			url: "https://app.tripwire.sh/grim/scratch",
+		setup_status: {
+			org: "grim",
+			role: "admin",
+			hasInstallation: false,
+			repos: [],
+			nextStep: "install_app",
+			guide: "Give installUrl to the user to open.",
+			installUrl: "https://github.com/apps/tripwire/installations/new?state=s1",
+			home: "https://app.tripwire.sh/grim/home",
 		},
-		{
-			name: "website",
-			fullName: "grim/website",
-			forge: "github",
-			gateOn: false,
-			toReview: 0,
-			blocked24h: 0,
-			url: "https://app.tripwire.sh/grim/website",
-		},
-	],
-	list_runs: [
-		{
-			id: "run_1",
-			repo: "grim/scratch",
-			number: 12,
-			status: "completed",
-			verdict: "block",
-			createdAt: "2026-10-22T14:03:00.000Z",
-			url: "https://app.tripwire.sh/runs/run_1",
-		},
-	],
-	get_workflow: {
-		code: "",
-		warnings: [],
-		workflows: [
+		list_repos: [
 			{
-				id: "new-accounts",
-				definition: {
+				name: "scratch",
+				fullName: "grim/scratch",
+				forge: "github",
+				gateOn: true,
+				toReview: 2,
+				blocked24h: 5,
+				url: "https://app.tripwire.sh/grim/scratch",
+			},
+			{
+				name: "website",
+				fullName: "grim/website",
+				forge: "github",
+				gateOn: false,
+				toReview: 0,
+				blocked24h: 0,
+				url: "https://app.tripwire.sh/grim/website",
+			},
+		],
+		list_runs: [
+			{
+				id: "run_1",
+				repo: "grim/scratch",
+				number: 12,
+				status: "completed",
+				verdict: "block",
+				createdAt: "2026-10-22T14:03:00.000Z",
+				url: "https://app.tripwire.sh/runs/run_1",
+			},
+		],
+		get_workflow: {
+			code: "",
+			warnings: [],
+			workflows: [
+				{
+					id: "new-accounts",
+					definition: {
+						id: "new-accounts",
+						name: "New accounts",
+						version: 1,
+						nodes: [
+							{
+								id: "trigger",
+								type: "trigger",
+								kinds: ["change-request.opened"],
+							},
+							{
+								id: "account-age",
+								type: "rule",
+								ref: "account-age@1",
+								config: { minDays: 7 },
+							},
+							{ id: "block", type: "action", action: "block" },
+						],
+						edges: [
+							{ id: "e1", from: "trigger", to: "account-age" },
+							{
+								id: "e2",
+								from: "account-age",
+								to: "block",
+								when: "fail",
+							},
+						],
+					},
+				},
+			],
+		},
+		validate_workflow: {
+			valid: true,
+			workflows: [
+				{
 					id: "new-accounts",
 					name: "New accounts",
-					version: 1,
-					nodes: [
+					valid: true,
+					issues: [],
+					schedules: [],
+					changes: [
 						{
-							id: "trigger",
-							type: "trigger",
-							kinds: ["change-request.opened"],
-						},
-						{
+							change: "changed",
+							subject: "step",
 							id: "account-age",
-							type: "rule",
-							ref: "account-age@1",
-							config: { minDays: 7 },
-						},
-						{ id: "block", type: "action", action: "block" },
-					],
-					edges: [
-						{ id: "e1", from: "trigger", to: "account-age" },
-						{
-							id: "e2",
-							from: "account-age",
-							to: "block",
-							when: "fail",
+							text: "account-age.minDays: 7 → 14",
 						},
 					],
 				},
-			},
-		],
-	},
-	validate_workflow: {
-		valid: true,
-		workflows: [
-			{
-				id: "new-accounts",
-				name: "New accounts",
-				valid: true,
-				issues: [],
-				schedules: [],
-				changes: [
-					{
-						change: "changed",
-						subject: "step",
-						id: "account-age",
-						text: "account-age.minDays: 7 → 14",
-					},
+			],
+		},
+		apply_workflow: {
+			workflows: [
+				{
+					id: "new-accounts",
+					outcome: "updated",
+					enabled: false,
+					changes: [],
+					url: "https://app.tripwire.sh/grim/scratch/workflows/w1",
+				},
+			],
+		},
+		propose_workflow_push: {
+			result: "proposed",
+			push: {
+				id: "push-1",
+				org: "grim",
+				repo: "grim/scratch",
+				status: "pending",
+				url: "https://app.tripwire.sh/grim/scratch/workflows/review/push-1",
+				expiresAt: "2026-10-24T13:00:00.000Z",
+				workflows: [
+					{ id: "new-accounts", name: "new-accounts", change: "changed" },
 				],
 			},
-		],
-	},
-	apply_workflow: {
-		workflows: [
-			{
-				id: "new-accounts",
-				outcome: "updated",
-				enabled: false,
-				changes: [],
-				url: "https://app.tripwire.sh/grim/scratch/workflows/w1",
-			},
-		],
-	},
-	propose_workflow_push: {
-		result: "proposed",
-		push: {
+		},
+		get_workflow_push: {
 			id: "push-1",
 			org: "grim",
 			repo: "grim/scratch",
-			status: "pending",
+			status: "accepted",
 			url: "https://app.tripwire.sh/grim/scratch/workflows/review/push-1",
 			expiresAt: "2026-10-24T13:00:00.000Z",
 			workflows: [
-				{ id: "new-accounts", name: "new-accounts", change: "changed" },
+				{
+					id: "new-accounts",
+					name: "new-accounts",
+					change: "changed",
+					outcome: "updated",
+					url: "https://app.tripwire.sh/grim/scratch/workflows/w1",
+				},
 			],
 		},
-	},
-	get_workflow_push: {
-		id: "push-1",
-		org: "grim",
-		repo: "grim/scratch",
-		status: "accepted",
-		url: "https://app.tripwire.sh/grim/scratch/workflows/review/push-1",
-		expiresAt: "2026-10-24T13:00:00.000Z",
-		workflows: [
+		get_repo_rules: [
 			{
-				id: "new-accounts",
-				name: "new-accounts",
-				change: "changed",
-				outcome: "updated",
-				url: "https://app.tripwire.sh/grim/scratch/workflows/w1",
+				ruleId: "account-age",
+				name: "Account age",
+				source: "built-in",
+				enabled: true,
+				config: { minDays: 7 },
+				management: "standalone",
+				optIn: false,
+				held: false,
+				cannotRun: null,
+				matches24h: 3,
+			},
+			{
+				ruleId: "custom-not-into-release-1a2b3c",
+				name: "Not into release",
+				source: "custom",
+				enabled: false,
+				config: {},
+				management: "standalone",
+				optIn: false,
+				held: false,
+				cannotRun: null,
+				matches24h: 0,
+				sentence: "require that target branch is not release",
+				description: null,
+				definition: {
+					when: { id: "pr.targetBranch" },
+					comparison: { kind: "noneOf", args: [["release"]] },
+				},
+				usedBy: [],
 			},
 		],
-	},
-	get_repo_rules: [
-		{
-			ruleId: "account-age",
-			name: "Account age",
-			source: "built-in",
-			enabled: true,
-			config: { minDays: 7 },
-			management: "standalone",
-			optIn: false,
-			held: false,
-			cannotRun: null,
-			matches24h: 3,
-		},
-		{
-			ruleId: "custom-not-into-release-1a2b3c",
+		save_custom_rule: {
+			saved: true,
+			created: true,
+			repo: "grim/scratch",
+			id: "custom-not-into-release-1a2b3c",
+			ref: "custom-not-into-release-1a2b3c@1",
 			name: "Not into release",
-			source: "custom",
-			enabled: false,
-			config: {},
-			management: "standalone",
-			optIn: false,
-			held: false,
-			cannotRun: null,
-			matches24h: 0,
-			sentence: "require that target branch is not release",
 			description: null,
+			enabled: false,
 			definition: {
 				when: { id: "pr.targetBranch" },
 				comparison: { kind: "noneOf", args: [["release"]] },
 			},
-			usedBy: [],
+			sentence: "require that target branch is not release",
+			use: 'customCheck("custom-not-into-release-1a2b3c")',
+			url: "https://app.tripwire.sh/grim/scratch/rules",
 		},
-	],
-	save_custom_rule: {
-		saved: true,
-		created: true,
-		repo: "grim/scratch",
-		id: "custom-not-into-release-1a2b3c",
-		ref: "custom-not-into-release-1a2b3c@1",
-		name: "Not into release",
-		description: null,
-		enabled: false,
-		definition: {
-			when: { id: "pr.targetBranch" },
-			comparison: { kind: "noneOf", args: [["release"]] },
+		delete_custom_rule: {
+			deleted: true,
+			id: "custom-not-into-release-1a2b3c",
+			repo: "grim/scratch",
 		},
-		sentence: "require that target branch is not release",
-		use: 'customCheck("custom-not-into-release-1a2b3c")',
-		url: "https://app.tripwire.sh/grim/scratch/rules",
-	},
-	delete_custom_rule: {
-		deleted: true,
-		id: "custom-not-into-release-1a2b3c",
-		repo: "grim/scratch",
-	},
-	decide_moderation: {
-		done: false,
-		confirmUrl: "https://app.tripwire.sh/grim/scratch/moderation",
-		forUser: "Open this link to review the contributor and decide yourself.",
-	},
-};
+		decide_moderation: {
+			done: false,
+			confirmUrl: "https://app.tripwire.sh/grim/scratch/moderation",
+			forUser: "Open this link to review the contributor and decide yourself.",
+		},
+	}),
+);
 
 export function cannedResult(name: string) {
-	return RESULTS[name] ?? null;
+	return RESULTS.get(name) ?? null;
 }
 
 const NEXT = new Map<string, z.infer<ReturnType<typeof z.json>>[]>();
@@ -319,26 +321,29 @@ function reply(name: string, args: z.infer<ReturnType<typeof z.json>>) {
 			isError: true,
 		};
 	}
-	const data = RESULTS[name] ?? { tool: name, args };
+	const data = RESULTS.get(name) ?? { tool: name, args };
 	return {
 		content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
 	};
 }
 
-const STRICT: Partial<Record<string, z.ZodObject>> = {
-	list_moderation_queue: z.object({
-		org: z.string().optional(),
-		repo: z.string(),
+const STRICT = new Map(
+	Object.entries({
+		list_moderation_queue: z.object({
+			org: z.string().optional(),
+			repo: z.string(),
+		}),
 	}),
-};
+);
 
 function buildServer(calls: ToolCall[]): McpServer {
 	const server = new McpServer({ name: "fake-tripwire", version: "0.0.0" });
 	for (const name of TOOL_NAMES) {
+		const inputSchema = STRICT.get(name) ?? z.looseObject({});
 		server.registerTool(
 			name,
-			{ description: name, inputSchema: STRICT[name] ?? z.looseObject({}) },
-			async (args) => {
+			{ description: name, inputSchema },
+			async (args: z.output<typeof inputSchema>) => {
 				const parsed = z.json().parse(args);
 				calls.push({ name, args: parsed });
 				return reply(name, parsed);

@@ -1,8 +1,10 @@
 import {
+	jsonValueSchema,
 	redactEvidence,
 	redactionHides,
 	redactSummary,
 } from "@tripwire/contracts";
+import { z } from "zod";
 import type { JsonValue, RunStepView, RunView } from "#/lib/runs.functions";
 
 /**
@@ -39,21 +41,25 @@ export function resolveRunAccess({
 const PUBLIC_RUN_PATH = /^\/runs\/[^/]+\/?$/;
 
 /**
- * Routes reachable without a session: /login and the single run page. Run
+ * Routes reachable without a session include /login, /pilot, and single run pages. Run
  * LISTS and every other index route stay behind the root redirect — a
  * crawlable index of verdicts must not exist (§10).
  */
 export function isPublicPath(pathname: string): boolean {
 	return (
 		pathname === "/login" ||
+		pathname === "/pilot" ||
+		pathname === "/pilot/" ||
 		PUBLIC_RUN_PATH.test(pathname) ||
 		(import.meta.env.DEV === true &&
 			(pathname === "/mascot" || pathname === "/game"))
 	);
 }
 
+const jsonRecordSchema = z.record(z.string(), jsonValueSchema);
+
 function isJsonRecord(value: JsonValue): value is { [key: string]: JsonValue } {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
+	return jsonRecordSchema.safeParse(value).success;
 }
 
 /**

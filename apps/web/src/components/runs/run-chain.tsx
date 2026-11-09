@@ -1,21 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import {
-	ArrowUpRight,
-	Comment,
-	Document,
-	FailedMark,
-	type GlazeIcon,
-	Icon,
-	Pending,
-	Send,
-	Success,
-	Undo,
-	Workflow,
-} from "#/components/glaze/icon";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
-import {
 	BranchCard,
 	type BranchContext,
 	BranchRow,
@@ -28,7 +13,22 @@ import {
 	ChainRow,
 	TONE_WORD,
 } from "#/components/runs/chain-mark";
-import { ZonedTime } from "#/components/timezones/zoned-time";
+import { SupersededRunChain } from "#/components/runs/superseded-run-chain";
+import {
+	ArrowUpRight,
+	Comment,
+	Document,
+	FailedMark,
+	type GlazeIcon,
+	Icon,
+	Pending,
+	Send,
+	Success,
+	Workflow,
+} from "#/design-system/icon";
+import { Badge } from "#/design-system/ui/badge";
+import { Button } from "#/design-system/ui/button";
+import { RelativeTime } from "#/design-system/ui/relative-time";
 import {
 	type ChainBranch,
 	type ChainChecks,
@@ -41,7 +41,7 @@ import {
 import { cn } from "#/lib/utils";
 
 function ClockTime({ at }: { at: string }) {
-	return <ZonedTime at={at} format="clock" />;
+	return <RelativeTime date={at} />;
 }
 
 function When({
@@ -51,14 +51,15 @@ function When({
 	at: string | null;
 	offsetMs: number | null;
 }) {
-	if (!at && offsetMs === null) {
+	const showOffset = offsetMs !== null && offsetMs > 0;
+	if (!at && !showOffset) {
 		return null;
 	}
 	return (
 		<span className="type-caption text-text-2">
 			{at ? <ClockTime at={at} /> : null}
-			{at && offsetMs !== null ? ", " : null}
-			{offsetMs !== null ? formatOffset(offsetMs) : null}
+			{at && showOffset ? ", " : null}
+			{showOffset ? formatOffset(offsetMs) : null}
 		</span>
 	);
 }
@@ -77,8 +78,9 @@ function NodeTitle({
 	className?: string;
 }) {
 	return (
-		<div className="flex flex-wrap items-baseline gap-x-2">
+		<div data-layout-role="run-node-heading">
 			<h2
+				data-layout-role="run-node-title"
 				className={cn(
 					size === "outcome" ? "type-heading" : "type-label-lg",
 					className ?? "text-text-1",
@@ -264,11 +266,19 @@ function OutcomeChip({ chip }: { chip: ChainChip }) {
 	);
 }
 
-function OutcomeBody({ outcome }: { outcome: ChainOutcome }) {
+function OutcomeBody({
+	outcome,
+	history,
+}: {
+	outcome: ChainOutcome;
+	history: RunChain["history"];
+}) {
 	return (
 		<>
 			{outcome.detail ? (
-				<p className="type-body-sm text-text-2">{outcome.detail}</p>
+				<p className={cn("type-body-sm text-text-2", history && "mt-1")}>
+					{outcome.detail}
+				</p>
 			) : null}
 			{outcome.openReview ? (
 				<div className="flex items-baseline gap-2 pt-2">
@@ -281,7 +291,14 @@ function OutcomeBody({ outcome }: { outcome: ChainOutcome }) {
 					) : null}
 				</div>
 			) : null}
-			{outcome.chips.length > 0 ? (
+			{history ? (
+				<SupersededRunChain
+					replaces={history.replaces}
+					runs={history.runs}
+					selectedRunId={history.selectedRunId}
+				/>
+			) : null}
+			{!history && outcome.chips.length > 0 ? (
 				<div className="flex flex-wrap gap-2 pt-2">
 					{outcome.chips.map((chip) => (
 						<OutcomeChip chip={chip} key={chip.key} />
@@ -299,7 +316,9 @@ export function RunChainView({
 	chain: RunChain;
 	context: BranchContext;
 }) {
-	const { event, checks, steps, outcome } = chain;
+	const { event, checks, steps, outcome, history } = chain;
+	const eventHistory = history?.placement === "event" ? history : null;
+	const outcomeHistory = history?.placement === "outcome" ? history : null;
 	const side =
 		checks?.body.kind === "branches" && checks.body.layout === "side"
 			? checks.body
@@ -309,20 +328,15 @@ export function RunChainView({
 			<ChainRow node={<ChainNode glyph={event.glyph} tone="neutral" />}>
 				<NodeTitle at={event.at} offsetMs={null} title={event.title} />
 				{event.detail ? (
-					<p className="type-body-sm text-text-2">{event.detail}</p>
+					<p data-layout-role="run-node-detail">{event.detail}</p>
 				) : null}
-				{event.replaces ? (
-					<p className="flex items-center gap-1.5 type-body-sm text-text-2">
-						<Icon icon={Undo} size={12} />
-						Replaces the run from
-						<Link
-							className="text-text-1 underline decoration-1 underline-offset-4"
-							params={{ runId: event.replaces.id }}
-							to="/runs/$runId"
-						>
-							<ClockTime at={event.replaces.createdAt} />
-						</Link>
-					</p>
+				{eventHistory ? (
+					<SupersededRunChain
+						replaces={eventHistory.replaces}
+						runs={eventHistory.runs}
+						selectedRunId={eventHistory.selectedRunId}
+						selectedRunIsSuperseded={false}
+					/>
 				) : null}
 			</ChainRow>
 			{checks ? (
@@ -355,9 +369,20 @@ export function RunChainView({
 				</ChainRow>
 			))}
 			<ChainRow
-				className="gap-2 pb-0"
-				line={false}
-				node={<ChainNode glyph={outcome.glyph} solid tone={outcome.tone} />}
+				className={outcomeHistory ? "gap-0 pb-0" : "gap-2 pb-0"}
+				line={outcomeHistory !== null}
+				lineClassName={
+					outcomeHistory ? "h-[66px] grow-0 bg-[#45484B]" : undefined
+				}
+				node={
+					outcomeHistory ? (
+						<span className="pt-0.5">
+							<ChainNode glyph={outcome.glyph} solid tone={outcome.tone} />
+						</span>
+					) : (
+						<ChainNode glyph={outcome.glyph} solid tone={outcome.tone} />
+					)
+				}
 			>
 				<NodeTitle
 					at={outcome.at}
@@ -366,7 +391,7 @@ export function RunChainView({
 					size="outcome"
 					title={outcome.title}
 				/>
-				<OutcomeBody outcome={outcome} />
+				<OutcomeBody history={outcomeHistory} outcome={outcome} />
 			</ChainRow>
 		</ol>
 	);

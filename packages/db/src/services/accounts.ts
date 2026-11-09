@@ -234,11 +234,11 @@ export async function listForgeConnections(
 		         (count(*) FILTER (WHERE r.org_id IS NULL))::int AS unclaimed
 		  FROM repos r
 		  WHERE r.forge = a.provider_id AND r.removed_at IS NULL
-		    AND CASE WHEN a.provider_id = 'github' THEN (
+		    AND CASE WHEN a.provider_id IN ('github', 'gitcafe') THEN (
 		      EXISTS (
 		        SELECT 1 FROM member m
 		        WHERE m.organization_id = r.org_id AND m.user_id = a.user_id
-		      ) OR (r.org_id IS NULL AND ${canClaimGithub})
+		      ) OR (a.provider_id = 'github' AND r.org_id IS NULL AND ${canClaimGithub})
 		    ) ELSE r.installation_id = a.account_id END
 		) r ON true
 		WHERE a.user_id = ${userId}

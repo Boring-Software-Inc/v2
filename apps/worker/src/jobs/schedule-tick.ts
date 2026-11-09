@@ -1,12 +1,18 @@
 import {
 	durationMs,
 	type Forge,
+	type GitCafeRepositoryBinding,
 	type ScheduledEvent,
 	scheduleFireTime,
 	scheduleTickSlot,
 } from "@tripwire/contracts";
 import type { Db, DueSchedule } from "@tripwire/db";
-import { eventServices, scheduleServices } from "@tripwire/db";
+import {
+	eventServices,
+	gitCafeLifecycleServices,
+	repoServices,
+	scheduleServices,
+} from "@tripwire/db";
 import type { ForgeThread } from "@tripwire/forge";
 import { generateId, getErrorMessage } from "@tripwire/utils";
 import type { Pool } from "pg";
@@ -25,6 +31,8 @@ export interface ScheduleTickDeps {
 	resolveForge: (forge: Forge) => ForgeRuntime | null;
 	logger: Logger;
 	now?: () => Date;
+	forge?: Forge;
+	requestId?: string;
 }
 
 export interface ScheduleTickResult {
@@ -57,7 +65,7 @@ function scheduledEvent(
 	now: Date,
 ): ScheduledEvent {
 	const { authorExternalId, authorAvatarUrl, ...rest } = thread;
-	return {
+	const event: ScheduledEvent = {
 		id: generateId(),
 		forge: due.forge,
 		deliveryId: scheduleDeliveryId(due, thread.number, tickId),
@@ -67,13 +75,9 @@ function scheduledEvent(
 			fullName: due.repoFullName,
 		},
 		repoExternalId: due.repoExternalId,
-		...(due.installationId
-			? { installationExternalId: due.installationId }
-			: {}),
 		actor: {
 			login: thread.author,
 			externalId: authorExternalId,
-			...(authorAvatarUrl ? { avatarUrl: authorAvatarUrl } : {}),
 		},
 		occurredAt: now.toISOString(),
 		receivedAt: now.toISOString(),
@@ -81,6 +85,9 @@ function scheduledEvent(
 		schedule: { workflowId: due.workflowId, nodeId: due.nodeId, tickId },
 		thread: rest,
 	};
+	if (due.installationId) event.installationExternalId = due.installationId;
+	if (authorAvatarUrl) event.actor.avatarUrl = authorAvatarUrl;
+	return event;
 }
 
 async function tickOne(
@@ -93,7 +100,36 @@ async function tickOne(
 		return { events: 0, error: "this forge cannot list threads" };
 	}
 	const { match } = due.schedule;
-	const result = await listThreads(due.repoFullName, {
+	let binding: GitCafeRepositoryBinding | undefined;
+	if (due.forge === "gitcafe") {
+		const repo = await repoServices.getRepoById(deps.db, due.repoId);
+		if (
+			!repo?.orgId ||
+			!repo.installationId ||
+			repo.forge !== "gitcafe" ||
+			repo.fullName !== due.repoFullName ||
+			repo.externalId !== due.repoExternalId ||
+			repo.installationId !== due.installationId ||
+			!repo.armed ||
+			repo.removedAt
+		)
+			return { events: 0, error: "GitCafe scheduled authority unavailable" };
+		const authority = await gitCafeLifecycleServices.getGitCafeActionAuthority(
+			deps.db,
+			repo.installationId,
+		);
+		if (!authority.allowed)
+			return { events: 0, error: "GitCafe scheduled authority unavailable" };
+		binding = {
+			repoId: repo.id,
+			organizationId: repo.orgId,
+			installationId: repo.installationId,
+			repositoryId: repo.externalId,
+			fullName: repo.fullName,
+			generation: authority.generation,
+		};
+	}
+	const listed = await listThreads(due.repoFullName, {
 		subjects: match.subjects,
 		state: match.state,
 		updatedBefore: new Date(
@@ -104,12 +140,43 @@ async function tickOne(
 		skipLocked: match.skipLocked,
 		cap: MAX_THREADS_PER_TICK,
 	});
+	if ("ok" in listed && !listed.ok) {
+		return { events: 0, error: `thread listing unavailable: ${listed.reason}` };
+	}
+	const result = "ok" in listed ? listed.value : listed;
 	const tickId = scheduleTickId(due, now);
 	let events = 0;
 	const failures: string[] = [];
 	for (const thread of result.threads) {
 		const event = scheduledEvent(due, thread, tickId, now);
 		try {
+			if (binding) {
+				const inserted =
+					await gitCafeLifecycleServices.insertGitCafeScheduledEvent(
+						deps.db,
+						deps.boss,
+						{
+							event: {
+								...event,
+								deliveryId: JSON.stringify([
+									"gitcafe-schedule",
+									binding.installationId,
+									binding.repoId,
+									due.workflowRowId,
+									due.nodeId,
+									thread.kind,
+									thread.number,
+									tickId,
+								]),
+							},
+							binding,
+							requestId: deps.requestId ?? generateId(),
+						},
+					);
+				if (!inserted.ok) failures.push("GitCafe scheduled authority changed");
+				else if (inserted.inserted) events++;
+				continue;
+			}
 			const inserted = await eventServices.insertRawEvent(
 				deps.pool,
 				deps.boss,
@@ -140,7 +207,7 @@ export async function scheduleTick(
 	deps: ScheduleTickDeps,
 ): Promise<ScheduleTickResult> {
 	const now = deps.now?.() ?? new Date();
-	const due = await scheduleServices.listDueSchedules(deps.db, now);
+	const due = await scheduleServices.listDueSchedules(deps.db, now, deps.forge);
 	const result: ScheduleTickResult = {
 		schedules: due.length,
 		events: 0,
@@ -152,7 +219,7 @@ export async function scheduleTick(
 			nodeId: schedule.nodeId,
 			repo: schedule.repoFullName,
 		});
-		let outcome: { events: number; error: string | null };
+		let outcome: Awaited<ReturnType<typeof tickOne>>;
 		try {
 			outcome = await tickOne(deps, schedule, now);
 		} catch (error) {

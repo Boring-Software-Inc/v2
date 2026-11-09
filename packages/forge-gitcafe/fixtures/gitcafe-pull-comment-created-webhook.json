@@ -1,0 +1,54 @@
+{
+	"id": "evt_01m62h49g4eh6s2ze1jzz2vr5c",
+	"pull": {
+		"id": "pr_01m612t72sfhj9j6226knf5kqz",
+		"draft": false,
+		"state": "open",
+		"title": "Tripwire staging adapter acceptance fixture",
+		"number": 1,
+		"headOid": "2bff66c45a9e2241fc2482bc63bac23281a7377f",
+		"version": 1,
+		"lockReason": null,
+		"description": "Scratch-only Tripwire staging integration test. This pull request is intentionally left open for read, check, review, and action acceptance tests. No production code is included.",
+		"sourceBranch": "tripwire-qa/adapter-20261028",
+		"sourceRepoId": null,
+		"targetBranch": "main",
+		"authorActorId": "act_01m08gfttrfw3ba3xpz50vq38h",
+		"observedBaseOid": "ac21bd68841290a7dddb7b8f7d7dd1657fdaba04",
+		"descriptionTruncated": false
+	},
+	"type": "pull.comment_created",
+	"actor": {
+		"id": "act_01m08gfttrfw3ba3xpz50vq38h"
+	},
+	"comment": {
+		"id": "prcomment_01m62h49eheh6s2zdw8z2dxhh3",
+		"body": "Tripwire staging comment-event acceptance. <!-- tripwire-qa:01a18511-6d2c-7069-8a1d-d5f00dacee0b -->",
+		"line": null,
+		"path": null,
+		"side": null,
+		"hidden": false,
+		"deleted": false,
+		"version": 0,
+		"resolved": false,
+		"reviewId": null,
+		"threadId": "prcomment_01m62h49eheh6s2zdw8z2dxhh3",
+		"commitOid": null,
+		"startLine": null,
+		"startSide": null,
+		"authorActorId": "act_01m08gfttrfw3ba3xpz50vq38h",
+		"bodyTruncated": false
+	},
+	"version": "1",
+	"commentId": "prcomment_01m62h49eheh6s2zdw8z2dxhh3",
+	"createdAt": "2026-10-29T00:32:01.540Z",
+	"repository": {
+		"id": "repo_01m608d2crfqzt2vc8akngqsc0",
+		"name": "scratch",
+		"orgId": "org_01m601398vfdztay7fh3vaenpn",
+		"owner": "boring"
+	},
+	"installation": {
+		"id": "ins_01m60zef0bfzzbx050fw4rymhr"
+	}
+}

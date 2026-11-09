@@ -1,10 +1,20 @@
-import type { RepoScopedEvent } from "@tripwire/contracts";
-import { normalizedEventSchema } from "@tripwire/contracts";
-import type { RerunChangeRequestJob } from "@tripwire/db";
+import type {
+	RepoScopedEvent,
+	RerunChangeRequestJob,
+} from "@tripwire/contracts";
+import {
+	ingestForgeSchema,
+	normalizedEventSchema,
+	rerunChangeRequestJobSchema,
+} from "@tripwire/contracts";
 import { eventServices, runServices } from "@tripwire/db";
-import { normalizeWebhook } from "@tripwire/forge-github";
 import { getErrorMessage } from "@tripwire/utils";
-import { emitPendingCheck, emitPrSurface } from "./pr-surface.ts";
+import { normalizeFor } from "../forge-runtime.ts";
+import {
+	emitPendingCheck,
+	emitPrSurface,
+	recoverGitCafeRunSurface,
+} from "./pr-surface.ts";
 import type { ProcessEventDeps } from "./process-event.ts";
 import { runWorkflows } from "./run-workflows.ts";
 
@@ -24,10 +34,35 @@ import { runWorkflows } from "./run-workflows.ts";
  */
 export async function rerunChangeRequest(
 	deps: ProcessEventDeps,
-	job: RerunChangeRequestJob,
+	input: RerunChangeRequestJob,
 ): Promise<void> {
 	const { db, pool, logger } = deps;
+	const parsed = rerunChangeRequestJobSchema.safeParse(input);
+	if (!parsed.success) {
+		logger.error({ issues: parsed.error.issues }, "invalid re-run job");
+		return;
+	}
+	const job = parsed.data;
 	const claimRunId = job.runId;
+
+	const claimedRun = claimRunId
+		? await runServices.getRunById(db, claimRunId)
+		: null;
+	const claimedEvent = claimedRun
+		? await eventServices.getEventById(db, claimedRun.eventId)
+		: null;
+	const forge = job.forge ?? claimedEvent?.forge;
+	if (
+		!forge ||
+		(!ingestForgeSchema.safeParse(forge).success &&
+			!deps.resolveForge(forge)?.prepareEvent) ||
+		(claimedRun &&
+			(claimedRun.repoFullName !== job.repoFullName ||
+				claimedEvent?.forge !== forge))
+	) {
+		logger.error({ claimRunId }, "re-run has no verified repository scope");
+		return;
+	}
 
 	const failClaimed = async () => {
 		if (claimRunId) {
@@ -37,7 +72,7 @@ export async function rerunChangeRequest(
 
 	const row = await eventServices.getLatestChangeRequestEvent(
 		db,
-		job.repoFullName,
+		{ forge, fullName: job.repoFullName },
 		job.number,
 	);
 	if (!row) {
@@ -49,31 +84,50 @@ export async function rerunChangeRequest(
 		return;
 	}
 
-	// Idempotent claim: a completed/failed row means a prior attempt finished.
-	if (claimRunId) {
-		const existing = await runServices.getRunById(db, claimRunId);
-		if (!existing) {
-			logger.warn(
-				{ claimRunId },
-				"claimed re-run row missing — creating fresh",
-			);
-		} else if (
-			existing.status === "completed" ||
-			existing.status === "paused" ||
-			existing.status === "closed" ||
-			existing.status === "failed"
+	if (claimRunId && !claimedRun) {
+		logger.warn({ claimRunId }, "claimed re-run row missing — creating fresh");
+	}
+	if (
+		claimedRun &&
+		(claimedRun.status === "completed" ||
+			claimedRun.status === "paused" ||
+			claimedRun.status === "closed" ||
+			claimedRun.status === "failed")
+	) {
+		if (
+			forge === "gitcafe" &&
+			(claimedRun.status === "completed" || claimedRun.status === "paused")
 		) {
-			logger.info(
-				{ claimRunId, status: existing.status },
-				"re-run already terminal — no-op",
+			const normalized = normalizedEventSchema.safeParse(
+				claimedEvent?.normalized,
 			);
+			if (
+				!normalized.success ||
+				!(await recoverGitCafeRunSurface(
+					{
+						db,
+						adapter: deps.resolveForge(forge)?.adapter ?? null,
+						logger,
+						appUrl: deps.appUrl,
+					},
+					claimedRun.id,
+					normalized.data,
+					{ rerun: true },
+				))
+			)
+				throw new Error("Committed GitCafe rerun cannot recover its surfaces");
 			return;
 		}
+		logger.info(
+			{ claimRunId, status: claimedRun.status },
+			"re-run already terminal — no-op",
+		);
+		return;
 	}
 
 	let event: RepoScopedEvent;
 	try {
-		const renormalized = normalizeWebhook(
+		const renormalized = normalizeFor(row.forge)?.(
 			{
 				deliveryId: row.deliveryId,
 				eventName: row.rawKind,
@@ -101,6 +155,12 @@ export async function rerunChangeRequest(
 		event = stored.data as RepoScopedEvent;
 	}
 
+	if (event.forge !== row.forge || event.repo.fullName !== row.repoFullName) {
+		logger.error({ eventId: row.id }, "stored event scope mismatch");
+		await failClaimed();
+		return;
+	}
+
 	/**
 	 * Head as of NOW: context reads fetch diff/commits fresh by number, but the
 	 * stored event carries the head SHA of the original webhook. If the head
@@ -111,12 +171,49 @@ export async function rerunChangeRequest(
 	const runtime = deps.resolveForge(event.forge);
 	const reads = runtime?.reads ?? null;
 	const adapter = runtime?.adapter ?? null;
-	if (reads && "changeRequest" in event) {
+	if (runtime?.refreshEvent) {
+		const refreshed = await runtime.refreshEvent(event);
+		if (!refreshed.ok) {
+			logger.warn(
+				{ reason: refreshed.reason, status: refreshed.status },
+				"fresh change request read refused",
+			);
+			/** Refresh staleness fences installation snapshots; obsolete PR heads are checked below. */
+			if (
+				event.forge === "gitcafe" &&
+				(["network", "expired", "inactive", "stale"].includes(
+					refreshed.reason,
+				) ||
+					(refreshed.reason === "http" &&
+						(refreshed.status === 429 || (refreshed.status ?? 0) >= 500)))
+			)
+				throw new Error("GitCafe re-run evidence temporarily unavailable");
+			await failClaimed();
+			return;
+		}
+		event = refreshed.value;
+		if (
+			job.expectedHeadSha &&
+			(!("changeRequest" in event) ||
+				event.changeRequest.headSha !== job.expectedHeadSha)
+		) {
+			logger.info({ claimRunId }, "check re-run targets an obsolete head");
+			await failClaimed();
+			return;
+		}
+	} else if (reads && "changeRequest" in event) {
 		try {
-			const commits = await reads.getCommits(
+			const read = await reads.getCommits(
 				event.repo.fullName,
 				event.changeRequest.number,
 			);
+			if (!Array.isArray(read) && !read.ok) {
+				logger.warn(
+					{ reason: read.reason },
+					"fresh head read refused — re-run targets the stored head",
+				);
+			}
+			const commits = Array.isArray(read) ? read : read.ok ? read.value : [];
 			const freshSha = commits.at(-1)?.sha;
 			if (freshSha && freshSha !== event.changeRequest.headSha) {
 				logger.info(

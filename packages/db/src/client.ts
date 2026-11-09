@@ -1,4 +1,7 @@
-import { drizzle } from "drizzle-orm/node-postgres";
+import type { PGlite } from "@electric-sql/pglite";
+import { drizzle, type NodePgQueryResultHKT } from "drizzle-orm/node-postgres";
+import type { PgDatabase } from "drizzle-orm/pg-core";
+import type { PgliteQueryResultHKT } from "drizzle-orm/pglite";
 import { Pool } from "pg";
 import * as schema from "./schema/index.ts";
 
@@ -33,5 +36,18 @@ export function createDirectPool(
 	return new Pool({ connectionString: directUrl, max: 5 });
 }
 
-export type Db = ReturnType<typeof createDb>["db"];
+/** Shared schema and query surface of the two supported PostgreSQL drivers. */
+export type Db = PgDatabase<
+	NodePgQueryResultHKT | PgliteQueryResultHKT,
+	typeof schema
+> & { $client: Pool | PGlite };
+
+/** pg-boss admission requires a real pool and the same checked-out connection. */
+export function requirePostgresPool(db: Db): Pool {
+	if (!(db.$client instanceof Pool)) {
+		throw new Error("This operation requires a PostgreSQL connection pool");
+	}
+	return db.$client;
+}
+
 export { schema };

@@ -1,5 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
-import type { AccessStatus } from "@tripwire/contracts";
+import type { AccessStatus, ProviderAvailability } from "@tripwire/contracts";
+
+export const getProviderAvailability = createServerFn({
+	method: "GET",
+}).handler(async (): Promise<ProviderAvailability> => {
+	const { readProviderAvailability } = await import(
+		"#/lib/server/provider-availability"
+	);
+	return readProviderAvailability();
+});
 
 export interface SessionInfo {
 	/** null when signed out; "disabled" when auth env is absent (local dev). */
@@ -63,6 +72,7 @@ export const getSessionInfo = createServerFn({ method: "GET" }).handler(
 		const { getDb } = await import("#/lib/server/db");
 		const { eq } = await import("drizzle-orm");
 		const { isAccessGateEnabled } = await import("@tripwire/auth/access-gate");
+		const { fenceOf } = await import("#/lib/server/staff-users");
 		const db = getDb().db;
 		const rows = await db
 			.select({
@@ -74,10 +84,11 @@ export const getSessionInfo = createServerFn({ method: "GET" }).handler(
 			.where(eq(userTable.id, session.user.id))
 			.limit(1);
 		const accessStatus: AccessStatus = rows[0]?.accessStatus ?? "pending";
-		const gateEnabled = await isAccessGateEnabled({
+		const flagUser = {
 			userId: session.user.id,
 			email: session.user.email,
-		});
+		};
+		const gateEnabled = await isAccessGateEnabled(flagUser);
 		// `/` redirect target: the session's last-visited org while membership
 		// still holds, else the personal org (every user has one).
 		const orgs = await orgServices.listUserOrgs(db, session.user.id);
@@ -92,7 +103,6 @@ export const getSessionInfo = createServerFn({ method: "GET" }).handler(
 			orgs.find((o) => o.isPersonal)?.slug ??
 			orgs[0]?.slug ??
 			null;
-		const { fenceOf } = await import("#/lib/server/staff-users");
 		const impersonating = (await fenceOf(session)).impersonatedBy;
 		const { staffUserServices } = await import("@tripwire/db");
 		const impersonation = impersonating

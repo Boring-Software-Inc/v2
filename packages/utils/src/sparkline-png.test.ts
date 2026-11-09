@@ -8,11 +8,7 @@ import {
 /** A minimal PNG parser: verify signature, then read IHDR width/height and the
  * chunk sequence. Enough to prove the encoder emits a structurally valid PNG a
  * decoder (Discord) will accept, without pulling in an image library. */
-function readPng(bytes: Uint8Array): {
-	width: number;
-	height: number;
-	chunks: string[];
-} {
+function readPng(bytes: Uint8Array) {
 	const sig = [137, 80, 78, 71, 13, 10, 26, 10];
 	for (let i = 0; i < sig.length; i++) {
 		if (bytes[i] !== sig[i]) {

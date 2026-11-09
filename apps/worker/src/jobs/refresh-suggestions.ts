@@ -1,6 +1,72 @@
-import { type Db, repoServices, type SyncRepoBranchesJob } from "@tripwire/db";
+import type { GitCafeRefreshCatalogsJob } from "@tripwire/contracts";
+import {
+	type Db,
+	gitCafeLifecycleServices,
+	repoServices,
+	type SyncRepoBranchesJob,
+} from "@tripwire/db";
 import { type GithubHttp, githubForge } from "@tripwire/forge-github";
 import type { Logger } from "pino";
+import type { GitCafeRuntime } from "../gitcafe-runtime.ts";
+
+/** Only complete catalog reads replace caches; one unavailable source preserves its previous values. */
+export async function refreshGitCafeCatalogs(
+	deps: {
+		db: Db;
+		runtime: Pick<GitCafeRuntime, "getCatalogs">;
+		logger: Logger;
+	},
+	job: GitCafeRefreshCatalogsJob,
+): Promise<{ ok: boolean }> {
+	const repo = await repoServices.getRepoById(deps.db, job.repoId);
+	if (!repo || repo.removedAt || repo.forge !== "gitcafe") return { ok: true };
+	const result = await deps.runtime.getCatalogs(repo.id);
+	if (!result.ok) {
+		deps.logger.warn(
+			{
+				requestId: job.requestId,
+				repoId: repo.id,
+				reason: result.reason,
+				status: result.status,
+			},
+			"GitCafe catalog binding unavailable; kept previous values",
+		);
+		return { ok: false };
+	}
+	const { binding, branches, labels, reviewers } = result.value;
+	for (const [source, read] of [
+		["branches", branches],
+		["labels", labels],
+		["reviewers", reviewers],
+	] as const) {
+		if (!read.ok)
+			deps.logger.warn(
+				{
+					requestId: job.requestId,
+					repoId: repo.id,
+					source,
+					reason: read.reason,
+					status: read.status,
+				},
+				"GitCafe catalog unavailable; kept previous values",
+			);
+	}
+	const committed = await gitCafeLifecycleServices.commitGitCafeCatalogs(
+		deps.db,
+		binding,
+		{
+			branches: branches.ok ? branches.value : undefined,
+			labels: labels.ok ? labels.value : undefined,
+			reviewers: reviewers.ok ? reviewers.value : undefined,
+		},
+	);
+	if (!committed)
+		deps.logger.warn(
+			{ requestId: job.requestId, repoId: repo.id, reason: "stale" },
+			"GitCafe catalog authority changed; kept previous values",
+		);
+	return { ok: committed && branches.ok && labels.ok && reviewers.ok };
+}
 
 /**
  * Refreshes the cached branch suggestions for a repo. The worker holds the

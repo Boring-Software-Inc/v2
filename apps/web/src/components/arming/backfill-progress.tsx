@@ -3,7 +3,7 @@ import {
 	Progress,
 	ProgressLabel,
 	ProgressValue,
-} from "#/components/glaze/ui/progress";
+} from "#/design-system/ui/progress";
 import { orgRepoQueryOptions } from "#/lib/org.query";
 
 export function BackfillProgress({

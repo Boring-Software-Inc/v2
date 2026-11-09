@@ -1,7 +1,5 @@
-import { useFlag, useFlags } from "@databuddy/sdk/react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
-import { FLAGS } from "@tripwire/auth/databuddy";
 import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import { DevScenarioSwitcher } from "#/components/dev/dev-scenario-switcher";
 import {
@@ -9,10 +7,11 @@ import {
 	FeedbackPicker,
 	FeedbackProvider,
 } from "#/components/feedback";
+import { DashboardNews } from "#/components/layouts/dashboard-news";
 import { ShellNav } from "#/components/layouts/shell-nav";
+import { cn } from "#/design-system/lib/utils";
 import { useMediaQuery } from "#/hooks/use-media-query";
 import { currentUserQueryOptions } from "#/lib/auth.query";
-import { cn } from "#/lib/glaze/utils";
 import { CommandPaletteLauncher } from "./command-palette-launcher";
 import { DashboardRail } from "./dashboard-rail";
 import {
@@ -48,25 +47,10 @@ function DashboardShell({
 	children,
 }: DashboardLayoutProps) {
 	const { data: user } = useQuery(currentUserQueryOptions());
-	const sidebar = useFlag(FLAGS.showSidebar);
-	const { updateUser } = useFlags();
-	const flaggedUser = useRef<string | null>(null);
-	useEffect(() => {
-		const id = user?.id;
-		if (!id || flaggedUser.current === id) {
-			return;
-		}
-		flaggedUser.current = id;
-		updateUser({
-			userId: id,
-			email: user.email ?? undefined,
-			properties: { login: user.login },
-		});
-	}, [updateUser, user?.id, user?.email, user?.login]);
 	const { content, collapsed } = useSidePanel();
 	const isDesktop = useMediaQuery("(min-width: 768px)");
 	const showPanel = isDesktop && Boolean(content) && !collapsed;
-	const rail = isDesktop && !sidebar.loading && sidebar.on;
+	const rail = isDesktop;
 	const params = useParams({ strict: false });
 	const inset = Boolean(params.repo);
 
@@ -115,6 +99,7 @@ function DashboardShell({
 					<>
 						<DashboardTopbar user={user ?? null} />
 						{nav ? <ShellNav counts={counts} /> : null}
+						{nav ? <DashboardNews /> : null}
 					</>
 				)}
 				<RouteProgress />

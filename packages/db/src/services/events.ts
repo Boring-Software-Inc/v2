@@ -1,4 +1,4 @@
-import type { Forge } from "@tripwire/contracts";
+import type { Forge, RepoIdentity } from "@tripwire/contracts";
 import {
 	type ActivityFeed,
 	type ActivityFeedItem,
@@ -7,13 +7,18 @@ import {
 	type ActivityTimelineEntry,
 	bearsVerdict,
 	changeRequestAuthor,
+	changeRequestPayloadSchema,
 	type NormalizedEvent,
 	normalizedEventSchema,
+	storedJsonValueSchema,
+	storedNormalizedEventSchema,
+	verdictEventKindSchema,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
 import { and, desc, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
+import { z } from "zod";
 import type { Db } from "../client.ts";
 import { PROCESS_EVENT_QUEUE } from "../queue.ts";
 import { events } from "../schema/events.ts";
@@ -30,7 +35,7 @@ export interface InsertRawEventInput {
 }
 
 export interface InsertRawEventResult {
-	/** false ⇒ redelivery; UNIQUE(delivery_id) made it a no-op (§5.3). */
+	/** false ⇒ redelivery; UNIQUE(forge, delivery_id) made it a no-op (§5.3). */
 	inserted: boolean;
 	eventId: string | null;
 }
@@ -53,7 +58,7 @@ export async function insertRawEvent(
 		const res = await client.query<{ id: string }>(
 			`INSERT INTO events (id, delivery_id, raw_kind, raw, forge)
 			 VALUES ($1, $2, $3, $4, $5)
-			 ON CONFLICT (delivery_id) DO NOTHING
+			 ON CONFLICT DO NOTHING
 			 RETURNING id`,
 			[
 				id,
@@ -107,7 +112,7 @@ export async function markEventNormalized(
 			: "push" in valid
 				? valid.push.headSha
 				: null;
-	await db
+	const updated = await db
 		.update(events)
 		.set({
 			kind: valid.kind,
@@ -118,7 +123,11 @@ export async function markEventNormalized(
 			normalized: valid,
 			normalizedAt: new Date(),
 		})
-		.where(eq(events.id, eventId));
+		.where(and(eq(events.id, eventId), eq(events.forge, valid.forge)))
+		.returning({ id: events.id });
+	if (updated.length !== 1) {
+		throw new Error("normalized event forge does not match the stored event");
+	}
 	await pool.query("SELECT pg_notify('events', $1)", [eventId]);
 }
 
@@ -146,7 +155,7 @@ export async function getEventById(db: Db, eventId: string) {
  */
 export async function getLatestChangeRequestEvent(
 	db: Db,
-	repoFullName: string,
+	repo: RepoIdentity,
 	subjectNumber: number,
 ) {
 	const rows = await db
@@ -154,7 +163,8 @@ export async function getLatestChangeRequestEvent(
 		.from(events)
 		.where(
 			and(
-				eq(events.repoFullName, repoFullName),
+				eq(events.repoFullName, repo.fullName),
+				sql`${events.forge} = ${repo.forge}`,
 				eq(events.subjectNumber, subjectNumber),
 				isNotNull(events.normalizedAt),
 				inArray(events.kind, [
@@ -170,7 +180,7 @@ export async function getLatestChangeRequestEvent(
 
 export async function changeRequestIsClosed(
 	db: Db,
-	repoFullName: string,
+	repo: RepoIdentity,
 	subjectNumber: number,
 ): Promise<boolean> {
 	const rows = await db
@@ -178,7 +188,8 @@ export async function changeRequestIsClosed(
 		.from(events)
 		.where(
 			and(
-				eq(events.repoFullName, repoFullName),
+				eq(events.repoFullName, repo.fullName),
+				sql`${events.forge} = ${repo.forge}`,
 				eq(events.subjectNumber, subjectNumber),
 				isNotNull(events.normalizedAt),
 				inArray(events.kind, [
@@ -217,72 +228,59 @@ export async function listEvents(
 	};
 }
 
-/**
- * `db.execute()` returns RAW pg rows (`Record<string, unknown>`), NOT the typed
- * shapes Drizzle's query builder maps: jsonb → object, int4 → number, text →
- * string, and the trap — timestamptz → an ISO **string**, never a `Date`. So the
- * mappers below coerce every field explicitly; nothing downstream trusts a raw
- * row. The wire shapes themselves (ActivityTimelineEntry/Group/FeedItem) live in
- * @tripwire/contracts — one home, re-validated at the server-fn boundary.
- */
-type RawRow = Record<string, unknown>;
+const activityRowSchema = z.object({
+	event_id: z.string(),
+	event_kind: z.string().nullable(),
+	normalized: storedJsonValueSchema,
+	run_id: z.string().nullable(),
+	verdict: z.string().nullable(),
+	status: z.string().nullable(),
+	reason: z.string().nullable(),
+	failing_rule_id: z.string().nullable(),
+	repo_full_name: z.string().optional(),
+	subject_number: z.number().int().optional(),
+	received_at: z.union([z.date(), z.string()]).pipe(z.coerce.date()).optional(),
+});
+type ActivityRow = z.infer<typeof activityRowSchema>;
+const timedActivityRowSchema = activityRowSchema.required({
+	received_at: true,
+});
+const groupedActivityRowSchema = timedActivityRowSchema.required({
+	repo_full_name: true,
+	subject_number: true,
+});
+type GroupedActivityRow = z.infer<typeof groupedActivityRowSchema>;
 
-function asString(v: unknown): string | null {
-	return typeof v === "string" ? v : v == null ? null : String(v);
+function leadingReason(row: ActivityRow): string | null {
+	return (
+		row.reason ||
+		(row.failing_rule_id ? `${row.failing_rule_id.split("@")[0]} failed` : null)
+	);
 }
 
-function asMs(v: unknown): number {
-	if (v instanceof Date) {
-		return v.getTime();
-	}
-	if (typeof v === "string") {
-		return new Date(v).getTime();
-	}
-	return 0;
-}
-
-function asIso(v: unknown): string {
-	return new Date(asMs(v)).toISOString();
-}
-
-/**
- * A blocked entry must ALWAYS say why (§9). Prefer the rule's §10 one-liner; when
- * a historical run predates the projection (null summary), fall back to the bare
- * failing rule name — e.g. "account-age failed" — never a blank reason.
- */
-function leadingReason(row: RawRow): string | null {
-	if (typeof row.reason === "string" && row.reason) {
-		return row.reason;
-	}
-	if (typeof row.failing_rule_id === "string" && row.failing_rule_id) {
-		return `${row.failing_rule_id.split("@")[0]} failed`;
-	}
-	return null;
-}
-
-function mapRun(row: RawRow): ActivityRunSummary | null {
-	if (row.run_id == null) {
-		return null;
-	}
+function mapRun(row: ActivityRow): ActivityRunSummary | null {
+	if (row.run_id === null) return null;
 	return {
-		runId: String(row.run_id),
-		verdict: asString(row.verdict),
-		status: asString(row.status) ?? "running",
+		runId: row.run_id,
+		verdict: row.verdict,
+		status: row.status ?? "running",
 		reason: leadingReason(row),
 	};
 }
 
-function mapEntry(row: RawRow): ActivityTimelineEntry {
-	// `normalized` (jsonb) is a validated NormalizedEvent at write time (§5.6); the
-	// server fn re-parses the whole feed against activityFeedSchema, so a drifted
-	// row fails loudly there, not inside a downstream field access.
+function mapEntry(row: ActivityRow): ActivityTimelineEntry {
+	const parsed = storedNormalizedEventSchema.safeParse(row.normalized);
 	const run = mapRun(row);
 	const pending =
 		run != null &&
 		run.verdict == null &&
 		(run.status === "queued" || run.status === "running");
 	return {
-		event: row.normalized as NormalizedEvent,
+		eventId: row.event_id,
+		event: parsed.success ? parsed.data : null,
+		unavailableReason: parsed.success
+			? undefined
+			: "Historical event data is unavailable",
 		run,
 		pending: pending || undefined,
 	};
@@ -324,7 +322,7 @@ export async function listActivity(
 	{ cursor, limit = 50 }: { cursor?: string; limit?: number } = {},
 ): Promise<{ items: ActivityTimelineEntry[]; nextCursor: string | null }> {
 	const result = await db.execute(sql`
-		SELECT e.id AS event_id, e.normalized, r.id AS run_id, r.verdict,
+		SELECT e.id AS event_id, e.kind AS event_kind, e.normalized, r.id AS run_id, r.verdict,
 		       r.status, fr.summary AS reason, fr.rule_id AS failing_rule_id
 		${ACTIVITY_FROM}
 		WHERE e.normalized_at IS NOT NULL
@@ -332,10 +330,10 @@ export async function listActivity(
 		ORDER BY e.id DESC
 		LIMIT ${limit}
 	`);
-	const { rows } = result;
+	const rows = result.rows.map((row) => activityRowSchema.parse(row));
 	return {
 		items: rows.map(mapEntry),
-		nextCursor: rows.length === limit ? asString(rows.at(-1)?.event_id) : null,
+		nextCursor: rows.length === limit ? (rows.at(-1)?.event_id ?? null) : null,
 	};
 }
 
@@ -345,14 +343,14 @@ export async function getActivityForEvent(
 	eventId: string,
 ): Promise<ActivityTimelineEntry | null> {
 	const result = await db.execute(sql`
-		SELECT e.normalized, r.id AS run_id, r.verdict, r.status,
+		SELECT e.id AS event_id, e.kind AS event_kind, e.normalized, r.id AS run_id, r.verdict, r.status,
 		       fr.summary AS reason, fr.rule_id AS failing_rule_id
 		${ACTIVITY_FROM}
 		WHERE e.id = ${eventId}
 		LIMIT 1
 	`);
 	const row = result.rows[0];
-	return row?.normalized ? mapEntry(row) : null;
+	return row ? mapEntry(activityRowSchema.parse(row)) : null;
 }
 
 /**
@@ -364,7 +362,7 @@ export async function getActivityForEvent(
  */
 export async function listBackfillEvents(
 	db: Db,
-	repoFullName: string,
+	repo: RepoIdentity & { externalId?: string },
 	sinceDays: number,
 	cap: number,
 ): Promise<{ id: string; normalized: NormalizedEvent }[]> {
@@ -372,7 +370,8 @@ export async function listBackfillEvents(
 		SELECT id, normalized FROM (
 			SELECT DISTINCT ON (subject_number) id, normalized, received_at
 			FROM events
-			WHERE repo_full_name = ${repoFullName}
+			WHERE forge = ${repo.forge} AND repo_full_name = ${repo.fullName}
+			  AND (${repo.forge} <> 'gitcafe' OR normalized->>'repoExternalId' = ${repo.externalId ?? null})
 			  AND normalized IS NOT NULL
 			  AND subject_number IS NOT NULL
 			  AND normalized ? 'changeRequest'
@@ -384,7 +383,10 @@ export async function listBackfillEvents(
 		LIMIT ${cap}
 	`);
 	const out: { id: string; normalized: NormalizedEvent }[] = [];
-	for (const row of result.rows as { id: string; normalized: unknown }[]) {
+	for (const raw of result.rows) {
+		const row = z
+			.object({ id: z.string(), normalized: storedJsonValueSchema })
+			.parse(raw);
 		const parsed = normalizedEventSchema.safeParse(row.normalized);
 		if (parsed.success) {
 			out.push({ id: row.id, normalized: parsed.data });
@@ -405,7 +407,11 @@ export async function listBackfillEvents(
  * latest activity.
  */
 function eventUrl(event: NormalizedEvent): string | null {
-	if ("changeRequest" in event) {
+	if (
+		event.kind === "change-request.opened" ||
+		event.kind === "change-request.updated" ||
+		event.kind === "change-request.closed"
+	) {
 		return event.changeRequest.url;
 	}
 	if (event.kind === "comment.created") {
@@ -414,8 +420,8 @@ function eventUrl(event: NormalizedEvent): string | null {
 	return null;
 }
 
-function isTripwireComment(event: NormalizedEvent): boolean {
-	return event.kind === "comment.created" && event.comment.byTripwire === true;
+function isTripwireComment(event: NormalizedEvent | null): boolean {
+	return event?.kind === "comment.created" && event.comment.byTripwire === true;
 }
 
 /** Tripwire's own comment is ONE upserted artifact (§7): create + edits collapse
@@ -433,40 +439,57 @@ function dedupeTripwireComments(
 	);
 }
 
-function buildGroup(rows: RawRow[]): ActivityGroup {
+const historicalTitleSchema = z.object({
+	kind: verdictEventKindSchema,
+	changeRequest: changeRequestPayloadSchema.pick({ title: true }),
+});
+
+function buildGroup(rows: GroupedActivityRow[]): ActivityGroup {
 	const chrono = [...rows].sort(
-		(a, b) => asMs(a.received_at) - asMs(b.received_at),
+		(a, b) => a.received_at.getTime() - b.received_at.getTime(),
 	);
 	const timeline = dedupeTripwireComments(chrono.map(mapEntry));
-	const events = timeline.map((entry) => entry.event);
+	const events = timeline.flatMap((entry) =>
+		entry.event ? [entry.event] : [],
+	);
 	const latest = chrono.at(-1);
 	if (!latest) {
 		throw new Error("buildGroup called with no rows");
 	}
 	const header = events.at(-1);
 	// Header identity: the most recent change-request event carries the title.
-	const cr = [...events].reverse().find((e) => "changeRequest" in e);
+	const cr = [...events]
+		.reverse()
+		.find(
+			(event) =>
+				event.kind === "change-request.opened" ||
+				event.kind === "change-request.updated" ||
+				event.kind === "change-request.closed",
+		);
 	// Current verdict = the verdict of the latest event that produced a run.
 	const withRun = [...chrono]
 		.reverse()
 		.find(
-			(r) =>
-				r.run_id != null &&
-				bearsVerdict((r.normalized as NormalizedEvent | null)?.kind),
+			(row) =>
+				row.run_id != null &&
+				bearsVerdict(mapEntry(row).event?.kind ?? row.event_kind),
 		);
-	const subjectNumber = Number(latest.subject_number);
+	const subjectNumber = latest.subject_number;
+	const historicalTitle = [...chrono].reverse().flatMap((row) => {
+		const parsed = historicalTitleSchema.safeParse(row.normalized);
+		return parsed.success ? [parsed.data.changeRequest.title] : [];
+	})[0];
 	return {
-		repoFullName: String(latest.repo_full_name),
+		repoFullName: latest.repo_full_name,
 		subjectNumber,
-		title:
-			cr && "changeRequest" in cr
-				? cr.changeRequest.title
-				: `#${subjectNumber}`,
+		title: cr
+			? cr.changeRequest.title
+			: (historicalTitle ?? `#${subjectNumber}`),
 		url: cr ? eventUrl(cr) : header ? eventUrl(header) : null,
 		actor: changeRequestAuthor(events),
-		currentVerdict: withRun ? asString(withRun.verdict) : null,
-		currentRunId: withRun ? asString(withRun.run_id) : null,
-		latestActivityAt: asIso(latest.received_at),
+		currentVerdict: withRun ? withRun.verdict : null,
+		currentRunId: withRun ? withRun.run_id : null,
+		latestActivityAt: latest.received_at.toISOString(),
 		eventCount: rows.length,
 		timeline,
 	};
@@ -474,23 +497,23 @@ function buildGroup(rows: RawRow[]): ActivityGroup {
 
 export async function listActivityFeed(
 	db: Db,
-	{ repoFullName, limit = 50 }: { repoFullName: string; limit?: number },
+	{ repo, limit = 50 }: { repo: RepoIdentity; limit?: number },
 ): Promise<ActivityFeed> {
 	const grouped = await db.execute(sql`
 		WITH grp AS (
 			SELECT repo_full_name, subject_number, max(received_at) AS latest_at
 			FROM events
 			WHERE normalized_at IS NOT NULL AND subject_number IS NOT NULL
-			  AND repo_full_name = ${repoFullName}
+			  AND forge = ${repo.forge} AND repo_full_name = ${repo.fullName}
 			GROUP BY repo_full_name, subject_number
 			ORDER BY latest_at DESC
 			LIMIT ${limit}
 		)
-		SELECT e.normalized, e.repo_full_name, e.subject_number, e.received_at,
+		SELECT e.id AS event_id, e.kind AS event_kind, e.normalized, e.repo_full_name, e.subject_number, e.received_at,
 		       r.id AS run_id, r.verdict, r.status, fr.summary AS reason,
 		       fr.rule_id AS failing_rule_id
 		FROM grp g
-		JOIN events e ON e.repo_full_name = g.repo_full_name
+		JOIN events e ON e.forge = ${repo.forge} AND e.repo_full_name = g.repo_full_name
 		            AND e.subject_number = g.subject_number
 		            AND e.normalized_at IS NOT NULL
 		LEFT JOIN LATERAL (
@@ -506,8 +529,9 @@ export async function listActivityFeed(
 			ORDER BY s.started_at ASC LIMIT 1
 		) fr ON true
 	`);
-	const byKey = new Map<string, RawRow[]>();
-	for (const row of grouped.rows) {
+	const byKey = new Map<string, GroupedActivityRow[]>();
+	for (const raw of grouped.rows) {
+		const row = groupedActivityRowSchema.parse(raw);
 		const key = `${String(row.repo_full_name)}#${Number(row.subject_number)}`;
 		const bucket = byKey.get(key);
 		if (bucket) {
@@ -521,19 +545,22 @@ export async function listActivityFeed(
 	// Standalone rows for THIS repo (e.g. a push with no change request).
 	// Account-level installation events carry no repo and are out of scope.
 	const loose = await db.execute(sql`
-		SELECT e.normalized, r.id AS run_id, r.verdict, r.status, fr.summary AS reason,
+		SELECT e.id AS event_id, e.kind AS event_kind, e.normalized, r.id AS run_id, r.verdict, r.status, fr.summary AS reason,
 		       fr.rule_id AS failing_rule_id, e.received_at
 		${ACTIVITY_FROM}
 		WHERE e.normalized_at IS NOT NULL AND e.subject_number IS NULL
-		  AND e.repo_full_name = ${repoFullName}
+		  AND e.forge = ${repo.forge} AND e.repo_full_name = ${repo.fullName}
 		ORDER BY e.id DESC
 		LIMIT ${limit}
 	`);
-	const standalone = loose.rows.map((r) => ({
-		type: "event" as const,
-		entry: mapEntry(r),
-		at: asMs(r.received_at),
-	}));
+	const standalone = loose.rows.map((raw) => {
+		const row = timedActivityRowSchema.parse(raw);
+		return {
+			type: "event" as const,
+			entry: mapEntry(row),
+			at: row.received_at.getTime(),
+		};
+	});
 
 	const items: (ActivityFeedItem & { at: number })[] = [
 		...groups.map((group) => ({

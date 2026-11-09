@@ -15,6 +15,7 @@ import { normalizeWebhook } from "@tripwire/forge-github";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import pino from "pino";
+import retargetFixture from "../../../packages/forge-github/fixtures/pull_request.edited.base.json";
 import { staticForge } from "./forge-runtime.ts";
 import { processEvent } from "./jobs/process-event.ts";
 import { runWorkflows } from "./jobs/run-workflows.ts";
@@ -516,10 +517,9 @@ describe("runWorkflows via processEvent (§13.6 done-when)", () => {
 			}),
 		};
 		await processEvent(deps, { eventId });
-		const before = await moderationServices.listPendingItems(
-			db,
-			"Codertocat/Hello-World",
-		);
+		const before = await moderationServices.listPendingItems(db, [
+			{ forge: "github", fullName: "Codertocat/Hello-World" },
+		]);
 		expect(before.length).toBeGreaterThan(0);
 
 		const closed = await eventServices.insertRawEvent(pool, boss, {
@@ -538,7 +538,9 @@ describe("runWorkflows via processEvent (§13.6 done-when)", () => {
 		await processEvent(deps, { eventId: closed.eventId });
 
 		expect(
-			await moderationServices.listPendingItems(db, "Codertocat/Hello-World"),
+			await moderationServices.listPendingItems(db, [
+				{ forge: "github", fullName: "Codertocat/Hello-World" },
+			]),
 		).toEqual([]);
 		const statuses = await pool.query(
 			"SELECT DISTINCT m.status FROM moderation_items m JOIN runs r ON r.id = m.run_id WHERE r.subject_number = 2",
@@ -891,15 +893,15 @@ describe("retarget without a push (pull_request edited, same head)", () => {
 		},
 	};
 
-	async function retargetRaw(): Promise<Record<string, unknown>> {
-		const path = new URL(
-			"../../../packages/forge-github/fixtures/pull_request.edited.base.json",
-			import.meta.url,
-		).pathname;
-		return await Bun.file(path).json();
+	async function retargetRaw() {
+		return structuredClone(retargetFixture);
 	}
 
-	async function ingest(deliveryId: string, raw: unknown): Promise<string> {
+	async function ingest(
+		deliveryId: string,
+		raw: Omit<typeof retargetFixture, "changes"> &
+			Partial<Pick<typeof retargetFixture, "changes">>,
+	): Promise<string> {
 		const { eventId } = await eventServices.insertRawEvent(pool, boss, {
 			deliveryId,
 			rawKind: "pull_request",
@@ -936,7 +938,7 @@ describe("retarget without a push (pull_request edited, same head)", () => {
 
 	beforeAll(async () => {
 		const raw = await retargetRaw();
-		const repository = raw.repository as { id: number };
+		const repository = raw.repository;
 		const repoId = await repoServices.ensureRepo(db, {
 			externalId: String(repository.id),
 			owner: "trycompai",

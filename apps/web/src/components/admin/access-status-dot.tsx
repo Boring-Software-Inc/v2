@@ -1,5 +1,5 @@
 import type { AccessStatus } from "@tripwire/contracts";
-import { Status, type StatusValue } from "#/components/glaze/ui/status";
+import { Status, type StatusValue } from "#/design-system/ui/status";
 
 const STATUS = {
 	pending: { status: "waiting", label: "Pending" },

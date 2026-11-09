@@ -316,6 +316,48 @@
       "when": 1792975357484,
       "tag": "0044_repo_onboarding_events",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1793151255468,
+      "tag": "0045_forge_delivery_isolation",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1793161134769,
+      "tag": "0046_gitcafe_account_binding",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1793182622661,
+      "tag": "0047_gitcafe_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1793193502856,
+      "tag": "0048_installation_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1793248499493,
+      "tag": "0049_gitcafe_event_completion",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1794132526753,
+      "tag": "0050_repo_sync_stamps",
+      "breakpoints": true
     }
   ]
 }

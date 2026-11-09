@@ -118,6 +118,130 @@ describe("storedRuleIssue", () => {
 		).toContain("does not apply");
 	});
 
+	test("a cross-kind verb nested in not is rejected, mirroring the evaluator", () => {
+		// The top-level verb gate already rejects cross-kind verbs; the same gate
+		// must apply to the comparison nested inside not, or the evaluator throws
+		// at run time — it dispatches the inner comparison through the same
+		// per-kind switch and hits the default branch.
+		// under is number-only; a text signal must not accept it inside not.
+		expect(
+			storedRuleIssue({
+				when: { id: "pr.title" },
+				comparison: { kind: "not", args: [{ kind: "under", args: [7] }] },
+			}),
+		).toContain("does not apply");
+		// anyIn is list-only; a text signal must not accept it inside not.
+		expect(
+			storedRuleIssue({
+				when: { id: "pr.body" },
+				comparison: { kind: "not", args: [{ kind: "anyIn", args: [["x"]] }] },
+			}),
+		).toContain("does not apply");
+		// startsWith is text-only; a number signal must not accept it inside not.
+		expect(
+			storedRuleIssue({
+				when: { id: "contributor.accountAge" },
+				comparison: {
+					kind: "not",
+					args: [{ kind: "startsWith", args: ["7"] }],
+				},
+			}),
+		).toContain("does not apply");
+		// equals is not a list verb; a textList signal must not accept it inside not.
+		expect(
+			storedRuleIssue({
+				when: { id: "pr.changedPaths" },
+				comparison: { kind: "not", args: [{ kind: "equals", args: ["x"] }] },
+			}),
+		).toContain("does not apply");
+		// containsAny is text-only; a textList signal must not accept it inside not.
+		expect(
+			storedRuleIssue({
+				when: { id: "pr.referencedIssueNumbers" },
+				comparison: {
+					kind: "not",
+					args: [{ kind: "containsAny", args: [["x"]] }],
+				},
+			}),
+		).toContain("does not apply");
+		// under is number-only; a boolean signal must not accept it inside not.
+		expect(
+			storedRuleIssue({
+				when: { id: "contributor.hireable" },
+				comparison: { kind: "not", args: [{ kind: "under", args: [1] }] },
+			}),
+		).toContain("does not apply");
+		// startsWith is text-only; a boolean signal must not accept it inside not.
+		expect(
+			storedRuleIssue({
+				when: { id: "pr.isDraft" },
+				comparison: {
+					kind: "not",
+					args: [{ kind: "startsWith", args: ["x"] }],
+				},
+			}),
+		).toContain("does not apply");
+		// A cross-kind verb two levels deep is still rejected.
+		expect(
+			storedRuleIssue({
+				when: { id: "pr.title" },
+				comparison: {
+					kind: "not",
+					args: [{ kind: "not", args: [{ kind: "under", args: [7] }] }],
+				},
+			}),
+		).toContain("does not apply");
+	});
+
+	test("a same-kind verb nested in not still passes, and its args are still checked", () => {
+		// not wraps a valid verb for each kind; the gate must not over-reject.
+		expect(
+			storedRuleIssue({
+				when: { id: "pr.title" },
+				comparison: { kind: "not", args: [{ kind: "endsWith", args: ["."] }] },
+			}),
+		).toBeNull();
+		expect(
+			storedRuleIssue({
+				when: { id: "contributor.accountAge" },
+				comparison: { kind: "not", args: [{ kind: "under", args: [7] }] },
+			}),
+		).toBeNull();
+		expect(
+			storedRuleIssue({
+				when: { id: "contributor.hireable" },
+				comparison: { kind: "not", args: [{ kind: "equals", args: [true] }] },
+			}),
+		).toBeNull();
+		expect(
+			storedRuleIssue({
+				when: { id: "pr.referencedIssueNumbers" },
+				comparison: {
+					kind: "not",
+					args: [{ kind: "anyIn", args: [["8154"]] }],
+				},
+			}),
+		).toBeNull();
+		// A double negation with a same-kind inner verb is still sound.
+		expect(
+			storedRuleIssue({
+				when: { id: "pr.title" },
+				comparison: {
+					kind: "not",
+					args: [{ kind: "not", args: [{ kind: "equals", args: ["wip"] }] }],
+				},
+			}),
+		).toBeNull();
+		// The arg-type gate still runs inside not: a string where a number belongs
+		// is rejected on the write path, not left to throw at evaluation.
+		expect(
+			storedRuleIssue({
+				when: { id: "contributor.accountAge" },
+				comparison: { kind: "not", args: [{ kind: "under", args: ["7"] }] },
+			}),
+		).toContain("takes a number");
+	});
+
 	test("arg types are validated against the signal kind, rejected not coerced", () => {
 		// A string where a number belongs is rejected on the write path, not left
 		// to throw at evaluation.
@@ -186,5 +310,91 @@ describe("storedRuleIssue", () => {
 				comparison: { kind: "atLeast", args: [4] },
 			}),
 		).toContain("needs a text signal");
+	});
+});
+
+describe("stored rule raw argument compatibility", () => {
+	test("rejected numeric arguments return issues without reading object metadata", () => {
+		const reads: string[] = [];
+		const values = [
+			Object.create({
+				get constructor() {
+					reads.push("constructor");
+					throw new Error("constructor read");
+				},
+			}),
+			new Proxy(
+				{},
+				{
+					getPrototypeOf() {
+						reads.push("getPrototypeOf");
+						throw new Error("prototype read");
+					},
+				},
+			),
+		];
+		for (const value of values) {
+			expect(
+				storedRuleIssue({
+					when: { id: "contributor.accountAge" },
+					comparison: { kind: "under", args: [value] },
+				}),
+			).toBe("this signal takes a number");
+			expect(
+				storedRuleIssue({
+					when: { id: "contributor.accountAge" },
+					comparison: { kind: "between", args: [0, value] },
+				}),
+			).toBe("this comparison needs a low and a high number");
+			expect(
+				storedRuleIssue({
+					when: { id: "contributor.accountAge" },
+					comparison: { kind: "oneOf", args: [[value]] },
+				}),
+			).toBe("each value must be a number");
+		}
+		expect(reads).toEqual([]);
+	});
+
+	test("nonfinite numeric arguments and sparse nonempty lists remain valid", () => {
+		for (const value of [NaN, Infinity, -Infinity]) {
+			expect(
+				storedRuleIssue({
+					when: { id: "contributor.accountAge" },
+					comparison: { kind: "under", args: [value] },
+				}),
+			).toBeNull();
+		}
+		expect(
+			storedRuleIssue({
+				when: { id: "pr.title" },
+				comparison: { kind: "oneOf", args: [new Array<string>(2)] },
+			}),
+		).toBeNull();
+	});
+
+	test("not checks the inner verb as well as the argument shape", () => {
+		const inner = Object.assign([], { kind: "has", args: [7] });
+		expect(
+			storedRuleIssue({
+				when: { id: "contributor.accountAge" },
+				comparison: { kind: "not", args: [inner] },
+			}),
+		).toBe("has does not apply to this signal");
+		expect(
+			storedRuleIssue({
+				when: { id: "contributor.accountAge" },
+				comparison: {
+					kind: "not",
+					args: [Object.create({ kind: "under", args: ["7"] })],
+				},
+			}),
+		).toBe("this signal takes a number");
+		expect(
+			storedRuleIssue({
+				when: { id: "contributor.accountAge" },
+				comparison: { kind: "not", args: [{ kind: "under" }] },
+			}),
+		).toBe("this rule is missing the comparison it negates");
 	});
 });

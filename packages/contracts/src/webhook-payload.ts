@@ -15,6 +15,12 @@ import { HELD_VERDICTS } from "./verdict-join.ts";
  * see docs/SECURITY.md. Display masking is display only.
  */
 
+/** URL syntax and network policy remain the outbound transport guard's responsibility. */
+export const webhookDeliveryUrlSchema = z.string({
+	error: "Invalid delivery URL",
+});
+export type WebhookDeliveryUrl = z.infer<typeof webhookDeliveryUrlSchema>;
+
 export const webhookFiredRuleSchema = z.object({
 	/** Bare rule id, e.g. "account-age". */
 	ruleId: z.string(),

@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import type { CustomRuleRecord, RepoScopedEvent } from "@tripwire/contracts";
+import type {
+	CustomRuleRecord,
+	JsonValue,
+	RepoScopedEvent,
+} from "@tripwire/contracts";
 import { GithubHttp } from "@tripwire/forge-github";
 import { createForgeSignalCtx } from "@tripwire/sdk";
 import { customRuleSource, evaluateCustomRule } from "./custom-rules.ts";
@@ -31,7 +35,7 @@ const prEvent: RepoScopedEvent = {
 	},
 };
 
-function makeSignalCtx(responses: Record<string, unknown>) {
+function makeSignalCtx(responses: Record<string, JsonValue>) {
 	const calls: string[] = [];
 	const http = new GithubHttp({
 		tokenFor: async () => "t",

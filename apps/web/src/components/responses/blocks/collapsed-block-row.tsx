@@ -1,5 +1,5 @@
-import { type GlazeIcon, Icon } from "#/components/glaze/icon";
-import { cn } from "#/lib/glaze/utils";
+import { type GlazeIcon, Icon } from "#/design-system/icon";
+import { cn } from "#/design-system/lib/utils";
 
 export interface CollapsedBlockRowProps {
 	icon: GlazeIcon;
@@ -15,14 +15,14 @@ export function CollapsedBlockRow({
 	return (
 		<div
 			className={cn(
-				"flex items-start gap-2 rounded-panel",
-				note ? "bg-hover px-2 py-2" : "min-h-6 px-0.5",
+				"flex min-h-6 items-center gap-2 rounded-panel px-0.5",
+				note && "text-text-3",
 			)}
 		>
 			<Icon className="text-text-3" icon={icon} />
-			<div className="flex min-w-0 flex-1 flex-col gap-1">
+			<div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
 				<span className="type-body-sm text-text-2">{label}</span>
-				{note ? <span className="type-caption text-text-2">{note}</span> : null}
+				{note ? <span className="type-caption text-text-3">{note}</span> : null}
 			</div>
 		</div>
 	);

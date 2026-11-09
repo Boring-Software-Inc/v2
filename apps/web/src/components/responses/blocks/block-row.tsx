@@ -1,10 +1,10 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import type { ResponseBlock } from "@tripwire/contracts";
 import { type KeyboardEvent, type ReactNode, useRef } from "react";
-import { DragHandle, Icon } from "#/components/glaze/icon";
 import { BLOCK_META } from "#/components/responses/blocks/block-catalog";
 import type { BlockDragData } from "#/components/responses/blocks/use-block-dnd";
-import { cn, mergeRefs } from "#/lib/glaze/utils";
+import { DragHandle, Icon } from "#/design-system/icon";
+import { cn, mergeRefs } from "#/design-system/lib/utils";
 
 export interface BlockRowProps {
 	block: ResponseBlock;
@@ -61,12 +61,11 @@ export function BlockRow({
 			ref={mergeRefs(drag.setNodeRef, drop.setNodeRef)}
 		>
 			{children}
-			{readOnly || selected ? null : (
+			{readOnly ? null : (
 				<button
-					aria-hidden
+					aria-label={`Edit ${label}`}
 					className="absolute inset-0 cursor-pointer rounded-panel"
 					onClick={select}
-					tabIndex={-1}
 					type="button"
 				/>
 			)}

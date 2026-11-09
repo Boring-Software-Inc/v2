@@ -1,0 +1,24 @@
+{
+	"id": "evt_01m609r47gferaf67z0rke441t",
+	"version": "1",
+	"createdAt": "2026-10-28T03:44:34.032Z",
+	"actor": {
+		"id": "act_01m08gfttrfw3ba3xpz50vq38h"
+	},
+	"installation": {
+		"id": "ins_01m609r46ff7j8gtjk7jt444kb"
+	},
+	"organization": {
+		"id": "org_01m601398vfdztay7fh3vaenpn"
+	},
+	"type": "installation.created",
+	"repositorySelection": "selected",
+	"repositories": [
+		{
+			"id": "repo_01m608d2crfqzt2vc8akngqsc0",
+			"owner": "boring",
+			"name": "scratch"
+		}
+	],
+	"repositoriesTruncated": false
+}

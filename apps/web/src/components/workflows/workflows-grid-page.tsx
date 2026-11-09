@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import {
+	FORGE_BY_ID,
+	type Forge,
+	forgeEvaluates,
 	WORKFLOW_STATE_LABELS,
 	WORKFLOW_TEMPLATES,
 	type WorkflowState,
@@ -16,56 +19,12 @@ import { EntityCard } from "#/components/common/entity-card";
 import { MetaRow } from "#/components/common/meta-row";
 import { CardRouterLink } from "#/components/common/router-links";
 import { ShaderDither } from "#/components/dither/shader-dither";
-import { Add, Icon, MoreVertical } from "#/components/glaze/icon";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
-import {
-	ButtonGroup,
-	ButtonGroupMenu,
-} from "#/components/glaze/ui/button-group";
-import {
-	Dialog,
-	DialogAction,
-	DialogBody,
-	DialogClose,
-	DialogContent,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/glaze/ui/dialog";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuGroup,
-	DropdownMenuItem,
-	DropdownMenuLabel,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "#/components/glaze/ui/dropdown-menu";
-import {
-	Empty,
-	EmptyContent,
-	EmptyDescription,
-	EmptyHeader,
-	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
-import { Field, FieldLabel } from "#/components/glaze/ui/field";
-import { Input } from "#/components/glaze/ui/input";
-import {
-	Item,
-	ItemActions,
-	ItemContent,
-	ItemDescription,
-	ItemGroup,
-	ItemTitle,
-} from "#/components/glaze/ui/item";
-import { Status, type StatusValue } from "#/components/glaze/ui/status";
-import { Switch } from "#/components/glaze/ui/switch";
-import { toast } from "#/components/glaze/ui/toast";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Page, PageBody, PageHeader } from "#/components/layouts/page";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import {
 	SaveQueueProvider,
+	type SaveQueueValues,
 	UnsavedChangesBar,
 	useSaveQueueField,
 } from "#/components/save-queue";
@@ -76,6 +35,49 @@ import {
 	WORKFLOWS_COLLECTION,
 } from "#/components/workflows/workflows-collection";
 import { GridSkeleton } from "#/components/workflows/workflows-grid-page-skeleton";
+import { Add, Icon, MoreVertical } from "#/design-system/icon";
+import { Badge } from "#/design-system/ui/badge";
+import { Button } from "#/design-system/ui/button";
+import { ButtonGroup, ButtonGroupMenu } from "#/design-system/ui/button-group";
+import {
+	Dialog,
+	DialogAction,
+	DialogBody,
+	DialogClose,
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/design-system/ui/dialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuGroup,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "#/design-system/ui/dropdown-menu";
+import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyTitle,
+} from "#/design-system/ui/empty-state";
+import { Field, FieldLabel } from "#/design-system/ui/field";
+import { Input } from "#/design-system/ui/input";
+import {
+	Item,
+	ItemActions,
+	ItemContent,
+	ItemDescription,
+	ItemGroup,
+	ItemTitle,
+} from "#/design-system/ui/item";
+import { Status, type StatusValue } from "#/design-system/ui/status";
+import { Switch } from "#/design-system/ui/switch";
+import { toast } from "#/design-system/ui/toast";
 import { type AgentMotion, useAgentMotion } from "#/hooks/use-agent-motion";
 import { useCollection } from "#/hooks/use-collection";
 import { useOrgPermission } from "#/hooks/use-org-permission";
@@ -184,7 +186,7 @@ export function WorkflowsGridPage() {
 	 * validator server-side and can refuse — that workflow's key stays queued
 	 * (so its toggle keeps the user's intent on screen) while the rest clear.
 	 */
-	const commitEnabled = async (pending: Record<string, unknown>) => {
+	const commitEnabled = async (pending: SaveQueueValues) => {
 		const failedKeys: string[] = [];
 		const refusals: string[] = [];
 		let succeeded = 0;
@@ -234,25 +236,21 @@ export function WorkflowsGridPage() {
 	return (
 		<SaveQueueProvider commit={commitEnabled} savedValues={savedValues}>
 			<DashboardLayout counts={{}}>
-				<div className="px-4 py-6 md:px-8 md:py-10">
-					<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-						<header className="flex flex-wrap items-start justify-between gap-4">
-							<div className="flex min-w-0 flex-col gap-1">
-								<h1 className="type-title">Workflows</h1>
-								<p className="type-body text-text-2">
-									What this repo runs against change requests: triggers, rules,
-									gates and actions.
-								</p>
-							</div>
-							{canManage && hasWorkflows ? (
+				<Page purpose="task">
+					<PageHeader
+						actions={
+							canManage && hasWorkflows ? (
 								<CreateSplitButton
 									creating={createMutation.isPending}
 									onBlank={createBlank}
 									onTemplate={createFromTemplate}
 								/>
-							) : null}
-						</header>
-
+							) : undefined
+						}
+						description="What this repo runs against change requests: triggers, rules, gates and actions."
+						title="Workflows"
+					/>
+					<PageBody>
 						<Collection
 							collection={collection}
 							empty={
@@ -273,24 +271,27 @@ export function WorkflowsGridPage() {
 						>
 							{(rows) => (
 								<ul aria-label="Workflows" className="flex flex-col gap-3">
-									{rows.map((workflow) => (
-										<li key={workflow.id}>
-											<WorkflowRow
-												canManage={canManage}
-												motion={motion}
-												org={org}
-												repoId={repoId}
-												repoName={repoName}
-												workflow={workflow}
-											/>
-										</li>
-									))}
+									{repo
+										? rows.map((workflow) => (
+												<li key={workflow.id}>
+													<WorkflowRow
+														canManage={canManage}
+														forge={repo.forge}
+														motion={motion}
+														org={org}
+														repoId={repoId}
+														repoName={repoName}
+														workflow={workflow}
+													/>
+												</li>
+											))
+										: null}
 								</ul>
 							)}
 						</Collection>
-					</div>
+					</PageBody>
 					<UnsavedChangesBar />
-				</div>
+				</Page>
 			</DashboardLayout>
 		</SaveQueueProvider>
 	);
@@ -436,6 +437,7 @@ function WorkflowsEmpty({
 }
 
 function WorkflowRow({
+	forge,
 	org,
 	repoName,
 	repoId,
@@ -443,6 +445,7 @@ function WorkflowRow({
 	canManage,
 	motion,
 }: {
+	forge: Forge;
 	org: string;
 	repoName: string;
 	repoId: string;
@@ -450,6 +453,8 @@ function WorkflowRow({
 	canManage: boolean;
 	motion: AgentMotion;
 }) {
+	const protectionAvailable = forgeEvaluates(forge);
+	const protectionReasonId = `${workflow.id}-protection-unavailable`;
 	const now = useWorkClock(workflow.work);
 	const agents = workingAgents(workflow.work, now);
 	const draftOnly =
@@ -524,6 +529,12 @@ function WorkflowRow({
 			throw new Error("Tripwire could not delete the workflow. Try again.");
 		}
 	};
+	const description =
+		agents.length > 0 ? (
+			<AgentPresence agents={agents} motion={motion} />
+		) : workflow.triggerKinds.length === 0 ? (
+			"No trigger yet"
+		) : undefined;
 
 	return (
 		<>
@@ -552,11 +563,17 @@ function WorkflowRow({
 						) : undefined
 					}
 					description={
-						agents.length > 0 ? (
-							<AgentPresence agents={agents} motion={motion} />
-						) : workflow.triggerKinds.length === 0 ? (
-							"No trigger yet"
-						) : undefined
+						protectionAvailable ? (
+							description
+						) : (
+							<>
+								{description}
+								<span className="block" id={protectionReasonId}>
+									{FORGE_BY_ID[forge].label} protection is unavailable. Checks
+									aren't available yet.
+								</span>
+							</>
+						)
 					}
 					footerActions={
 						workflow.draftId && canManage ? (
@@ -590,10 +607,18 @@ function WorkflowRow({
 									{WORKFLOW_STATE_LABELS[workflow.state]}
 								</Status>
 								<Switch
+									aria-describedby={
+										protectionAvailable ? undefined : protectionReasonId
+									}
 									aria-label={`Run ${workflow.name} on change requests`}
 									checked={queuedEnabled}
-									disabled={!canManage}
-									onCheckedChange={setQueuedEnabled}
+									disabled={
+										!canManage || (!queuedEnabled && !protectionAvailable)
+									}
+									onCheckedChange={(enabled) => {
+										if (!enabled || protectionAvailable)
+											setQueuedEnabled(enabled);
+									}}
 									size="sm"
 								/>
 								{canManage ? (
@@ -636,6 +661,7 @@ function WorkflowRow({
 					}
 					title={
 						<CardRouterLink
+							data-layout-role="workflow-name"
 							params={{ org, repo: repoName, workflowId: workflow.id }}
 							to="/$org/$repo/workflows/$workflowId"
 						>

@@ -49,7 +49,12 @@ interface TargetOrg {
 
 type SeededRepo = Awaited<ReturnType<typeof ensureDemoRepo>>;
 
-async function signUp(db: Db, auth: Auth, user: DevUserPlan): Promise<DevUser> {
+async function signUp(
+	db: Db,
+	auth: Auth,
+	user: DevUserPlan,
+	platformAdmin: boolean,
+): Promise<DevUser> {
 	const session = await auth.api.signUpEmail({
 		body: { email: user.email, password: DEV_PASSWORD, name: user.name },
 		asResponse: true,
@@ -68,6 +73,12 @@ async function signUp(db: Db, auth: Auth, user: DevUserPlan): Promise<DevUser> {
 		userId: row.id,
 		reviewedBy: row.id,
 	});
+	if (platformAdmin) {
+		await db
+			.update(schema.user)
+			.set({ isPlatformAdmin: true })
+			.where(eq(schema.user.id, row.id));
+	}
 	const approved = await auth.api.signInEmail({
 		body: { email: user.email, password: DEV_PASSWORD },
 		asResponse: true,
@@ -207,7 +218,9 @@ export async function applyScenario(input: {
 	const plan = planScenario(scenario);
 	await resetDemoData(db);
 
-	const user = plan.user ? await signUp(db, auth, plan.user) : null;
+	const user = plan.user
+		? await signUp(db, auth, plan.user, plan.platformAdmin)
+		: null;
 	const org = await targetOrg(db, plan, user, plan.user?.name ?? "");
 	const repos =
 		plan.repos && org && user

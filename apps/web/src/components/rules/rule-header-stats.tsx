@@ -1,13 +1,13 @@
 import { Link, useParams } from "@tanstack/react-router";
-import { ArrowUpRight, Icon } from "#/components/glaze/icon";
+import { ArrowUpRight, Icon } from "#/design-system/icon";
 import {
 	Card,
 	CardContent,
 	CardFooter,
 	CardMeta,
-} from "#/components/glaze/ui/card";
-import { Sparkline } from "#/components/glaze/ui/chart";
-import { SkeletonText } from "#/components/glaze/ui/skeleton";
+} from "#/design-system/ui/card";
+import { Sparkline } from "#/design-system/ui/chart";
+import { SkeletonText } from "#/design-system/ui/skeleton";
 import type { AnalyticsMetricKey } from "#/lib/repo-search";
 import type { RulesHeaderStats } from "#/lib/rules.functions";
 

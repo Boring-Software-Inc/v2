@@ -65,6 +65,8 @@ export async function executeAction(
 			};
 		}
 		case "dismiss-review": {
+			if (action.reviewId === null)
+				return { refused: true, reason: "unsupported-review-selection" };
 			// The block clears ⇒ drop the stale request-changes review so it stops
 			// gating merge. Idempotent: re-dismissing an already-dismissed review is
 			// a harmless no-op the caller treats as best-effort.
@@ -76,6 +78,10 @@ export async function executeAction(
 			return { externalId: action.reviewId };
 		}
 		case "request-review": {
+			if (action.reviewerIds?.length)
+				throw new Error(
+					"GitHub review requests require GitHub usernames, not foreign actor IDs.",
+				);
 			if (action.reviewers.length === 0 && action.teamReviewers.length === 0) {
 				throw new Error("request-review has no people or teams to ask.");
 			}
@@ -103,17 +109,16 @@ export async function executeAction(
 		}
 		case "remove-label": {
 			for (const label of action.labels) {
-				await http
-					.delete(
+				try {
+					await http.delete(
 						action.repoFullName,
 						`/repos/${action.repoFullName}/issues/${action.number}/labels/${encodeURIComponent(label)}`,
-					)
-					.catch((error: unknown) => {
-						if (error instanceof GithubHttpError && error.status === 404) {
-							return null;
-						}
+					);
+				} catch (error) {
+					if (!(error instanceof GithubHttpError && error.status === 404)) {
 						throw error;
-					});
+					}
+				}
 			}
 			return { externalId: null };
 		}

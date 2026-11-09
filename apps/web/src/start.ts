@@ -1,6 +1,7 @@
 import { captureException } from "@sentry/node";
 import { isNotFound, isRedirect } from "@tanstack/react-router";
 import { createMiddleware, createStart } from "@tanstack/react-start";
+import { SHARED_BLOCKLIST_API_PATH } from "@tripwire/contracts";
 import { APP_OG_VIDEO_PATH, parseRunOgPath } from "#/lib/run-og";
 import { isServerOnlyAuthPath } from "#/lib/server-only-auth-paths";
 
@@ -14,6 +15,22 @@ import { isServerOnlyAuthPath } from "#/lib/server-only-auth-paths";
 const authRequestMiddleware = createMiddleware({ type: "request" }).server(
 	async ({ next, request }) => {
 		const url = new URL(request.url);
+		if (import.meta.env.PROD && url.pathname.startsWith("/assets/")) {
+			return new Response(null, {
+				status: 404,
+				headers: { "Cache-Control": "no-store" },
+			});
+		}
+		if (url.pathname === SHARED_BLOCKLIST_API_PATH) {
+			const { handlePublicBlocklist } = await import(
+				"#/lib/server/public-blocklist"
+			);
+			return handlePublicBlocklist(request);
+		}
+		if (url.pathname === "/" && url.hostname === "blocklist.tripwire.sh") {
+			url.pathname = "/pilot";
+			return Response.redirect(url, 307);
+		}
 		// DEV persona switcher (§13). `import.meta.env.DEV` is a compile-time
 		// constant, so this whole branch is dead-code-eliminated from the
 		// production bundle — the endpoint cannot exist in prod.
@@ -83,25 +100,39 @@ const authRequestMiddleware = createMiddleware({ type: "request" }).server(
  * and white-screen; hashed assets stay immutable via their own filenames.
  */
 const securityHeadersMiddleware = createMiddleware({ type: "request" }).server(
-	async ({ next }) => {
-		const response = (await next()) as unknown as Response;
-		if (response && typeof response.headers?.set === "function") {
-			const h = response.headers;
-			h.set("X-Content-Type-Options", "nosniff");
-			h.set("X-Frame-Options", "DENY");
-			h.set("Content-Security-Policy", "frame-ancestors 'none'");
+	async ({ next, request }) => {
+		const result = await next();
+		const { response } = result;
+		if (isRedirect(response)) return result;
+		const h = new Headers(response.headers);
+		h.set("X-Content-Type-Options", "nosniff");
+		h.set("X-Frame-Options", "DENY");
+		h.set("Content-Security-Policy", "frame-ancestors 'none'");
+		const setup = new URL(request.url).pathname === "/onboarding/setup";
+		if (!h.has("Referrer-Policy"))
 			h.set("Referrer-Policy", "strict-origin-when-cross-origin");
-			if (import.meta.env.PROD) {
-				h.set(
-					"Strict-Transport-Security",
-					"max-age=63072000; includeSubDomains; preload",
-				);
-			}
-			if ((h.get("content-type") ?? "").includes("text/html")) {
-				h.set("Cache-Control", "no-cache");
-			}
+		if (setup) {
+			h.set("Referrer-Policy", "no-referrer");
+			h.set("Cache-Control", "no-store");
+			h.set("Pragma", "no-cache");
 		}
-		return response as never;
+		if (import.meta.env.PROD) {
+			h.set(
+				"Strict-Transport-Security",
+				"max-age=63072000; includeSubDomains; preload",
+			);
+		}
+		if (!setup && (h.get("content-type") ?? "").includes("text/html")) {
+			h.set("Cache-Control", "no-cache");
+		}
+		return {
+			...result,
+			response: new Response(response.body, {
+				status: response.status,
+				statusText: response.statusText,
+				headers: h,
+			}),
+		};
 	},
 );
 

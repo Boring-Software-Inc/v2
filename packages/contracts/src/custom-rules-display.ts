@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { CustomRuleDefinition } from "./custom-rules.ts";
 
 /**
@@ -374,10 +375,7 @@ export function customSignalDisplay(id: string): CustomSignalDisplay | null {
 
 /** The verbs each signal kind offers. The picker shows nothing else, so a
  * numeric signal cannot pair with a text verb by construction. */
-export const VERBS_BY_KIND: Record<
-	CustomSignalDisplay["kind"],
-	readonly { kind: string; label: string }[]
-> = {
+export const VERBS_BY_KIND = {
 	number: [
 		{ kind: "under", label: "is under" },
 		{ kind: "over", label: "is over" },
@@ -410,7 +408,10 @@ export const VERBS_BY_KIND: Record<
 		{ kind: "over", label: "is over" },
 		{ kind: "atLeast", label: "is at least" },
 	],
-};
+} satisfies Record<
+	CustomSignalDisplay["kind"],
+	readonly { kind: string; label: string }[]
+>;
 
 /** Enum-ish text signals compare by identity first, then by prefix, suffix
  * or part, so a family of branches like release-please/* can be matched. */
@@ -494,12 +495,26 @@ export function valuePlaceholder(
 	return "exact text";
 }
 
-function formatValue(value: unknown, unit?: string): string {
-	if (Array.isArray(value)) {
-		return value.map((entry) => String(entry)).join(", ");
+const displayBooleanSchema = z.boolean();
+const displayArraySchema = z.custom<unknown[]>(Array.isArray);
+const displayNumberSchema = z.union([
+	z.number(),
+	z.nan(),
+	z.literal(Infinity),
+	z.literal(-Infinity),
+]);
+
+function formatValue(
+	value: Parameters<typeof displayNumberSchema.safeParse>[0],
+	unit?: string,
+): string {
+	const number = displayNumberSchema.safeParse(value);
+	const array = displayArraySchema.safeParse(value);
+	if (array.success) {
+		return array.data.map((entry) => String(entry)).join(", ");
 	}
-	if (typeof value === "number" && unit) {
-		return `${value} ${unit}`;
+	if (number.success && unit) {
+		return `${number.data} ${unit}`;
 	}
 	return String(value);
 }
@@ -533,7 +548,7 @@ interface ClauseComparison {
 	args: readonly unknown[];
 }
 
-const NEGATED_VERBS: Record<string, string> = {
+const NEGATED_VERBS = {
 	under: "is at least",
 	over: "is at most",
 	atLeast: "is under",
@@ -547,7 +562,7 @@ const NEGATED_VERBS: Record<string, string> = {
 	containsAny: "contains none of",
 	anyIn: "is none of",
 	noneMatch: "touches some of",
-};
+} satisfies Record<string, string>;
 
 function innerOf(comparison: ClauseComparison): ClauseComparison {
 	return comparison.args[0] as ClauseComparison;
@@ -571,8 +586,9 @@ function comparisonClause(
 		return `${negated ? "is not" : "is"} between ${formatValue(comparison.args[0])} and ${formatValue(comparison.args[1], signal?.unit)}`;
 	}
 	const verb = negated
-		? (NEGATED_VERBS[comparison.kind] ??
-			`is not ${verbPhrase(comparison.kind, signal)}`)
+		? (Object.entries(NEGATED_VERBS).find(
+				([kind]) => kind === comparison.kind,
+			)?.[1] ?? `is not ${verbPhrase(comparison.kind, signal)}`)
 		: verbPhrase(comparison.kind, signal);
 	return `${verb} ${formatValue(comparison.args[0], signal?.unit)}`;
 }
@@ -600,7 +616,7 @@ export function customRuleSentence(definition: CustomRuleDefinition): string {
  */
 export function customRuleSummary(
 	definition: CustomRuleDefinition,
-	observed: unknown,
+	observed: Parameters<typeof formatValue>[0],
 ): string | null {
 	const signal = customSignalDisplay(definition.when.id);
 	if (!signal) {
@@ -608,11 +624,13 @@ export function customRuleSummary(
 	}
 	const label = signal.label;
 	if (signal.kind === "boolean") {
-		return `${label}: ${observed === true ? "yes" : "no"}.`;
+		const boolean = displayBooleanSchema.safeParse(observed);
+		return `${label}: ${boolean.success && boolean.data ? "yes" : "no"}.`;
 	}
 	if (signal.kind === "textList") {
-		return Array.isArray(observed)
-			? `It changes ${observed.length} ${observed.length === 1 ? "path" : "paths"}.`
+		const array = displayArraySchema.safeParse(observed);
+		return array.success
+			? `It changes ${array.data.length} ${array.data.length === 1 ? "path" : "paths"}.`
 			: null;
 	}
 	return `${label}${windowPhrase(definition)} is ${formatValue(observed, signal.unit)}.`;

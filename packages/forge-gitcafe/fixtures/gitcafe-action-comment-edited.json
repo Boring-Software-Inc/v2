@@ -1,0 +1,37 @@
+{
+	"id": "prcomment_01m62ddpzeeh6s2wc6nxqmqe5h",
+	"threadId": "prcomment_01m62ddpzeeh6s2wc6nxqmqe5h",
+	"reviewId": null,
+	"authorActorId": "act_01m60zef00f4fsqskxqt2w72xs",
+	"author": {
+		"kind": "local",
+		"actorId": "act_01m60zef00f4fsqskxqt2w72xs",
+		"handle": "tripwire-staging-620b48f1",
+		"displayName": "Tripwire Staging",
+		"avatarUrl": "/avatars/v1/d46cb91987ecafd73700267db320b3206b171c86c122572827729b6654aa614e",
+		"bot": true
+	},
+	"body": "Tripwire staging integration acceptance.\n\n<!-- tripwire-qa:01a184d6-d059-727d-92b3-ca08f6b19fd3 -->\n\nUpdated during staging acceptance.",
+	"version": 1,
+	"createdAt": "2026-10-28T23:27:15.942Z",
+	"updatedAt": "2026-10-28T23:27:19.226Z",
+	"path": null,
+	"line": null,
+	"side": null,
+	"commitOid": null,
+	"startLine": null,
+	"startSide": null,
+	"providerAnchor": null,
+	"resolvedAt": null,
+	"hiddenAt": null,
+	"deletedAt": null,
+	"resolvedBy": null,
+	"capabilities": {
+		"edit": true,
+		"hide": false,
+		"unhide": false,
+		"delete": false,
+		"resolve": true,
+		"unresolve": false
+	}
+}

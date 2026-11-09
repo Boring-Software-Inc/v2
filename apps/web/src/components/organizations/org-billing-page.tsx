@@ -1,13 +1,13 @@
 import { useFeedback } from "#/components/feedback";
-import { Button } from "#/components/glaze/ui/button";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import { SettingsHeader } from "#/components/settings/settings-frame";
+import { Button } from "#/design-system/ui/button";
 import {
 	Empty,
 	EmptyContent,
 	EmptyHeader,
 	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
-import { MascotArt } from "#/components/mascot/mascot-art";
-import { SettingsHeader } from "#/components/settings/settings-frame";
+} from "#/design-system/ui/empty-state";
 
 export function OrgBillingPage() {
 	const { start: openFeedback } = useFeedback();

@@ -1,0 +1,20 @@
+{
+	"name": "@tripwire/forge-gitcafe",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./fixtures/*.json": "./fixtures/*.json"
+	},
+	"types": "./src/index.ts",
+	"scripts": {
+		"typecheck": "tsrs --noEmit --checkers 4 --fast false",
+		"typecheck:ts5": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@tripwire/contracts": "workspace:*",
+		"@tripwire/utils": "workspace:*",
+		"@tripwire/forge": "workspace:*"
+	}
+}

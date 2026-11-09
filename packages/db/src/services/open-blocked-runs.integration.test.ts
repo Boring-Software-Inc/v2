@@ -84,7 +84,7 @@ describe("listOpenBlockedRuns", () => {
 	test("only the latest run per open change request, when it blocked", async () => {
 		const rows = await listOpenBlockedRuns(
 			db,
-			REPO,
+			{ forge: "github", fullName: REPO },
 			new Date(Date.now() - 30 * DAY),
 		);
 		expect(rows).toEqual([
@@ -107,7 +107,7 @@ describe("listOpenBlockedRuns", () => {
 		await seedEvent(3, "change-request.updated");
 		const rows = await listOpenBlockedRuns(
 			db,
-			REPO,
+			{ forge: "github", fullName: REPO },
 			new Date(Date.now() - 30 * DAY),
 		);
 		expect(rows.map((row) => row.subjectNumber)).toEqual([1, 3, 5]);

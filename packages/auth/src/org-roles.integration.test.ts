@@ -194,13 +194,15 @@ describe("a moderator role with only human review access", () => {
 	});
 
 	test("the live activity stream skips repos the role cannot read", async () => {
-		await ensureDemoRepo(db, "roles-api", { installationId: "roles-inst" });
+		const repo = await ensureDemoRepo(db, "roles-api", {
+			installationId: "roles-inst",
+		});
 		await orgServices.linkOrgInstallation(db, {
 			orgId,
 			installationId: "roles-inst",
 		});
 		const read = await reposWithPermission(db, reader.userId, "activity:read");
-		expect(read.filter((name) => name.endsWith("/roles-api"))).toHaveLength(1);
+		expect(read).toContain(repo.id);
 		expect(
 			await reposWithPermission(db, moderator.userId, "activity:read"),
 		).toEqual([]);

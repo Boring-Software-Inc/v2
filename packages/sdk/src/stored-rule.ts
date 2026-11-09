@@ -1,3 +1,9 @@
+import {
+	sdkBooleanValueSchema,
+	sdkInnerComparisonSchema,
+	sdkNumberArgumentSchema,
+	sdkTextValueSchema,
+} from "@tripwire/contracts";
 import { registry } from "./registry.ts";
 import type { SignalKind } from "./signal.ts";
 import { type WindowSpec, windowMs } from "./window.ts";
@@ -11,7 +17,7 @@ import { type WindowSpec, windowMs } from "./window.ts";
  * reject bad rules before they store.
  */
 
-const VERBS_FOR_KIND: Partial<Record<SignalKind, readonly string[]>> = {
+const VERBS_FOR_KIND = {
 	number: [
 		"under",
 		"over",
@@ -35,7 +41,10 @@ const VERBS_FOR_KIND: Partial<Record<SignalKind, readonly string[]>> = {
 	],
 	boolean: ["equals", "not"],
 	textList: ["noneMatch", "anyIn", "not"],
-};
+	timestamps: undefined,
+	textMap: undefined,
+	scanMatches: undefined,
+} satisfies Record<SignalKind, readonly string[] | undefined>;
 
 const LIST_VERBS = new Set([
 	"oneOf",
@@ -59,25 +68,25 @@ function argIssue(
 	const verb = comparison.kind;
 	const args = comparison.args;
 	if (verb === "not") {
-		const inner = args[0];
-		if (
-			typeof inner !== "object" ||
-			inner === null ||
-			typeof (inner as { kind?: unknown }).kind !== "string" ||
-			!Array.isArray((inner as { args?: unknown }).args)
-		) {
+		const inner = sdkInnerComparisonSchema.safeParse(args[0]);
+		if (!inner.success) {
 			return "this rule is missing the comparison it negates";
 		}
-		return argIssue(kind, inner as { kind: string; args: readonly unknown[] });
+		const innerVerb = inner.data.kind;
+		if (!VERBS_FOR_KIND[kind]?.includes(innerVerb)) {
+			return `${innerVerb} does not apply to this signal`;
+		}
+		return argIssue(kind, inner.data);
 	}
 	if (kind === "boolean") {
-		return typeof args[0] === "boolean"
+		return sdkBooleanValueSchema.safeParse(args[0]).success
 			? null
 			: "an on or off signal takes a yes or no value";
 	}
 	const wantNumber = kind === "number";
 	if (verb === "between") {
-		return typeof args[0] === "number" && typeof args[1] === "number"
+		return sdkNumberArgumentSchema.safeParse(args[0]).success &&
+			sdkNumberArgumentSchema.safeParse(args[1]).success
 			? null
 			: "this comparison needs a low and a high number";
 	}
@@ -87,7 +96,10 @@ function argIssue(
 			return "add at least one value";
 		}
 		const good = list.every(
-			(entry) => typeof entry === (wantNumber ? "number" : "string"),
+			(entry) =>
+				(wantNumber ? sdkNumberArgumentSchema : sdkTextValueSchema).safeParse(
+					entry,
+				).success,
 		);
 		return good
 			? null
@@ -96,9 +108,13 @@ function argIssue(
 				: "each value must be text";
 	}
 	if (wantNumber) {
-		return typeof args[0] === "number" ? null : "this signal takes a number";
+		return sdkNumberArgumentSchema.safeParse(args[0]).success
+			? null
+			: "this signal takes a number";
 	}
-	return typeof args[0] === "string" ? null : "this signal takes text";
+	return sdkTextValueSchema.safeParse(args[0]).success
+		? null
+		: "this signal takes text";
 }
 
 interface StoredRuleData {

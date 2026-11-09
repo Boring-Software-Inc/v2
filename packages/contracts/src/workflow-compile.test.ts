@@ -131,7 +131,7 @@ describe("gsimone's sketch", () => {
 					{
 						id: "ai-review",
 						type: "rule",
-						ref: "ai-review@2",
+						ref: "ai-review@3",
 						config: { maxSteps: 12 },
 					},
 					{ id: "block", type: "action", action: "block" },

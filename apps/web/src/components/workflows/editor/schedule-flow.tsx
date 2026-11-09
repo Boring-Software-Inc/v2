@@ -14,17 +14,6 @@ import {
 	NEW_SCHEDULE_DRAFT,
 } from "@tripwire/contracts";
 import { type ReactNode, useId, useRef, useState } from "react";
-import { Checkbox } from "#/components/glaze/ui/checkbox";
-import {
-	Field,
-	FieldLabel,
-	FieldTitle,
-	Label,
-} from "#/components/glaze/ui/field";
-import {
-	SegmentedControl,
-	SegmentedControlItem,
-} from "#/components/glaze/ui/segmented-control";
 import {
 	LabelPicker,
 	RefreshLabels,
@@ -34,8 +23,13 @@ import {
 	useScheduleDraft,
 } from "#/components/workflows/editor/node-issues";
 import { ScheduleTextField } from "#/components/workflows/editor/schedule-input";
+import { Checkbox } from "#/design-system/ui/checkbox";
+import { Field, FieldLabel, FieldTitle, Label } from "#/design-system/ui/field";
+import {
+	SegmentedControl,
+	SegmentedControlItem,
+} from "#/design-system/ui/segmented-control";
 import { useTimezones } from "#/hooks/use-timezones";
-import { cn } from "#/lib/glaze/utils";
 import { UNIT_LABEL } from "#/lib/schedule-summary";
 import {
 	EVENT_KIND_OPTIONS,
@@ -89,24 +83,13 @@ function Step({
 }) {
 	return (
 		<div
-			className={cn(
-				"flex flex-col gap-2 border-s-2 py-2 ps-3 transition-[border-color,opacity] duration-200",
-				status === "current" ? "border-ink" : "border-line-faint",
-				status === "upcoming" && "opacity-45",
-			)}
+			data-layout-role="trigger-flow-step"
 			data-field={step}
 			data-status={status}
 			data-step={step}
 		>
 			{children}
 		</div>
-	);
-}
-
-function stepLabelClass(status: StepStatus): string {
-	return cn(
-		"transition-colors duration-200",
-		status === "current" ? "text-text-1" : "text-text-2",
 	);
 }
 
@@ -120,7 +103,11 @@ function StepTitle({
 	children: ReactNode;
 }) {
 	return (
-		<FieldTitle className={stepLabelClass(status)} id={id}>
+		<FieldTitle
+			data-layout-role="trigger-step-title"
+			data-status={status}
+			id={id}
+		>
 			{children}
 		</FieldTitle>
 	);
@@ -159,15 +146,14 @@ function DurationField<Unit extends keyof typeof DURATION_UNIT_MS>({
 		);
 	return (
 		<div
-			className={cn(
-				"field w-auto gap-1 px-2",
-				readOnly && "bg-field text-text-disabled",
-			)}
+			className="field"
+			data-layout-role="trigger-duration"
+			data-readonly={readOnly || undefined}
 			data-slot="input"
 		>
 			<input
 				aria-labelledby={labelId}
-				className="w-6 min-w-0 flex-none bg-transparent text-end tabular-nums placeholder:text-text-3"
+				data-layout-role="trigger-duration-number"
 				data-control=""
 				disabled={readOnly}
 				inputMode="numeric"
@@ -193,7 +179,7 @@ function DurationField<Unit extends keyof typeof DURATION_UNIT_MS>({
 			</span>
 			<select
 				aria-labelledby={unitLabelId}
-				className="field-sizing-content cursor-pointer appearance-none bg-transparent disabled:cursor-not-allowed"
+				data-layout-role="trigger-duration-unit"
 				data-control=""
 				disabled={readOnly}
 				onChange={(event) => {
@@ -239,13 +225,11 @@ function CheckList<Value extends string>({
 	return (
 		<fieldset
 			aria-labelledby={titleId}
-			className={cn(
-				"flex min-w-0",
-				row ? "flex-row flex-wrap gap-x-4 gap-y-2" : "flex-col gap-2.5",
-			)}
+			data-layout-role="trigger-checklist"
+			data-row={row || undefined}
 		>
 			{options.map((option) => (
-				<Label className="flex items-center gap-2" key={option.value}>
+				<Label data-layout-role="trigger-check-option" key={option.value}>
 					<Checkbox
 						checked={chosen.includes(option.value)}
 						disabled={readOnly}
@@ -347,8 +331,8 @@ function ScheduleSteps({
 				/>
 			</Step>
 			<Step status={matchStatus} step="state">
-				<div className="flex items-start justify-between gap-2">
-					<div className="flex flex-col gap-2">
+				<div data-layout-role="trigger-match">
+					<div data-layout-role="trigger-match-state">
 						<StepTitle id={stateTitleId} status={statusOf("state")}>
 							Status
 						</StepTitle>
@@ -362,7 +346,7 @@ function ScheduleSteps({
 						>
 							{STATE_OPTIONS.map((option) => (
 								<SegmentedControlItem
-									className="px-1"
+									data-layout-role="trigger-state-option"
 									key={option.value}
 									value={option.value}
 								>
@@ -372,7 +356,7 @@ function ScheduleSteps({
 						</SegmentedControl>
 					</div>
 					<div
-						className="flex shrink-0 flex-col gap-2"
+						data-layout-role="trigger-match-inactivity"
 						data-field="inactiveFor"
 						data-step="inactiveFor"
 					>
@@ -393,15 +377,17 @@ function ScheduleSteps({
 					</div>
 				</div>
 			</Step>
-			<div className="-mx-4 mt-3 flex flex-col gap-3 border-line-faint border-t px-4 pt-4">
-				<div className="flex items-center gap-1.5">
-					<h3 className="type-label text-text-1">Filters</h3>
-					<span className="ms-auto flex">
+			<div data-layout-role="trigger-filters">
+				<div data-layout-role="trigger-filters-header">
+					<h3 data-layout-role="trigger-filters-title">Filters</h3>
+					<span data-layout-role="trigger-refresh-labels">
 						<RefreshLabels readOnly={readOnly} />
 					</span>
 				</div>
 				<Field data-field="labels">
-					<FieldLabel className="text-text-2">With labels</FieldLabel>
+					<FieldLabel data-layout-role="trigger-filter-label">
+						With labels
+					</FieldLabel>
 					<LabelPicker
 						onChange={(next) =>
 							setMatch({ labels: next.length > 0 ? next : undefined })
@@ -413,7 +399,9 @@ function ScheduleSteps({
 					/>
 				</Field>
 				<Field data-field="excludeLabels">
-					<FieldLabel className="text-text-2">Without labels</FieldLabel>
+					<FieldLabel data-layout-role="trigger-filter-label">
+						Without labels
+					</FieldLabel>
 					<LabelPicker
 						onChange={(next) =>
 							setMatch({ excludeLabels: next.length > 0 ? next : undefined })
@@ -424,7 +412,7 @@ function ScheduleSteps({
 						value={draft.match.excludeLabels ?? []}
 					/>
 				</Field>
-				<Label className="flex items-center gap-2">
+				<Label data-layout-role="trigger-check-option">
 					<Checkbox
 						checked={draft.match.skipLocked !== false}
 						disabled={readOnly}
@@ -486,7 +474,7 @@ export function TriggerFlow({
 
 	return (
 		<div
-			className="flex flex-col gap-1"
+			data-layout-role="trigger-flow"
 			onKeyDownCapture={() => {
 				byPointer.current = false;
 			}}
@@ -508,7 +496,7 @@ export function TriggerFlow({
 				>
 					{PATH_OPTIONS.map((option) => (
 						<SegmentedControlItem
-							className="px-2"
+							data-layout-role="trigger-path-option"
 							key={option.value}
 							value={option.value}
 						>

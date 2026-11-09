@@ -6,15 +6,15 @@ import {
 	ruleIdOf,
 } from "@tripwire/contracts";
 import { z } from "zod";
+import { AiFindings } from "#/components/runs/ai-findings";
+import { AiTraceMeta } from "#/components/runs/ai-trace";
+import { CryptoMatches, FileRows } from "#/components/runs/evidence-parts";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
-} from "#/components/glaze/ui/collapsible";
-import { JsonView } from "#/components/glaze/ui/json-view";
-import { AiFindings } from "#/components/runs/ai-findings";
-import { AiTraceMeta } from "#/components/runs/ai-trace";
-import { CryptoMatches, FileRows } from "#/components/runs/evidence-parts";
+} from "#/design-system/ui/collapsible";
+import { JsonView } from "#/design-system/ui/json-view";
 import type { JsonValue, RunStepView } from "#/lib/runs.functions";
 
 const envelopeSchema = z.object({ evidence: z.json() });
@@ -118,18 +118,18 @@ export function RuleEvidence({
 		return null;
 	}
 	return (
-		<Collapsible className="pt-1">
+		<Collapsible data-layout-role="rule-evidence">
 			<CollapsibleTrigger size="sm">
 				{detail?.label ?? "Evidence"}
 			</CollapsibleTrigger>
 			<CollapsibleContent hiddenUntilFound>
-				<div className="flex flex-col gap-2 pt-2">
+				<div data-layout-role="rule-evidence-detail">
 					{detail?.body}
 					{raw && detail ? (
 						<Collapsible>
 							<CollapsibleTrigger size="sm">Raw evidence</CollapsibleTrigger>
 							<CollapsibleContent>
-								<div className="pt-2">
+								<div data-layout-role="rule-evidence-raw">
 									<JsonView data={inner} label="Raw evidence" />
 								</div>
 							</CollapsibleContent>

@@ -1,15 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
-import { Button } from "#/components/glaze/ui/button";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import { Button } from "#/design-system/ui/button";
 import {
 	Empty,
 	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
 	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
-import { MascotArt } from "#/components/mascot/mascot-art";
+} from "#/design-system/ui/empty-state";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
 
 const NotFoundInShell = lazy(() =>

@@ -15,11 +15,14 @@ on:
   push:
     branches:
       - main
+      - staging
     tags:
       - "cli-v*"
     paths:
       - "apps/cli/**"
       - "packages/contracts/**"
+      - "scripts/cli-release/**"
+      - ".github/workflows/release-cli.yml"
 
 concurrency:
   group: release-cli
@@ -31,6 +34,7 @@ permissions:
 
 jobs:
   release:
+    if: github.ref_type != 'tag' || !contains(github.ref_name, '-staging.')
     runs-on: ubuntu-latest
     environment: npm
     steps:
@@ -50,13 +54,13 @@ jobs:
       - name: Select channel
         id: channel
         env:
-          CHANNEL: ${{ github.event.inputs.channel || 'latest' }}
+          CHANNEL: ${{ inputs.channel || (github.ref_name == 'staging' && 'staging' || 'latest') }}
           REF_TYPE: ${{ github.ref_type }}
           REF_NAME: ${{ github.ref_name }}
         run: |
           case "$CHANNEL:$REF_TYPE:$REF_NAME" in
             latest:branch:main|latest:tag:cli-v*) ;;
-            staging:branch:staging/visual) ;;
+            staging:branch:staging) ;;
             *) echo "Release channel does not match the selected ref" >&2; exit 1 ;;
           esac
           echo "name=$CHANNEL" >> "$GITHUB_OUTPUT"
@@ -81,20 +85,55 @@ jobs:
             bun run scripts/cli-release/prepare.ts bump "${BUMP:-patch}" "$CHANNEL"
           fi
 
-      - name: Build
+      - name: Build and pack
+        id: package
         working-directory: apps/cli
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           bun run build
           test "$(node dist/tripwire.js --version)" = "$VERSION"
-          npm pack --dry-run
+          archive="$(npm pack --quiet)"
+          echo "archive=$PWD/$archive" >> "$GITHUB_OUTPUT"
+          expected_bin=tripwire
+          if [[ "$VERSION" == *-staging.* ]]; then expected_bin=tripwire-staging; fi
+          test "$(node -p 'Object.keys(require("./package.json").bin).join(",")')" = "$expected_bin"
 
-      - name: Publish to npm
-        working-directory: apps/cli
+      - name: Verify the packed CLI with the channel SDK
         env:
           CHANNEL: ${{ steps.channel.outputs.name }}
-        run: npm publish --provenance --access public --tag "$CHANNEL"
+          VERSION: ${{ steps.version.outputs.version }}
+          TRIPWIRE_TEST_CLI_ARCHIVE: ${{ steps.package.outputs.archive }}
+        run: |
+          smoke="$(mktemp -d)"
+          sdk_tag=latest
+          bin=tripwire
+          if [[ "$CHANNEL" == staging ]]; then
+            export TRIPWIRE_ENV=staging
+            bin=tripwire-staging
+            sdk_tag=staging
+          fi
+          for attempt in {1..12}; do
+            if sdk_archive="$(npm pack "@tripwire-sh/sdk@$sdk_tag" --prefer-online --pack-destination "$smoke" --quiet)"; then
+              break
+            fi
+            if [[ "$attempt" == 12 ]]; then
+              echo "::error::Could not download @tripwire-sh/sdk@$sdk_tag. Check the SDK release before publishing the CLI."
+              exit 1
+            fi
+            sleep 20
+          done
+          echo "Testing with $sdk_archive"
+          export TRIPWIRE_TEST_SDK_ARCHIVE="$smoke/$sdk_archive"
+          npm install --prefix "$smoke" "$TRIPWIRE_TEST_CLI_ARCHIVE"
+          test "$("$smoke/node_modules/.bin/$bin" --version)" = "$VERSION"
+          bun test apps/cli/src/workflow-sdk-roundtrip.test.ts
+
+      - name: Publish to npm
+        env:
+          ARCHIVE: ${{ steps.package.outputs.archive }}
+          CHANNEL: ${{ steps.channel.outputs.name }}
+        run: npm publish "$ARCHIVE" --provenance --access public --tag "$CHANNEL"
 
       - name: Tag and release
         env:

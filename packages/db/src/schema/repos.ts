@@ -1,4 +1,4 @@
-import type { Forge } from "@tripwire/contracts";
+import type { Forge, RepoSuggestionValues } from "@tripwire/contracts";
 import {
 	bigint,
 	boolean,
@@ -129,7 +129,7 @@ export const repoSuggestions = pgTable(
 			.notNull()
 			.references(() => repos.id),
 		kind: text("kind").notNull(),
-		values: jsonb("values").$type<string[]>().notNull(),
+		values: jsonb("values").$type<RepoSuggestionValues>().notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),
@@ -182,6 +182,29 @@ export const repoLabels = pgTable(
 			.defaultNow(),
 	},
 	(t) => [uniqueIndex("repo_labels_repo_name_unique").on(t.repoId, t.name)],
+);
+
+/**
+ * Per-repo sync stamp for forge caches that can legitimately produce an empty
+ * result (reviewers, labels). Without a dedicated stamp, an empty sync deletes
+ * all rows and inserts none, so `max(row.synced_at)` reads null forever and the
+ * staleness throttle never engages — every read re-queues a sync. This table
+ * records "we synced at T" unconditionally, so an empty-but-successful sync is
+ * still fresh for its stale window. `listRepoReviewers`/`listRepoLabels` return
+ * `max(stamp, max(row.synced_at))`.
+ */
+export const repoSyncStamps = pgTable(
+	"repo_sync_stamps",
+	{
+		repoId: text("repo_id")
+			.notNull()
+			.references(() => repos.id, { onDelete: "cascade" }),
+		kind: text("kind").notNull(),
+		syncedAt: timestamp("synced_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(t) => [primaryKey({ columns: [t.repoId, t.kind] })],
 );
 
 /**

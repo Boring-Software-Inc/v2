@@ -6,7 +6,7 @@ import {
 	FilterBarCount,
 	FilterBarSearch,
 	FilterBarSelect,
-} from "#/components/glaze/ui/filter-bar";
+} from "#/design-system/ui/filter-bar";
 import type { AnalyticsEvent } from "#/lib/analytics-events";
 import type { DateRange } from "#/lib/date-range";
 

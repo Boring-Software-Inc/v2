@@ -68,7 +68,8 @@ export function deriveDefaultWorkflow(
 	forge?: Forge,
 ): WorkflowDefinition {
 	const runsHere = (ref: string): boolean =>
-		!forge || ruleSupportsForge(ruleIdOf(ref), forge);
+		!forge ||
+		ruleSupportsForge(ruleIdOf(ref), forge, Number(ref.split("@")[1]));
 
 	const included: { ref: string; config: JsonValue }[] = [];
 	const seen = new Set<string>();

@@ -4,6 +4,7 @@
  * moves here.
  */
 
+export { pendingCheckIsStale, supersededBy } from "./action-supersession.ts";
 export {
 	createDatabuddyApi,
 	DATABUDDY_API_URL,
@@ -12,6 +13,10 @@ export {
 	DatabuddyApiError,
 	type DatabuddyProfileActivity,
 } from "./databuddy-api.ts";
+export {
+	getDatabuddyUserOverride,
+	updateDatabuddyUserOverrides,
+} from "./databuddy-overrides.ts";
 export { getErrorMessage, toError } from "./errors.ts";
 export {
 	type GuardedFetchDeps,

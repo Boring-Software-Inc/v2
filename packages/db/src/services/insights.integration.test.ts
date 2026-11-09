@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { DEFAULT_WORKFLOW } from "@tripwire/contracts";
-import { eq } from "drizzle-orm";
+import { DEFAULT_WORKFLOW, type RepoIdentity } from "@tripwire/contracts";
+import { eq, sql } from "drizzle-orm";
 import {
 	applyMigrations,
 	createDb,
@@ -114,7 +114,10 @@ describe("getRulesStats — repo-scoped, real stored data", () => {
 		const eB = await seedEvent("evt-b", "acme/beta");
 		await seedRun(eB, "acme/beta", ["crypto-address@1"], ["block", "label"]);
 
-		const alpha = await insightServices.getRulesStats(db, "acme/alpha");
+		const alpha = await insightServices.getRulesStats(db, {
+			forge: "github",
+			fullName: "acme/alpha",
+		});
 		expect(alpha.matches24h.value).toBe(2);
 		// block executed, but the comment + set-check rows must NOT count.
 		expect(alpha.actioned24h.value).toBe(1);
@@ -126,16 +129,149 @@ describe("getRulesStats — repo-scoped, real stored data", () => {
 		// beta's rule never appears in alpha's per-rule breakdown.
 		expect(byRef.has("crypto-address@1")).toBe(false);
 
-		const beta = await insightServices.getRulesStats(db, "acme/beta");
+		const beta = await insightServices.getRulesStats(db, {
+			forge: "github",
+			fullName: "acme/beta",
+		});
 		expect(beta.matches24h.value).toBe(1);
 		expect(beta.actioned24h.value).toBe(2);
 	});
 
+	test("flow and rule stats retain rolling windows, prior deltas, and hourly row filtering", async () => {
+		const fullName = "acme/windows";
+		for (const hours of [1, 25, 49]) {
+			const eventId = await seedEvent(`window-${hours}`, fullName);
+			const runId = await seedRun(
+				eventId,
+				fullName,
+				["account-age@1"],
+				["block"],
+			);
+			await db.execute(
+				sql`UPDATE runs SET created_at = now() - make_interval(hours => ${hours}, mins => 30) WHERE id = ${runId}`,
+			);
+			await db.execute(
+				sql`UPDATE run_steps SET started_at = now() - make_interval(hours => ${hours}, mins => 30) WHERE run_id = ${runId}`,
+			);
+			await db.execute(
+				sql`UPDATE run_actions SET executed_at = now() - make_interval(hours => ${hours}, mins => 30) WHERE run_id = ${runId}`,
+			);
+		}
+		const repo = { forge: "github", fullName } satisfies RepoIdentity;
+		const home = await insightServices.getHomeStats(db, repo);
+		expect(home.blocked.value).toBe(1);
+		expect(home.blocked.delta).toBe(0);
+		expect(home.blocked.series).toHaveLength(24);
+		expect(home.blocked.series[22]).toBe(1);
+		expect(home.blocked.series.reduce((sum, value) => sum + value, 0)).toBe(1);
+		const rules = await insightServices.getRulesStats(db, repo);
+		expect(rules.matches24h.value).toBe(1);
+		expect(rules.matches24h.delta).toBe(0);
+		expect(rules.actioned24h.value).toBe(1);
+		expect(rules.actioned24h.delta).toBe(0);
+		expect(rules.matches24h.series[22]).toBe(1);
+		expect(rules.actioned24h.series[22]).toBe(1);
+		expect(rules.perRule).toHaveLength(1);
+		expect(rules.perRule[0]?.ref).toBe("account-age@1");
+		expect(rules.perRule[0]?.matches24h).toBe(1);
+		expect(
+			rules.perRule[0]?.series.reduce((sum, value) => sum + value, 0),
+		).toBe(1);
+	});
+
 	test("a repo with no runs reports honest zeros", async () => {
-		const empty = await insightServices.getRulesStats(db, "acme/nobody");
+		const empty = await insightServices.getRulesStats(db, {
+			forge: "github",
+			fullName: "acme/nobody",
+		});
 		expect(empty.matches24h.value).toBe(0);
 		expect(empty.actioned24h.value).toBe(0);
 		expect(empty.perRule).toHaveLength(0);
+	});
+
+	test("per-rule series uses the same rolling hours-ago ordering as matches24h.series", async () => {
+		const repo = "acme/ordering";
+		const eventId = await seedEvent("evt-ordering", repo);
+		const runId = await createRun(db, {
+			eventId,
+			repoFullName: repo,
+			subjectNumber: 1,
+			headSha: "sha-ordering",
+			snapshot: SNAPSHOT,
+			status: "completed",
+			verdict: "block",
+		});
+		// Seed two rule-node fails at distinct offsets so the rolling index
+		// (23 - h) is distinguishable from a clock-hour bucket. 5h ago → 18,
+		// 10h ago → 13. Under the old clock-hour bucket these would land at
+		// (currentHour - 5) and (currentHour - 10), disagreeing with the
+		// top-level series.
+		const at5h = new Date(Date.now() - 5.5 * 3600_000).toISOString();
+		const at10h = new Date(Date.now() - 10.5 * 3600_000).toISOString();
+		const ref5h = "ordering-5h@1";
+		const ref10h = "ordering-10h@1";
+		await recordSteps(db, runId, [
+			{
+				nodeId: "default@1:rule-0",
+				nodeKind: "rule",
+				ruleRef: ref5h,
+				status: "fail",
+				input: {},
+				output: {
+					ruleId: ref5h.split("@")[0],
+					version: 1,
+					status: "evaluated",
+					passed: false,
+					evidence: {},
+					evaluatedAt: at5h,
+				},
+				startedAt: at5h,
+				finishedAt: at5h,
+				durationMs: 0,
+			},
+			{
+				nodeId: "default@1:rule-1",
+				nodeKind: "rule",
+				ruleRef: ref10h,
+				status: "fail",
+				input: {},
+				output: {
+					ruleId: ref10h.split("@")[0],
+					version: 1,
+					status: "evaluated",
+					passed: false,
+					evidence: {},
+					evaluatedAt: at10h,
+				},
+				startedAt: at10h,
+				finishedAt: at10h,
+				durationMs: 0,
+			},
+		]);
+
+		const stats = await insightServices.getRulesStats(db, {
+			forge: "github",
+			fullName: repo,
+		});
+
+		// Top-level series: 5h fail at 23 - 5 = 18, 10h fail at 23 - 10 = 13.
+		expect(stats.matches24h.series.findIndex((x) => x > 0)).toBe(13);
+		expect(stats.matches24h.series[18]).toBe(1);
+		expect(stats.matches24h.series[13]).toBe(1);
+
+		// Per-rule series: the SAME fail must land at the SAME rolling index
+		// — the sparkline contract is "oldest first, index 23 = now", and
+		// the per-rule series flows unchanged into <Sparkline data={rule.trend}>.
+		const byRef = new Map(stats.perRule.map((r) => [r.ref, r]));
+		const perRule5h = byRef.get(ref5h);
+		expect(perRule5h).toBeDefined();
+		expect(perRule5h?.series.findIndex((x) => x > 0)).toBe(18);
+		expect(perRule5h?.matches24h).toBe(1);
+
+		const perRule10h = byRef.get(ref10h);
+		expect(perRule10h).toBeDefined();
+		expect(perRule10h?.series.findIndex((x) => x > 0)).toBe(13);
+		expect(perRule10h?.matches24h).toBe(1);
 	});
 });
 
@@ -173,7 +309,10 @@ describe("getHomeStats — the number and its series tell one story", () => {
 			status: "pending",
 		});
 
-		const stats = await insightServices.getHomeStats(db, repo);
+		const stats = await insightServices.getHomeStats(db, {
+			forge: "github",
+			fullName: repo,
+		});
 
 		// The whole bug: the last point of the queue series equals the number.
 		expect(stats.sentToReview.value).toBe(1);
@@ -192,13 +331,16 @@ describe("getHomeStats — the number and its series tell one story", () => {
 		await seedVerdictRun(repo, "changes_required");
 		await seedVerdictRun(repo, "close");
 		await seedVerdictRun(repo, "pass");
-		const stats = await insightServices.getHomeStats(db, repo);
+		const stats = await insightServices.getHomeStats(db, {
+			forge: "github",
+			fullName: repo,
+		});
 		expect(stats.blocked.value).toBe(3);
 		expect(stats.blocked.series.reduce((sum, n) => sum + n, 0)).toBe(3);
 		expect(stats.passed.value).toBe(1);
 		const recent = await insightServices.listRecentRuns(db, {
 			verdicts: ["block", "changes_required", "close"],
-			repoFullName: repo,
+			repo: { forge: "github", fullName: repo },
 		});
 		expect(recent.map((run) => run.verdict).sort()).toEqual([
 			"block",
@@ -229,7 +371,10 @@ describe("getHomeStats — the number and its series tell one story", () => {
 	});
 
 	test("a repo with no activity reports honest zeros, not a faked line", async () => {
-		const empty = await insightServices.getHomeStats(db, "acme/quiet");
+		const empty = await insightServices.getHomeStats(db, {
+			forge: "github",
+			fullName: "acme/quiet",
+		});
 		expect(empty.sentToReview.value).toBe(0);
 		expect(empty.blocked.value).toBe(0);
 		expect(empty.passed.value).toBe(0);

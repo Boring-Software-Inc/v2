@@ -44,10 +44,7 @@ export function between(min: number, max: number): Comparison<number> {
 export function equals(value: number): Comparison<number>;
 export function equals(value: string): Comparison<string>;
 export function equals(value: boolean): Comparison<boolean>;
-export function equals(value: number | string | boolean): {
-	kind: string;
-	args: readonly unknown[];
-} {
+export function equals(value: number | string | boolean): SerializedComparison {
 	return { kind: "equals", args: [value] };
 }
 
@@ -87,10 +84,9 @@ export function containsAny(needles: readonly string[]): Comparison<string> {
 
 export function oneOf(values: readonly string[]): Comparison<string>;
 export function oneOf(values: readonly number[]): Comparison<number>;
-export function oneOf(values: readonly string[] | readonly number[]): {
-	kind: string;
-	args: readonly unknown[];
-} {
+export function oneOf(
+	values: readonly string[] | readonly number[],
+): SerializedComparison {
 	return { kind: "oneOf", args: [values] };
 }
 
@@ -106,10 +102,9 @@ export function noneMatch(
 
 export function noneOf(values: readonly string[]): Comparison<string>;
 export function noneOf(values: readonly number[]): Comparison<number>;
-export function noneOf(values: readonly string[] | readonly number[]): {
-	kind: string;
-	args: readonly unknown[];
-} {
+export function noneOf(
+	values: readonly string[] | readonly number[],
+): SerializedComparison {
 	return { kind: "noneOf", args: [values] };
 }
 

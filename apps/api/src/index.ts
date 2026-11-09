@@ -4,12 +4,18 @@ import {
 	createAuth,
 	resolveAuthPosture,
 } from "@tripwire/auth/server";
-import { createBoss, createDb, createDirectPool } from "@tripwire/db";
+import {
+	createBoss,
+	createDb,
+	createDirectPool,
+	gitCafeLifecycleServices,
+} from "@tripwire/db";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import pino from "pino";
 import type { ApiDeps, ApiEnv } from "./env.ts";
+import { resolveGitCafeReceiptConfig } from "./gitcafe-receipts.ts";
 import { stream } from "./routes/stream.ts";
 import { webhooks } from "./routes/webhooks.ts";
 
@@ -47,7 +53,13 @@ if (import.meta.main) {
 	}
 	const { db, pool } = createDb();
 	const directPool = createDirectPool();
-	const boss = await createBoss();
+	const gitCafeReceipts = resolveGitCafeReceiptConfig(process.env);
+	const boss = gitCafeReceipts
+		? await gitCafeLifecycleServices.createGitCafeLifecycleBoss(
+				process.env.DATABASE_URL ?? "",
+				logger,
+			)
+		: await createBoss(undefined, logger);
 
 	let auth: Auth | null = null;
 	try {
@@ -85,6 +97,7 @@ if (import.meta.main) {
 		directPool,
 		boss,
 		webhookSecret,
+		gitCafeReceipts,
 		webOrigin: process.env.WEB_ORIGIN ?? "http://localhost:3000",
 		logger,
 	});

@@ -10,7 +10,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 	useDialog,
-} from "#/components/glaze/ui/dialog";
+} from "#/design-system/ui/dialog";
 
 export interface ConfirmDeleteDialogProps {
 	open: boolean;

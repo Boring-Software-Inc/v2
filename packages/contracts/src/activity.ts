@@ -1,5 +1,14 @@
 import { z } from "zod";
 import { type NormalizedEvent, normalizedEventSchema } from "./events.ts";
+import { storedJsonValueSchema } from "./serialization.ts";
+
+/** Historical reads validate the event while retaining additional JSON, including nested fields. */
+export const storedNormalizedEventSchema = z.custom<NormalizedEvent>(
+	(value) =>
+		storedJsonValueSchema.safeParse(value).success &&
+		normalizedEventSchema.safeParse(value).success,
+);
+export type StoredNormalizedEvent = z.infer<typeof storedNormalizedEventSchema>;
 
 /**
  * The /activity feed wire shapes (§4/§9). These cross the server→client boundary
@@ -23,7 +32,9 @@ export type ActivityRunSummary = z.infer<typeof activityRunSummarySchema>;
 
 /** One timeline entry (or standalone row): an event + the run it triggered. */
 export const activityTimelineEntrySchema = z.object({
-	event: normalizedEventSchema,
+	eventId: z.string(),
+	event: storedNormalizedEventSchema.nullable(),
+	unavailableReason: z.string().optional(),
 	run: activityRunSummarySchema.nullable(),
 	/**
 	 * Client-only optimistic flag — a change request still evaluating in the live

@@ -1,13 +1,22 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import type { RepoScopedEvent } from "@tripwire/contracts";
+import type { AiReviewOutput, RepoScopedEvent } from "@tripwire/contracts";
 import {
 	aiReviewOutputSchema,
 	boundAiReviewTrace,
+	forgeFileReadResultSchema,
 	isAiOutOfCreditsError,
+	openRouterStepCostSchema,
 	providerErrorSchema,
 } from "@tripwire/contracts";
 import type { AiReviewGenerate } from "@tripwire/core";
-import { generateText, hasToolCall, stepCountIs, tool } from "ai";
+import type { ForgeReadResult } from "@tripwire/forge";
+import {
+	generateText,
+	hasToolCall,
+	type ProviderMetadata,
+	stepCountIs,
+	tool,
+} from "ai";
 import { z } from "zod";
 import { changeRequestHead, type WorkerReads } from "../context.ts";
 
@@ -25,29 +34,34 @@ import { changeRequestHead, type WorkerReads } from "../context.ts";
  * cost, so metering never invents a number.
  */
 function sumStepCost(
-	steps: readonly { providerMetadata?: Record<string, unknown> }[],
+	steps: readonly { providerMetadata?: ProviderMetadata }[],
 ): number | null {
 	let total = 0;
 	let seen = false;
 	for (const step of steps) {
-		const openrouter = step.providerMetadata?.openrouter as
-			| { usage?: { cost?: unknown } }
-			| undefined;
-		const cost = openrouter?.usage?.cost;
-		if (typeof cost === "number" && Number.isFinite(cost)) {
-			total += cost;
+		const parsed = openRouterStepCostSchema.safeParse(
+			step.providerMetadata?.openrouter,
+		);
+		if (parsed.success) {
+			total += parsed.data.usage.cost;
 			seen = true;
 		}
 	}
 	return seen ? total : null;
 }
 
+const meteredBodySchema = z.string({ error: "Non-string request body" });
+
 export function createGenerate(options: {
 	apiKey: string;
 	/** AI_REVIEW_MODEL env — explicit rule config wins over this. */
 	defaultModel: string;
 	reads: WorkerReads | null;
-	readFile: (repo: string, path: string, ref: string) => Promise<string | null>;
+	readFile: (
+		repo: string,
+		path: string,
+		ref: string,
+	) => Promise<string | null | ForgeReadResult<string>>;
 	event: RepoScopedEvent;
 	/** Best-effort metering of request bytes sent to OpenRouter. Optional. */
 	countBytesOut?: (bytes: number) => void;
@@ -64,9 +78,10 @@ export function createGenerate(options: {
 				input: Parameters<typeof fetch>[0],
 				init?: Parameters<typeof fetch>[1],
 			) => {
-				if (typeof init?.body === "string") {
+				const body = meteredBodySchema.safeParse(init?.body);
+				if (body.success) {
 					try {
-						countBytesOut(Buffer.byteLength(init.body));
+						countBytesOut(Buffer.byteLength(body.data));
 					} catch {
 						// metering must never break the model call
 					}
@@ -74,10 +89,16 @@ export function createGenerate(options: {
 				return baseFetch(input, init);
 			}
 		: options.fetch;
-	const openrouter = createOpenRouter({
+	const providerOptions: Parameters<typeof createOpenRouter>[0] = {
 		apiKey: options.apiKey,
-		...(meteredFetch ? { fetch: meteredFetch as typeof fetch } : {}),
-	});
+	};
+	if (meteredFetch) {
+		providerOptions.fetch = Object.assign(
+			(...args: Parameters<typeof fetch>) => meteredFetch(...args),
+			{ preconnect: fetch.preconnect },
+		);
+	}
+	const openrouter = createOpenRouter(providerOptions);
 	const repo = options.event.repo.fullName;
 	const number =
 		"changeRequest" in options.event
@@ -89,7 +110,7 @@ export function createGenerate(options: {
 			: "HEAD";
 
 	return async ({ model, maxSteps, instructions, prompt }) => {
-		let review: unknown = null;
+		let review: AiReviewOutput | null = null;
 		const resolvedModel = model ?? options.defaultModel;
 
 		const runReview = () =>
@@ -105,9 +126,16 @@ export function createGenerate(options: {
 						description:
 							"read a file from the change request's head for context",
 						inputSchema: z.object({ path: z.string() }),
-						execute: async ({ path }) =>
-							(await options.readFile(repo, path, headRef)) ??
-							"(file not found)",
+						execute: async ({ path }) => {
+							const read = await options.readFile(repo, path, headRef);
+							if (read === null) return "(file not found)";
+							const parsed = forgeFileReadResultSchema.safeParse(read);
+							if (!parsed.success)
+								return "(file unavailable: invalid-response)";
+							return parsed.data.ok
+								? parsed.data.value
+								: `(file unavailable: ${parsed.data.reason})`;
+						},
 					}),
 					get_commits: tool({
 						description: "list the change request's commits",
@@ -129,6 +157,7 @@ export function createGenerate(options: {
 								? await options.reads.getContributorProfile(
 										repo,
 										options.event.actor.login,
+										options.event.actor.externalId,
 									)
 								: "(unavailable)",
 					}),

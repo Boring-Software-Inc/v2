@@ -1,12 +1,12 @@
 import type { ForgeId } from "@tripwire/contracts";
 import { ForgeMark } from "#/components/common/forge-marks";
-import { External, Icon } from "#/components/glaze/icon";
-import { buttonVariants } from "#/components/glaze/ui/button";
+import { External, Icon } from "#/design-system/icon";
+import { buttonVariants } from "#/design-system/ui/button";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "#/components/glaze/ui/tooltip";
+} from "#/design-system/ui/tooltip";
 import type { ForgeLink } from "#/lib/activity-links";
 
 export function ForgeLinkButton({

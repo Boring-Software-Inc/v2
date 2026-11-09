@@ -1,10 +1,16 @@
-import type { RepoScopedEvent } from "@tripwire/contracts";
+import type {
+	EventActor,
+	RepoScopedEvent,
+	StarredContributionCount,
+	StarredContributionQuery,
+} from "@tripwire/contracts";
 import type { AiReviewGenerate, RuleContext } from "@tripwire/core";
 import type {
 	ChangeRequestHead,
 	ContributorProfile,
 	DiffFile,
 	ForgeCommit,
+	ForgeReadResult,
 } from "@tripwire/forge";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
@@ -17,20 +23,26 @@ import { forcedReadFailures } from "./reads-injection.ts";
  */
 
 export interface WorkerReads {
+	countStarredContributions?(
+		repoFullName: string,
+		author: EventActor,
+		query: StarredContributionQuery,
+	): Promise<StarredContributionCount>;
 	getDiff(
 		repoFullName: string,
 		number: number,
 		head?: ChangeRequestHead,
-	): Promise<DiffFile[]>;
+	): Promise<DiffFile[] | ForgeReadResult<DiffFile[]>>;
 	getCommits(
 		repoFullName: string,
 		number: number,
 		head?: ChangeRequestHead,
-	): Promise<ForgeCommit[]>;
+	): Promise<ForgeCommit[] | ForgeReadResult<ForgeCommit[]>>;
 	getContributorProfile(
 		repoFullName: string,
 		login: string,
-	): Promise<ContributorProfile>;
+		expectedActorId?: string,
+	): Promise<ContributorProfile | ForgeReadResult<ContributorProfile>>;
 }
 
 export interface BuiltRuleContext {
@@ -52,14 +64,40 @@ export async function buildRuleContext(
 	const degradedReads: string[] = [];
 	const forcedFailures = forcedReadFailures();
 
-	const guard = async <T>(name: string, fn: () => Promise<T>) => {
+	const guard = async <T extends object>(
+		name: string,
+		fn: () => Promise<T | ForgeReadResult<T>>,
+	) => {
 		try {
 			if (forcedFailures.has(name)) {
 				throw new Error(
 					`TRIPWIRE_FAIL_READS: forced failure of "${name}" read`,
 				);
 			}
-			return await fn();
+			const result = await fn();
+			if (isReadResult(result)) {
+				if (result.ok) {
+					if (result.diagnostics?.length) degradedReads.push(name);
+					for (const diagnostic of result.diagnostics ?? [])
+						logger.warn(
+							{
+								read: name,
+								source: diagnostic.source,
+								reason: diagnostic.reason,
+								status: diagnostic.status,
+							},
+							"context read partially degraded",
+						);
+					return result.value;
+				}
+				degradedReads.push(name);
+				logger.warn(
+					{ read: name, reason: result.reason },
+					"context read degraded",
+				);
+				return null;
+			}
+			return result;
 		} catch (error) {
 			degradedReads.push(name);
 			logger.warn(
@@ -70,24 +108,77 @@ export async function buildRuleContext(
 		}
 	};
 
-	const [diff, commits, contributor] = await Promise.all([
+	const [diff, commits, readContributor] = await Promise.all([
 		reads && number !== null
-			? guard("diff", () => reads.getDiff(repo, number, head))
+			? guard<DiffFile[]>("diff", () => reads.getDiff(repo, number, head))
 			: Promise.resolve(null),
 		reads && number !== null
-			? guard("commits", () => reads.getCommits(repo, number, head))
+			? guard<ForgeCommit[]>("commits", () =>
+					reads.getCommits(repo, number, head),
+				)
 			: Promise.resolve(null),
 		reads
-			? guard("contributor", () =>
-					reads.getContributorProfile(repo, event.actor.login),
+			? guard<ContributorProfile>("contributor", () =>
+					reads.getContributorProfile(
+						repo,
+						event.actor.login,
+						event.actor.externalId,
+					),
 				)
 			: Promise.resolve(null),
 	]);
+	const contributor =
+		event.forge === "gitcafe" &&
+		readContributor?.externalId !== event.actor.externalId
+			? null
+			: readContributor;
+	if (readContributor !== null && contributor === null) {
+		degradedReads.push("contributor");
+		logger.warn(
+			{ read: "contributor", reason: "identity-mismatch" },
+			"context read degraded",
+		);
+	}
+	if (diff?.some((file) => file.patchUnavailable != null)) {
+		degradedReads.push("diff");
+		logger.warn(
+			{ read: "diff", reason: "partial-evidence" },
+			"context read degraded",
+		);
+	}
+
+	const countStarredContributions =
+		reads?.countStarredContributions?.bind(reads);
+	const starReads = new Map<string, Promise<StarredContributionCount | null>>();
 
 	const ctx: RuleContext = {
 		event,
 		now,
 		generate,
+		countStarredContributions: countStarredContributions
+			? (query) => {
+					const key = JSON.stringify(query);
+					const cached = starReads.get(key);
+					if (cached) return cached;
+					const result = guard("starred-contributions", async () => {
+						const count = await countStarredContributions(
+							repo,
+							event.actor,
+							query,
+						);
+						if (!count.complete && count.count < query.min) {
+							degradedReads.push("starred-contributions");
+							logger.warn(
+								{ read: "starred-contributions" },
+								"GitHub search returned insufficient evidence",
+							);
+						}
+						return count;
+					});
+					starReads.set(key, result);
+					return result;
+				}
+			: undefined,
 		diff:
 			diff?.map((file) => ({
 				path: file.path,
@@ -95,6 +186,7 @@ export async function buildRuleContext(
 				additions: file.additions,
 				deletions: file.deletions,
 				patch: file.patch,
+				patchUnavailable: file.patchUnavailable,
 			})) ?? null,
 		commits:
 			commits?.map((commit) => ({
@@ -119,6 +211,12 @@ export async function buildRuleContext(
 			: null,
 	};
 	return { ctx, degradedReads };
+}
+
+function isReadResult<T extends object>(
+	value: T | ForgeReadResult<T>,
+): value is ForgeReadResult<T> {
+	return "ok" in value;
 }
 
 export function changeRequestHead(

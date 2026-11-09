@@ -6,7 +6,10 @@ import {
 	type ActivityTimelineEntry,
 	activityFeedSchema,
 	DEFAULT_WORKFLOW,
+	GITCAFE_RERUN_QUEUE,
+	normalizedEventSchema,
 	RULE_CATALOG,
+	rerunChangeRequestJobSchema,
 	ruleDisplayName,
 	ruleExecutes,
 	ruleIdOf,
@@ -39,16 +42,21 @@ export type RerunPreview = {
 
 /**
  * Names of rules that will evaluate for a re-run, matching deriveDefaultWorkflow
- * + saved-workflow composition. Used by the confirm dialog so the admin sees
- * the set before spending the evaluation.
+ * + saved-workflow composition, including enabled standalone custom rules.
+ * Used by the confirm dialog so the admin sees the set before spending the
+ * evaluation. Custom rules join the toggle set the same way the worker
+ * (run-workflows.ts) joins them: enabled standalone custom rules run, and
+ * workflow ownership excludes a custom id from the leftover set like any id.
  */
-function executableRuleNames(
+export function executableRuleNames(
 	configs: { ruleId: string; enabled: boolean }[],
 	enabledWorkflows: {
 		nodes: { type: string; ref?: string }[];
 	}[],
+	customRules: { id: string; name: string; enabled: boolean }[],
 ): string[] {
 	const byId = new Map(configs.map((c) => [c.ruleId, c]));
+	const customById = new Map(customRules.map((c) => [c.id, c]));
 	if (enabledWorkflows.length > 0) {
 		const names: string[] = [];
 		const seen = new Set<string>();
@@ -67,7 +75,10 @@ function executableRuleNames(
 					continue;
 				}
 				seen.add(id);
-				names.push(ruleDisplayName(node.ref));
+				// A custom rule in a workflow shows its stored name, not the
+				// generic "Custom rule" fallback ruleDisplayName would yield.
+				const custom = customById.get(id);
+				names.push(custom ? custom.name : ruleDisplayName(node.ref));
 			}
 		}
 		// Leftover standalone rules (not owned by any workflow) still run.
@@ -88,14 +99,38 @@ function executableRuleNames(
 				names.push(entry.name);
 			}
 		}
+		// Leftover standalone custom rules (not owned by any workflow) run
+		// when enabled, mirroring the worker's custom-rule toggle join.
+		for (const custom of customRules) {
+			if (seen.has(custom.id)) {
+				continue;
+			}
+			const owned = enabledWorkflows.some((wf) =>
+				wf.nodes.some(
+					(n) => n.type === "rule" && n.ref && ruleIdOf(n.ref) === custom.id,
+				),
+			);
+			if (owned) {
+				continue;
+			}
+			if (custom.enabled) {
+				names.push(custom.name);
+			}
+		}
 		return names;
 	}
-	return RULE_CATALOG.filter((entry) =>
+	const names: string[] = RULE_CATALOG.filter((entry) =>
 		ruleExecutes(
 			`${entry.ruleId}@${entry.version}`,
 			byId.get(entry.ruleId)?.enabled,
 		),
 	).map((entry) => entry.name);
+	for (const custom of customRules) {
+		if (custom.enabled) {
+			names.push(custom.name);
+		}
+	}
+	return names;
 }
 
 /**
@@ -132,14 +167,20 @@ export const getRerunPreview = createServerFn({ method: "GET" })
 		const { repoServices } = await import("@tripwire/db");
 		const { getDb } = await import("#/lib/server/db");
 		const db = getDb().db;
-		const [workflows, configs] = await Promise.all([
+		const [workflows, configs, customRules] = await Promise.all([
 			repoServices.listEnabledWorkflows(db, repo.fullName, repo.forge),
 			repoServices.listRuleConfigs(db, repo.id),
+			repoServices.listCustomRules(db, repo.id),
 		]);
 		return {
 			ruleNames: executableRuleNames(
 				configs.map((c) => ({ ruleId: c.ruleId, enabled: c.enabled })),
 				workflows,
+				customRules.map((c) => ({
+					id: c.id,
+					name: c.name,
+					enabled: c.enabled,
+				})),
 			),
 		};
 	});
@@ -170,25 +211,29 @@ export const rerunChangeRequest = createServerFn({ method: "POST" })
 			RERUN_QUEUE,
 			getRerunCooldownSeconds,
 		} = await import("@tripwire/db");
-		const { getDb, getBoss } = await import("#/lib/server/db");
+		const { getDb, getBoss, getGitCafeConnectionBoss } = await import(
+			"#/lib/server/db"
+		);
 		const { db, pool } = getDb();
 		if (!repo.armed) {
 			return { status: "not-armed" };
 		}
-		const [workflows, configs] = await Promise.all([
+		const [workflows, configs, customRules] = await Promise.all([
 			repoServices.listEnabledWorkflows(db, repo.fullName, repo.forge),
 			repoServices.listRuleConfigs(db, repo.id),
+			repoServices.listCustomRules(db, repo.id),
 		]);
 		const names = executableRuleNames(
 			configs.map((c) => ({ ruleId: c.ruleId, enabled: c.enabled })),
 			workflows,
+			customRules.map((c) => ({ id: c.id, name: c.name, enabled: c.enabled })),
 		);
 		if (names.length === 0) {
 			return { status: "no-workflow" };
 		}
 		const eventRow = await eventServices.getLatestChangeRequestEvent(
 			db,
-			repo.fullName,
+			repo,
 			data.number,
 		);
 		if (!eventRow) {
@@ -197,6 +242,12 @@ export const rerunChangeRequest = createServerFn({ method: "POST" })
 		const { requireSession } = await import("#/lib/server/session");
 		const userId = await requireSession();
 		const requestedBy = userId ?? "dev";
+		const rerunJob = rerunChangeRequestJobSchema.parse({
+			forge: repo.forge,
+			repoFullName: repo.fullName,
+			number: data.number,
+			requestedBy,
+		});
 		// Duration is env-global; exemption is a staff flag per account.
 		const cooldownSeconds = getRerunCooldownSeconds();
 		const cooldownExempt =
@@ -207,16 +258,10 @@ export const rerunChangeRequest = createServerFn({ method: "POST" })
 		// Materialize the run NOW so the activity card shows evaluating
 		// immediately. Provisional snapshot is overwritten when the worker
 		// finalizes under the real derived definition.
+		const normalized = normalizedEventSchema.safeParse(eventRow.normalized);
 		const headSha =
-			eventRow.normalized &&
-			typeof eventRow.normalized === "object" &&
-			"changeRequest" in eventRow.normalized &&
-			eventRow.normalized.changeRequest &&
-			typeof eventRow.normalized.changeRequest === "object" &&
-			"headSha" in eventRow.normalized.changeRequest
-				? String(
-						(eventRow.normalized.changeRequest as { headSha: string }).headSha,
-					)
+			normalized.success && "changeRequest" in normalized.data
+				? normalized.data.changeRequest.headSha
 				: null;
 		const runId = await runServices.createRun(db, {
 			eventId: eventRow.id,
@@ -229,20 +274,19 @@ export const rerunChangeRequest = createServerFn({ method: "POST" })
 			triggeredBy: requestedBy,
 		});
 
-		const boss = await getBoss();
+		const boss =
+			repo.forge === "gitcafe"
+				? await getGitCafeConnectionBoss(runId)
+				: await getBoss();
+		if (repo.forge === "gitcafe") await boss.createQueue(GITCAFE_RERUN_QUEUE);
 		const jobId = await boss.send(
-			RERUN_QUEUE,
-			{
-				repoFullName: repo.fullName,
-				number: data.number,
-				requestedBy,
-				runId,
-			},
+			repo.forge === "gitcafe" ? GITCAFE_RERUN_QUEUE : RERUN_QUEUE,
+			rerunChangeRequestJobSchema.parse({ ...rerunJob, runId }),
 			cooldownExempt || cooldownSeconds === 0
 				? // No singleton: rapid re-runs allowed (staff-flagged or env=0).
 					{}
 				: {
-						singletonKey: `${repo.fullName}#${data.number}`,
+						singletonKey: `${repo.forge}:${repo.fullName}#${data.number}`,
 						singletonSeconds: cooldownSeconds,
 					},
 		);
@@ -270,7 +314,7 @@ export const getActivityFeed = createServerFn({ method: "GET" })
 		const { eventServices } = await import("@tripwire/db");
 		const { getDb } = await import("#/lib/server/db");
 		const feed = await eventServices.listActivityFeed(getDb().db, {
-			repoFullName: repo.fullName,
+			repo,
 			limit: 50,
 		});
 		// Parse at the boundary: a shape mismatch (a drifted normalized event, a

@@ -3,54 +3,65 @@ import type { OrgRole } from "@tripwire/contracts";
 import { useState } from "react";
 import { Collection } from "#/components/collection/collection";
 import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
-import { Icon, More } from "#/components/glaze/icon";
-import { Avatar } from "#/components/glaze/ui/avatar";
-import { Button } from "#/components/glaze/ui/button";
 import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "#/components/glaze/ui/dropdown-menu";
-import {
-	Empty,
-	EmptyHeader,
-	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
-import { Field, FieldError, FieldLabel } from "#/components/glaze/ui/field";
-import { Input } from "#/components/glaze/ui/input";
-import {
-	Item,
-	ItemActions,
-	ItemContent,
-	ItemDescription,
-	ItemGroup,
-	ItemMedia,
-	ItemTitle,
-} from "#/components/glaze/ui/item";
-import { NumberInput } from "#/components/glaze/ui/number-input";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/components/glaze/ui/select";
-import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
-import { toast } from "#/components/glaze/ui/toast";
+	CollectionRow,
+	InviteRowActions,
+	InviteRowsSkeleton,
+	MemberActionMenuSlot,
+	MemberRoleSelectTrigger,
+	MemberRowActions,
+	MemberRowsSkeleton,
+} from "#/components/layouts/collection-row";
+import { FormActions, FormSection } from "#/components/layouts/section";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import { DeleteOrgDialog } from "#/components/organizations/delete-org-dialog";
 import {
 	INVITES_COLLECTION,
 	MEMBERS_COLLECTION,
 } from "#/components/organizations/org-members-collection";
 import {
 	SettingsCard,
+	SettingsDangerRow,
 	SettingsHeader,
 	SettingsSection,
 } from "#/components/settings/settings-frame";
+import { Icon, More } from "#/design-system/icon";
+import { Avatar } from "#/design-system/ui/avatar";
+import { Button } from "#/design-system/ui/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "#/design-system/ui/dropdown-menu";
+import { Empty, EmptyHeader, EmptyTitle } from "#/design-system/ui/empty-state";
+import { Field, FieldError, FieldLabel } from "#/design-system/ui/field";
+import { Input } from "#/design-system/ui/input";
+import {
+	ItemContent,
+	ItemDescription,
+	ItemGroup,
+	ItemMedia,
+	ItemTitle,
+} from "#/design-system/ui/item";
+import { NumberInput } from "#/design-system/ui/number-input";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/design-system/ui/select";
+import { toast } from "#/design-system/ui/toast";
+import { Caption, SupportingText } from "#/design-system/ui/typography";
 import { useCollection } from "#/hooks/use-collection";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
-import type { InviteLinkView, OrgMemberView } from "#/lib/org.functions";
+import type {
+	InviteLinkView,
+	OrgMemberView,
+	OrgWithRole,
+} from "#/lib/org.functions";
 import {
 	createOrgInvite,
 	leaveOrg,
@@ -98,6 +109,16 @@ export function inviteExpiryLabel(
 	return days <= 1 ? "Expires today" : `Expires in ${days} days`;
 }
 
+export function shouldDeleteInsteadOfLeave(
+	role: string | undefined,
+	members: readonly Pick<OrgMemberView, "role">[] | undefined,
+): boolean {
+	return (
+		role === "admin" &&
+		members?.filter((member) => member.role === "admin").length === 1
+	);
+}
+
 export function OrgMembersPage({ org }: { org: string }) {
 	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
 	const membersQuery = useQuery(orgMembersQueryOptions(org));
@@ -121,6 +142,13 @@ export function OrgMembersPage({ org }: { org: string }) {
 	const isPersonal = orgContext?.isPersonal ?? true;
 	const canInvite = isAdmin && !isPersonal;
 	const callerUserId = session?.user?.id ?? null;
+	const currentRoleIsAdmin = orgContext?.role === "admin";
+	const onlyAdmin = shouldDeleteInsteadOfLeave(
+		orgContext?.role,
+		membersQuery.data,
+	);
+	const canResolveAdminExit =
+		!currentRoleIsAdmin || membersQuery.data !== undefined;
 	const [inviting, setInviting] = useState(false);
 	const [createdToken, setCreatedToken] = useState<string | null>(null);
 
@@ -173,8 +201,14 @@ export function OrgMembersPage({ org }: { org: string }) {
 
 			{canInvite ? <InviteLinksSection org={org} /> : null}
 
-			{isPersonal || !orgContext ? null : (
-				<LeaveOrgRow name={orgContext.name} org={org} />
+			{isPersonal || !orgContext || !canResolveAdminExit ? null : onlyAdmin ? (
+				<DeleteOrgMembershipRow org={org} orgContext={orgContext} />
+			) : (
+				<LeaveOrgRow
+					isAdmin={currentRoleIsAdmin}
+					name={orgContext.name}
+					org={org}
+				/>
 			)}
 		</>
 	);
@@ -239,90 +273,100 @@ function MemberRow({
 	const manage = isAdmin && !isSelf;
 
 	return (
-		<Item className="flex-wrap">
-			<ItemMedia>
-				<Avatar
-					decorative
-					name={member.name}
-					size="lg"
-					src={member.image ?? undefined}
-				/>
-			</ItemMedia>
-			<ItemContent>
-				<ItemTitle>{member.name}</ItemTitle>
-				<ItemDescription>{member.email}</ItemDescription>
-			</ItemContent>
-			<ItemActions className="gap-3 @max-sm/item:ms-11 @max-sm/item:me-0 @max-sm/item:basis-full">
-				{isSelf ? <span className="type-body-sm text-text-2">You</span> : null}
-				{manage ? (
-					<Select
-						disabled={roleMutation.isPending}
-						items={roleItems}
-						onValueChange={(value) => {
-							if (value && value !== member.role) {
-								roleMutation.mutate(value);
-							}
-						}}
-						value={member.role}
-					>
-						<SelectTrigger
-							aria-label={`Role for ${member.name}`}
-							className="w-28"
-							size="sm"
+		<CollectionRow
+			actions={
+				<MemberRowActions>
+					{isSelf ? <SupportingText as="span">You</SupportingText> : null}
+					{manage ? (
+						<Select
+							disabled={roleMutation.isPending}
+							items={roleItems}
+							onValueChange={(value) => {
+								if (value && value !== member.role) {
+									roleMutation.mutate(value);
+								}
+							}}
+							value={member.role}
 						>
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent size="sm">
-							{roleItems.map((item) => (
-								<SelectItem key={item.value} value={item.value}>
-									{item.label}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-				) : (
-					<span className="type-body-sm text-text-2">
-						{roleLabel(member.role)}
-					</span>
-				)}
-				{isAdmin ? (
-					<span className="flex size-(--control-sm) items-center justify-center">
-						{manage ? (
-							<DropdownMenu>
-								<DropdownMenuTrigger
-									render={
-										<Button
-											aria-label={`Actions for ${member.name}`}
-											size="icon-sm"
-											variant="ghost"
-										/>
-									}
-								>
-									<Icon icon={More} />
-								</DropdownMenuTrigger>
-								<DropdownMenuContent align="end" size="sm">
-									<DropdownMenuItem onClick={() => setConfirmRemove(true)}>
-										Remove
-									</DropdownMenuItem>
-								</DropdownMenuContent>
-							</DropdownMenu>
-						) : null}
-					</span>
-				) : null}
-			</ItemActions>
-			<ConfirmDeleteDialog
-				actionLabel="Remove"
-				onConfirm={() => removeMutation.mutateAsync()}
-				onOpenChange={setConfirmRemove}
-				open={confirmRemove}
-				pendingLabel="Removing"
-				title={`Remove ${member.name}?`}
-			/>
-		</Item>
+							<MemberRoleSelectTrigger aria-label={`Role for ${member.name}`}>
+								<SelectValue />
+							</MemberRoleSelectTrigger>
+							<SelectContent size="sm">
+								{roleItems.map((item) => (
+									<SelectItem key={item.value} value={item.value}>
+										{item.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					) : (
+						<SupportingText as="span">{roleLabel(member.role)}</SupportingText>
+					)}
+					{isAdmin ? (
+						<MemberActionMenuSlot>
+							{manage ? (
+								<DropdownMenu>
+									<DropdownMenuTrigger
+										render={
+											<Button
+												aria-label={`Actions for ${member.name}`}
+												size="icon-sm"
+												variant="ghost"
+											/>
+										}
+									>
+										<Icon icon={More} />
+									</DropdownMenuTrigger>
+									<DropdownMenuContent align="end" size="sm">
+										<DropdownMenuItem onClick={() => setConfirmRemove(true)}>
+											Remove
+										</DropdownMenuItem>
+									</DropdownMenuContent>
+								</DropdownMenu>
+							) : null}
+						</MemberActionMenuSlot>
+					) : null}
+				</MemberRowActions>
+			}
+			content={
+				<ItemContent>
+					<ItemTitle>{member.name}</ItemTitle>
+					<ItemDescription>{member.email}</ItemDescription>
+				</ItemContent>
+			}
+			media={
+				<ItemMedia>
+					<Avatar
+						decorative
+						name={member.name}
+						size="lg"
+						src={member.image ?? undefined}
+					/>
+				</ItemMedia>
+			}
+			overlay={
+				<ConfirmDeleteDialog
+					actionLabel="Remove"
+					onConfirm={() => removeMutation.mutateAsync()}
+					onOpenChange={setConfirmRemove}
+					open={confirmRemove}
+					pendingLabel="Removing"
+					title={`Remove ${member.name}?`}
+				/>
+			}
+		/>
 	);
 }
 
-function LeaveOrgRow({ org, name }: { org: string; name: string }) {
+function LeaveOrgRow({
+	org,
+	name,
+	isAdmin,
+}: {
+	org: string;
+	name: string;
+	isAdmin: boolean;
+}) {
 	const queryClient = useQueryClient();
 	const [open, setOpen] = useState(false);
 	const leaveMutation = useMutation({
@@ -346,21 +390,56 @@ function LeaveOrgRow({ org, name }: { org: string; name: string }) {
 	});
 
 	return (
-		<div className="flex items-center justify-between gap-3 border-line-faint border-t pt-4">
-			<p className="min-w-0 truncate type-label">Leave {name}</p>
-			<Button onClick={() => setOpen(true)} size="sm" variant="secondary">
-				Leave org
-			</Button>
+		<SettingsDangerRow
+			action={
+				<Button onClick={() => setOpen(true)} size="sm" variant="destructive">
+					Leave org
+				</Button>
+			}
+			label={`Leave ${name}`}
+		>
 			<ConfirmDeleteDialog
 				actionLabel="Leave org"
-				description="An admin has to invite you back."
+				confirmText={name}
+				description={
+					isAdmin
+						? "You'll lose access. Another admin can invite you back."
+						: "You'll lose access. An admin can invite you back."
+				}
 				onConfirm={() => leaveMutation.mutateAsync()}
 				onOpenChange={setOpen}
 				open={open}
 				pendingLabel="Leaving"
 				title={`Leave ${name}?`}
 			/>
-		</div>
+		</SettingsDangerRow>
+	);
+}
+
+function DeleteOrgMembershipRow({
+	org,
+	orgContext,
+}: {
+	org: string;
+	orgContext: OrgWithRole;
+}) {
+	const [open, setOpen] = useState(false);
+	return (
+		<SettingsDangerRow
+			action={
+				<Button onClick={() => setOpen(true)} size="sm" variant="destructive">
+					Delete org
+				</Button>
+			}
+			label={`Delete ${orgContext.name}`}
+		>
+			<DeleteOrgDialog
+				onOpenChange={setOpen}
+				open={open}
+				org={org}
+				orgContext={orgContext}
+			/>
+		</SettingsDangerRow>
 	);
 }
 
@@ -375,7 +454,11 @@ function InviteLinksSection({ org }: { org: string }) {
 			<Collection
 				collection={invites}
 				empty={
-					<Empty size="sm" variant="plain">
+					<Empty
+						art={<MascotArt mood="invites-empty" size="compact" />}
+						size="sm"
+						variant="plain"
+					>
 						<EmptyHeader>
 							<EmptyTitle>No invite links yet</EmptyTitle>
 						</EmptyHeader>
@@ -384,7 +467,12 @@ function InviteLinksSection({ org }: { org: string }) {
 				error={invitesQuery.isError}
 				noResults={
 					invites.filtered ? undefined : (
-						<Empty reason="no-results" size="sm" variant="plain">
+						<Empty
+							art={<MascotArt mood="invites-empty" size="compact" />}
+							reason="no-results"
+							size="sm"
+							variant="plain"
+						>
 							<EmptyHeader>
 								<EmptyTitle>No active invite links</EmptyTitle>
 							</EmptyHeader>
@@ -448,9 +536,8 @@ function InviteForm({
 
 	return (
 		<SettingsCard>
-			<form
+			<FormSection
 				aria-label="New invite link"
-				className="panel flex flex-wrap items-start gap-3 p-4"
 				onSubmit={(event) => {
 					event.preventDefault();
 					if (inputsValid) {
@@ -458,7 +545,7 @@ function InviteForm({
 					}
 				}}
 			>
-				<Field className="w-32">
+				<Field>
 					<FieldLabel>Role</FieldLabel>
 					<Select
 						items={ROLE_ITEMS}
@@ -481,7 +568,7 @@ function InviteForm({
 						</SelectContent>
 					</Select>
 				</Field>
-				<Field className="w-32" invalid={!maxUsesValid}>
+				<Field invalid={!maxUsesValid}>
 					<FieldLabel>Use limit</FieldLabel>
 					<NumberInput
 						max={1000}
@@ -491,7 +578,7 @@ function InviteForm({
 					/>
 					{maxUsesValid ? null : <FieldError>Enter 1 to 1000.</FieldError>}
 				</Field>
-				<Field className="w-32" invalid={!expiryValid}>
+				<Field invalid={!expiryValid}>
 					<FieldLabel>Expires in</FieldLabel>
 					<NumberInput
 						max={90}
@@ -502,20 +589,24 @@ function InviteForm({
 					/>
 					{expiryValid ? null : <FieldError>Enter 1 to 90 days.</FieldError>}
 				</Field>
-				<div className="ms-auto flex items-center gap-2 self-end">
-					<Button onClick={onCancel} type="button" variant="secondary">
-						Cancel
-					</Button>
-					<Button
-						disabled={!inputsValid}
-						pending={createMutation.isPending}
-						pendingLabel="Creating"
-						type="submit"
-					>
-						Create invite link
-					</Button>
-				</div>
-			</form>
+				<FormActions
+					primary={
+						<Button
+							disabled={!inputsValid}
+							pending={createMutation.isPending}
+							pendingLabel="Creating"
+							type="submit"
+						>
+							Create invite link
+						</Button>
+					}
+					secondary={
+						<Button onClick={onCancel} type="button" variant="secondary">
+							Cancel
+						</Button>
+					}
+				/>
+			</FormSection>
 		</SettingsCard>
 	);
 }
@@ -563,74 +654,42 @@ function InviteLinkRow({
 	const revoked = invite.revokedAt !== null;
 
 	return (
-		<Item className="flex-wrap">
-			<ItemContent>
-				<ItemTitle>{ROLE_LABEL[invite.role]} invite</ItemTitle>
-			</ItemContent>
-			<ItemActions className="gap-6 @max-sm/item:me-0 @max-sm/item:basis-full">
-				<span className="type-body-sm text-text-2 tabular-nums">
-					{invite.uses} of {invite.maxUses} used
-				</span>
-				<span className="type-body-sm text-text-2">
-					{revoked ? "Revoked" : inviteExpiryLabel(invite.expiresAt)}
-				</span>
-				{revoked ? null : (
-					<Button
-						aria-label={`Revoke ${roleName} invite link`}
-						onClick={() => setConfirmRevoke(true)}
-						size="sm"
-						variant="secondary"
-					>
-						Revoke
-					</Button>
-				)}
-			</ItemActions>
-			<ConfirmDeleteDialog
-				actionLabel="Revoke"
-				onConfirm={() => revokeMutation.mutateAsync()}
-				onOpenChange={setConfirmRevoke}
-				open={confirmRevoke}
-				pendingLabel="Revoking"
-				title="Revoke this invite link?"
-			/>
-		</Item>
-	);
-}
-
-const ROW_SLOTS = ["a", "b", "c"] as const;
-
-function MemberRowsSkeleton() {
-	return (
-		<SettingsCard>
-			<ItemGroup aria-hidden>
-				{ROW_SLOTS.map((slot) => (
-					<Item key={slot}>
-						<ItemMedia>
-							<Skeleton className="size-8 rounded-pill" />
-						</ItemMedia>
-						<ItemContent>
-							<SkeletonText className="w-32" type="label" />
-							<SkeletonText className="w-44" type="body-sm" />
-						</ItemContent>
-					</Item>
-				))}
-			</ItemGroup>
-		</SettingsCard>
-	);
-}
-
-function InviteRowsSkeleton() {
-	return (
-		<SettingsCard>
-			<ItemGroup aria-hidden>
-				{ROW_SLOTS.slice(0, 2).map((slot) => (
-					<Item key={slot}>
-						<ItemContent>
-							<SkeletonText className="w-28" type="label" />
-						</ItemContent>
-					</Item>
-				))}
-			</ItemGroup>
-		</SettingsCard>
+		<CollectionRow
+			actions={
+				<InviteRowActions>
+					<Caption>
+						{invite.uses} of {invite.maxUses} used
+					</Caption>
+					<Caption>
+						{revoked ? "Revoked" : inviteExpiryLabel(invite.expiresAt)}
+					</Caption>
+					{revoked ? null : (
+						<Button
+							aria-label={`Revoke ${roleName} invite link`}
+							onClick={() => setConfirmRevoke(true)}
+							size="sm"
+							variant="secondary"
+						>
+							Revoke
+						</Button>
+					)}
+				</InviteRowActions>
+			}
+			content={
+				<ItemContent>
+					<ItemTitle>{ROLE_LABEL[invite.role]} invite</ItemTitle>
+				</ItemContent>
+			}
+			overlay={
+				<ConfirmDeleteDialog
+					actionLabel="Revoke"
+					onConfirm={() => revokeMutation.mutateAsync()}
+					onOpenChange={setConfirmRevoke}
+					open={confirmRevoke}
+					pendingLabel="Revoking"
+					title="Revoke this invite link?"
+				/>
+			}
+		/>
 	);
 }

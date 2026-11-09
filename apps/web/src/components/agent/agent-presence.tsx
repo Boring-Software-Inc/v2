@@ -1,7 +1,7 @@
 import type { AgentPresence as Presence } from "@tripwire/contracts";
 import { AgentRain } from "#/components/agent/agent-rain";
+import { cn } from "#/design-system/lib/utils";
 import type { AgentMotion } from "#/hooks/use-agent-motion";
-import { cn } from "#/lib/glaze/utils";
 
 export function presenceWords(agents: readonly Presence[]): string | null {
 	const names = [...new Set(agents.map((agent) => agent.name))];

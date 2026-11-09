@@ -5,8 +5,8 @@ import {
 	useContext,
 	useState,
 } from "react";
-import { ChevronLeft, ChevronRight, Icon } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
+import { ChevronLeft, ChevronRight, Icon } from "#/design-system/icon";
+import { Button } from "#/design-system/ui/button";
 
 type SidePanelState = {
 	content: ReactNode | null;

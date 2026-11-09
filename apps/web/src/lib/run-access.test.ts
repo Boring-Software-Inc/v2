@@ -62,8 +62,11 @@ describe("resolveRunAccess", () => {
 });
 
 describe("isPublicPath", () => {
-	test("the run page and /login are public", () => {
+	test("run pages, login, and Pilot are public", () => {
 		expect(isPublicPath("/login")).toBe(true);
+		expect(isPublicPath("/pilot")).toBe(true);
+		expect(isPublicPath("/pilot/")).toBe(true);
+		expect(isPublicPath("/pilot/review")).toBe(false);
 		expect(isPublicPath("/runs/019f54d3-0c13-7000-930a-dc97f87e1d5e")).toBe(
 			true,
 		);
@@ -220,6 +223,7 @@ const fullView: RunView = {
 	],
 	previousRun: null,
 	nextRun: null,
+	relatedRuns: [],
 	backfill: false,
 	aiReviewNotRun: false,
 };

@@ -164,19 +164,24 @@ export function resolveCatalog(
 	customRules: readonly CustomRuleRecord[],
 ): ResolvedCatalogEntry[] {
 	const builtIns = RULE_CATALOG.map(
-		(entry: RuleCatalogEntry): ResolvedCatalogEntry => ({
-			ruleId: entry.ruleId,
-			version: entry.version,
-			name: entry.name,
-			blurb: entry.blurb,
-			description: entry.description,
-			configSchema: entry.configSchema,
-			defaultConfig: entry.defaultConfig,
-			optIn: entry.optIn,
-			contributorLabel: entry.contributorLabel,
-			...("changeNote" in entry ? { changeNote: entry.changeNote } : {}),
-			source: "built-in",
-		}),
+		(entry: RuleCatalogEntry): ResolvedCatalogEntry => {
+			const resolved: ResolvedCatalogEntry = {
+				ruleId: entry.ruleId,
+				version: entry.version,
+				name: entry.name,
+				blurb: entry.blurb,
+				description: entry.description,
+				configSchema: entry.configSchema,
+				defaultConfig: entry.defaultConfig,
+				optIn: entry.optIn,
+				contributorLabel: entry.contributorLabel,
+				source: "built-in",
+			};
+			if ("changeNote" in entry) {
+				resolved.changeNote = entry.changeNote;
+			}
+			return resolved;
+		},
 	);
 	return [...builtIns, ...customRules.map(customCatalogEntry)];
 }

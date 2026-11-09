@@ -3,8 +3,9 @@ import { runOutcome } from "#/components/activity/verdict-chip";
 import { ForgeLinkButton } from "#/components/common/forge-link-button";
 import { MetaRow } from "#/components/common/meta-row";
 import { ItemRouterLink } from "#/components/common/router-links";
-import { Avatar } from "#/components/glaze/ui/avatar";
-import { Badge } from "#/components/glaze/ui/badge";
+import { ZonedTime } from "#/components/timezones/zoned-time";
+import { Avatar } from "#/design-system/ui/avatar";
+import { Badge } from "#/design-system/ui/badge";
 import {
 	Item,
 	ItemActions,
@@ -13,13 +14,12 @@ import {
 	ItemMedia,
 	ItemMeta,
 	ItemTitle,
-} from "#/components/glaze/ui/item";
-import { Status } from "#/components/glaze/ui/status";
-import { ZonedTime } from "#/components/timezones/zoned-time";
+} from "#/design-system/ui/item";
+import { Status } from "#/design-system/ui/status";
 import type { ActivityItem } from "#/lib/activity.functions";
 import { eventForgeLink } from "#/lib/activity-links";
 
-const KIND_LABEL: Record<EventKind, string> = {
+const KIND_LABEL = {
 	"change-request.opened": "opened",
 	"change-request.updated": "updated",
 	"change-request.closed": "closed",
@@ -30,10 +30,15 @@ const KIND_LABEL: Record<EventKind, string> = {
 	"installation.deleted": "uninstalled Tripwire from",
 	"installation-repositories.added": "gave Tripwire access to",
 	"installation-repositories.removed": "took Tripwire access from",
-};
+} satisfies Record<EventKind, string>;
 
 function subjectLine(event: NormalizedEvent): string {
-	if ("installation" in event) {
+	if (
+		event.kind === "installation.created" ||
+		event.kind === "installation.deleted" ||
+		event.kind === "installation-repositories.added" ||
+		event.kind === "installation-repositories.removed"
+	) {
 		return event.repositories.map((repo) => repo.fullName).join(", ");
 	}
 	if (event.kind === "comment.created") {
@@ -68,6 +73,17 @@ export function ActivityRow({
 	unarmed?: boolean;
 }) {
 	const { event, run, pending } = item;
+	if (!event) {
+		return (
+			<Item>
+				<ItemContent>
+					<ItemTitle>
+						{item.unavailableReason ?? "Historical event data is unavailable"}
+					</ItemTitle>
+				</ItemContent>
+			</Item>
+		);
+	}
 	const hasRun = run !== null;
 	const forgeLink = eventForgeLink(event);
 
@@ -111,9 +127,12 @@ export function ActivityRow({
 				<ItemDescription>
 					<MetaRow>
 						<span>
-							{"repo" in event
-								? event.repo.fullName
-								: event.installation.account}
+							{event.kind === "installation.created" ||
+							event.kind === "installation.deleted" ||
+							event.kind === "installation-repositories.added" ||
+							event.kind === "installation-repositories.removed"
+								? event.installation.account
+								: event.repo.fullName}
 						</span>
 						{hasRun && run.reason ? <span>{run.reason}</span> : null}
 					</MetaRow>

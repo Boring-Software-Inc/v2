@@ -1,6 +1,30 @@
 import { z } from "zod";
 import { forgeSchema } from "./forges.ts";
 
+export const installStatePayloadSchema = z.union([
+	z.object({
+		u: z.string().min(1),
+		o: z.string().min(1),
+		f: z.never().optional(),
+		p: z.never().optional(),
+		e: z.never().optional(),
+	}),
+	z.object({
+		u: z.string().min(1),
+		o: z.string().min(1),
+		f: z.literal("gitcafe"),
+		p: z.literal("gitcafe-install"),
+		e: z.number().int().max(Number.MAX_SAFE_INTEGER),
+	}),
+]);
+export type InstallStatePayload = z.infer<typeof installStatePayloadSchema>;
+
+export const recoverInstallationInputSchema = z.object({
+	installationId: z
+		.string()
+		.regex(/^[1-9][0-9]{0,19}$/, "Invalid installation id."),
+});
+
 export const installAccessResultSchema = z.enum([
 	"pending",
 	"granted-admin",
@@ -13,6 +37,14 @@ export const installAccessResultSchema = z.enum([
 export type InstallAccessResult = z.infer<typeof installAccessResultSchema>;
 
 export const INSTALL_ACCESS_CHECK_TTL_SECONDS = 600;
+
+/**
+ * How long `installation_access_checks` rows are kept before a scheduled prune
+ * deletes them. The freshness window above only governs SELECT filters; without
+ * a retention prune, distinct attacker-supplied ids permanently grow the table.
+ * A week is long enough for audit/debugging and short enough to bound growth.
+ */
+export const INSTALL_ACCESS_CHECK_RETENTION_DAYS = 7;
 
 const installStatusBase = {
 	installationId: z.string(),

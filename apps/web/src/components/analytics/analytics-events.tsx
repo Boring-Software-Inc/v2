@@ -11,6 +11,8 @@ import { EntityCard } from "#/components/common/entity-card";
 import { MetaRow } from "#/components/common/meta-row";
 import { ItemRouterLink } from "#/components/common/router-links";
 import { ScrollList } from "#/components/common/scroll-list";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import { ZonedTime } from "#/components/timezones/zoned-time";
 import {
 	type GlazeIcon,
 	Icon,
@@ -21,16 +23,17 @@ import {
 	TrendDown,
 	TrendUp,
 	Warning,
-} from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
+} from "#/design-system/icon";
+import { cn } from "#/design-system/lib/utils";
+import { Button } from "#/design-system/ui/button";
 import {
 	Empty,
 	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
 	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
-import { useFilteredRows } from "#/components/glaze/ui/filter-bar";
+} from "#/design-system/ui/empty-state";
+import { useFilteredRows } from "#/design-system/ui/filter-bar";
 import {
 	Item,
 	ItemContent,
@@ -38,21 +41,18 @@ import {
 	ItemMedia,
 	ItemMeta,
 	ItemTitle,
-} from "#/components/glaze/ui/item";
+} from "#/design-system/ui/item";
 import {
 	StatusMark,
 	type StatusValue,
 	statusVariants,
-} from "#/components/glaze/ui/status";
-import { MascotArt } from "#/components/mascot/mascot-art";
-import { ZonedTime } from "#/components/timezones/zoned-time";
+} from "#/design-system/ui/status";
 import type {
 	AnalyticsEvent,
 	EventImpact,
 	EventKind,
 } from "#/lib/analytics-events";
 import type { DateRange } from "#/lib/date-range";
-import { cn } from "#/lib/glaze/utils";
 
 const KIND_ICON = {
 	spike: TrendUp,

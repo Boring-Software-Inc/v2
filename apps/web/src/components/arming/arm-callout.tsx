@@ -1,25 +1,28 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { Forge } from "@tripwire/contracts";
+import { GitCafeMirrorNotice } from "#/components/forges/gitcafe-mirror-notice";
 import {
 	Alert,
 	AlertAction,
 	AlertDescription,
 	AlertTitle,
-} from "#/components/glaze/ui/alert";
-import { Button } from "#/components/glaze/ui/button";
+} from "#/design-system/ui/alert";
+import { Button } from "#/design-system/ui/button";
 import {
 	Card,
 	CardDescription,
 	CardFooter,
 	CardHeader,
 	CardTitle,
-} from "#/components/glaze/ui/card";
-import { toast } from "#/components/glaze/ui/toast";
+} from "#/design-system/ui/card";
+import { toast } from "#/design-system/ui/toast";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { armRepo } from "#/lib/arm.functions";
 import { orgContextQueryOptions } from "#/lib/org.query";
 import { trackEvent } from "#/lib/track";
 
 interface ArmCalloutProps {
+	forge: Forge;
 	org: string;
 	repo: string;
 	repoFullName: string;
@@ -41,7 +44,9 @@ function useArm(org: string, repo: string, repoFullName: string) {
 				return;
 			}
 			toast.fail(
-				`Tripwire did not turn on for ${repoFullName}. Reload the page and try again.`,
+				!result.ok && result.reason === "queue-unavailable"
+					? "Tripwire did not turn on. Try again in a moment."
+					: `Tripwire did not turn on for ${repoFullName}. Reload the page and try again.`,
 			);
 		},
 		onError: () =>
@@ -52,6 +57,7 @@ function useArm(org: string, repo: string, repoFullName: string) {
 }
 
 export function ArmCallout({
+	forge,
 	org,
 	repo,
 	repoFullName,
@@ -75,6 +81,7 @@ export function ArmCallout({
 						each change request against your rules and block the ones that break
 						them.
 						{orgContext && !canArm ? " An org admin can turn it on." : null}
+						{forge === "gitcafe" ? <GitCafeMirrorNotice /> : null}
 					</CardDescription>
 				</CardHeader>
 				{canArm ? (
@@ -100,6 +107,7 @@ export function ArmCallout({
 				{canArm || !orgContext
 					? "Tripwire ignores every change request here until you turn it on."
 					: "Tripwire ignores every change request here until an org admin turns it on."}
+				{forge === "gitcafe" ? <GitCafeMirrorNotice /> : null}
 			</AlertDescription>
 			{canArm ? (
 				<AlertAction>

@@ -1,12 +1,20 @@
 import { describe, expect, test } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+	createMemoryHistory,
+	createRootRoute,
+	createRoute,
+	createRouter,
+	RouterProvider,
+} from "@tanstack/react-router";
 import { renderToStaticMarkup, renderToString } from "react-dom/server";
 import { SAMPLE_RUN } from "#/components/responses/sample-run";
 import { PassedGroup } from "#/components/runs/branch-card";
 import { RunChainView } from "#/components/runs/run-chain";
+import { SupersededRunChain } from "#/components/runs/superseded-run-chain";
 import { toPublicRunView } from "#/lib/run-access";
 import { buildRunChain, type ChainBranch } from "#/lib/run-chain";
-import type { RunView } from "#/lib/runs.functions";
+import type { RunLinkView, RunView } from "#/lib/runs.functions";
 
 const WITH_REVIEW: RunView = {
 	...SAMPLE_RUN,
@@ -45,8 +53,10 @@ describe("run chain outcome node", () => {
 		expect(render(WITH_REVIEW, 8)).toContain("+2.7s");
 	});
 
-	test("shows each clock time with its zone", () => {
-		expect(render(WITH_REVIEW, 8)).toMatch(/\d{2}:\d{2}:\d{2} UTC/);
+	test("keeps the exact event time accessible behind the relative label", () => {
+		const html = render(WITH_REVIEW, 8);
+		expect(html).toContain('dateTime="2026-10-21T10:14:58.000Z"');
+		expect(html).toContain("10:14:58 AM UTC");
 	});
 
 	test("shows the offset of a run still waiting for review", () => {
@@ -86,6 +96,108 @@ describe("passed workflows group", () => {
 			/>,
 		);
 		expect(markup).toContain(">2 workflows passed<");
+	});
+});
+
+describe("superseded run chain", () => {
+	const runs: RunLinkView[] = [
+		{
+			id: "run-1",
+			createdAt: "2026-10-21T14:02:07.000Z",
+			status: "superseded",
+			verdict: "block",
+			eventKind: "change-request.opened",
+			actor: "g-r-i-m",
+			headSha: "aaa",
+			rerun: false,
+		},
+		{
+			id: "run-2",
+			createdAt: "2026-10-21T14:07:43.000Z",
+			status: "completed",
+			verdict: "block",
+			eventKind: "change-request.updated",
+			actor: "g-r-i-m",
+			headSha: "bbb",
+			rerun: false,
+		},
+		{
+			id: "run-3",
+			createdAt: "2026-10-21T14:12:40.000Z",
+			status: "completed",
+			verdict: "pass",
+			eventKind: "change-request.updated",
+			actor: "g-r-i-m",
+			headSha: "ccc",
+			rerun: false,
+		},
+	];
+
+	test("is collapsed by default behind the predecessor label", async () => {
+		const root = createRootRoute();
+		const route = createRoute({
+			getParentRoute: () => root,
+			path: "runs/$runId",
+			component: () => (
+				<QueryClientProvider client={new QueryClient()}>
+					<SupersededRunChain
+						replaces={runs[1] ?? null}
+						runs={runs}
+						selectedRunId="run-3"
+					/>
+				</QueryClientProvider>
+			),
+		});
+		const router = createRouter({
+			isServer: true,
+			origin: "http://localhost",
+			routeTree: root.addChildren([route]),
+			history: createMemoryHistory({ initialEntries: ["/runs/run-1"] }),
+		});
+		await router.load();
+		const markup = renderToStaticMarkup(<RouterProvider router={router} />);
+		expect(markup).toContain("Replaces the run from");
+		expect(markup).toContain('aria-expanded="false"');
+		expect(markup).not.toContain("Runs in this superseded chain");
+	});
+
+	test("replaces the newest run's single predecessor link at the event node", async () => {
+		const latest: RunView = {
+			...SAMPLE_RUN,
+			id: "run-3",
+			previousRun: runs[1] ?? null,
+			relatedRuns: runs,
+		};
+		const view = toPublicRunView(latest, 0);
+		const root = createRootRoute();
+		const route = createRoute({
+			getParentRoute: () => root,
+			path: "runs/$runId",
+			component: () => (
+				<QueryClientProvider client={new QueryClient()}>
+					<RunChainView
+						chain={buildRunChain(view)}
+						context={{
+							level: 0,
+							maintainer: false,
+							repo: view.repoFullName,
+							sha: view.headSha,
+						}}
+					/>
+				</QueryClientProvider>
+			),
+		});
+		const router = createRouter({
+			isServer: true,
+			origin: "http://localhost",
+			routeTree: root.addChildren([route]),
+			history: createMemoryHistory({ initialEntries: ["/runs/run-3"] }),
+		});
+		await router.load();
+		const markup = renderToStaticMarkup(<RouterProvider router={router} />);
+		expect(markup).toContain("Replaces the run from");
+		expect(markup).toContain('aria-expanded="false"');
+		expect(markup).not.toContain("Runs in this superseded chain");
 	});
 });
 

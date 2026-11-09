@@ -3,10 +3,20 @@ import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { BACKFILL_RUN_LABEL, FORGE_BY_ID } from "@tripwire/contracts";
 import { useMemo, useState } from "react";
 import { ForgeMark } from "#/components/common/forge-marks";
+import {
+	HistoryBackControl,
+	useCanGoBack,
+} from "#/components/common/history-back-control";
 import { MetaRow } from "#/components/common/meta-row";
-import { GithubMark, Icon, Retry } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
-import { CopyButton } from "#/components/glaze/ui/copy-button";
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Page, PageBody, PageHeader } from "#/components/layouts/page";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import { RunChainView, RunStatusMark } from "#/components/runs/run-chain";
+import { RunPageSkeleton } from "#/components/runs/run-page-skeleton";
+import { ZoneOrgScope } from "#/components/timezones/zoned-time";
+import { GithubMark, Icon, Retry } from "#/design-system/icon";
+import { Button } from "#/design-system/ui/button";
+import { CopyButton } from "#/design-system/ui/copy-button";
 import {
 	Dialog,
 	DialogAction,
@@ -18,20 +28,15 @@ import {
 	DialogHeader,
 	DialogTitle,
 	DialogTrigger,
-} from "#/components/glaze/ui/dialog";
+} from "#/design-system/ui/dialog";
 import {
 	Empty,
 	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
-	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
-import { toast } from "#/components/glaze/ui/toast";
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { MascotArt } from "#/components/mascot/mascot-art";
-import { RunChainView, RunStatusMark } from "#/components/runs/run-chain";
-import { RunPageSkeleton } from "#/components/runs/run-page-skeleton";
-import { ZonedTime, ZoneOrgScope } from "#/components/timezones/zoned-time";
+} from "#/design-system/ui/empty-state";
+import { toast } from "#/design-system/ui/toast";
+import { PageTitle } from "#/design-system/ui/typography";
 import {
 	getRerunPreview,
 	rerunChangeRequest,
@@ -60,14 +65,14 @@ export function RunPage() {
 	}
 	if (!run) {
 		return (
-			<div className="flex min-h-dvh items-center justify-center bg-page px-4">
+			<main data-layout-role="run-not-found">
 				<Empty
 					art={<MascotArt mood="run-not-found" />}
 					className="max-w-sm"
 					reason="no-results"
 				>
 					<EmptyHeader>
-						<EmptyTitle>Run not found</EmptyTitle>
+						<PageTitle>Run not found</PageTitle>
 						<EmptyDescription>
 							The link may be wrong, or the run is in an org you are not a
 							member of.
@@ -84,19 +89,18 @@ export function RunPage() {
 						</Button>
 					</EmptyContent>
 				</Empty>
-			</div>
+			</main>
 		);
 	}
 
 	if (run.access === "public") {
 		return (
-			<div className="flex min-h-dvh flex-col bg-page text-text-1">
-				<div className="flex-1">
+			<div data-layout-role="public-run-shell">
+				<main data-layout-role="public-run-main">
 					<RunBody run={run} />
-				</div>
-				<footer className="border-line-faint border-t px-4 py-4 text-center type-caption text-text-2">
+				</main>
+				<footer data-layout-role="public-run-footer">
 					<a
-						className="text-text-1 hover:underline"
 						href={siteConfig.githubRepositoryUrl}
 						rel="noreferrer"
 						target="_blank"
@@ -117,6 +121,7 @@ export function RunPage() {
 }
 
 function RunBody({ run }: { run: RunView }) {
+	const canGoBack = useCanGoBack();
 	const chain = useMemo(
 		() =>
 			buildRunChain(run, mergeLiveSteps(run.status, run.snapshot, run.steps)),
@@ -127,42 +132,44 @@ function RunBody({ run }: { run: RunView }) {
 		<ZoneOrgScope
 			org={run.access === "public" ? undefined : (run.orgSlug ?? undefined)}
 		>
-			<div className="px-4 py-6 md:px-8 md:py-10">
-				<div className="mx-auto flex w-full max-w-220 flex-col gap-10">
-					<header className="flex flex-col gap-2">
-						<div className="flex flex-wrap items-center justify-between gap-3">
-							<h1 className="type-title">
-								{run.subjectNumber ? `Run on #${run.subjectNumber}` : "Run"}
-							</h1>
-							<div className="flex flex-wrap items-center gap-2">
+			<Page purpose="task">
+				<PageHeader
+					actions={
+						<>
+							{run.access !== "public" ? (
 								<CopyButton
 									label="run as Markdown"
-									size="icon"
+									showLabel
 									title="Copy run as Markdown"
 									value={() =>
 										runToMarkdown(run, formatRelativeTime(run.createdAt))
 									}
 									variant="ghost"
 								/>
-								<ViewOnForgeButton run={run} />
-								{run.canRerun && run.orgSlug && run.repoName ? (
-									<RerunRunButton
-										number={run.subjectNumber}
-										org={run.orgSlug}
-										repo={run.repoName}
-										subtitle={`#${run.subjectNumber} in ${run.repoFullName}`}
-									/>
-								) : null}
-							</div>
-						</div>
-						<MetaRow className="type-body-sm text-text-2" wrap>
+							) : null}
+							<ViewOnForgeButton run={run} />
+							{run.canRerun && run.orgSlug && run.repoName ? (
+								<RerunRunButton
+									number={run.subjectNumber}
+									org={run.orgSlug}
+									repo={run.repoName}
+									subtitle={`#${run.subjectNumber} in ${run.repoFullName}`}
+								/>
+							) : null}
+						</>
+					}
+					navigation={canGoBack ? <HistoryBackControl /> : undefined}
+					metadata={
+						<MetaRow wrap>
 							<RunStatusMark outcome={chain.outcome} />
 							{run.backfill ? <span>{BACKFILL_RUN_LABEL}</span> : null}
 							<span>{run.repoFullName}</span>
 							<span>{formatRelativeTime(run.createdAt)}</span>
-							<ZonedTime at={run.createdAt} format="date-time" />
 						</MetaRow>
-					</header>
+					}
+					title={run.subjectNumber ? `Run on #${run.subjectNumber}` : "Run"}
+				/>
+				<PageBody>
 					<RunChainView
 						chain={chain}
 						context={{
@@ -172,8 +179,8 @@ function RunBody({ run }: { run: RunView }) {
 							sha: run.headSha,
 						}}
 					/>
-				</div>
-			</div>
+				</PageBody>
+			</Page>
 		</ZoneOrgScope>
 	);
 }

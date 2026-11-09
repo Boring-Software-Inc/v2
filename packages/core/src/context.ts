@@ -1,4 +1,8 @@
-import type { NormalizedEvent } from "@tripwire/contracts";
+import type {
+	NormalizedEvent,
+	StarredContributionCount,
+	StarredContributionQuery,
+} from "@tripwire/contracts";
 
 /**
  * RuleContext — everything a rule may read, pre-fetched by the worker (§5.8).
@@ -9,9 +13,10 @@ import type { NormalizedEvent } from "@tripwire/contracts";
 
 export interface ContextDiffFile {
 	path: string;
-	status: "added" | "modified" | "removed" | "renamed";
-	additions: number;
-	deletions: number;
+	status: "added" | "modified" | "removed" | "renamed" | null;
+	additions: number | null;
+	deletions: number | null;
+	patchUnavailable?: "binary" | "too-large" | "omitted" | "unavailable" | null;
 	patch?: string;
 }
 
@@ -24,14 +29,14 @@ export interface ContextCommit {
 
 export interface ContextContributor {
 	login: string;
-	/** ISO — account creation time on the forge. */
-	createdAt: string;
-	followers: number;
-	publicRepos: number;
+	/** Null facts are unavailable, never evidence of an empty or new account. */
+	createdAt: string | null;
+	followers: number | null;
+	publicRepos: number | null;
 	/** Profile README / bio text; null when the forge has none. */
 	profileText: string | null;
 	/** Merged change requests by this contributor in the subject repo. */
-	mergedInRepo: number;
+	mergedInRepo: number | null;
 	/**
 	 * Merged change requests in repos this contributor does NOT own — the global
 	 * "someone else accepted their work" signal (min-merged-prs@2). null ⇒ the
@@ -39,9 +44,9 @@ export interface ContextContributor {
 	 */
 	mergedElsewhere: number | null;
 	/** ISO timestamps of the contributor's recent change requests, newest first. */
-	recentChangeRequestTimes: string[];
-	isOrgMember: boolean;
-	isMaintainer: boolean;
+	recentChangeRequestTimes: string[] | null;
+	isOrgMember: boolean | null;
+	isMaintainer: boolean | null;
 }
 
 /**
@@ -81,4 +86,8 @@ export interface RuleContext {
 	contributor: ContextContributor | null;
 	/** Injected by the worker when AI credentials exist (§8). */
 	generate?: AiReviewGenerate;
+	/** Reads public GitHub history for the pull request author, if available. */
+	countStarredContributions?: (
+		query: StarredContributionQuery,
+	) => Promise<StarredContributionCount | null>;
 }

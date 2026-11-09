@@ -1,12 +1,12 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronDown, Icon } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
+import { ChevronDown, Icon } from "#/design-system/icon";
+import { Button } from "#/design-system/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuLinkItem,
 	DropdownMenuTrigger,
-} from "#/components/glaze/ui/dropdown-menu";
+} from "#/design-system/ui/dropdown-menu";
 
 export function usedInLabel(count: number): string {
 	return `Used in ${count} ${count === 1 ? "workflow" : "workflows"}`;

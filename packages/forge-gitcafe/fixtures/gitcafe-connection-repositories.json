@@ -1,0 +1,17 @@
+{
+	"items": [
+		{
+			"id": "repo_01m608d2crfqzt2vc8akngqsc0",
+			"owner": "boring",
+			"name": "scratch",
+			"description": "Tripwire testing",
+			"homepage": null,
+			"topics": [],
+			"visibility": "public",
+			"defaultBranch": "main",
+			"archivedAt": null,
+			"updatedAt": "2026-10-28T03:21:03.202777Z"
+		}
+	],
+	"next": null
+}

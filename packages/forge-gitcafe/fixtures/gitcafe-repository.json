@@ -1,0 +1,16 @@
+{
+	"id": "repo_01kt3jc1ktfcf8nrrqrqs1wf0d",
+	"name": "ashlar",
+	"visibility": "public",
+	"owner": "versecafe",
+	"canReadSettings": false,
+	"description": "TUI framework for SolidJS v2",
+	"homepage": null,
+	"topics": [],
+	"defaultBranch": "main",
+	"version": 2,
+	"archivedAt": null,
+	"createdAt": "2026-06-02T07:04:36.726Z",
+	"updatedAt": "2026-10-27T08:01:20.798Z",
+	"parent": null
+}

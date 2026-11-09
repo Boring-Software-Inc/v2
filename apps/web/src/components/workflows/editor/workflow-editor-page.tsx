@@ -2,26 +2,21 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { liveNodeTouches, workingAgents } from "@tripwire/contracts";
 import { AgentPresence } from "#/components/agent/agent-presence";
-import { ArrowLeft, Icon } from "#/components/glaze/icon";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
-import {
-	Empty,
-	EmptyContent,
-	EmptyDescription,
-	EmptyHeader,
-	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
-import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { DraftActions } from "#/components/workflows/draft-actions";
 import { AgentWorkContext } from "#/components/workflows/editor/agent-work-context";
 import { WorkflowEditor } from "#/components/workflows/editor/workflow-editor";
+import { EditorFrameSkeleton } from "#/components/workflows/editor/workflow-editor-page-skeleton";
+import { Badge } from "#/design-system/ui/badge";
 import {
-	EditorFrameSkeleton,
-	PAGE_FRAME,
-} from "#/components/workflows/editor/workflow-editor-page-skeleton";
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+} from "#/design-system/ui/empty-state";
+import { SkeletonSwap } from "#/design-system/ui/skeleton";
+import { PageTitle } from "#/design-system/ui/typography";
 import { useAgentMotion } from "#/hooks/use-agent-motion";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { useWorkClock } from "#/hooks/use-work-clock";
@@ -105,37 +100,34 @@ export function WorkflowEditorPage() {
 	let body: React.ReactNode = null;
 	if (!(loading || workflow)) {
 		body = (
-			<div className="grid flex-1 place-items-center p-4">
+			<div data-layout-role="workflow-editor-not-found">
 				<Empty
 					art={<MascotArt mood="workflow-not-found" />}
 					reason="no-results"
 				>
 					<EmptyHeader>
-						<EmptyTitle>Workflow not found</EmptyTitle>
+						<PageTitle>Workflow not found</PageTitle>
 						<EmptyDescription>
 							Someone may have deleted it, or the link is out of date.
 						</EmptyDescription>
 					</EmptyHeader>
 					<EmptyContent>
-						<Button
-							nativeButton={false}
-							render={
-								<Link params={{ org, repo }} to="/$org/$repo/workflows" />
-							}
-							size="sm"
-							variant="secondary"
+						<Link
+							data-layout-role="workflow-editor-recovery-link"
+							params={{ org, repo }}
+							to="/$org/$repo/workflows"
 						>
-							<Icon icon={ArrowLeft} />
-							Back to workflows
-						</Button>
+							View workflows
+						</Link>
 					</EmptyContent>
 				</Empty>
 			</div>
 		);
-	} else if (!loading && workflow) {
+	} else if (!loading && workflow && repoCtx) {
 		body = (
 			<AgentWorkContext.Provider value={{ touches, motion }}>
 				<WorkflowEditor
+					forge={repoCtx.forge}
 					aiCredits={aiCreditsOf(ruleViews)}
 					customRules={customRules}
 					definition={shownDefinition(workflow)}
@@ -163,14 +155,17 @@ export function WorkflowEditorPage() {
 							/>
 						) : undefined
 					}
+					headerNote={
+						draftId && canManage
+							? `This preview is read-only. Click “${workflow.enabled ? "Save over live version" : "Save workflow"}” to unlock editing and move nodes.`
+							: undefined
+					}
 					headerLeading={
 						<>
-							{draftId ? <Badge variant="outline">Draft</Badge> : null}
-							<AgentPresence
-								agents={agents}
-								className="max-md:hidden"
-								motion={motion}
-							/>
+							{draftId ? <Badge variant="outline">Draft preview</Badge> : null}
+							<span data-layout-role="workflow-editor-agent-presence">
+								<AgentPresence agents={agents} motion={motion} />
+							</span>
 						</>
 					}
 					key={`${workflow.id}:${draftId ?? "saved"}`}
@@ -220,9 +215,8 @@ export function WorkflowEditorPage() {
 
 	return (
 		<DashboardLayout counts={{}}>
-			<div className={PAGE_FRAME}>
+			<div data-layout-role="workflow-editor-frame">
 				<SkeletonSwap
-					className="flex min-h-0 flex-1 flex-col"
 					fallback={<EditorFrameSkeleton />}
 					label="Loading workflow"
 					loading={loading}

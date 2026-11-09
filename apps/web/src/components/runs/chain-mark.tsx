@@ -18,7 +18,7 @@ import {
 	Undo,
 	Waiting,
 	Warning,
-} from "#/components/glaze/icon";
+} from "#/design-system/icon";
 import type { ChainGlyph, ChainTone } from "#/lib/run-chain";
 import { cn } from "#/lib/utils";
 
@@ -124,11 +124,13 @@ export function ChainNode({
 export function ChainRow({
 	node,
 	line = true,
+	lineClassName,
 	children,
 	className,
 }: {
 	node: ReactNode;
 	line?: boolean;
+	lineClassName?: string;
 	children: ReactNode;
 	className?: string;
 }) {
@@ -136,7 +138,12 @@ export function ChainRow({
 		<li className="flex gap-4">
 			<div className="flex w-6 shrink-0 flex-col items-center">
 				{node}
-				{line ? <span aria-hidden className="w-px grow bg-line" /> : null}
+				{line ? (
+					<span
+						aria-hidden
+						className={cn("w-px grow bg-line", lineClassName)}
+					/>
+				) : null}
 			</div>
 			<div className={cn("flex min-w-0 flex-1 flex-col gap-1 pb-8", className)}>
 				{children}

@@ -1,9 +1,40 @@
 import { createServerFn } from "@tanstack/react-start";
+import { setResponseStatus } from "@tanstack/react-start/server";
 import type { Forge, ForgeConnection } from "@tripwire/contracts";
+import {
+	type OrganizationForgeConnections,
+	organizationConnectionsInputSchema,
+	organizationForgeConnectionsSchema,
+} from "@tripwire/contracts";
 import {
 	accessGuardMiddleware,
 	notImpersonatingMiddleware,
 } from "#/lib/server/gated-server-fn";
+import { orgPermissionMiddleware } from "#/lib/server/org-guard";
+
+export const listOrganizationForgeConnections = createServerFn({
+	method: "GET",
+})
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("connections:manage"),
+	])
+	.inputValidator((input) => organizationConnectionsInputSchema.parse(input))
+	.handler(async ({ context }): Promise<OrganizationForgeConnections> => {
+		const { getDb } = await import("#/lib/server/db");
+		const { repositoryConnectionServices } = await import("@tripwire/db");
+		const connections =
+			await repositoryConnectionServices.listOrganizationForgeConnections(
+				getDb().db,
+				context.org.id,
+			);
+		const parsed = organizationForgeConnectionsSchema.safeParse(connections);
+		if (!parsed.success) {
+			setResponseStatus(500, "Invalid forge connection data");
+			throw new Error(parsed.error.message);
+		}
+		return parsed.data;
+	});
 
 /**
  * Every forge the signed-in user has linked, with what tripwire can see through

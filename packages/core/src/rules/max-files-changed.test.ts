@@ -4,6 +4,28 @@ import { maxFilesChanged } from "./max-files-changed.ts";
 import { fixtureContext, fixtureDiff } from "./test-context.ts";
 
 describe("max-files-changed@1", () => {
+	test("complete filenames remain usable when per-file metadata is unavailable", async () => {
+		const ctx = await fixtureContext({
+			diff: fixtureDiff([
+				{
+					status: null,
+					additions: null,
+					deletions: null,
+					patchUnavailable: "unavailable",
+				},
+				{
+					status: null,
+					additions: null,
+					deletions: null,
+					patchUnavailable: "unavailable",
+				},
+			]),
+		});
+		const result = await evaluateRule(maxFilesChanged, ctx, { max: 1 });
+		expect(result.status).toBe("evaluated");
+		expect(result.passed).toBe(false);
+		expect(result.evidence).toEqual({ filesChanged: 2, max: 1 });
+	});
 	test("passes a small diff", async () => {
 		const ctx = await fixtureContext({ diff: fixtureDiff([{}, {}]) });
 		const result = await evaluateRule(maxFilesChanged, ctx, { max: 10 });

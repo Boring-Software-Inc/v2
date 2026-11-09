@@ -203,7 +203,11 @@ describe("the sweep closes reviews left waiting on closed change requests", () =
 			"comment",
 			"set-check",
 		]);
-		expect(await moderationServices.listPendingItems(db, REPO)).toHaveLength(0);
+		expect(
+			await moderationServices.listPendingItems(db, [
+				{ forge: "github", fullName: REPO },
+			]),
+		).toHaveLength(0);
 	});
 });
 

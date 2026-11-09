@@ -1,4 +1,5 @@
 import {
+	stripWorkflowSecrets,
 	validationIssueText,
 	type WorkflowDefinition,
 	type WorkflowPushChange,
@@ -42,6 +43,24 @@ export interface PushReviewWorkflow {
 }
 
 function codeOf(entry: PushReviewSource): PushReviewCode {
+	if (
+		entry.before?.authoredSource !== undefined ||
+		entry.after.authoredSource !== undefined
+	) {
+		const reviewText = (definition: WorkflowDefinition) => {
+			const { authoredSource, ...graph } = stripWorkflowSecrets(definition);
+			const compiled = JSON.stringify(graph, null, "\t")
+				.split("\n")
+				.map((line) => `// ${line}`)
+				.join("\n");
+			return `${authoredSource ?? "// This workflow has no saved TypeScript source."}\n\n// Compiled graph sent to Tripwire\n${compiled}\n`;
+		};
+		return {
+			kind: "code",
+			before: entry.before ? reviewText(entry.before) : "",
+			after: reviewText(entry.after),
+		};
+	}
 	const named = entry.before ?? entry.after;
 	const key = workflowKeys([named]).get(named.id);
 	const after = workflowToCode(entry.after, { key });

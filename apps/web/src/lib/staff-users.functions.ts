@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import {
+	type DatabuddyFlag,
 	type FlagOverrideChoice,
 	type FlagSource,
 	type FlagSyncStatus,
@@ -186,16 +187,32 @@ export const getAdminUserFlags = createServerFn({ method: "GET" })
 		const { getDatabuddyApi, getFlagEvaluator } = await import(
 			"#/lib/server/staff-users"
 		);
-		const { getErrorMessage } = await import("@tripwire/utils");
+		const { getErrorMessage, getDatabuddyUserOverride } = await import(
+			"@tripwire/utils"
+		);
 		const user = await staffUserServices.getStaffUserDetail(db, data.userId);
 		const api = getDatabuddyApi();
 		let listError: string | null = null;
-		const remote = new Map<string, string | null>();
+		const remote = new Map<string, DatabuddyFlag>();
 		if (api) {
 			try {
 				for (const flag of await api.listFlags()) {
 					if (flag.status !== "archived") {
-						remote.set(flag.key, flag.name ?? null);
+						const detail =
+							flag.rules === undefined
+								? await api.getFlagByKey(flag.key)
+								: flag;
+						if (detail && detail.rules === undefined) {
+							listError = "Databuddy did not return the flag's rules.";
+							break;
+						}
+						if (
+							detail &&
+							detail.rules !== undefined &&
+							detail.status !== "archived"
+						) {
+							remote.set(flag.key, detail);
+						}
 					}
 				}
 			} catch (error) {
@@ -227,22 +244,27 @@ export const getAdminUserFlags = createServerFn({ method: "GET" })
 			rows: keys.map((key) => {
 				const value = byKey.get(key);
 				const override = overrideByKey.get(key);
+				const flag = remote.get(key);
 				return {
 					key,
-					name: remote.get(key) ?? null,
+					name: flag?.name ?? null,
 					inDatabuddy: connected && listError === null ? remote.has(key) : null,
 					evaluated:
 						value && value.reason !== null
 							? { enabled: value.enabled, source: value.source }
 							: null,
-					override: override
-						? {
-								choice: override.choice,
-								syncStatus: override.syncStatus,
-								syncError: override.syncError,
-								syncedAt: override.syncedAt,
-							}
-						: null,
+					override:
+						flag && listError === null
+							? {
+									choice: getDatabuddyUserOverride(
+										flag.rules ?? [],
+										data.userId,
+									),
+									syncStatus: "synced",
+									syncError: null,
+									syncedAt: override?.syncedAt ?? null,
+								}
+							: null,
 				};
 			}),
 		};
@@ -287,10 +309,9 @@ export const setAdminUserFlagOverride = createServerFn({ method: "POST" })
 			staffSetFlagOverrideInputSchema.parse(input),
 	)
 	.handler(async ({ data, context }): Promise<StaffActionResult> => {
-		const { getDatabuddyApi, enqueueFlagSync } = await import(
-			"#/lib/server/staff-users"
-		);
-		if (!getDatabuddyApi()) {
+		const { getDatabuddyApi } = await import("#/lib/server/staff-users");
+		const api = getDatabuddyApi();
+		if (!api) {
 			return {
 				ok: false,
 				error: "Databuddy is not connected, so flags are read-only here.",
@@ -303,12 +324,15 @@ export const setAdminUserFlagOverride = createServerFn({ method: "POST" })
 		if (!(await staffUserServices.getUserStaffBits(db, data.userId))) {
 			return { ok: false, error: "This user no longer exists." };
 		}
-		const result = await flagOverrideServices.setUserFlagOverride(db, {
+		const result = await flagOverrideServices.setUserFlagOverride(db, api, {
 			userId: data.userId,
 			flagKey: data.flagKey,
 			choice: data.choice,
 			actorId: context.staff.userId,
 		});
+		if (!result.ok) {
+			return result;
+		}
 		if (result.changed) {
 			await audit({
 				actorId: context.staff.userId,
@@ -316,7 +340,6 @@ export const setAdminUserFlagOverride = createServerFn({ method: "POST" })
 				action: "flag.override",
 				detail: { flagKey: data.flagKey, from: result.from, to: result.to },
 			});
-			await enqueueFlagSync(data.flagKey);
 		}
 		return { ok: true };
 	});

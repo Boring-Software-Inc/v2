@@ -4,11 +4,11 @@ import {
 	ChartAtRest,
 	hourlyZeroRows,
 } from "#/components/analytics/chart-at-rest";
-import { Button } from "#/components/glaze/ui/button";
-import { Chart } from "#/components/glaze/ui/chart";
-import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { OrgAnalyticsBodySkeleton } from "#/components/organizations/org-analytics-page-skeleton";
+import { Button } from "#/design-system/ui/button";
+import { Chart } from "#/design-system/ui/chart";
+import { SkeletonSwap } from "#/design-system/ui/skeleton";
 import type { OrgAnalyticsSummary } from "#/lib/org.functions";
 import { orgAnalyticsQueryOptions } from "#/lib/org.query";
 

@@ -1,3 +1,17 @@
+import {
+	sdkBooleanValueSchema,
+	sdkInnerComparisonSchema,
+	sdkListArgumentSchema,
+	sdkNumberArgumentSchema,
+	sdkNumberValueSchema,
+	sdkProducedTypeSchema,
+	sdkRegexArgumentSchema,
+	sdkScanMatchesSchema,
+	sdkScanPatternsSchema,
+	sdkStringListSchema,
+	sdkTextMapSchema,
+	sdkTextValueSchema,
+} from "@tripwire/contracts";
 import type { SignalRef, SignalRule } from "./client.ts";
 import type { SerializedComparison } from "./comparison.ts";
 import { globMatch } from "./glob.ts";
@@ -6,16 +20,6 @@ import { type ScanMatch, type ScanPattern, scanTextMap } from "./scan.ts";
 import type { SignalKind } from "./signal.ts";
 import { nonLatinScan } from "./text-metrics.ts";
 import { windowMs } from "./window.ts";
-
-/**
- * Evaluation-time type safety. The evaluator iterates signals generically,
- * so a produced value arrives as `unknown`. Before ANY comparison reads it,
- * the value is re-narrowed through a discriminated dispatch on the signal's
- * runtime `type.kind`. There is no bare `value as T` anywhere on this path:
- * every cast sits directly behind the typeof / Array.isArray check that
- * proves it. A mismatch between a producer's value and its declared kind is
- * a bug, and throws.
- */
 
 export class SignalEvaluationError extends Error {
 	constructor(message: string) {
@@ -28,148 +32,139 @@ function fail(message: string): never {
 	throw new SignalEvaluationError(message);
 }
 
-// --- runtime re-narrowing: one guard per signal kind -------------------------
-
-function asNumber(value: unknown, id: string): number {
-	if (typeof value !== "number" || Number.isNaN(value)) {
-		fail(`signal ${id} declared number but produced ${typeof value}`);
+function asNumber(
+	value: Parameters<typeof sdkNumberValueSchema.safeParse>[0],
+	id: string,
+): number {
+	const parsed = sdkNumberValueSchema.safeParse(value);
+	if (!parsed.success) {
+		fail(
+			`signal ${id} declared number but produced ${sdkProducedTypeSchema.parse(value)}`,
+		);
 	}
-	return value;
+	return parsed.data;
 }
 
-function asText(value: unknown, id: string): string {
-	if (typeof value !== "string") {
-		fail(`signal ${id} declared text but produced ${typeof value}`);
+function asText(
+	value: Parameters<typeof sdkTextValueSchema.safeParse>[0],
+	id: string,
+): string {
+	const parsed = sdkTextValueSchema.safeParse(value);
+	if (!parsed.success) {
+		fail(
+			`signal ${id} declared text but produced ${sdkProducedTypeSchema.parse(value)}`,
+		);
 	}
-	return value;
+	return parsed.data;
 }
 
-function asBoolean(value: unknown, id: string): boolean {
-	if (typeof value !== "boolean") {
-		fail(`signal ${id} declared boolean but produced ${typeof value}`);
+function asBoolean(
+	value: Parameters<typeof sdkBooleanValueSchema.safeParse>[0],
+	id: string,
+): boolean {
+	const parsed = sdkBooleanValueSchema.safeParse(value);
+	if (!parsed.success) {
+		fail(
+			`signal ${id} declared boolean but produced ${sdkProducedTypeSchema.parse(value)}`,
+		);
 	}
-	return value;
+	return parsed.data;
 }
 
 function asTextMap(
-	value: unknown,
+	value: Parameters<typeof sdkTextMapSchema.safeParse>[0],
 	id: string,
-): Readonly<Record<string, string>> {
-	if (
-		typeof value !== "object" ||
-		value === null ||
-		Array.isArray(value) ||
-		Object.values(value).some((text) => typeof text !== "string")
-	) {
+) {
+	const parsed = sdkTextMapSchema.safeParse(value);
+	if (!parsed.success) {
 		fail(`signal ${id} declared textMap but produced something else`);
 	}
-	return value as Readonly<Record<string, string>>;
+	return parsed.data;
 }
 
-function isScanMatch(entry: unknown): entry is ScanMatch {
-	return (
-		typeof entry === "object" &&
-		entry !== null &&
-		typeof (entry as { kind?: unknown }).kind === "string" &&
-		typeof (entry as { value?: unknown }).value === "string" &&
-		typeof (entry as { location?: unknown }).location === "string"
-	);
-}
-
-function asScanMatches(value: unknown, id: string): readonly ScanMatch[] {
-	if (!Array.isArray(value) || !value.every(isScanMatch)) {
+function asScanMatches(
+	value: Parameters<typeof sdkScanMatchesSchema.safeParse>[0],
+	id: string,
+): readonly ScanMatch[] {
+	const parsed = sdkScanMatchesSchema.safeParse(value);
+	if (!parsed.success) {
 		fail(`signal ${id} resolved to scanMatches but the list is malformed`);
 	}
-	return value;
-}
-
-function isScanPattern(entry: unknown): entry is ScanPattern {
-	return (
-		typeof entry === "object" &&
-		entry !== null &&
-		typeof (entry as { kind?: unknown }).kind === "string" &&
-		(entry as { pattern?: unknown }).pattern instanceof RegExp
-	);
+	return parsed.data;
 }
 
 function scanPatternsArg(
-	patterns: unknown,
+	patterns: Parameters<typeof sdkScanPatternsSchema.safeParse>[0],
 	id: string,
 ): readonly ScanPattern[] {
-	if (!Array.isArray(patterns) || !patterns.every(isScanPattern)) {
+	const parsed = sdkScanPatternsSchema.safeParse(patterns);
+	if (!parsed.success) {
 		fail(`signal ${id} has a scan transform with malformed patterns`);
 	}
-	return patterns;
+	return parsed.data;
 }
 
-function asStringList(value: unknown, id: string, kind: string): string[] {
-	if (
-		!Array.isArray(value) ||
-		value.some((entry) => typeof entry !== "string")
-	) {
+function asStringList(
+	value: Parameters<typeof sdkStringListSchema.safeParse>[0],
+	id: string,
+	kind: string,
+): string[] {
+	const parsed = sdkStringListSchema.safeParse(value);
+	if (!parsed.success) {
 		fail(`signal ${id} declared ${kind} but produced a non string list`);
 	}
-	return value as string[];
+	return parsed.data;
 }
 
-// --- comparison arguments are unknown too; validate before use ---------------
-
 function numberArg(comparison: SerializedComparison, index: number): number {
-	const arg = comparison.args[index];
-	if (typeof arg !== "number") {
+	const parsed = sdkNumberArgumentSchema.safeParse(comparison.args[index]);
+	if (!parsed.success) {
 		fail(`comparison ${comparison.kind} needs a number argument`);
 	}
-	return arg;
+	return parsed.data;
 }
 
 function textArg(comparison: SerializedComparison): string {
-	const arg = comparison.args[0];
-	if (typeof arg !== "string") {
+	const parsed = sdkTextValueSchema.safeParse(comparison.args[0]);
+	if (!parsed.success) {
 		fail(`comparison ${comparison.kind} needs a text argument`);
 	}
-	return arg;
+	return parsed.data;
 }
 
 function booleanArg(comparison: SerializedComparison): boolean {
-	const arg = comparison.args[0];
-	if (typeof arg !== "boolean") {
+	const parsed = sdkBooleanValueSchema.safeParse(comparison.args[0]);
+	if (!parsed.success) {
 		fail(`comparison ${comparison.kind} needs a boolean argument`);
 	}
-	return arg;
+	return parsed.data;
 }
 
 function regexArg(comparison: SerializedComparison): RegExp {
-	const arg = comparison.args[0];
-	if (!(arg instanceof RegExp)) {
+	const parsed = sdkRegexArgumentSchema.safeParse(comparison.args[0]);
+	if (!parsed.success) {
 		fail(`comparison ${comparison.kind} needs a regular expression argument`);
 	}
-	return arg;
+	return parsed.data;
 }
 
 function listArg(comparison: SerializedComparison): readonly unknown[] {
-	const arg = comparison.args[0];
-	if (!Array.isArray(arg)) {
+	const parsed = sdkListArgumentSchema.safeParse(comparison.args[0]);
+	if (!parsed.success) {
 		fail(`comparison ${comparison.kind} needs a list argument`);
 	}
-	return arg;
+	return parsed.data;
 }
 
 function innerComparison(
 	comparison: SerializedComparison,
 ): SerializedComparison {
-	const arg = comparison.args[0];
-	if (
-		typeof arg !== "object" ||
-		arg === null ||
-		typeof (arg as { kind?: unknown }).kind !== "string" ||
-		!Array.isArray((arg as { args?: unknown }).args)
-	) {
+	const parsed = sdkInnerComparisonSchema.safeParse(comparison.args[0]);
+	if (!parsed.success) {
 		fail("comparison not needs an inner comparison argument");
 	}
-	return arg as SerializedComparison;
+	return parsed.data;
 }
-
-// --- per-kind comparison paths -----------------------------------------------
 
 function compareNumber(
 	value: number,
@@ -212,12 +207,11 @@ function compareText(value: string, comparison: SerializedComparison): boolean {
 		case "endsWith":
 			return value.endsWith(textArg(comparison));
 		case "containsAny":
-			return listArg(comparison).some(
-				(needle) => typeof needle === "string" && value.includes(needle),
-			);
+			return listArg(comparison).some((needle) => {
+				const parsed = sdkTextValueSchema.safeParse(needle);
+				return parsed.success && value.includes(parsed.data);
+			});
 		case "equals":
-			// textArg throws on a wrong-typed arg rather than === mismatching to a
-			// silent false, so a misconfigured rule fails loud, not quiet.
 			return value === textArg(comparison);
 		case "oneOf":
 			return listArg(comparison).includes(value);
@@ -259,11 +253,11 @@ function compareBoolean(
 }
 
 function globsArg(comparison: SerializedComparison): readonly string[] {
-	const arg = comparison.args[0];
-	if (!Array.isArray(arg) || arg.some((glob) => typeof glob !== "string")) {
+	const parsed = sdkStringListSchema.safeParse(comparison.args[0]);
+	if (!parsed.success) {
 		fail(`comparison ${comparison.kind} needs a list of glob patterns`);
 	}
-	return arg as string[];
+	return parsed.data;
 }
 
 function compareTextList(
@@ -293,7 +287,7 @@ function compareTextList(
  */
 export function evaluateComparison(
 	kind: SignalKind,
-	value: unknown,
+	value: ResolvedSignalValue["value"],
 	comparison: SerializedComparison,
 	signalId: string,
 ): boolean {
@@ -395,17 +389,19 @@ export function resolveSignalValue(
 		: { kind: "number", value: inWindow.length };
 }
 
+interface SignalRuleEvaluation {
+	passed: boolean;
+	resolvedValue: unknown;
+}
+
 /**
- * Evaluates one rule against the raw value its signal produced. `now` is the
- * evaluation clock, an input, so windowed rules stay deterministic.
- * `resolvedValue` is the post-transform value the comparison actually read
- * (the windowed count, the trimmed length, the raw value when there is no
- * transform), so evidence never recomputes what the verdict derived.
+ * `now` is the evaluation clock; `resolvedValue` is the post-transform value
+ * the comparison read, so evidence never recomputes the verdict's inputs.
  */
 export function evaluateSignalRule(
 	rule: SignalRule,
 	input: { value: unknown; now: string },
-): { passed: boolean; resolvedValue: unknown } {
+): SignalRuleEvaluation {
 	const resolved = resolveSignalValue(rule.signal, input);
 	return {
 		passed: evaluateComparison(

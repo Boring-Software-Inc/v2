@@ -1,4 +1,5 @@
 import { track } from "@databuddy/sdk";
+import { z } from "zod";
 
 type Events = {
 	signed_in: Record<string, never>;
@@ -29,18 +30,21 @@ const SESSION_ID = /^sess_[0-9a-f-]{36}$/;
 
 export type TrackingSearch = { anonId?: string; sessionId?: string };
 
-export function trackingSearch(
-	search: Record<string, unknown>,
+const trackingSearchSchema = z.object({
+	anonId: z.string().regex(ANON_ID).optional().catch(undefined),
+	sessionId: z.string().regex(SESSION_ID).optional().catch(undefined),
+});
+
+export function trackingSearch<SearchInput>(
+	search: SearchInput,
 ): TrackingSearch {
-	const out: TrackingSearch = {};
-	if (typeof search.anonId === "string" && ANON_ID.test(search.anonId)) {
-		out.anonId = search.anonId;
+	const parsed = trackingSearchSchema.parse(search);
+	const result: TrackingSearch = {};
+	if (parsed.anonId !== undefined) {
+		result.anonId = parsed.anonId;
 	}
-	if (
-		typeof search.sessionId === "string" &&
-		SESSION_ID.test(search.sessionId)
-	) {
-		out.sessionId = search.sessionId;
+	if (parsed.sessionId !== undefined) {
+		result.sessionId = parsed.sessionId;
 	}
-	return out;
+	return result;
 }

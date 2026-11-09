@@ -5,7 +5,7 @@ import { getSetupRunForLive } from "./setup.ts";
 
 export interface LiveViewer {
 	userId: string | null;
-	canSeeRepo: (repoFullName: string) => boolean;
+	canSeeRepo: (repoId: string) => boolean;
 }
 
 /**
@@ -37,7 +37,7 @@ export async function liveMessageFor(
 		return { type: "setup", orgId: found.orgId, run: found.run };
 	}
 	const repoFullName = await repoFullNameOf(db, note.repoId);
-	if (!(repoFullName && viewer.canSeeRepo(repoFullName))) {
+	if (!(repoFullName && viewer.canSeeRepo(note.repoId))) {
 		return null;
 	}
 	const work = await getWorkflowWork(db, {

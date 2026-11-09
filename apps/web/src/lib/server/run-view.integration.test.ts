@@ -306,6 +306,10 @@ describe("loadRunView, the chain of events", () => {
 		expect(view?.event?.title).toBe("Add a wallet");
 		expect(view?.nextRun?.id).toBe(secondRunId);
 		expect(view?.previousRun).toBeNull();
+		expect(view?.relatedRuns.map((run) => run.id)).toEqual([
+			firstRunId,
+			secondRunId,
+		]);
 		expect(view?.actions[0]?.url).toBe("https://github.com/acme/pub/runs/9001");
 		expect(view?.workflows).toEqual([
 			{ id: "default@1", name: "Rules", outcome: "pass" },
@@ -316,6 +320,10 @@ describe("loadRunView, the chain of events", () => {
 		const view = await loadRunView(db, secondRunId, NO_SESSION);
 		expect(view?.previousRun?.id).toBe(firstRunId);
 		expect(view?.nextRun).toBeNull();
+		expect(view?.relatedRuns.map((run) => run.id)).toEqual([
+			firstRunId,
+			secondRunId,
+		]);
 	});
 
 	test("members see who decided a review, the public sees only the decision", async () => {
@@ -378,5 +386,49 @@ describe("loadRunView, a comment run on the change request", () => {
 		const view = await loadRunView(db, commentRunId, SESSION);
 		expect(view?.previousRun).toBeNull();
 		expect(view?.nextRun).toBeNull();
+		expect(view?.relatedRuns).toEqual([]);
 	});
+});
+
+test("a private run cannot inherit visibility or access from a same-name public repo on another forge", async () => {
+	const { schema } = await import("@tripwire/db");
+	const name = "collision/private-run";
+	await repoServices.ensureRepo(db, {
+		forge: "github",
+		externalId: "collision-gh",
+		owner: "collision",
+		name: "private-run",
+		fullName: name,
+		private: false,
+	});
+	await repoServices.ensureRepo(db, {
+		forge: "opengit",
+		externalId: "collision-og",
+		owner: "collision",
+		name: "private-run",
+		fullName: name,
+		private: true,
+	});
+	const { generateId } = await import("@tripwire/utils");
+	const eventId = generateId();
+	await db.insert(schema.events).values({
+		id: eventId,
+		forge: "opengit",
+		deliveryId: eventId,
+		rawKind: "database-isolation-test",
+		raw: {},
+	});
+	const runId = await runServices.createRun(db, {
+		eventId,
+		repoFullName: name,
+		subjectNumber: 7,
+		headSha: "same-head",
+		snapshot: [DEFAULT_WORKFLOW],
+		status: "completed",
+		verdict: "block",
+	});
+	expect(await loadRunView(db, runId, NO_SESSION)).toBeNull();
+	expect(await loadRunView(db, runId, SESSION)).toBeNull();
+	const open = await loadRunView(db, runId, OPEN_DEV);
+	expect(open?.forge).toBe("opengit");
 });

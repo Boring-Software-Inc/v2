@@ -20,6 +20,7 @@ import {
 	responseServices,
 	runServices,
 } from "@tripwire/db";
+import { z } from "zod";
 import {
 	resolveRunAccess,
 	toFullRunView,
@@ -51,15 +52,11 @@ export async function loadRunView(
 	if (!result) {
 		return null;
 	}
-	// The repo row backs both the no-session privacy gate and the full view's
-	// re-run scope (org slug + repo name + the admin check).
-	/**
-	 * `runs` stores repo_full_name and no forge, so the forge comes from the repo
-	 * row. This was hardcoded to "github": an open-git run resolved NO repo, so
-	 * it lost its org, its re-run scope, and its custom rule names, and the page
-	 * quietly rendered a lesser version of itself.
-	 */
-	const forge = await repoServices.findRepoForge(db, result.run.repoFullName);
+	const eventRow = await eventServices.getEventById(db, result.run.eventId);
+	if (!eventRow) {
+		return null;
+	}
+	const forge = eventRow.forge;
 	const repo = forge
 		? await repoServices.getRepoByFullName(db, result.run.repoFullName, forge)
 		: null;
@@ -92,7 +89,8 @@ export async function loadRunView(
 			!session.authEnabled || permissions.includes("activity:manage");
 		canRerun = rerunner && result.run.subjectNumber !== null;
 	}
-	const nodeLabels = snapshotNodeLabels(result.run.workflowSnapshot);
+	const snapshot = parseSnapshot(result.run.workflowSnapshot as JsonValue);
+	const nodeLabels = snapshotNodeLabels(snapshot);
 	// Resolve rule display names through the merged catalog: built-ins via
 	// ruleDisplayName, custom refs via the repo's stored names — else a custom
 	// rule renders as its bare generated ref. Same class as the :resume label
@@ -106,8 +104,6 @@ export async function loadRunView(
 	);
 	const resolveRuleName = (ref: string | null): string | null =>
 		ref ? (customNameByRef.get(ref) ?? ruleDisplayName(ref)) : null;
-	const snapshot = parseSnapshot(result.run.workflowSnapshot as JsonValue);
-	const eventRow = await eventServices.getEventById(db, result.run.eventId);
 	const eventNormalized = (eventRow?.normalized ?? null) as JsonValue | null;
 	const scheduled = eventRow?.kind === "schedule.matched";
 	const siblings =
@@ -115,7 +111,7 @@ export async function loadRunView(
 			? []
 			: await runServices.listRunsForChangeRequest(
 					db,
-					result.run.repoFullName,
+					{ forge: eventRow.forge, fullName: result.run.repoFullName },
 					result.run.subjectNumber,
 				);
 	const position = siblings.findIndex((row) => row.id === result.run.id);
@@ -252,6 +248,7 @@ export async function loadRunView(
 			latest && position >= 0 && latest.id !== result.run.id
 				? runLink(latest)
 				: null,
+		relatedRuns: siblings.map(runLink),
 		backfill: result.run.backfill,
 		aiReviewNotRun: result.steps.some(isAiReviewNotRunStep),
 	};
@@ -310,9 +307,7 @@ export function collapseSurfaceActions(
 
 /** Synthetic step ids the executor emits that aren't snapshot nodes — the
  * resume floor records a block under this id when the graph drew none. */
-const SYNTHETIC_STEP_LABELS: Record<string, string> = {
-	"run:deny-floor": "block",
-};
+const SYNTHETIC_STEP_LABELS = new Map([["run:deny-floor", "block"]]);
 
 /**
  * The display label for a step. Resumed steps carry a trailing `:resume`
@@ -328,7 +323,7 @@ function resolveStepLabel(
 	return (
 		labels.get(nodeId) ??
 		labels.get(nodeId.replace(/:resume$/, "")) ??
-		SYNTHETIC_STEP_LABELS[nodeId]
+		SYNTHETIC_STEP_LABELS.get(nodeId)
 	);
 }
 
@@ -338,13 +333,12 @@ function resolveStepLabel(
  * mode, a trigger "trigger". Rules resolve from `ruleRef` in the component.
  * Labels carry no secret, so this runs before the public/full split.
  */
-function snapshotNodeLabels(snapshot: unknown): Map<string, string> {
+function snapshotNodeLabels(
+	snapshot: readonly WorkflowDefinition[],
+): Map<string, string> {
 	const labels = new Map<string, string>();
-	if (!Array.isArray(snapshot)) {
-		return labels;
-	}
-	for (const def of snapshot as WorkflowDefinition[]) {
-		for (const node of def.nodes ?? []) {
+	for (const def of snapshot) {
+		for (const node of def.nodes) {
 			const key = `${def.id}:${node.id}`;
 			if (node.type === "action") {
 				labels.set(
@@ -374,6 +368,10 @@ export type DeliveryState =
 	| { state: "queued" }
 	| { state: "failed"; reason: string };
 
+const deliveryPayloadSchema = z
+	.object({ deliveryFailure: z.string().optional() })
+	.catch({});
+
 function deliveryStatus(action: {
 	kind: string;
 	status: string;
@@ -385,14 +383,7 @@ function deliveryStatus(action: {
 	if (action.status === "executed") {
 		return { state: "sent" };
 	}
-	const payload =
-		action.payload && typeof action.payload === "object"
-			? (action.payload as Record<string, unknown>)
-			: {};
-	const failure =
-		typeof payload.deliveryFailure === "string"
-			? payload.deliveryFailure
-			: undefined;
+	const failure = deliveryPayloadSchema.parse(action.payload).deliveryFailure;
 	// Recorded + a logged failure ⇒ it was attempted and failed (still
 	// retrying, or abandoned if superseded). Recorded + no failure ⇒ not yet
 	// attempted.

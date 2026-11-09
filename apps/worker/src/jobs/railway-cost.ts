@@ -1,4 +1,9 @@
 import {
+	type JsonValue,
+	railwaySubscriptionPriceSchema,
+	railwayUsageQuantitySchema,
+} from "@tripwire/contracts";
+import {
 	RAILWAY_MEASUREMENTS,
 	RAILWAY_PROJECT_ID,
 	RAILWAY_RATES,
@@ -56,7 +61,7 @@ const MEASUREMENT_SET = new Set<string>(RAILWAY_MEASUREMENTS);
 export function priceRailwayUsage(
 	rows: UsageRow[],
 	names: Map<string, string>,
-): { services: RailwayServiceCost[]; totalUsd: number } {
+) {
 	const byService = new Map<string, RailwayServiceCost>();
 	const get = (serviceId: string): RailwayServiceCost => {
 		let s = byService.get(serviceId);
@@ -115,7 +120,7 @@ async function gql<T>(
 	fetchImpl: Fetch,
 	token: string,
 	query: string,
-	variables: Record<string, unknown>,
+	variables: Record<string, JsonValue>,
 ): Promise<T> {
 	const res = await fetchImpl(ENDPOINT, {
 		method: "POST",
@@ -178,7 +183,7 @@ async function fetchUsage(
 	});
 	return (data.usage ?? []).map((u) => ({
 		measurement: u.measurement,
-		value: typeof u.value === "number" ? u.value : Number(u.value),
+		value: railwayUsageQuantitySchema.parse(u.value),
 		serviceId: u.tags?.serviceId ?? null,
 	}));
 }
@@ -224,8 +229,11 @@ async function fetchPrices(
 		for (const ws of data.me?.workspaces ?? []) {
 			for (const sub of ws.customer?.subscriptions ?? []) {
 				for (const item of sub.items ?? []) {
-					if (typeof item.priceDollars === "number") {
-						prices[item.productId] = item.priceDollars;
+					const price = railwaySubscriptionPriceSchema.safeParse(
+						item.priceDollars,
+					);
+					if (price.success) {
+						prices[item.productId] = price.data;
 					}
 				}
 			}

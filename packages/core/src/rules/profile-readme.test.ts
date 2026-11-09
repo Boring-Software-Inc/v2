@@ -4,6 +4,25 @@ import { profileReadme } from "./profile-readme.ts";
 import { fixtureContext, fixtureContributor } from "./test-context.ts";
 
 describe("profile-readme@1", () => {
+	test("available text still evaluates without dates, counts, history or membership", async () => {
+		const ctx = await fixtureContext({
+			contributor: fixtureContributor({
+				createdAt: null,
+				followers: null,
+				publicRepos: null,
+				mergedInRepo: null,
+				mergedElsewhere: null,
+				recentChangeRequestTimes: null,
+				isOrgMember: null,
+				isMaintainer: null,
+			}),
+		});
+		const result = await evaluateRule(profileReadme, ctx, { minLength: 32 });
+		expect(result.status).toBe("evaluated");
+		expect(result.passed).toBe(true);
+		expect(result.evidence).toMatchObject({ hasProfileText: true });
+	});
+
 	test("passes a contributor with real profile text", async () => {
 		const result = await evaluateRule(profileReadme, await fixtureContext(), {
 			minLength: 32,

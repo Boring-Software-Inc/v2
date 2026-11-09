@@ -1,10 +1,10 @@
 import { type ReactNode, useId } from "react";
-import { Checkbox } from "#/components/glaze/ui/checkbox";
 import {
 	PreviewLinked,
 	type PreviewSetting,
 } from "#/components/responses/preview-link";
-import { cn } from "#/lib/glaze/utils";
+import { cn } from "#/design-system/lib/utils";
+import { Checkbox } from "#/design-system/ui/checkbox";
 
 const SETTING_ROW = "rounded-panel px-3 py-2";
 const SETTING_NESTED = "ps-10";

@@ -122,7 +122,7 @@ export async function listRuleViews(
 	);
 	const linkWorkflowId = (wireId: string | null): string | null =>
 		wireId ? (workflowRowIdByWireId.get(wireId) ?? null) : null;
-	const stats = repo ? await getRulesStats(db, repo.fullName) : { perRule: [] };
+	const stats = repo ? await getRulesStats(db, repo) : { perRule: [] };
 	const byRef = new Map(stats.perRule.map((s) => [s.ref, s]));
 	const customRows = await listCustomRules(db, repoId);
 	// Which workflows (enabled OR disabled) reference each custom rule — the
@@ -261,7 +261,7 @@ export async function getRulesHeaderStats(
 			falsePositiveRate: null,
 		};
 	}
-	const stats = await getRulesStats(db, repo.fullName);
+	const stats = await getRulesStats(db, repo);
 	return {
 		activeRules,
 		matches24h: stats.matches24h,

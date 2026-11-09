@@ -86,3 +86,44 @@ describe("changeRequestForgeLink", () => {
 		expect(changeRequestForgeLink("github", 7, null)).toBeNull();
 	});
 });
+
+test("inactive branch collision extras never replace the active event's link", async () => {
+	const { storedNormalizedEventSchema } = await import("@tripwire/contracts");
+	const schedule: NormalizedEvent = {
+		...base,
+		kind: "schedule.matched",
+		schedule: { workflowId: "w", nodeId: "n", tickId: "t" },
+		thread: {
+			kind: "issue",
+			number: 9,
+			title: "scheduled",
+			url: "https://github.com/test/issues/9",
+			state: "open",
+			author: "octo",
+			labels: [],
+			locked: false,
+			updatedAt: base.receivedAt,
+		},
+	};
+	for (const event of [push, comment, schedule]) {
+		const withExtras = storedNormalizedEventSchema.parse({
+			...event,
+			changeRequest: null,
+			installation: 23,
+		});
+		expect(eventForgeLink(withExtras)).toEqual(eventForgeLink(event));
+	}
+	expect(
+		eventForgeLink(
+			storedNormalizedEventSchema.parse({ ...opened, installation: 23 }),
+		),
+	).toEqual(eventForgeLink(opened));
+	const installation = storedNormalizedEventSchema.parse({
+		...base,
+		kind: "installation.created",
+		installation: { externalId: "1", account: "octo" },
+		repositories: [],
+		changeRequest: null,
+	});
+	expect(eventForgeLink(installation)).toBeNull();
+});

@@ -22,6 +22,7 @@ import {
 	ensureDemoRepo,
 	ensureTeamOrg,
 	orgServices,
+	repoServices,
 	runServices,
 	schema,
 	seedRun,
@@ -158,7 +159,10 @@ afterAll(async () => {
 	await container?.stop();
 });
 
-async function call(name: string, args: Record<string, unknown>) {
+async function call(
+	name: string,
+	args: NonNullable<Parameters<Client["callTool"]>[0]["arguments"]>,
+) {
 	return textSchema.parse(await client.callTool({ name, arguments: args }));
 }
 
@@ -540,7 +544,7 @@ describe("a repo argument names the repo the way people copy it", () => {
 		}
 	});
 
-	test("an org in the argument picks that org over the selected one", async () => {
+	test("a repo reference cannot silently override the requested org", async () => {
 		const otherId = await addOrg("other-team", {
 			member: true,
 			repo: "other-repo",
@@ -551,7 +555,8 @@ describe("a repo argument names the repo the way people copy it", () => {
 			org: orgSlug,
 			repo: "other-team/other-repo",
 		});
-		expect(result.isError ?? false).toBe(false);
+		expect(result.isError).toBe(true);
+		expect(result.content[0]?.text).toContain("requested org disagree");
 		const plain = await listed(both, { org: orgSlug, repo: "other-repo" });
 		expect(plain.structuredContent).toEqual({
 			error: `The org ${orgSlug} has no repo named other-repo.`,
@@ -582,6 +587,88 @@ describe("a repo argument names the repo the way people copy it", () => {
 			hint: "list_repos",
 			org: orgSlug,
 		});
+	});
+});
+
+describe("set_rule settings writes", () => {
+	test("merges partial settings, keeps omitted enabled state and leaves other rules alone", async () => {
+		const repo = repoRows[0] ?? never();
+		const before = await repoServices.listRuleConfigs(db, repo.id);
+		const first = await call("set_rule", {
+			org: orgSlug,
+			repo: repo.name,
+			ruleId: "pr-rate-limit",
+			enabled: true,
+			config: { maxPerWindow: 3, windowHours: 12 },
+		});
+		expect(first).toEqual({
+			content: [
+				{
+					type: "text",
+					text: '{\n  "saved": true,\n  "ruleId": "pr-rate-limit",\n  "enabled": true\n}',
+				},
+			],
+		});
+		const second = await call("set_rule", {
+			org: orgSlug,
+			repo: repo.name,
+			ruleId: "pr-rate-limit",
+			config: { maxPerWindow: 5 },
+		});
+		expect(second).toEqual(first);
+		const after = await repoServices.listRuleConfigs(db, repo.id);
+		expect(after.find((row) => row.ruleId === "pr-rate-limit")).toEqual({
+			ruleId: "pr-rate-limit",
+			version: 1,
+			enabled: true,
+			config: { maxPerWindow: 5, windowHours: 12 },
+		});
+		expect(after.filter((row) => row.ruleId !== "pr-rate-limit")).toEqual(
+			before.filter((row) => row.ruleId !== "pr-rate-limit"),
+		);
+	});
+
+	test("keeps shallow JSON-container merge behavior before rule-owned validation", async () => {
+		const repo = repoRows[0] ?? never();
+		for (const { stored, windowHours } of [
+			{
+				stored:
+					'{"maxPerWindow":3,"windowHours":12,"extra":{"nested":true},"__proto__":{"windowHours":1},"constructor":false}',
+				windowHours: 12,
+			},
+			{ stored: '[3,null,{"windowHours":1}]', windowHours: 24 },
+			{ stored: '"primitive"', windowHours: 24 },
+			{ stored: "false", windowHours: 24 },
+			{ stored: "null", windowHours: 24 },
+		]) {
+			await pool.query(
+				"UPDATE rule_configs SET config = $2::jsonb WHERE repo_id = $1 AND rule_id = 'pr-rate-limit'",
+				[repo.id, stored],
+			);
+			const result = await call("set_rule", {
+				org: orgSlug,
+				repo: repo.name,
+				ruleId: "pr-rate-limit",
+				config: { maxPerWindow: 5 },
+			});
+			expect(result.isError).toBeFalsy();
+			const rows = await repoServices.listRuleConfigs(db, repo.id);
+			expect(rows.find((row) => row.ruleId === "pr-rate-limit")).toEqual({
+				ruleId: "pr-rate-limit",
+				version: 1,
+				enabled: true,
+				config: { maxPerWindow: 5, windowHours },
+			});
+		}
+		const before = await repoServices.listRuleConfigs(db, repo.id);
+		const invalid = await call("set_rule", {
+			org: orgSlug,
+			repo: repo.name,
+			ruleId: "pr-rate-limit",
+			config: { maxPerWindow: 0 },
+		});
+		expect(invalid.isError).toBe(true);
+		expect(await repoServices.listRuleConfigs(db, repo.id)).toEqual(before);
 	});
 });
 

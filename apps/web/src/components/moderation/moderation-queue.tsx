@@ -9,15 +9,18 @@ import { EntityCard } from "#/components/common/entity-card";
 import { MetaRow } from "#/components/common/meta-row";
 import { ItemRouterLink } from "#/components/common/router-links";
 import { ScrollList } from "#/components/common/scroll-list";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import { isCommentItem } from "#/components/moderation/moderation-collection";
+import { ZonedTime } from "#/components/timezones/zoned-time";
 import {
 	Blocked,
 	ChangeRequest,
 	Check,
 	Comment,
 	Icon,
-} from "#/components/glaze/icon";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
+} from "#/design-system/icon";
+import { Badge } from "#/design-system/ui/badge";
+import { Button } from "#/design-system/ui/button";
 import {
 	Dialog,
 	DialogAction,
@@ -28,14 +31,14 @@ import {
 	DialogHeader,
 	DialogTitle,
 	DialogTrigger,
-} from "#/components/glaze/ui/dialog";
+} from "#/design-system/ui/dialog";
 import {
 	Empty,
 	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
 	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
+} from "#/design-system/ui/empty-state";
 import {
 	Item,
 	ItemActions,
@@ -44,11 +47,8 @@ import {
 	ItemGroup,
 	ItemMedia,
 	ItemTitle,
-} from "#/components/glaze/ui/item";
-import { toast } from "#/components/glaze/ui/toast";
-import { MascotArt } from "#/components/mascot/mascot-art";
-import { isCommentItem } from "#/components/moderation/moderation-collection";
-import { ZonedTime } from "#/components/timezones/zoned-time";
+} from "#/design-system/ui/item";
+import { toast } from "#/design-system/ui/toast";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import {
 	decideModeration,
@@ -163,7 +163,7 @@ export function ModerationQueue({
 										) : null}
 									</ItemTitle>
 									<ItemDescription>
-										<MetaRow>
+										<MetaRow wrap>
 											<span>{item.actorLogin ?? "Unknown contributor"}</span>
 											<ZonedTime at={item.createdAt} format="short" />
 											{item.reason ? <span>{item.reason}</span> : null}

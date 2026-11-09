@@ -1,18 +1,5 @@
 import type { BlockViewer, SurfacePlan } from "@tripwire/contracts";
 import { type ReactNode, useId, useLayoutEffect } from "react";
-import { Button } from "#/components/glaze/ui/button";
-import {
-	SegmentedControl,
-	SegmentedControlItem,
-} from "#/components/glaze/ui/segmented-control";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/components/glaze/ui/select";
-import { StatusMark } from "#/components/glaze/ui/status";
 import { CheckStateMock } from "#/components/responses/check-state-mock";
 import { GithubCommentMock } from "#/components/responses/github-comment-mock";
 import { usePreviewLink } from "#/components/responses/preview-link";
@@ -21,6 +8,19 @@ import type {
 	OutcomeMeta,
 } from "#/components/responses/responses-model";
 import { RunPageMock } from "#/components/responses/run-page-mock";
+import { Button } from "#/design-system/ui/button";
+import {
+	SegmentedControl,
+	SegmentedControlItem,
+} from "#/design-system/ui/segmented-control";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/design-system/ui/select";
+import { StatusMark } from "#/design-system/ui/status";
 import type { PreviewTab, PreviewView } from "#/lib/block-builder";
 import { pickValue } from "#/lib/pick-value";
 import type { RunView } from "#/lib/runs.functions";
@@ -48,6 +48,7 @@ export interface ResponsesPreviewProps {
 	run: RunView;
 	runPageLevel: number;
 	canvas: ReactNode;
+	action?: ReactNode;
 	onView: (view: Partial<PreviewView>) => void;
 }
 
@@ -59,6 +60,7 @@ export function ResponsesPreview({
 	run,
 	runPageLevel,
 	canvas,
+	action,
 	onView,
 }: ResponsesPreviewProps) {
 	const titleId = useId();
@@ -88,35 +90,40 @@ export function ResponsesPreview({
 			className="flex min-h-0 flex-col rounded-shell border border-line-faint bg-shell"
 			ref={link.attach}
 		>
-			<header className="flex shrink-0 flex-wrap items-center gap-3 px-6 py-3">
-				<h2 className="me-auto type-label-lg text-text-1" id={titleId}>
-					Sample preview
-				</h2>
-				<SegmentedControl
-					aria-label="Surface"
-					className="hidden sm:inline-flex"
-					onValueChange={setTab}
-					size="sm"
-					value={view.tab}
-				>
-					{tabs.map((tab) => (
-						<SegmentedControlItem key={tab.value} value={tab.value}>
-							{tab.label}
-						</SegmentedControlItem>
-					))}
-				</SegmentedControl>
-				<Select items={VIEWERS} onValueChange={setViewer} value={view.viewer}>
-					<SelectTrigger aria-label="Viewer" className="w-32" size="sm">
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent size="sm">
-						{VIEWERS.map((viewer) => (
-							<SelectItem key={viewer.value} value={viewer.value}>
-								{viewer.label}
-							</SelectItem>
+			<header className="flex shrink-0 flex-col gap-3 px-6 py-3">
+				<div className="flex items-center gap-3">
+					<h2 className="me-auto type-label-lg text-text-1" id={titleId}>
+						Sample preview
+					</h2>
+					<SegmentedControl
+						aria-label="Surface"
+						className="hidden sm:inline-flex"
+						onValueChange={setTab}
+						size="sm"
+						value={view.tab}
+					>
+						{tabs.map((tab) => (
+							<SegmentedControlItem key={tab.value} value={tab.value}>
+								{tab.label}
+							</SegmentedControlItem>
 						))}
-					</SelectContent>
-				</Select>
+					</SegmentedControl>
+				</div>
+				<div className="flex flex-wrap items-center gap-2">
+					<Select items={VIEWERS} onValueChange={setViewer} value={view.viewer}>
+						<SelectTrigger aria-label="Viewer" className="w-32" size="sm">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent size="sm">
+							{VIEWERS.map((viewer) => (
+								<SelectItem key={viewer.value} value={viewer.value}>
+									{viewer.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+					{action}
+				</div>
 				<div className="w-full sm:hidden">
 					<Select
 						items={tabs}
@@ -136,10 +143,10 @@ export function ResponsesPreview({
 					</Select>
 				</div>
 			</header>
-			<div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
+			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-6">
 				<p className="mb-4 type-body-sm text-text-2">
-					Uses your current edits and sample run data. Empty blocks have no
-					content in this sample.
+					Uses your current edits and sample run data. Blocks without matching
+					sample data stay editable here but post nothing.
 				</p>
 				{view.tab === "comment" ? canvas : null}
 				{view.tab === "review" && plan.review !== null ? (

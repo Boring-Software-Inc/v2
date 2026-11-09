@@ -1,9 +1,8 @@
 /**
- * Anti-slop gate for CHANGED code only (§ CI). Runs the oxlint anti-slop rules
- * over the files a diff range touched, then reports ONLY violations that land on
- * added or modified lines. Legacy violations on untouched lines never block a
- * PR, so the rules gate new code without forcing cleanup of code you did not
- * write. The 471 pre-existing violations get burned down separately.
+ * Changed-line lint gate for anti-slop and semantic UI contract rules (§ CI).
+ * Runs Oxlint over the files a diff range touched, then reports only violations
+ * that land on added or modified lines. Legacy violations on untouched lines do
+ * not block a PR; their separate baselines may only shrink.
  *
  * Usage: bun run scripts/lint-slop-changed.ts [gitDiffRange]
  *   CI passes `origin/<base>...HEAD` (the PR's own commits).
@@ -14,6 +13,20 @@ import { spawnSync } from "node:child_process";
 const range = process.argv[2] ?? "origin/main...HEAD";
 
 const MAX_BUFFER = 256 * 1024 * 1024;
+
+const baseline = spawnSync(
+	"bun",
+	["run", "scripts/check-design-system-lint-baseline.ts"],
+	{
+		encoding: "utf8",
+		maxBuffer: MAX_BUFFER,
+	},
+);
+if (baseline.error || baseline.status !== 0) {
+	console.error(`${baseline.stdout ?? ""}${baseline.stderr ?? ""}`);
+	process.exit(1);
+}
+process.stdout.write(baseline.stdout ?? "");
 
 function git(args: string[]): string {
 	const result = spawnSync("git", args, {
@@ -55,14 +68,13 @@ for (const line of diff.split("\n")) {
 
 const files = [...addedLines.keys()];
 if (files.length === 0) {
-	console.log("No changed TS files — anti-slop gate skipped.");
+	console.log("No changed TS files — changed-line lint skipped.");
 	process.exit(0);
 }
 
-// The anti-slop plugin is TypeScript, so Node needs type-stripping to load it.
-const oxlint = spawnSync("bunx", ["oxlint", ...files], {
+// The JS plugins are TypeScript, so Node needs type-stripping to load them.
+const oxlint = spawnSync("./node_modules/.bin/oxlint", files, {
 	encoding: "utf8",
-	shell: true,
 	maxBuffer: MAX_BUFFER,
 	env: { ...process.env, NODE_OPTIONS: "--experimental-strip-types" },
 });
@@ -94,12 +106,12 @@ for (const line of output.split("\n")) {
 
 if (violations.length === 0) {
 	console.log(
-		`anti-slop: ${files.length} changed file(s) clean on added lines.`,
+		`changed-line lint: ${files.length} changed file(s) clean on added lines.`,
 	);
 	process.exit(0);
 }
 
-console.error("anti-slop violations on changed lines:\n");
+console.error("lint violations on changed lines:\n");
 for (const violation of violations) {
 	console.error(violation);
 }

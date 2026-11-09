@@ -3,6 +3,7 @@ import type { RepoScopedEvent } from "@tripwire/contracts";
 import {
 	createForgeSignalCtx,
 	defineForge,
+	type ForgeSignalCtx,
 	SignalUnavailableError,
 } from "@tripwire/sdk";
 import { GithubHttp } from "./client/http.ts";
@@ -37,7 +38,7 @@ const prEvent: RepoScopedEvent = {
 	},
 };
 
-function fakeResponses(): Record<string, unknown> {
+function fakeResponses() {
 	return {
 		"/users/mallory": {
 			id: 77,
@@ -128,14 +129,14 @@ function fakeResponses(): Record<string, unknown> {
 
 function makeCtx(event: RepoScopedEvent = prEvent) {
 	const calls: string[] = [];
-	const responses = fakeResponses();
+	const responses = new Map(Object.entries(fakeResponses()));
 	const http = new GithubHttp({
 		tokenFor: async () => "test-token",
 		appId: 1,
 		fetchImpl: (async (input: string | URL | Request) => {
 			const path = String(input).replace("https://api.github.com", "");
 			calls.push(path);
-			const body = responses[path];
+			const body = responses.get(path);
 			if (body === undefined) {
 				return new Response("not found", { status: 404 });
 			}
@@ -145,14 +146,15 @@ function makeCtx(event: RepoScopedEvent = prEvent) {
 	return { ctx: createForgeSignalCtx({ forge: http, event, now: NOW }), calls };
 }
 
-function produce(id: keyof typeof githubForge.produces, ctx: unknown) {
+async function produce(
+	id: keyof typeof githubForge.produces,
+	ctx: ForgeSignalCtx<GithubHttp>,
+) {
 	const producer = githubForge.produces[id];
 	if (!producer) {
 		throw new Error(`no producer for ${id}`);
 	}
-	// Async wrapper so a synchronous signalUnavailable throw becomes a rejection.
-	// biome-ignore lint/suspicious/noExplicitAny: test drives producers generically
-	return (async () => producer(ctx as any))();
+	return producer(ctx);
 }
 
 describe("github forge signals", () => {

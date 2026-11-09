@@ -1,23 +1,23 @@
 import type { ReactNode } from "react";
-import { Button } from "#/components/glaze/ui/button";
+import type { MascotSettings } from "#/components/mascot/engine";
+import { EXPRESSIONS, type Expression } from "#/components/mascot/geometry";
+import type { MascotEvent } from "#/components/mascot/machine";
+import { Button } from "#/design-system/ui/button";
 import {
 	Card,
 	CardContent,
 	CardHeader,
 	CardTitle,
-} from "#/components/glaze/ui/card";
-import { Chip, ChipGroup } from "#/components/glaze/ui/chip";
+} from "#/design-system/ui/card";
+import { Chip, ChipGroup } from "#/design-system/ui/chip";
 import {
 	Field,
 	FieldContent,
 	FieldDescription,
 	FieldLabel,
-} from "#/components/glaze/ui/field";
-import { Slider } from "#/components/glaze/ui/slider";
-import { Switch } from "#/components/glaze/ui/switch";
-import type { MascotSettings } from "#/components/mascot/engine";
-import { EXPRESSIONS, type Expression } from "#/components/mascot/geometry";
-import type { MascotEvent } from "#/components/mascot/machine";
+} from "#/design-system/ui/field";
+import { Slider } from "#/design-system/ui/slider";
+import { Switch } from "#/design-system/ui/switch";
 
 export type MascotControlsProps = {
 	settings: MascotSettings;

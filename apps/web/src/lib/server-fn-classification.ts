@@ -22,10 +22,18 @@ export type ServerFnClass =
 	| "staff"
 	| `permission:${OrgPermission}`;
 
-export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
+export interface ServerFnClassification {
+	[name: string]: ServerFnClass;
+}
+
+export const SERVER_FN_CLASSIFICATION: ServerFnClassification = {
 	// ── public (deliberately reachable without the beta gate) ───────────
 	getSessionInfo: "public", // feeds the gate, queue screen, unauth
 	getCurrentUser: "public", // caller's OWN identity; no product data
+	/** The signed-out login page needs provider IDs, never auth configuration. */
+	getProviderAvailability: "public",
+	getPublicDatabuddyConfig: "public",
+	getPublicSharedBlocklist: "public",
 	getRun: "public", // unlisted-public run page (§10)
 	getWebviewHost: "public", // reads the caller's own user-agent; /login is signed-out
 	/**
@@ -42,6 +50,10 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	listMyOrgs: "authed", // the caller's own memberships
 	createOrg: "authed", // any approved user may found a team org
 	submitFeedback: "authed", // product feedback, not org data
+	getGitCafeSetupContext: "authed",
+	startGitCafeConnection: "permission:connections:manage",
+	confirmGitCafeConnection: "permission:connections:manage",
+	getGitCafeConnectionStatus: "permission:connections:manage",
 	getInstallPreview: "authed", // pre-claim: caller may not be an admin yet
 	recoverInstallation: "authed", // checks the caller's own access to an install
 	listClaimableInstallations: "authed", // recovery for id-less setup callbacks
@@ -53,6 +65,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	 * would lock a user out of managing a connection they own.
 	 */
 	listForgeConnections: "authed",
+	listOrganizationForgeConnections: "permission:connections:manage",
 	disconnectForge: "authed",
 	getConsentRequest: "authed", // the caller's own agent consent
 	grantConsentOrgs: "authed", // grants only orgs the caller belongs to
@@ -94,6 +107,8 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	getRepoSuggestions: "permission:rules:read",
 	getRuleLibrary: "permission:rules:read",
 	saveRuleConfig: "permission:rules:manage",
+	getSharedBlocklistPilot: "permission:rules:manage",
+	setSharedBlocklistPilot: "permission:rules:manage",
 	setRulesEnabled: "permission:rules:manage",
 	upgradeRuleConfig: "permission:rules:manage",
 	saveCustomRule: "permission:rules:manage",
@@ -169,6 +184,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 
 	// ── staff (platform admin portal — /admin) ───────────────────────────
 	getAdminContext: "staff",
+	addSharedBlocklistAccount: "staff",
 	getAdminOverview: "staff",
 	listAdminUsers: "staff",
 	listAdminOrgs: "staff",
@@ -192,8 +208,4 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	unbanAdminUser: "staff",
 	deleteAdminUser: "staff",
 	impersonateAdminUser: "staff",
-	getEconomicsOverview: "staff", // platform-wide cost data
-	getEconomicsSeries: "staff",
-	getCostByOrg: "staff",
-	getRailwayBreakdown: "staff",
 };

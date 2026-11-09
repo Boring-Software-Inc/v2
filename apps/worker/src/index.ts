@@ -1,4 +1,8 @@
-import { DATABUDDY_WEBSITE_ID, deriveUsageSource } from "@tripwire/contracts";
+import type { Forge } from "@tripwire/contracts";
+import {
+	deriveUsageSource,
+	rerunChangeRequestJobSchema,
+} from "@tripwire/contracts";
 import {
 	aiProviderServices,
 	BACKFILL_REPO_QUEUE,
@@ -14,11 +18,9 @@ import {
 	RESUME_RUN_QUEUE,
 	type RecoverInstallationJob,
 	type RefreshSurfacesJob,
-	type RerunChangeRequestJob,
 	type ResumeRunJob,
 	RULE_PREVIEW_QUEUE,
 	type RulePreviewJob,
-	repoServices,
 	SYNC_FLAG_OVERRIDES_QUEUE,
 	SYNC_REPO_BRANCHES_QUEUE,
 	SYNC_REPO_LABELS_QUEUE,
@@ -37,12 +39,19 @@ import {
 	GithubInstallations,
 } from "@tripwire/forge-github";
 import { createDatabuddyApi, getErrorMessage } from "@tripwire/utils";
+import { getDatabuddyApiConfig } from "@tripwire/utils/databuddy-server";
 import type { WorkHandler } from "pg-boss";
 import pino from "pino";
 import { createGenerate } from "./ai/generate.ts";
 import { captureJobFailures } from "./capture-job-failures.ts";
 import { resolveDeploymentId, startFence } from "./fence.ts";
 import { buildResolveForge } from "./forge-runtime.ts";
+import {
+	startGitCafeConnectionWorker,
+	workerModeSchema,
+} from "./gitcafe-connection-worker.ts";
+import { startGitCafeLifecycleWorker } from "./gitcafe-lifecycle-worker.ts";
+import { startGitCafeProtectionWorker } from "./gitcafe-protection-worker.ts";
 import {
 	AUDIT_INSTALLATION_CLAIMS_QUEUE,
 	auditInstallationClaims,
@@ -57,6 +66,11 @@ import { deliverWebhooks } from "./jobs/deliver-webhook.ts";
 import { economicsDigest } from "./jobs/economics-digest.ts";
 import { economicsRollup } from "./jobs/economics-rollup.ts";
 import { processEvent } from "./jobs/process-event.ts";
+import {
+	PRUNE_INSTALLATION_ACCESS_CHECKS_CRON,
+	PRUNE_INSTALLATION_ACCESS_CHECKS_QUEUE,
+	pruneInstallationAccessChecks,
+} from "./jobs/prune-installation-access-checks.ts";
 import { pullProviderCosts } from "./jobs/pull-provider-costs.ts";
 import { recoverInstallation } from "./jobs/recover-installation.ts";
 import { syncRepoBranches } from "./jobs/refresh-suggestions.ts";
@@ -87,7 +101,26 @@ import { reportAiCreditsToSentry } from "./report-unrunnable.ts";
  * @tripwire/worker — pg-boss consumers, where I/O meets the pure core. Request
  * ids (the event id) thread through every log line.
  */
-if (import.meta.main) {
+const workerMode = workerModeSchema.parse(
+	process.env.WORKER_MODE ?? "standard",
+);
+
+if (import.meta.main && workerMode === "gitcafe-connect") {
+	await startGitCafeConnectionWorker(
+		pino({ name: "gitcafe-connection-worker" }),
+	);
+}
+
+if (import.meta.main && workerMode === "gitcafe-lifecycle") {
+	await startGitCafeLifecycleWorker(pino({ name: "gitcafe-lifecycle-worker" }));
+}
+if (import.meta.main && workerMode === "gitcafe-protection") {
+	await startGitCafeProtectionWorker(
+		pino({ name: "gitcafe-protection-worker" }),
+	);
+}
+
+if (import.meta.main && workerMode === "standard") {
 	const logger = pino({
 		name: "worker",
 		// Outbound-delivery secrets never reach the logs — the url and signing
@@ -146,17 +179,11 @@ if (import.meta.main) {
 		appId && privateKey
 			? new GithubInstallations({ credentials: { appId, privateKey } })
 			: null;
-	/**
-	 * The sweeper spans forges, so it resolves per repo rather than taking one
-	 * adapter. `runs` has no forge column — only `repo_full_name` — so the forge
-	 * comes from the repo row itself.
-	 */
 	const adapterFor = async (
-		repoFullName: string,
-	): Promise<ForgeAdapter | null> => {
-		const forge = await repoServices.findRepoForge(db, repoFullName);
-		return forge ? (resolveForge(forge)?.adapter ?? null) : null;
-	};
+		_repoFullName: string,
+		forge: Forge,
+	): Promise<ForgeAdapter | null> => resolveForge(forge)?.adapter ?? null;
+
 	const selfLogins = new Set<string>();
 	if (appId && privateKey) {
 		/**
@@ -225,13 +252,9 @@ if (import.meta.main) {
 		);
 	}
 
-	const databuddyKey = process.env.DATABUDDY_API_KEY;
-	const databuddyApi = databuddyKey
-		? createDatabuddyApi({
-				apiKey: databuddyKey,
-				websiteId: DATABUDDY_WEBSITE_ID,
-				baseUrl: process.env.DATABUDDY_API_URL,
-			})
+	const databuddyConfig = getDatabuddyApiConfig();
+	const databuddyApi = databuddyConfig
+		? createDatabuddyApi(databuddyConfig)
 		: null;
 	if (!databuddyApi) {
 		logger.warn("DATABUDDY_API_KEY missing: flag overrides will not sync");
@@ -300,8 +323,16 @@ if (import.meta.main) {
 			}
 		});
 
-		await work<RerunChangeRequestJob>(RERUN_QUEUE, async (jobs) => {
+		await work<unknown>(RERUN_QUEUE, async (jobs) => {
 			for (const job of jobs) {
+				const parsed = rerunChangeRequestJobSchema.safeParse(job.data);
+				if (!parsed.success) {
+					logger.error(
+						{ queue: RERUN_QUEUE, jobId: job.id, issues: parsed.error.issues },
+						"invalid re-run job",
+					);
+					continue;
+				}
 				await rerunChangeRequest(
 					{
 						db,
@@ -310,11 +341,9 @@ if (import.meta.main) {
 						makeGenerate,
 						meterSource,
 						appUrl: process.env.APP_URL ?? "http://localhost:3000",
-						logger: logger.child({
-							rerun: `${job.data.repoFullName}#${job.data.number}`,
-						}),
+						logger: logger.child({ queue: RERUN_QUEUE }),
 					},
-					job.data,
+					parsed.data,
 				);
 			}
 		});
@@ -450,6 +479,20 @@ if (import.meta.main) {
 			await auditInstallationClaims({
 				db,
 				logger: logger.child({ audit: AUDIT_INSTALLATION_CLAIMS_QUEUE }),
+			});
+		});
+
+		await boss.createQueue(PRUNE_INSTALLATION_ACCESS_CHECKS_QUEUE);
+		await boss.schedule(
+			PRUNE_INSTALLATION_ACCESS_CHECKS_QUEUE,
+			PRUNE_INSTALLATION_ACCESS_CHECKS_CRON,
+			{},
+			{},
+		);
+		await work(PRUNE_INSTALLATION_ACCESS_CHECKS_QUEUE, async () => {
+			await pruneInstallationAccessChecks({
+				db,
+				logger: logger.child({ job: PRUNE_INSTALLATION_ACCESS_CHECKS_QUEUE }),
 			});
 		});
 
@@ -610,6 +653,7 @@ if (import.meta.main) {
 				RECOVER_INSTALLATION_QUEUE,
 				"rollup",
 				AUDIT_INSTALLATION_CLAIMS_QUEUE,
+				PRUNE_INSTALLATION_ACCESS_CHECKS_QUEUE,
 				"sweep-actions",
 				SCHEDULE_TICK_QUEUE,
 				"deliver-webhook",

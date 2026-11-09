@@ -1,0 +1,36 @@
+{
+	"id": "pr_01m612t72sfhj9j6226knf5kqz",
+	"version": 0,
+	"headOid": "2bff66c45a9e2241fc2482bc63bac23281a7377f",
+	"baseOid": "ac21bd68841290a7dddb7b8f7d7dd1657fdaba04",
+	"comparisonBaseOid": "ac21bd68841290a7dddb7b8f7d7dd1657fdaba04",
+	"file": {
+		"path": "tripwire-qa.txt",
+		"oldPath": null,
+		"status": "added",
+		"additions": 2,
+		"deletions": 0,
+		"binary": false,
+		"tooLarge": false,
+		"oldContent": null,
+		"newContent": "Tripwire staging adapter acceptance fixture.\nThis file is safe to remove after QA.\n",
+		"hunks": [
+			{
+				"oldStart": 1,
+				"oldLines": 0,
+				"newStart": 1,
+				"newLines": 2,
+				"lines": [
+					{
+						"origin": "+",
+						"content": "Tripwire staging adapter acceptance fixture.\n"
+					},
+					{
+						"origin": "+",
+						"content": "This file is safe to remove after QA.\n"
+					}
+				]
+			}
+		]
+	}
+}

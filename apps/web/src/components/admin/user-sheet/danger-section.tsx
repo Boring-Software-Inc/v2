@@ -7,10 +7,15 @@ import {
 	useStaffAction,
 } from "#/components/admin/user-sheet/use-staff-action";
 import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
-import { Button } from "#/components/glaze/ui/button";
-import { Field, FieldError, FieldLabel } from "#/components/glaze/ui/field";
-import { Input } from "#/components/glaze/ui/input";
-import { Textarea } from "#/components/glaze/ui/textarea";
+import { Button } from "#/design-system/ui/button";
+import { Field, FieldError, FieldLabel } from "#/design-system/ui/field";
+import { Input } from "#/design-system/ui/input";
+import { Textarea } from "#/design-system/ui/textarea";
+import {
+	Body,
+	Subheading,
+	SupportingText,
+} from "#/design-system/ui/typography";
 import {
 	type AdminUserView,
 	banAdminUser,
@@ -61,8 +66,8 @@ function BanForm({
 				submit();
 			}}
 		>
-			<div className="panel flex flex-col gap-4 p-4">
-				<h4 className="type-label-lg text-text-1">Ban {user.name}</h4>
+			<div className="panel" data-layout-role="user-sheet-ban-form">
+				<Subheading level={4}>Ban {user.name}</Subheading>
 				<Field invalid={error !== null}>
 					<FieldLabel>Reason</FieldLabel>
 					<Textarea
@@ -76,14 +81,14 @@ function BanForm({
 				<Field>
 					<FieldLabel optional>Ends</FieldLabel>
 					<Input
-						className="w-full sm:w-55"
+						data-layout-role="user-sheet-date-input"
 						onValueChange={setEndsAt}
 						type="date"
 						value={endsAt}
 					/>
 				</Field>
 			</div>
-			<div className="shell-foot justify-end">
+			<div className="shell-foot" data-layout-role="user-sheet-ban-actions">
 				<Button onClick={onClose} size="sm" type="button" variant="secondary">
 					Cancel
 				</Button>
@@ -160,20 +165,20 @@ export function DangerSection({
 	const protectedUser = user.isPlatformAdmin || view.viewerId === user.id;
 	return (
 		<SheetSectionBlock id="danger" title="Danger">
-			<div className="flex flex-col">
+			<div data-layout-role="user-sheet-danger-list">
 				{user.banned ? (
-					<div className="flex min-h-13 flex-wrap items-center justify-between gap-3 border-line-faint border-b py-2">
-						<div className="flex min-w-0 flex-col">
-							<span className="type-body-sm text-fail-text">
-								Banned
-								{user.banExpires
-									? ` until ${formatStaffDate(user.banExpires)}`
-									: " with no end date"}
+					<div data-layout-role="user-sheet-danger-row">
+						<div>
+							<span data-state-tone="danger">
+								<Body as="span">
+									Banned
+									{user.banExpires
+										? ` until ${formatStaffDate(user.banExpires)}`
+										: " with no end date"}
+								</Body>
 							</span>
 							{user.banReason ? (
-								<span className="type-body-sm text-text-2">
-									{user.banReason}
-								</span>
+								<SupportingText>{user.banReason}</SupportingText>
 							) : null}
 						</div>
 						<Button
@@ -186,14 +191,14 @@ export function DangerSection({
 						</Button>
 					</div>
 				) : banOpen ? (
-					<div className="mb-3">
+					<div data-layout-role="user-sheet-ban-form-slot">
 						<BanForm onClose={() => onBanOpenChange(false)} view={view} />
 					</div>
 				) : (
-					<div className="flex min-h-13 items-center justify-between gap-3 border-line-faint border-b">
-						<span className="type-body-sm text-text-1">Ban from Tripwire</span>
+					<div data-layout-role="user-sheet-danger-row">
+						<Body as="span">Ban from Tripwire</Body>
 						<Button
-							className="text-fail-text"
+							data-state-tone="danger"
 							disabled={protectedUser}
 							onClick={() => onBanOpenChange(true)}
 							size="sm"
@@ -203,10 +208,10 @@ export function DangerSection({
 						</Button>
 					</div>
 				)}
-				<div className="flex min-h-13 items-center justify-between gap-3">
-					<span className="type-body-sm text-text-1">Delete account</span>
+				<div data-layout-role="user-sheet-danger-row">
+					<Body as="span">Delete account</Body>
 					<Button
-						className="text-fail-text"
+						data-state-tone="danger"
 						disabled={protectedUser}
 						onClick={onDelete}
 						size="sm"
@@ -216,11 +221,11 @@ export function DangerSection({
 					</Button>
 				</div>
 				{protectedUser ? (
-					<p className="type-caption text-text-2">
+					<SupportingText>
 						{view.viewerId === user.id
 							? "You cannot ban or delete yourself here."
 							: "Remove their platform admin access before you ban or delete them."}
-					</p>
+					</SupportingText>
 				) : null}
 			</div>
 		</SheetSectionBlock>

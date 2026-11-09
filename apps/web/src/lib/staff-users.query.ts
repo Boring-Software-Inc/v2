@@ -27,12 +27,13 @@ export const adminUserFlagsQueryOptions = (userId: string) =>
 		queryKey: staffUserQueryKeys.flags(userId),
 		queryFn: ({ signal }) => getAdminUserFlags({ data: { userId }, signal }),
 		staleTime: 10_000,
+		refetchOnWindowFocus: "always",
 		refetchInterval: (query) =>
 			query.state.data?.rows.some(
 				(row) => row.override?.syncStatus === "pending",
 			)
 				? 3_000
-				: false,
+				: 15_000,
 	});
 
 export const adminUserActivityQueryOptions = (userId: string) =>

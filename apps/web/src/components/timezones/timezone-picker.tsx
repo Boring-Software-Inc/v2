@@ -6,7 +6,7 @@ import {
 	ComboboxInput,
 	ComboboxItem,
 	ComboboxList,
-} from "#/components/glaze/ui/combobox";
+} from "#/design-system/ui/combobox";
 import { timezoneNames } from "#/lib/timezones";
 
 interface ZoneItem {

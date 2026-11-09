@@ -2,34 +2,37 @@ import type { GateMode, JsonValue, WorkflowNode } from "@tripwire/contracts";
 import {
 	actionTakesSettings,
 	GATE_CATALOG,
+	jsonValueSchema,
 	lockParamsSchema,
 	MAX_COMMENT_MESSAGE,
 	MAX_OUTCOME_MESSAGE,
 } from "@tripwire/contracts";
 import { useState } from "react";
 import { z } from "zod";
-import { Alert, AlertDescription } from "#/components/glaze/ui/alert";
-import { Button } from "#/components/glaze/ui/button";
-import { Checkbox } from "#/components/glaze/ui/checkbox";
-import {
-	Field,
-	FieldDescription,
-	FieldLabel,
-	Label,
-} from "#/components/glaze/ui/field";
-import { Input } from "#/components/glaze/ui/input";
-import { NumberInput } from "#/components/glaze/ui/number-input";
-import { Select } from "#/components/glaze/ui/select";
-import { Status } from "#/components/glaze/ui/status";
-import { Textarea } from "#/components/glaze/ui/textarea";
 import { LabelPicker } from "#/components/workflows/editor/label-picker";
 import {
 	type FieldSpec,
 	fieldsForSchema,
 	ruleCatalogEntryForRef,
+	ruleConfigFieldsSchema,
 } from "#/components/workflows/editor/node-fields";
 import { ReviewerPicker } from "#/components/workflows/editor/reviewer-picker";
 import { TriggerFlow } from "#/components/workflows/editor/schedule-flow";
+import { Alert, AlertDescription } from "#/design-system/ui/alert";
+import { Button } from "#/design-system/ui/button";
+import { Checkbox } from "#/design-system/ui/checkbox";
+import {
+	Field,
+	FieldDescription,
+	FieldLabel,
+	Label,
+} from "#/design-system/ui/field";
+import { Input } from "#/design-system/ui/input";
+import { NumberInput } from "#/design-system/ui/number-input";
+import { Select } from "#/design-system/ui/select";
+import { Status } from "#/design-system/ui/status";
+import { Textarea } from "#/design-system/ui/textarea";
+import { SupportingText } from "#/design-system/ui/typography";
 
 const numberOrNull = z.number().nullable().catch(null);
 const labelList = z.array(z.string().optional().catch(undefined)).catch([]);
@@ -130,8 +133,8 @@ function LockFields({
 	const parsed = lockParamsSchema.safeParse(node.params ?? {});
 	const reason = parsed.success ? (parsed.data.reason ?? "") : "";
 	return (
-		<Field data-field="reason">
-			<FieldLabel className="text-text-2">Reason</FieldLabel>
+		<Field data-field="reason" data-layout-role="workflow-action-property">
+			<FieldLabel>Reason</FieldLabel>
 			<Select
 				disabled={readOnly}
 				items={LOCK_REASON_OPTIONS}
@@ -161,29 +164,25 @@ function RuleFields({
 	const entry = ruleCatalogEntryForRef(node.ref);
 	if (!entry) {
 		return (
-			<p className="type-body-sm text-text-2">
+			<SupportingText>
 				Unknown rule <span className="mono">{node.ref}</span>. It is not in the
 				catalog.
-			</p>
+			</SupportingText>
 		);
 	}
 	const fields = fieldsForSchema(entry.configSchema) ?? [];
 	if (fields.length === 0) {
 		return (
-			<p className="type-body-sm text-text-2">
-				This rule has no settings to change.
-			</p>
+			<SupportingText>This rule has no settings to change.</SupportingText>
 		);
 	}
-	const config = (
-		typeof node.config === "object" && node.config !== null ? node.config : {}
-	) as Record<string, JsonValue>;
+	const config = ruleConfigFieldsSchema.parse(node.config);
 	const setField = (key: string, value: JsonValue) => {
 		onUpdate({ ...node, config: { ...config, [key]: value } });
 	};
 	return (
-		<div className="flex flex-col gap-3">
-			<p className="type-body-sm text-text-2">{entry.blurb}</p>
+		<div data-layout-role="workflow-rule-properties">
+			<SupportingText>{entry.blurb}</SupportingText>
 			{fields.map((field) => (
 				<div data-field={field.key} key={field.key}>
 					<ConfigField
@@ -198,7 +197,7 @@ function RuleFields({
 	);
 }
 
-function ConfigField({
+export function ConfigField({
 	field,
 	value,
 	readOnly,
@@ -225,7 +224,7 @@ function ConfigField({
 			);
 		case "boolean":
 			return (
-				<Label className="flex items-center gap-2">
+				<Label data-layout-role="workflow-boolean-property">
 					<Checkbox
 						checked={value === true}
 						disabled={readOnly}
@@ -241,12 +240,12 @@ function ConfigField({
 					<Select
 						disabled={readOnly}
 						items={field.options.map((option) => ({
-							value: option,
+							value: String(option),
 							label: option,
 						}))}
 						native
 						onValueChange={(next) => onChange(next ?? "")}
-						value={typeof value === "string" ? value : ""}
+						value={textParam.parse(value)}
 					/>
 				</Field>
 			);
@@ -254,13 +253,12 @@ function ConfigField({
 			return (
 				<Field>
 					<FieldLabel>{field.label} (one per line)</FieldLabel>
-					{/* uncontrolled: normalizing on change would eat typed newlines */}
+					{/** Normalizing on change would eat typed newlines. */}
 					<Textarea
-						defaultValue={
-							Array.isArray(value)
-								? value.filter((v) => typeof v === "string").join("\n")
-								: ""
-						}
+						defaultValue={labelList
+							.parse(value)
+							.filter((item) => item !== undefined)
+							.join("\n")}
 						disabled={readOnly}
 						onChange={(event) =>
 							onChange(
@@ -282,12 +280,11 @@ function ConfigField({
 						autoComplete="off"
 						disabled={readOnly}
 						onChange={(event) => onChange(event.target.value)}
-						value={typeof value === "string" ? value : ""}
+						value={textParam.parse(value)}
 					/>
 				</Field>
 			);
 		case "json":
-			// Fallback for shapes introspection can't name — raw JSON per field.
 			return (
 				<Field>
 					<FieldLabel>{field.label} (JSON)</FieldLabel>
@@ -296,9 +293,9 @@ function ConfigField({
 						disabled={readOnly}
 						onBlur={(event) => {
 							try {
-								onChange(JSON.parse(event.target.value) as JsonValue);
+								onChange(jsonValueSchema.parse(JSON.parse(event.target.value)));
 							} catch {
-								// keep the previous value; validation flags bad config anyway
+								/** Keep the previous value while the JSON draft is incomplete. */
 							}
 						}}
 						rows={3}
@@ -393,17 +390,15 @@ function ActionFields({
 	}
 	if (node.action !== "label" && node.action !== "remove-label") {
 		return (
-			<p className="type-body-sm text-text-2">
-				This step has no settings to change.
-			</p>
+			<SupportingText>This step has no settings to change.</SupportingText>
 		);
 	}
 	const labels = labelList
 		.parse(node.params?.labels)
 		.filter((label) => label !== undefined);
 	return (
-		<Field data-field="labels">
-			<FieldLabel className="text-text-2">Labels</FieldLabel>
+		<Field data-field="labels" data-layout-role="workflow-action-property">
+			<FieldLabel>Labels</FieldLabel>
 			<LabelPicker
 				creatable
 				onChange={(next) =>
@@ -431,8 +426,8 @@ function CommentFields({
 }) {
 	const message = textParam.parse(node.params?.message);
 	return (
-		<Field data-field="message">
-			<FieldLabel className="text-text-2">{label}</FieldLabel>
+		<Field data-field="message" data-layout-role="workflow-action-property">
+			<FieldLabel>{label}</FieldLabel>
 			<Textarea
 				disabled={readOnly}
 				maxLength={maxLength}
@@ -488,12 +483,12 @@ function DeliveryFields({
 		kind: "webhook" | "discord",
 	) => Promise<{ ok: boolean; status?: number; failure?: string }>;
 }) {
-	const params = (node.params ?? {}) as Record<string, JsonValue>;
+	const params = node.params ?? {};
 	const setParam = (key: string, value: string) =>
 		onUpdate({ ...node, params: { ...params, [key]: value } });
 	const urlSet = params.urlSet === true;
 	const secretSet = params.signingSecretSet === true;
-	const url = typeof params.url === "string" ? params.url : "";
+	const url = textParam.parse(params.url);
 	const [testing, setTesting] = useState(false);
 	const [testResult, setTestResult] = useState<{
 		ok: boolean;
@@ -522,7 +517,7 @@ function DeliveryFields({
 		}
 	};
 	return (
-		<div className="flex flex-col gap-3">
+		<div data-layout-role="workflow-delivery-properties">
 			<Field>
 				<FieldLabel>
 					{node.action === "discord" ? "Discord webhook URL" : "Webhook URL"}
@@ -554,7 +549,7 @@ function DeliveryFields({
 					</AlertDescription>
 				</Alert>
 			) : null}
-			<div className="flex flex-wrap items-center gap-2">
+			<div data-layout-role="workflow-delivery-test">
 				<Button
 					disabled={readOnly || url === ""}
 					onClick={runTest}

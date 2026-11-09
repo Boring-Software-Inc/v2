@@ -6,7 +6,7 @@ import {
 	type TriggerSchedule,
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import {
 	repos,
@@ -40,6 +40,7 @@ export function isScheduleDue(
 export async function listDueSchedules(
 	db: Db,
 	now: Date,
+	forge?: Forge,
 ): Promise<DueSchedule[]> {
 	const rows = await db
 		.select({
@@ -57,6 +58,9 @@ export async function listDueSchedules(
 		.innerJoin(repos, eq(repos.id, workflowDefinitions.repoId))
 		.where(
 			and(
+				forge === undefined
+					? ne(repos.forge, "gitcafe")
+					: eq(repos.forge, forge),
 				eq(workflowDefinitions.enabled, true),
 				eq(repos.armed, true),
 				isNull(repos.removedAt),

@@ -270,6 +270,17 @@ export function diffWorkflow(
 		];
 	}
 	const changes: WorkflowChange[] = [];
+	if (
+		local.authoredSource !== undefined &&
+		server.authoredSource !== local.authoredSource
+	) {
+		changes.push({
+			change: "changed",
+			subject: "workflow",
+			id: local.id,
+			text: "TypeScript source changed",
+		});
+	}
 	if (server.name !== local.name) {
 		changes.push({
 			change: "changed",

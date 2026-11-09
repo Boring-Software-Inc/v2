@@ -16,3 +16,8 @@ export const forgeConnectionSchema = z.object({
 });
 
 export type ForgeConnection = z.infer<typeof forgeConnectionSchema>;
+
+export const githubLoginResponseSchema = z.object({
+	login: z.string().min(1),
+});
+export type GithubLoginResponse = z.infer<typeof githubLoginResponseSchema>;

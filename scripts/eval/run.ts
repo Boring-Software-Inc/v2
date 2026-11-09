@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { AiReviewOutput } from "@tripwire/contracts";
 import { getRule } from "@tripwire/core";
 import {
 	AGREEMENT_THRESHOLD,
@@ -58,12 +59,15 @@ function diffText(fixture: EvalFixture): string {
 }
 
 /** A finding complies with @2 when a backticked token in its note is in the diff. */
-function backtickComplies(findings: unknown, diff: string): boolean {
+function backtickComplies(
+	findings: AiReviewOutput["findings"],
+	diff: string,
+): boolean {
 	if (!Array.isArray(findings) || findings.length === 0) {
 		return false;
 	}
 	for (const f of findings) {
-		const note = (f as { note?: string }).note ?? "";
+		const note = f.note ?? "";
 		const m = /`([^`]+)`/.exec(note);
 		if (m?.[1] && diff.includes(m[1])) {
 			return true;
@@ -98,7 +102,7 @@ async function runOnce(fixture: EvalFixture): Promise<RunResult> {
 	// The bounded trace (contracts) is the ONE definition of steps/usage — the
 	// same shape persisted to run_steps and displayed on the run page.
 	const ev = outcome.evidence as {
-		output: { verdict: string; findings: unknown };
+		output: AiReviewOutput;
 		trace: {
 			stepsUsed: number;
 			usage: { input: number; output: number; cached: number | null };

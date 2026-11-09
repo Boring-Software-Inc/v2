@@ -1,6 +1,6 @@
 import { Panel, useReactFlow } from "@xyflow/react";
-import { Add, FitView, Icon, Subtract } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
+import { Add, FitView, Icon, Subtract } from "#/design-system/icon";
+import { Button } from "#/design-system/ui/button";
 
 export function CanvasZoom() {
 	const { zoomIn, zoomOut, fitView } = useReactFlow();

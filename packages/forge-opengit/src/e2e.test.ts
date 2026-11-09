@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { createVerify, generateKeyPairSync } from "node:crypto";
-import { CHECK_NAME } from "@tripwire/contracts";
-import type { ForgeAdapter } from "@tripwire/forge";
+import { createSign, createVerify, generateKeyPairSync } from "node:crypto";
+import { CHECK_NAME, type JsonValue } from "@tripwire/contracts";
+import type { ForgeAction, ForgeAdapter } from "@tripwire/forge";
+import { z } from "zod";
 import { createOpenGitAdapter } from "./adapter.ts";
 import { OpenGitTokenCache } from "./client/auth.ts";
 import { signWebhookBody } from "./webhook/verify.ts";
@@ -50,6 +51,12 @@ const calls: ServerCall[] = [];
 let server: ReturnType<typeof Bun.serve>;
 let adapter: ForgeAdapter;
 
+const appJwtHeaderSchema = z.object({ alg: z.literal("RS256") });
+const appJwtClaimsSchema = z.object({
+	iss: z.literal(BOT_ID),
+	iat: z.number(),
+});
+
 /** open-git's `verifyBotAppJwt` contract, checked the way it checks it. */
 function appJwtIsValid(token: string, now = Date.now()): boolean {
 	const [header, payload, signature] = token.split(".");
@@ -62,20 +69,24 @@ function appJwtIsValid(token: string, now = Date.now()): boolean {
 	if (!verified) {
 		return false;
 	}
-	const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+	const parsedHeader = appJwtHeaderSchema.safeParse(
+		JSON.parse(Buffer.from(header, "base64url").toString("utf8")),
+	);
+	const claims = appJwtClaimsSchema.safeParse(
+		JSON.parse(Buffer.from(payload, "base64url").toString("utf8")),
+	);
 	const seconds = Math.floor(now / 1000);
 	return (
-		JSON.parse(Buffer.from(header, "base64url").toString("utf8")).alg ===
-			"RS256" &&
-		claims.iss === BOT_ID &&
-		typeof claims.iat === "number" &&
-		claims.iat <= seconds &&
-		seconds - claims.iat <= 600
+		parsedHeader.success &&
+		claims.success &&
+		claims.data.iat <= seconds &&
+		seconds - claims.data.iat <= 600
 	);
 }
 
 beforeAll(() => {
 	server = Bun.serve({
+		hostname: "127.0.0.1",
 		port: 0,
 		async fetch(request) {
 			const url = new URL(request.url);
@@ -114,7 +125,7 @@ beforeAll(() => {
 		},
 	});
 
-	const apiBase = `http://localhost:${server.port}`;
+	const apiBase = `http://127.0.0.1:${server.port}`;
 	const tokens = new OpenGitTokenCache({ botId: BOT_ID, privateKey }, apiBase);
 	adapter = createOpenGitAdapter({
 		apiBase,
@@ -128,7 +139,7 @@ afterAll(() => {
 	server.stop(true);
 });
 
-const delivery = (eventName: string, payload: unknown) => {
+const delivery = (eventName: string, payload: JsonValue) => {
 	const body = JSON.stringify(payload);
 	return {
 		deliveryId: `d-${eventName}`,
@@ -146,6 +157,61 @@ const PR = {
 	author: "newcontributor",
 };
 const REPOSITORY = { id: "repo_1", name: "widgets", owner: "acme" };
+
+describe("local app JWT validation", () => {
+	const now = Date.UTC(2026, 7, 19);
+	const seconds = now / 1000;
+
+	function signedToken(header: JsonValue, claims: JsonValue): string {
+		const input = [header, claims]
+			.map((value) => Buffer.from(JSON.stringify(value)).toString("base64url"))
+			.join(".");
+		const signature = createSign("RSA-SHA256")
+			.update(input)
+			.sign(privateKey)
+			.toString("base64url");
+		return `${input}.${signature}`;
+	}
+
+	test.each([
+		seconds,
+		seconds - 600,
+	])("accepts iat %p at the age bounds", (iat) => {
+		expect(
+			appJwtIsValid(signedToken({ alg: "RS256" }, { iss: BOT_ID, iat }), now),
+		).toBe(true);
+	});
+
+	const invalidClaims: JsonValue[] = [
+		{ iss: BOT_ID, iat: seconds + 1 },
+		{ iss: BOT_ID, iat: seconds - 601 },
+		{ iss: BOT_ID, iat: String(seconds) },
+		{ iss: BOT_ID, iat: null },
+		{ iss: BOT_ID },
+		{ iss: "another-bot", iat: seconds },
+	];
+
+	test.each(
+		invalidClaims,
+	)("rejects signed claims outside the bot contract %p", (claims) => {
+		expect(appJwtIsValid(signedToken({ alg: "RS256" }, claims), now)).toBe(
+			false,
+		);
+	});
+
+	test("rejects a signed header declaring another algorithm", () => {
+		expect(
+			appJwtIsValid(
+				signedToken({ alg: "HS256" }, { iss: BOT_ID, iat: seconds }),
+				now,
+			),
+		).toBe(false);
+	});
+
+	test("rejects missing JWT segments", () => {
+		expect(appJwtIsValid("header.payload", now)).toBe(false);
+	});
+});
 
 describe("inbound — a signed delivery becomes an event", () => {
 	test("a tampered body is rejected before anything is parsed", () => {
@@ -230,7 +296,7 @@ describe("outbound — the credential chain, end to end", () => {
 				detailsUrl: "https://tripwire.sh/runs/1",
 			},
 		});
-		expect(result.externalId).toBe("check_1");
+		expect(result).toMatchObject({ externalId: "check_1" });
 
 		// Two calls, in order: mint, then act.
 		expect(calls.map((call) => call.path.split("/").pop())).toEqual([
@@ -271,7 +337,7 @@ describe("outbound — the credential chain, end to end", () => {
 			previousVerdict: "block",
 		});
 		expect(calls).toHaveLength(0);
-		expect(result.externalId).toBeNull();
+		expect(result).toMatchObject({ externalId: null });
 	});
 
 	/**
@@ -284,7 +350,7 @@ describe("outbound — the credential chain, end to end", () => {
 			privateKeyEncoding: { type: "pkcs8", format: "pem" },
 			publicKeyEncoding: { type: "spki", format: "pem" },
 		});
-		const apiBase = `http://localhost:${server.port}`;
+		const apiBase = `http://127.0.0.1:${server.port}`;
 		const tokens = new OpenGitTokenCache(
 			{ botId: BOT_ID, privateKey: other.privateKey },
 			apiBase,
@@ -294,31 +360,36 @@ describe("outbound — the credential chain, end to end", () => {
 });
 
 describe("what open-git cannot do, refused rather than faked", () => {
-	test.each([
-		"block",
-		"label",
-		"request-review",
-	])("%s reaches no endpoint", async (kind) => {
+	const unsupportedActions = [
+		{ kind: "block", repoFullName: REPO, number: 7, reason: "no" },
+		{ kind: "label", repoFullName: REPO, number: 7, labels: ["x"] },
+		{
+			kind: "request-review",
+			repoFullName: REPO,
+			number: 7,
+			reviewers: ["maintainer"],
+			teamReviewers: [],
+		},
+	] satisfies ForgeAction[];
+
+	test.each(unsupportedActions)("$kind reaches no endpoint", async (action) => {
 		calls.length = 0;
-		await expect(
-			adapter.execute({
-				kind,
-				repoFullName: REPO,
-				number: 7,
-				reason: "no",
-				labels: ["x"],
-			} as never),
-		).rejects.toThrow();
+		await expect(adapter.execute(action)).rejects.toThrow();
 		expect(calls).toHaveLength(0);
 	});
 
 	test.each([
-		"getDiff",
-		"getCommits",
-		"readFile",
-		"getContributorProfile",
-	])("%s throws rather than reporting an empty read", (method) => {
-		const call = adapter[method as "getDiff"] as () => Promise<unknown>;
-		expect(() => call()).toThrow(/does not give Tripwire access/);
+		{ method: "getDiff", call: () => adapter.getDiff(REPO, 7) },
+		{ method: "getCommits", call: () => adapter.getCommits(REPO, 7) },
+		{
+			method: "readFile",
+			call: () => adapter.readFile(REPO, "README.md", SHA),
+		},
+		{
+			method: "getContributorProfile",
+			call: () => adapter.getContributorProfile(REPO, "newcontributor"),
+		},
+	])("$method throws rather than reporting an empty read", ({ call }) => {
+		expect(call).toThrow(/does not give Tripwire access/);
 	});
 });

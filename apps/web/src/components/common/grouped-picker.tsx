@@ -1,21 +1,22 @@
 import { type ComponentProps, type ReactNode, useState } from "react";
-import { type GlazeIcon, Icon } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
+import { type GlazeIcon, Icon } from "#/design-system/icon";
+import { cn } from "#/design-system/lib/utils";
+import { Button } from "#/design-system/ui/button";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleGroup,
 	CollapsibleTrigger,
-} from "#/components/glaze/ui/collapsible";
-import { Input } from "#/components/glaze/ui/input";
+} from "#/design-system/ui/collapsible";
+import { Input } from "#/design-system/ui/input";
 import {
 	Item,
 	ItemActions,
 	ItemContent,
+	ItemDescription,
 	ItemMedia,
 	ItemTitle,
-} from "#/components/glaze/ui/item";
-import { cn } from "#/lib/glaze/utils";
+} from "#/design-system/ui/item";
 
 export interface PickerGroup<T> {
 	key: string;
@@ -115,13 +116,15 @@ export type PickerRowProps = Omit<
 > & {
 	icon: GlazeIcon;
 	name: string;
+	description?: string;
 	muted?: boolean;
-	action: ReactNode;
+	action?: ReactNode;
 };
 
 export function PickerRow({
 	icon,
 	name,
+	description,
 	muted = false,
 	action,
 	...props
@@ -138,8 +141,11 @@ export function PickerRow({
 				<ItemTitle>
 					<span className="truncate">{name}</span>
 				</ItemTitle>
+				{description ? <ItemDescription>{description}</ItemDescription> : null}
 			</ItemContent>
-			<ItemActions className="static -me-3">{action}</ItemActions>
+			{action ? (
+				<ItemActions className="static -me-3">{action}</ItemActions>
+			) : null}
 		</Item>
 	);
 }

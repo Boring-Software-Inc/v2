@@ -2,13 +2,20 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { FORGE_CATALOG, type Forge } from "@tripwire/contracts";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { BrandLockup } from "#/components/auth/brand-lockup";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { MetaRow } from "#/components/common/meta-row";
-import { Alert, AlertTitle } from "#/components/glaze/ui/alert";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
-import { Card, CardContent } from "#/components/glaze/ui/card";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import { GitCafeInstallSetup } from "#/components/organizations/gitcafe-install-setup";
+import { InstallSetupPageSkeleton } from "#/components/organizations/install-setup-page-skeleton";
+import {
+	InstallSetupHeader as SetupHeader,
+	InstallSetupShell as SetupShell,
+} from "#/components/organizations/install-setup-shell";
+import { OrgAvatar } from "#/components/organizations/org-avatar";
+import { Alert, AlertTitle } from "#/design-system/ui/alert";
+import { Badge } from "#/design-system/ui/badge";
+import { Button } from "#/design-system/ui/button";
+import { Card, CardContent } from "#/design-system/ui/card";
 import {
 	Item,
 	ItemActions,
@@ -17,16 +24,13 @@ import {
 	ItemGroup,
 	ItemMedia,
 	ItemTitle,
-} from "#/components/glaze/ui/item";
+} from "#/design-system/ui/item";
 import {
 	Skeleton,
 	SkeletonSwap,
 	SkeletonText,
-} from "#/components/glaze/ui/skeleton";
-import { toast } from "#/components/glaze/ui/toast";
-import { MascotArt } from "#/components/mascot/mascot-art";
-import { InstallSetupPageSkeleton } from "#/components/organizations/install-setup-page-skeleton";
-import { OrgAvatar } from "#/components/organizations/org-avatar";
+} from "#/design-system/ui/skeleton";
+import { toast } from "#/design-system/ui/toast";
 import { authClient } from "#/lib/auth-client";
 import {
 	type ClaimableInstallStatus,
@@ -45,6 +49,8 @@ const route = getRouteApi("/onboarding/setup");
 export function InstallSetupPage() {
 	const search = route.useSearch();
 	const installationId = search.installation_id;
+	if (search.forge === "gitcafe")
+		return <GitCafeInstallSetup search={search} />;
 
 	if (!installationId) {
 		if (search.setup_action === "request") {
@@ -153,7 +159,7 @@ function RecoverInstallation({ state }: { state: string | undefined }) {
 	);
 }
 
-const MISSING_GRACE_MS = 30_000;
+const WEBHOOK_GRACE_MS = 30_000;
 const POLL_MS = 2000;
 
 function isWaiting(status: InstallStatus): boolean {
@@ -169,7 +175,9 @@ function useAutoRecover(
 	recover: () => void,
 ) {
 	const fired = useRef(false);
-	const waitForWebhook = status?.status === "missing" && status.recoverable;
+	const waitForWebhook =
+		status?.status === "processing" ||
+		(status?.status === "missing" && status.recoverable);
 	const checkNow = status?.status === "not-yours" && status.recoverable;
 	useEffect(() => {
 		if (fired.current) {
@@ -186,7 +194,7 @@ function useAutoRecover(
 		const timer = setTimeout(() => {
 			fired.current = true;
 			recover();
-		}, MISSING_GRACE_MS);
+		}, WEBHOOK_GRACE_MS);
 		return () => clearTimeout(timer);
 	}, [waitForWebhook, checkNow, recover]);
 }
@@ -255,6 +263,15 @@ function SetupFlow({
 				</SetupShell>
 			);
 		case "processing":
+			if (recovery.isError) {
+				return (
+					<LoadError
+						onRetry={() => recovery.mutate()}
+						title="Couldn't check this installation"
+					/>
+				);
+			}
+			return <ConnectingScreen />;
 		case "recovering":
 			return <ConnectingScreen />;
 		case "missing":
@@ -326,10 +343,23 @@ function SetupFlow({
 }
 
 function ConnectingScreen() {
+	const [isTakingLonger, setIsTakingLonger] = useState(false);
+	useEffect(() => {
+		const timer = window.setTimeout(() => setIsTakingLonger(true), 3_000);
+		return () => window.clearTimeout(timer);
+	}, []);
+
 	return (
 		<SetupShell>
 			<MascotArt className="self-center" mood="repos-syncing" />
-			<SetupHeader title="Connecting your installation…" />
+			<div>
+				<SetupHeader title="Connecting your installation…" />
+				<output data-layout-role="install-setup-status">
+					{isTakingLonger
+						? "This is taking longer than usual. Keep this page open and Tripwire will continue automatically."
+						: null}
+				</output>
+			</div>
 		</SetupShell>
 	);
 }
@@ -635,19 +665,6 @@ function OrgRowsSkeleton() {
 	);
 }
 
-function SetupHeader({ title, body }: { title: string; body?: string }) {
-	return (
-		<header className="flex flex-col items-center gap-2 text-center">
-			<h1 className="type-title text-balance">{title}</h1>
-			{body ? (
-				<p className="max-w-measure-hint type-body text-pretty text-text-2">
-					{body}
-				</p>
-			) : null}
-		</header>
-	);
-}
-
 function LoadError({ title, onRetry }: { title: string; onRetry: () => void }) {
 	return (
 		<SetupShell>
@@ -677,19 +694,6 @@ function BackHome() {
 			<Button nativeButton={false} render={<Link to="/" />} variant="secondary">
 				Back home
 			</Button>
-		</div>
-	);
-}
-
-function SetupShell({ children }: { children: ReactNode }) {
-	return (
-		<div className="flex min-h-dvh w-full justify-center bg-page px-4 py-10 md:items-center">
-			<div className="flex w-full max-w-md flex-col gap-6">
-				<div className="flex justify-center">
-					<BrandLockup />
-				</div>
-				{children}
-			</div>
 		</div>
 	);
 }

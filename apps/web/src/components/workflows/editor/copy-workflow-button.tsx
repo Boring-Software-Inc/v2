@@ -1,5 +1,5 @@
 import type { WorkflowDefinition } from "@tripwire/contracts";
-import { CopyButton } from "#/components/glaze/ui/copy-button";
+import { CopyButton } from "#/design-system/ui/copy-button";
 import {
 	type CustomRuleDisplay,
 	workflowToMarkdown,

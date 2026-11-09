@@ -1,24 +1,28 @@
-import { Link } from "@tanstack/react-router";
-import type { WorkflowDefinition } from "@tripwire/contracts";
-import { type ReactNode, useState } from "react";
-import { ArrowLeft, Edit, Icon, More } from "#/components/glaze/icon";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
+import {
+	FORGE_BY_ID,
+	type Forge,
+	forgeEvaluates,
+	type WorkflowDefinition,
+} from "@tripwire/contracts";
+import { type ReactNode, useId, useState } from "react";
+import { HistoryBackControl } from "#/components/common/history-back-control";
+import { CopyWorkflowButton } from "#/components/workflows/editor/copy-workflow-button";
+import type { Problem } from "#/components/workflows/editor/node-issues";
+import { Edit, Icon, More } from "#/design-system/icon";
+import { Badge } from "#/design-system/ui/badge";
+import { Button } from "#/design-system/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "#/components/glaze/ui/dropdown-menu";
-import { Input } from "#/components/glaze/ui/input";
+} from "#/design-system/ui/dropdown-menu";
+import { Input } from "#/design-system/ui/input";
 import {
 	SegmentedControl,
 	SegmentedControlItem,
-} from "#/components/glaze/ui/segmented-control";
-import { toast } from "#/components/glaze/ui/toast";
-import { CopyWorkflowButton } from "#/components/workflows/editor/copy-workflow-button";
-import type { Problem } from "#/components/workflows/editor/node-issues";
-import { controlHeight } from "#/lib/glaze/utils";
+} from "#/design-system/ui/segmented-control";
+import { toast } from "#/design-system/ui/toast";
 import {
 	WORKFLOW_EDITOR_VIEWS,
 	type WorkflowEditorView,
@@ -35,8 +39,7 @@ import {
  */
 
 export interface EditorHeaderProps {
-	org: string;
-	repo: string;
+	forge: Forge;
 	name: string;
 	/** The loaded (secret-redacted) definition — for the copy-markdown action. */
 	definition: WorkflowDefinition;
@@ -58,11 +61,11 @@ export interface EditorHeaderProps {
 	onSetEnabled: (enabled: boolean) => void;
 	leading?: ReactNode;
 	actions?: ReactNode;
+	note?: string;
 }
 
 export function EditorHeader({
-	org,
-	repo,
+	forge,
 	name,
 	definition,
 	customRules,
@@ -82,8 +85,12 @@ export function EditorHeader({
 	onShowProblems,
 	leading,
 	actions,
+	note,
 }: EditorHeaderProps) {
 	const [renaming, setRenaming] = useState(false);
+	const protectionAvailable = forgeEvaluates(forge);
+	const protectionReasonId = useId();
+	const enableUnavailable = !enabled && !protectionAvailable;
 
 	const commitName = async (next: string) => {
 		const trimmed = next.trim();
@@ -107,6 +114,7 @@ export function EditorHeader({
 			onSetEnabled(false);
 			return;
 		}
+		if (!protectionAvailable) return;
 		if (blockers.length > 0) {
 			onShowProblems();
 			return;
@@ -127,7 +135,12 @@ export function EditorHeader({
 
 	const menuItems = [
 		readOnly ? null : (
-			<DropdownMenuItem key="toggle" onClick={handleToggle}>
+			<DropdownMenuItem
+				aria-describedby={enableUnavailable ? protectionReasonId : undefined}
+				disabled={enableUnavailable}
+				key="toggle"
+				onClick={handleToggle}
+			>
 				{enabled ? "Turn off workflow" : "Turn on workflow"}
 			</DropdownMenuItem>
 		),
@@ -146,32 +159,18 @@ export function EditorHeader({
 	return (
 		<header
 			data-feedback-name="EditorHeader"
-			className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-line-faint border-b px-3 py-2"
+			data-layout-role="workflow-editor-header"
 		>
-			<div className="flex min-w-0 flex-1 items-center gap-2 max-md:basis-full">
-				<Button
-					nativeButton={false}
-					render={
-						<Link
-							activeOptions={{ exact: true }}
-							params={{ org, repo }}
-							to="/$org/$repo/workflows"
-						/>
-					}
-					size="sm"
-					variant="ghost"
-				>
-					<Icon icon={ArrowLeft} />
-					<span className="max-md:sr-only">Workflows</span>
-				</Button>
+			<div data-layout-role="workflow-editor-identity">
+				<HistoryBackControl />
 				{readOnly ? (
-					<span className="min-w-0 truncate type-label">{name}</span>
+					<span data-layout-role="workflow-editor-name">{name}</span>
 				) : renaming ? (
 					<Input
 						aria-label="Workflow name"
 						autoComplete="off"
 						autoFocus
-						className="w-56 min-w-0"
+						data-layout-role="workflow-editor-name-input"
 						defaultValue={name}
 						key={name}
 						onBlur={(event) => {
@@ -193,22 +192,21 @@ export function EditorHeader({
 				) : (
 					<Button
 						aria-label={`Rename ${name}`}
-						className="min-w-0 max-w-56 justify-start max-md:max-w-full"
+						data-layout-role="workflow-editor-rename"
 						onClick={() => setRenaming(true)}
 						size="sm"
 						variant="ghost"
 					>
-						<span className="min-w-0 truncate type-label">{name}</span>
-						<Icon className="text-text-3" icon={Edit} />
+						<span data-layout-role="workflow-editor-name">{name}</span>
+						<Icon icon={Edit} />
 					</Button>
 				)}
 				{enabled ? <Badge>On</Badge> : null}
 				{leading}
 			</div>
-			<div className="ms-auto flex min-w-0 items-center gap-2 max-md:w-full">
+			<div data-layout-role="workflow-editor-controls">
 				<SegmentedControl
 					aria-label="Workflow view"
-					className={controlHeight.sm}
 					onValueChange={(next) => {
 						const picked = WORKFLOW_EDITOR_VIEWS.find((v) => v === next);
 						if (picked) {
@@ -221,7 +219,7 @@ export function EditorHeader({
 					<SegmentedControlItem value="code">Code</SegmentedControlItem>
 				</SegmentedControl>
 				{view === "canvas" ? (
-					<span className="max-md:hidden">
+					<span data-layout-role="workflow-editor-copy">
 						<CopyWorkflowButton
 							customRules={customRules}
 							definition={definition}
@@ -231,7 +229,7 @@ export function EditorHeader({
 				{menuItems.length > 0 ? (
 					<DropdownMenu>
 						<DropdownMenuTrigger
-							className="ms-auto md:hidden"
+							data-layout-role="workflow-editor-mobile-menu"
 							render={
 								<Button
 									aria-label="More workflow actions"
@@ -255,7 +253,7 @@ export function EditorHeader({
 					<>
 						{view === "canvas" ? (
 							<Button
-								className="max-md:hidden"
+								data-layout-role="workflow-editor-desktop-action"
 								disabled={zeroNodes}
 								onClick={onArrange}
 								size="sm"
@@ -265,7 +263,11 @@ export function EditorHeader({
 							</Button>
 						) : null}
 						<Button
-							className="max-md:hidden"
+							aria-describedby={
+								enableUnavailable ? protectionReasonId : undefined
+							}
+							data-layout-role="workflow-editor-desktop-action"
+							disabled={enableUnavailable}
 							onClick={handleToggle}
 							pending={toggling}
 							size="sm"
@@ -274,10 +276,7 @@ export function EditorHeader({
 							{enabled ? "Turn off workflow" : "Turn on workflow"}
 						</Button>
 						{zeroNodes ? (
-							<span
-								className="type-caption text-text-2 max-md:hidden"
-								id="save-hint"
-							>
+							<span data-layout-role="workflow-editor-save-hint" id="save-hint">
 								Add a step to save
 							</span>
 						) : null}
@@ -294,6 +293,16 @@ export function EditorHeader({
 					</>
 				)}
 			</div>
+			{note ? <p data-layout-role="workflow-editor-note">{note}</p> : null}
+			{protectionAvailable ? null : (
+				<p
+					data-layout-role="workflow-editor-protection-note"
+					id={protectionReasonId}
+				>
+					{FORGE_BY_ID[forge].label} protection is unavailable. Checks aren't
+					available yet.
+				</p>
+			)}
 		</header>
 	);
 }

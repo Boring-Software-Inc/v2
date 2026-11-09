@@ -51,8 +51,9 @@ test("staging login, refresh, manage and logout never use production credentials
 			await staging.write({ ...PRODUCTION, expiresAt });
 			const result = await runCli(["whoami", "--json"], env);
 			expect(result.code).toBe(1);
-			expect(result.stdout).toContain("Not signed in");
-			expect(result.stdout).toContain("npx @tripwire-sh/cli@staging login");
+			expect(result.stdout).toBe("");
+			expect(result.stderr).toContain("Not signed in");
+			expect(result.stderr).toContain("npx @tripwire-sh/cli@staging login");
 			expect((await runCli(["logout", "--json"], env)).code).toBe(0);
 			expect(requests).toEqual([]);
 		}
@@ -119,7 +120,10 @@ test("staging install coexists with production and installs staging instructions
 		"production skill",
 	);
 	const env = { ...sandbox.env, TRIPWIRE_ENV: "staging" };
-	const result = await runCli(["install", "acme#abcde12345", "--json"], env);
+	const result = await runCli(
+		["install", "acme#abcde12345", "--json", "--agent", "cursor"],
+		env,
+	);
 	expect(result.code).toBe(0);
 	expect(JSON.parse(result.stdout).prompt).toContain(
 		"tripwire-staging-get-started",
@@ -149,7 +153,7 @@ test("staging install coexists with production and installs staging instructions
 		expect(body).not.toContain("https://app.tripwire.sh");
 		expect(body).not.toMatch(/@tripwire-sh\/cli(?!@staging)/);
 	}
-	const again = await runCli(["install", "--json"], env);
+	const again = await runCli(["install", "--json", "--agent", "cursor"], env);
 	expect(again.code).toBe(0);
 	expect(JSON.parse(again.stdout).agents[0].mcp.outcome).toBe("unchanged");
 });
@@ -171,10 +175,10 @@ fi`,
 	);
 	for (const target of order) {
 		const env = { ...sandbox.env, TRIPWIRE_ENV: target };
-		const result = await runCli(["install", "--json"], env);
+		const result = await runCli(["install", "--json", "--agent", "grok"], env);
 		expect(result.code).toBe(0);
 		expect(JSON.parse(result.stdout).agents[0].mcp.outcome).toBe("added");
-		const again = await runCli(["install", "--json"], env);
+		const again = await runCli(["install", "--json", "--agent", "grok"], env);
 		expect(again.code).toBe(0);
 		expect(JSON.parse(again.stdout).agents[0].mcp.outcome).toBe("unchanged");
 	}

@@ -1,6 +1,6 @@
-import { Card, CardContent } from "#/components/glaze/ui/card";
-import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Card, CardContent } from "#/design-system/ui/card";
+import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 
 const ROW_SLOTS = ["a", "b", "c", "d", "e"];
 

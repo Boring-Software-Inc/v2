@@ -13,9 +13,6 @@ import {
 
 const orgRoute = getRouteApi("/$org");
 
-const ITEM_CLASS =
-	"flex h-(--control) shrink-0 items-center rounded-tag px-3 type-label text-text-1 transition-colors duration-(--dur-state) ease-out hover:bg-hover aria-[current=page]:bg-pressed";
-
 export function SettingsNav({ org }: { org: string }) {
 	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
 	const resolved = orgRoute.useRouteContext({
@@ -31,15 +28,12 @@ export function SettingsNav({ org }: { org: string }) {
 	const sections = visibleSettingsSections(permissions);
 
 	return (
-		<nav
-			aria-label="Settings"
-			className="-mx-4 flex gap-1 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:flex-col md:gap-6 md:sticky md:top-6 md:self-start md:overflow-visible md:px-0"
-		>
+		<nav aria-label="Settings" data-layout-role="settings-nav">
 			<NavGroup>
 				{sections.map((section) => (
 					<Link
 						activeProps={{ "aria-current": "page" }}
-						className={ITEM_CLASS}
+						data-layout-role="settings-nav-item"
 						key={section}
 						params={{ org }}
 						to={`/$org/settings/${section}`}
@@ -58,7 +52,7 @@ export function SettingsNav({ org }: { org: string }) {
 						inactiveProps={{
 							"aria-current": current === section ? "page" : undefined,
 						}}
-						className={ITEM_CLASS}
+						data-layout-role="settings-nav-item"
 						hash={section}
 						key={section}
 						params={{ org }}
@@ -73,7 +67,5 @@ export function SettingsNav({ org }: { org: string }) {
 }
 
 function NavGroup({ children }: { children: ReactNode }) {
-	return (
-		<div className="flex shrink-0 gap-1 md:flex-col md:gap-0.5">{children}</div>
-	);
+	return <div data-layout-role="settings-nav-group">{children}</div>;
 }

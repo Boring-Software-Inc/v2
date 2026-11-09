@@ -6,9 +6,15 @@
  * Every jsonb column has a contracts schema validated ON WRITE (services).
  */
 
+export type { RerunChangeRequestJob } from "@tripwire/contracts";
 export { type BackfillReport, backfillOrgs } from "./backfill-orgs.ts";
 export type { Db } from "./client.ts";
-export { createDb, createDirectPool, schema } from "./client.ts";
+export {
+	createDb,
+	createDirectPool,
+	requirePostgresPool,
+	schema,
+} from "./client.ts";
 export { applyMigrations } from "./migrate.ts";
 export {
 	applyPgliteMigrations,
@@ -19,6 +25,7 @@ export {
 	BACKFILL_REPO_QUEUE,
 	type BackfillRepoJob,
 	createBoss,
+	createGitCafeConnectionBoss,
 	DEFAULT_RERUN_COOLDOWN_SECONDS,
 	getRerunCooldownSeconds,
 	PROCESS_EVENT_QUEUE,
@@ -30,7 +37,6 @@ export {
 	RESUME_RUN_QUEUE,
 	type RecoverInstallationJob,
 	type RefreshSurfacesJob,
-	type RerunChangeRequestJob,
 	type ResumeRunJob,
 	RULE_PREVIEW_QUEUE,
 	type RulePreviewJob,
@@ -141,6 +147,9 @@ export {
 	type UserFlagOverride,
 } from "./services/flag-overrides.ts";
 export * as giphyServices from "./services/giphy.ts";
+export * as gitCafeActionServices from "./services/gitcafe-actions.ts";
+export * as gitCafeConnectionServices from "./services/gitcafe-connection.ts";
+export * as gitCafeLifecycleServices from "./services/gitcafe-lifecycle.ts";
 export * as homeDigestServices from "./services/home-digest.ts";
 export * as insightServices from "./services/insights.ts";
 export type {
@@ -169,6 +178,7 @@ export * as presenceServices from "./services/presence.ts";
 export type { RepoSetupFacts } from "./services/repo-setup.ts";
 export * as repoSetupServices from "./services/repo-setup.ts";
 export * as repoServices from "./services/repos.ts";
+export * as repositoryConnectionServices from "./services/repository-connections.ts";
 export type { RedactionUsage } from "./services/responses.ts";
 export * as responseServices from "./services/responses.ts";
 export type { RepoReviewerList } from "./services/reviewers.ts";

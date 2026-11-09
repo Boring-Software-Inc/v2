@@ -215,7 +215,13 @@ describe("the request-changes review lives once per block", () => {
 				reason: REVIEW_POINTER.block,
 			},
 		]);
-		expect(await runServices.getActiveBlockReviewId(db, REPO, 5)).toBe("rev-2");
+		expect(
+			await runServices.getActiveBlockReviewId(
+				db,
+				{ forge: "github", fullName: REPO },
+				5,
+			),
+		).toBe("rev-2");
 
 		const review = await run("needs_review");
 		expect(review).toEqual([
@@ -226,7 +232,13 @@ describe("the request-changes review lives once per block", () => {
 				reviewId: "rev-2",
 			},
 		]);
-		expect(await runServices.getActiveBlockReviewId(db, REPO, 5)).toBeNull();
+		expect(
+			await runServices.getActiveBlockReviewId(
+				db,
+				{ forge: "github", fullName: REPO },
+				5,
+			),
+		).toBeNull();
 
 		const posted = fake.executed.filter((action) => action.kind === "block");
 		expect(posted).toHaveLength(2);

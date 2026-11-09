@@ -1,13 +1,17 @@
 import {
+	type Forge,
 	previewCaught,
 	RULE_CATALOG,
 	RULE_PACKS,
 	type RulePreview,
+	ruleSupportsForge,
 	sameSettings,
 } from "@tripwire/contracts";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
-import { Card, CardContent } from "#/components/glaze/ui/card";
+import { useMemo } from "react";
+import { CaughtCount } from "#/components/rules/caught-count";
+import { Badge } from "#/design-system/ui/badge";
+import { Button } from "#/design-system/ui/button";
+import { Card, CardContent } from "#/design-system/ui/card";
 import {
 	Item,
 	ItemActions,
@@ -15,8 +19,7 @@ import {
 	ItemDescription,
 	ItemGroup,
 	ItemTitle,
-} from "#/components/glaze/ui/item";
-import { CaughtCount } from "#/components/rules/caught-count";
+} from "#/design-system/ui/item";
 import type { RuleConfigView } from "#/lib/rules.functions";
 
 export function turnableRuleIds(
@@ -64,6 +67,7 @@ export function replayRuleIds(rules: readonly RuleConfigView[]): string[] {
 }
 
 export function RulePacks({
+	forge,
 	rules,
 	preview,
 	canEdit,
@@ -71,6 +75,7 @@ export function RulePacks({
 	onInstall,
 	heading = true,
 }: {
+	forge: Forge;
 	heading?: boolean;
 	rules: readonly RuleConfigView[];
 	preview: RulePreview | null;
@@ -78,6 +83,17 @@ export function RulePacks({
 	pending: string | null;
 	onInstall: (key: string, label: string, ruleIds: string[]) => void;
 }) {
+	const packs = useMemo(
+		() =>
+			RULE_PACKS.map((pack) => ({
+				...pack,
+				ruleIds:
+					forge === "gitcafe"
+						? pack.ruleIds.filter((id) => ruleSupportsForge(id, forge))
+						: pack.ruleIds,
+			})).filter((pack) => pack.ruleIds.length > 0),
+		[forge],
+	);
 	return (
 		<section
 			aria-label={heading ? undefined : "Rule packs"}
@@ -92,7 +108,7 @@ export function RulePacks({
 			<Card>
 				<CardContent flush>
 					<ItemGroup variant="plain">
-						{RULE_PACKS.map((pack) => {
+						{packs.map((pack) => {
 							const turnable = turnableRuleIds(rules, pack.ruleIds);
 							const names = pack.ruleIds.map(
 								(id) =>

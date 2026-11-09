@@ -13,8 +13,8 @@ import {
 	segmentLit,
 	trackAlpha,
 } from "#/components/agent/dither-ring";
+import { cn } from "#/design-system/lib/utils";
 import type { AgentMotion } from "#/hooks/use-agent-motion";
-import { cn } from "#/lib/glaze/utils";
 
 const FADE_OUT_MS = 300;
 
@@ -25,8 +25,10 @@ interface RingLook {
 
 const DEFAULT_LOOK: RingLook = { ring: DEFAULT_RING, timing: DEFAULT_SHIMMER };
 
-function agentColor(el: HTMLElement): string {
-	return getComputedStyle(el).getPropertyValue("--agent").trim() || "blue";
+function outlineColor(el: HTMLElement, tone: "agent" | "white"): string {
+	return tone === "white"
+		? "white"
+		: getComputedStyle(el).getPropertyValue("--agent").trim() || "blue";
 }
 
 function readLook(el: HTMLElement): RingLook {
@@ -57,6 +59,7 @@ export interface AgentOutlineProps {
 	seed: string;
 	radius?: number;
 	className?: string;
+	tone?: "agent" | "white";
 }
 
 /**
@@ -70,6 +73,7 @@ export function AgentOutline({
 	seed,
 	radius = 11,
 	className,
+	tone = "agent",
 }: AgentOutlineProps) {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const [size, setSize] = useState<{ width: number; height: number } | null>(
@@ -125,7 +129,7 @@ export function AgentOutline({
 		const draw = (clock: number) => {
 			context.setTransform(ratio, 0, 0, ratio, 0, 0);
 			context.clearRect(0, 0, canvas.width, canvas.height);
-			const color = agentColor(canvas);
+			const color = outlineColor(canvas, tone);
 			context.strokeStyle = color;
 			context.fillStyle = color;
 			context.lineWidth = ring.track;
@@ -159,7 +163,7 @@ export function AgentOutline({
 			return;
 		}
 		return onAgentTick(draw);
-	}, [size, shown, motion, radius, look, seed]);
+	}, [size, shown, motion, radius, look, seed, tone]);
 
 	return (
 		<canvas
@@ -170,6 +174,7 @@ export function AgentOutline({
 				className,
 			)}
 			data-agent-outline={active ? "on" : "off"}
+			data-outline-tone={tone}
 			ref={canvasRef}
 			style={{
 				inset: -look.ring.pad,

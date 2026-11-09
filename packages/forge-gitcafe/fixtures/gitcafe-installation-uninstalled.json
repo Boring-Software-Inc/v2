@@ -1,0 +1,15 @@
+{
+	"id": "evt_01m60zdw18fk1t8ck9w26z2zee",
+	"version": "1",
+	"createdAt": "2026-10-28T10:03:26.632Z",
+	"actor": {
+		"id": "act_01m08gfttrfw3ba3xpz50vq38h"
+	},
+	"installation": {
+		"id": "ins_01m60z0mpmfffbfjmwdvzfjp6b"
+	},
+	"organization": {
+		"id": "org_01m601398vfdztay7fh3vaenpn"
+	},
+	"type": "installation.uninstalled"
+}

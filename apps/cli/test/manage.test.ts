@@ -8,6 +8,7 @@ import {
 	test,
 } from "bun:test";
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { join } from "node:path";
 import { z } from "zod";
 import { credentialStore } from "../src/auth/credentials";
@@ -154,10 +155,10 @@ describe("management commands over MCP", () => {
 	});
 
 	test.each([
-		["workflows", "pull", "--help", "[repo] [workflows...]"],
-		["workflows", "validate", "-h", ""],
-		["workflows", "diff", "--help", "[repo]"],
-		["workflows", "push", "-h", "[repo]"],
+		["workflows", "pull", "--help", "[workflows...]"],
+		["workflows", "validate", "-h", "[workflows...]"],
+		["workflows", "diff", "--help", "[workflows...]"],
+		["workflows", "push", "-h", "[workflows...]"],
 		["rules", "set", "--help", "[repo] <ruleId>"],
 		["rules", "create", "--help", "[repo]"],
 		["rules", "update", "--help", "[repo] <ruleId>"],
@@ -177,16 +178,15 @@ describe("management commands over MCP", () => {
 			env(),
 		);
 		expect(result.stdout.split("\n")[0]).toBe(
-			"Usage: tripwire workflows pull [options] [repo] [workflows...]",
+			"Usage: tripwire workflows pull [options] [workflows...]",
 		);
 	});
 
-	test("an unknown command exits 1 and never runs install", async () => {
+	test("an unknown command exits 2 and never runs install", async () => {
 		const result = await runCli(["list_repos"], env());
-		expect(result.code).toBe(1);
-		expect(result.stderr).toBe(
-			"error     Unknown command list_repos. Run tripwire --help.\n",
-		);
+		expect(result.code).toBe(2);
+		expect(result.stderr).toContain("error: unknown command 'list_repos'");
+		expect(result.stderr).toContain("Usage: tripwire [options] [command]");
 		expect(result.stdout).toBe("");
 		expect(server.calls).toEqual([]);
 		expect(sandbox.argv()).toEqual([]);
@@ -195,79 +195,77 @@ describe("management commands over MCP", () => {
 		).toEqual([]);
 	});
 
-	test("commands map to tools with org and args", async () => {
-		const cases: Array<[string[], string, ToolCall["args"]]> = [
-			[["status"], "setup_status", { org: "acme" }],
-			[["repos"], "list_repos", { org: "acme" }],
-			[["rules", "list"], "list_rule_catalog", { org: "acme" }],
+	const commandMappings: Array<[string[], string, ToolCall["args"]]> = [
+		[["status"], "setup_status", { org: "acme" }],
+		[["repos"], "list_repos", { org: "acme" }],
+		[["rules", "list"], "list_rule_catalog", { org: "acme" }],
+		[
+			["rules", "list", "acme/web"],
+			"get_repo_rules",
+			{ org: "acme", repo: "acme/web" },
+		],
+		[
 			[
-				["rules", "list", "acme/web"],
-				"get_repo_rules",
-				{ org: "acme", repo: "acme/web" },
+				"rules",
+				"set",
+				"acme/web",
+				"account-age@1",
+				"--enable",
+				"--param",
+				"minDays=30",
+				"--param",
+				"mode=strict",
 			],
-			[
-				[
-					"rules",
-					"set",
-					"acme/web",
-					"account-age@1",
-					"--enable",
-					"--param",
-					"minDays=30",
-					"--param",
-					"mode=strict",
-				],
-				"set_rule",
-				{
-					org: "acme",
-					repo: "acme/web",
-					ruleId: "account-age@1",
-					enabled: true,
-					config: { minDays: 30, mode: "strict" },
-				},
-			],
-			[
-				["gate", "on", "acme/web"],
-				"turn_on_gate",
-				{ org: "acme", repo: "acme/web" },
-			],
-			[
-				["workflows", "list", "acme/web"],
-				"list_workflows",
-				{ org: "acme", repo: "acme/web" },
-			],
-			[
-				["workflows", "disable", "acme/web", "wf_1"],
-				"set_workflow_enabled",
-				{ org: "acme", repo: "acme/web", workflowId: "wf_1", enabled: false },
-			],
-			[
-				["runs", "list", "--repo", "acme/web", "--limit", "5"],
-				"list_runs",
-				{ org: "acme", repo: "acme/web", limit: 5 },
-			],
-			[
-				["queue", "list", "--repo", "acme/web"],
-				"list_moderation_queue",
-				{ org: "acme", repo: "acme/web" },
-			],
-			[
-				["queue", "decide", "acme/web", "item_9", "approve"],
-				"decide_moderation",
-				{
-					org: "acme",
-					repo: "acme/web",
-					itemId: "item_9",
-					decision: "approve",
-				},
-			],
-		];
-		for (const [args, tool, expected] of cases) {
-			server.calls.length = 0;
-			const result = await runCli(["--org", "acme", "--json", ...args], env());
-			expect(result.code).toBe(0);
-			expect(server.calls).toEqual([{ name: tool, args: expected }]);
-		}
+			"set_rule",
+			{
+				org: "acme",
+				repo: "acme/web",
+				ruleId: "account-age@1",
+				enabled: true,
+				config: { minDays: 30, mode: "strict" },
+			},
+		],
+		[
+			["gate", "on", "acme/web"],
+			"turn_on_gate",
+			{ org: "acme", repo: "acme/web" },
+		],
+		[
+			["workflows", "list", "acme/web"],
+			"list_workflows",
+			{ org: "acme", repo: "acme/web" },
+		],
+		[
+			["workflows", "disable", "acme/web", "wf_1"],
+			"set_workflow_enabled",
+			{ org: "acme", repo: "acme/web", workflowId: "wf_1", enabled: false },
+		],
+		[
+			["runs", "list", "--repo", "acme/web", "--limit", "5"],
+			"list_runs",
+			{ org: "acme", repo: "acme/web", limit: 5 },
+		],
+		[
+			["queue", "list", "--repo", "acme/web"],
+			"list_moderation_queue",
+			{ org: "acme", repo: "acme/web" },
+		],
+		[
+			["queue", "decide", "acme/web", "item_9", "approve"],
+			"decide_moderation",
+			{
+				org: "acme",
+				repo: "acme/web",
+				itemId: "item_9",
+				decision: "approve",
+			},
+		],
+	];
+
+	test.each(commandMappings)("maps %j to %s", async (args, tool, expected) => {
+		const result = await runCli(["--org", "acme", "--json", ...args], env());
+		expect(result.code).toBe(0);
+		expect(server.calls).toEqual([{ name: tool, args: expected }]);
 	});
 
 	test("TRIPWIRE_ORG is used when --org is absent", async () => {
@@ -351,8 +349,13 @@ describe("management commands over MCP", () => {
 	test("tool errors exit 1 and show as json errors", async () => {
 		const result = await runCli(["--json", "runs", "show", "r1"], env());
 		expect(result.code).toBe(1);
-		expect(JSON.parse(result.stdout)).toEqual({
-			error: "No run r1 in grim. Run tripwire runs list to see recent runs.",
+		expect(result.stdout).toBe("");
+		expect(JSON.parse(result.stderr)).toEqual({
+			error: {
+				code: "OPERATION_FAILED",
+				message:
+					"No run r1 in grim. Run tripwire runs list to see recent runs.",
+			},
 		});
 	});
 
@@ -367,7 +370,11 @@ describe("management commands over MCP", () => {
 		const { TRIPWIRE_TOKEN: _drop, ...rest } = env();
 		const result = await runCli(["--json", "status"], rest);
 		expect(result.code).toBe(1);
-		expect(JSON.parse(result.stdout).error).toContain("Not signed in");
+		expect(result.stdout).toBe("");
+		expect(JSON.parse(result.stderr).error).toMatchObject({
+			code: "OPERATION_FAILED",
+			message: expect.stringContaining("Not signed in"),
+		});
 	});
 
 	test("reads a stored token from the 0600 credentials file", async () => {
@@ -484,7 +491,7 @@ describe("workflows as code", () => {
 
 	async function pulled() {
 		const result = await runCli(
-			["workflows", "pull", "scratch", "--file", file()],
+			["workflows", "pull", "--repo", "scratch", "--file", file()],
 			env(),
 		);
 		expect(result.code).toBe(0);
@@ -591,7 +598,7 @@ export default workflows({
 		await pulled();
 		writeFileSync(file(), `${readFileSync(file(), "utf8")}\n`);
 		const again = await runCli(
-			["workflows", "pull", "scratch", "--file", file()],
+			["workflows", "pull", "--repo", "scratch", "--file", file()],
 			env(),
 		);
 		expect(again.code).toBe(1);
@@ -628,7 +635,15 @@ export default workflows({
 	test("pull takes several workflow args and writes only those", async () => {
 		serveTwo();
 		const result = await runCli(
-			["workflows", "pull", "scratch", "Stale issues", "--file", file()],
+			[
+				"workflows",
+				"pull",
+				"Stale issues",
+				"--repo",
+				"scratch",
+				"--file",
+				file(),
+			],
 			env(),
 		);
 		expect(result.code).toBe(0);
@@ -642,7 +657,16 @@ export default workflows({
 	test("pull names a workflow arg that is not on the repo", async () => {
 		serveTwo();
 		const result = await runCli(
-			["workflows", "pull", "scratch", "stale", "nope", "--file", file()],
+			[
+				"workflows",
+				"pull",
+				"stale",
+				"nope",
+				"--repo",
+				"scratch",
+				"--file",
+				file(),
+			],
 			env(),
 		);
 		expect(result.code).toBe(1);
@@ -655,7 +679,7 @@ export default workflows({
 		await pulled();
 		serveTwo();
 		const result = await runCli(
-			["workflows", "pull", "scratch", "stale", "--file", file()],
+			["workflows", "pull", "stale", "--repo", "scratch", "--file", file()],
 			env(),
 		);
 		expect(result.code).toBe(0);
@@ -675,7 +699,7 @@ export default workflows({
 			readFileSync(file(), "utf8").replace("minDays: 7", "minDays: 30"),
 		);
 		const again = await runCli(
-			["workflows", "pull", "scratch", "--file", file()],
+			["workflows", "pull", "--repo", "scratch", "--file", file()],
 			env(),
 		);
 		expect(again.code).toBe(1);
@@ -684,10 +708,10 @@ export default workflows({
 		);
 	});
 
-	test("pull --all and a pipe never open the picker", async () => {
+	test("pull with no selectors and a pipe never opens the picker", async () => {
 		serveTwo();
 		const result = await runCli(
-			["workflows", "pull", "scratch", "--all", "--file", file()],
+			["workflows", "pull", "--repo", "scratch", "--file", file()],
 			env(),
 		);
 		expect(result.code).toBe(0);
@@ -721,7 +745,7 @@ export default workflows({
 		);
 	});
 
-	test("validate still reports the workflows that compile when one does not", async () => {
+	test("validate keeps stdout empty when one workflow does not compile", async () => {
 		await pulled();
 		writeFileSync(
 			file(),
@@ -754,21 +778,24 @@ export default workflows({ broken: broken(), loose: loose() });
 		expect(result.stderr).toContain(
 			"acount-age is not a rule. Did you mean account-age?",
 		);
-		expect(result.stdout).toContain("loose can be turned on");
-		expect(result.stdout).toContain("Account age 2: Nothing runs after it.");
-		expect(result.stdout).not.toContain("broken can be turned on");
+		expect(result.stdout).toBe("");
 
 		const json = await runCli(
 			["--json", "workflows", "validate", "--file", file()],
 			env(),
 		);
 		expect(json.code).toBe(1);
-		const parsed = JSON.parse(json.stdout);
-		expect(parsed.valid).toBe(false);
-		expect(parsed.issues[0].workflow).toBe("broken");
-		expect(parsed.workflows.map((w: { id: string }) => w.id)).toEqual([
-			"loose",
-		]);
+		expect(json.stdout).toBe("");
+		expect(JSON.parse(json.stderr).error).toMatchObject({
+			code: "INVALID_WORKFLOW",
+			details: {
+				issues: expect.arrayContaining([
+					expect.objectContaining({
+						message: expect.stringContaining("acount-age is not a rule"),
+					}),
+				]),
+			},
+		});
 	});
 
 	test("validate reads a schedule back with what it finds and what it does", async () => {
@@ -814,10 +841,10 @@ export default workflows({
 		const tsc = Bun.spawnSync(
 			[
 				process.execPath,
-				"x",
-				"tsc",
+				createRequire(import.meta.url).resolve("typescript/bin/tsc"),
 				"--noEmit",
 				"--strict",
+				"--skipLibCheck",
 				"--target",
 				"es2022",
 				"--module",
@@ -831,12 +858,12 @@ export default workflows({
 		);
 		const output = tsc.stdout.toString();
 		expect(output).toContain('"acount-age is not a rule, try account-age"');
-	});
+	}, 15_000);
 
 	test("diff lists what a push would change", async () => {
 		await pulled();
 		const result = await runCli(
-			["workflows", "diff", "scratch", "--file", file()],
+			["workflows", "diff", "--repo", "scratch", "--file", file()],
 			env(),
 		);
 		expect(result.code).toBe(0);
@@ -853,7 +880,7 @@ export default workflows({
 	test("push --force sends the compiled definitions to apply_workflow", async () => {
 		await pulled();
 		const result = await runCli(
-			["workflows", "push", "scratch", "--force", "--file", file()],
+			["workflows", "push", "--repo", "scratch", "--force", "--file", file()],
 			env(),
 		);
 		expect(result.code).toBe(0);
@@ -886,10 +913,10 @@ export default workflows({
 			],
 		});
 		const result = await runCli(
-			["workflows", "push", "scratch", "--force", "--file", file()],
+			["workflows", "push", "--repo", "scratch", "--force", "--file", file()],
 			env(),
 		);
-		expect(result.code).toBe(1);
+		expect(result.code).toBe(0);
 		expect(result.stderr).toContain(
 			"new-accounts is on, so this version was not saved. Any of: It takes no inputs. Block: Nothing runs it.",
 		);
@@ -910,10 +937,10 @@ export default workflows({
 			],
 		});
 		const result = await runCli(
-			["workflows", "push", "scratch", "--force", "--file", file()],
+			["workflows", "push", "--repo", "scratch", "--force", "--file", file()],
 			env(),
 		);
-		expect(result.code).toBe(1);
+		expect(result.code).toBe(0);
 		expect(result.stderr).toBe(
 			"error     qa6-clash was not saved. Another workflow on this repo is named QA. Pick another name.\n",
 		);
@@ -925,7 +952,7 @@ export default workflows({
 			workflows: [{ id: "qa6-clash", outcome: "refused", issues: [] }],
 		});
 		const result = await runCli(
-			["workflows", "push", "scratch", "--force", "--file", file()],
+			["workflows", "push", "--repo", "scratch", "--force", "--file", file()],
 			env(),
 		);
 		expect(result.stderr).toBe(
@@ -933,7 +960,7 @@ export default workflows({
 		);
 	});
 
-	test("a refused push exits 1 with --json too", async () => {
+	test("a refused push is a policy result with --json too", async () => {
 		await pulled();
 		server.answerNext("apply_workflow", {
 			workflows: [
@@ -945,14 +972,23 @@ export default workflows({
 			],
 		});
 		const result = await runCli(
-			["--json", "workflows", "push", "scratch", "--force", "--file", file()],
+			[
+				"--json",
+				"workflows",
+				"push",
+				"--repo",
+				"scratch",
+				"--force",
+				"--file",
+				file(),
+			],
 			env(),
 		);
 		expect(JSON.parse(result.stdout).workflows[0].outcome).toBe("refused");
-		expect(result.code).toBe(1);
+		expect(result.code).toBe(0);
 	});
 
-	test("validate --repo exits 1 on an invalid report with --json too", async () => {
+	test("validate --repo returns an invalid policy report with --json too", async () => {
 		await pulled();
 		const invalid = {
 			valid: false,
@@ -988,13 +1024,13 @@ export default workflows({
 			env(),
 		);
 		expect(JSON.parse(json.stdout).valid).toBe(false);
-		expect(json.code).toBe(1);
+		expect(json.code).toBe(0);
 		server.answerNext("validate_workflow", invalid);
 		const text = await runCli(
 			["workflows", "validate", "--repo", "scratch", "--file", file()],
 			env(),
 		);
-		expect(text.code).toBe(1);
+		expect(text.code).toBe(0);
 	});
 
 	test("each workflows command exits the same with and without --json", async () => {
@@ -1002,8 +1038,8 @@ export default workflows({
 		const commands = [
 			["workflows", "validate", "--file", file()],
 			["workflows", "validate", "--repo", "scratch", "--file", file()],
-			["workflows", "diff", "scratch", "--file", file()],
-			["workflows", "push", "scratch", "--file", file()],
+			["workflows", "diff", "--repo", "scratch", "--file", file()],
+			["workflows", "push", "--repo", "scratch", "--file", file()],
 		];
 		for (const command of commands) {
 			const text = await runCli(command, env());
@@ -1037,7 +1073,7 @@ export default workflows({
 			workflows: [{ ...report, enabled: true }],
 		});
 		const live = await runCli(
-			["workflows", "diff", "scratch", "--file", file()],
+			["workflows", "diff", "--repo", "scratch", "--file", file()],
 			env(),
 		);
 		expect(live.stderr).toContain(
@@ -1048,7 +1084,7 @@ export default workflows({
 			workflows: [{ ...report, enabled: false }],
 		});
 		const off = await runCli(
-			["workflows", "diff", "scratch", "--file", file()],
+			["workflows", "diff", "--repo", "scratch", "--file", file()],
 			env(),
 		);
 		expect(off.stderr).toContain(
@@ -1063,7 +1099,9 @@ describe("the workflows skill", () => {
 			join(import.meta.dir, "..", "skills", "tripwire-workflows", "SKILL.md"),
 			"utf8",
 		);
-		const example = /```ts\n([\s\S]*?)```/.exec(skill)?.[1] ?? "";
+		const legacyReference =
+			skill.split("## Legacy collection reference")[1] ?? "";
+		const example = /```ts\n([\s\S]*?)```/.exec(legacyReference)?.[1] ?? "";
 		const file = join(sandbox.root, "tripwire.ts");
 		writeFileSync(file, example);
 		const result = await runCli(
@@ -1275,6 +1313,7 @@ describe("local validate and custom rules", () => {
 			[
 				"workflows",
 				"pull",
+				"--repo",
 				"scratch",
 				"--file",
 				join(sandbox.root, "tripwire.ts"),

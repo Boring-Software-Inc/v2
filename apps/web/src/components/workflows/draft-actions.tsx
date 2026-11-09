@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
-import { Button } from "#/components/glaze/ui/button";
-import { toast } from "#/components/glaze/ui/toast";
+import { Button } from "#/design-system/ui/button";
+import { toast } from "#/design-system/ui/toast";
 import { discardRepoDraft, promoteRepoDraft } from "#/lib/workflows.functions";
 import { workflowsQueryKeys } from "#/lib/workflows.query";
 

@@ -1,3 +1,4 @@
+import { GITCAFE_CONNECT_QUEUE } from "@tripwire/contracts";
 import { PgBoss } from "pg-boss";
 
 /** Ingest → worker handoff (§5). */
@@ -50,18 +51,6 @@ export function getRerunCooldownSeconds(): number {
  * that still import the name; evaluates the env at module load only.
  */
 export const RERUN_COOLDOWN_SECONDS = getRerunCooldownSeconds();
-
-export interface RerunChangeRequestJob {
-	repoFullName: string;
-	number: number;
-	/** The admin who triggered it — lands on runs.triggered_by. */
-	requestedBy: string;
-	/**
-	 * Pre-materialized run id (created at enqueue in `queued` status). The
-	 * worker claims and finalizes this row; missing only for legacy jobs.
-	 */
-	runId?: string;
-}
 
 /** Arming → arm-time backfill (§4): replay stored events into real runs. */
 export const BACKFILL_REPO_QUEUE = "backfill-repo";
@@ -144,7 +133,35 @@ export interface RefreshSurfacesJob {
 
 /** Minimal logger surface — satisfied by pino, console, etc. */
 export interface BossErrorLogger {
-	error(obj: unknown, msg?: string): void;
+	error(obj: { error: Error | string }, msg?: string): void;
+}
+
+/** Connection producers and the isolated worker must leave general backlog maintenance stopped. */
+export async function createGitCafeConnectionBoss(
+	databaseUrl: string,
+	logger: BossErrorLogger,
+): Promise<PgBoss> {
+	const boss = new PgBoss({
+		connectionString: databaseUrl,
+		schedule: false,
+		supervise: false,
+		migrate: false,
+		createSchema: false,
+	});
+	boss.on("error", () =>
+		logger.error(
+			{ error: "queue-unavailable" },
+			"GitCafe connection queue unavailable",
+		),
+	);
+	try {
+		await boss.start();
+		await boss.createQueue(GITCAFE_CONNECT_QUEUE);
+		return boss;
+	} catch (error) {
+		await boss.stop({ graceful: false }).catch(() => undefined);
+		throw error;
+	}
 }
 
 /**

@@ -1,10 +1,13 @@
+import { useQuery } from "@tanstack/react-query";
+import { availableForgeLabels } from "@tripwire/utils/forge-sign-in";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleGroup,
 	CollapsibleTrigger,
-} from "#/components/glaze/ui/collapsible";
-import { LIVE_FORGES, SIGN_IN_FORGES } from "#/lib/forge-copy";
+} from "#/design-system/ui/collapsible";
+import { providerAvailabilityQueryOptions } from "#/lib/auth.query";
+import { LIVE_FORGES } from "#/lib/forge-copy";
 
 const FAQ = [
 	{
@@ -22,10 +25,6 @@ const FAQ = [
 	{
 		id: "which-supported",
 		question: "Which forges are supported?",
-		// Two different sets, and conflating them would be a lie: you can sign in
-		// with a forge before tripwire can watch its repos. Both generated from
-		// the catalog, so an adapter shipping can't leave this calling it "next".
-		answer: `Tripwire watches ${LIVE_FORGES} today. You can sign in with ${SIGN_IN_FORGES}; the others are not available for sign-in yet.`,
 	},
 ];
 
@@ -35,16 +34,28 @@ const FAQ = [
  * accordion, so the card never grows past a phone screen.
  */
 export function LoginFaq() {
+	const providers = useQuery(providerAvailabilityQueryOptions());
+	const forges = availableForgeLabels(providers.data);
+	const signInCopy =
+		providers.isError || providers.isPending
+			? "Sign-in providers are unavailable right now. Refresh the page to try again."
+			: forges
+				? `You can sign in with ${forges}; the others are not available for sign-in yet.`
+				: "No sign-in providers are configured on this Tripwire server.";
 	return (
 		<Collapsible>
 			<CollapsibleTrigger size="sm">Not sure which to pick?</CollapsibleTrigger>
 			<CollapsibleContent>
-				<CollapsibleGroup className="pt-1" variant="plain">
+				<CollapsibleGroup className="login-faq-group" variant="plain">
 					{FAQ.map((item) => (
 						<Collapsible key={item.id} value={item.id}>
 							<CollapsibleTrigger>{item.question}</CollapsibleTrigger>
 							<CollapsibleContent>
-								<p className="type-body-sm text-text-2">{item.answer}</p>
+								<p data-layout-role="login-faq-answer">
+									{item.id === "which-supported"
+										? `Tripwire watches ${LIVE_FORGES} today. ${signInCopy}`
+										: item.answer}
+								</p>
 							</CollapsibleContent>
 						</Collapsible>
 					))}

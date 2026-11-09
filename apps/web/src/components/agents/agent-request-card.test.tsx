@@ -67,4 +67,12 @@ describe("AgentRequestCard", () => {
 		expect(checkedOrgs(html)).toEqual(["tripwire"]);
 		expect(allowDisabled(html)).toBe(false);
 	});
+
+	test("only organization names receive the flexible text role", () => {
+		const html = render(ORGS, "tripwire");
+		expect(html.match(/data-layout-role="agent-org-name"/g)).toHaveLength(3);
+		expect(html).not.toMatch(
+			/data-layout-role="agent-org-name"[^>]*data-slot="checkbox"/,
+		);
+	});
 });

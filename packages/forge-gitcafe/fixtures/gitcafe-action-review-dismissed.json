@@ -1,0 +1,10 @@
+{
+	"id": "review_01m62dhk5yfkn9mge0r4b28e4m",
+	"version": 1,
+	"dismissedAt": "2026-10-28T23:29:28.759Z",
+	"dismissedReason": "Tripwire staging acceptance cleanup.",
+	"dismissedByActorId": "act_01m60zef00f4fsqskxqt2w72xs",
+	"dismissedByDelegatorActorId": null,
+	"dismissedByViaInstallationId": "ins_01m60zef0bfzzbx050fw4rymhr",
+	"pullVersion": 1
+}

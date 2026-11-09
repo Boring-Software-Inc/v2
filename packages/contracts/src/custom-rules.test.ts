@@ -96,6 +96,20 @@ describe("runtime catalog", () => {
 		expect(builtIn?.name).toBe("Account age");
 	});
 
+	test("changeNote stays absent unless the built-in owns one", () => {
+		const resolved = resolveCatalog([]);
+		for (const entry of RULE_CATALOG) {
+			const actual = resolved.find((item) => item.ruleId === entry.ruleId);
+			expect(actual).toBeDefined();
+			if (!actual) throw new Error(`missing catalog entry: ${entry.ruleId}`);
+			expect(Object.hasOwn(actual, "changeNote")).toBe("changeNote" in entry);
+			const wire = JSON.parse(JSON.stringify(actual));
+			expect(Object.hasOwn(wire, "changeNote")).toBe("changeNote" in entry);
+			if ("changeNote" in entry)
+				expect(actual.changeNote).toBe(entry.changeNote);
+		}
+	});
+
 	test("every consumer field a built-in entry carries exists on a custom entry", () => {
 		const custom = customCatalogEntry(forkRate);
 		const builtIn = resolveCatalog([])[0];
@@ -144,6 +158,28 @@ describe("enable-time validation over the runtime catalog", () => {
 			merged,
 		);
 		expect(result.valid).toBe(true);
+	});
+
+	for (const ref of [
+		"ai-review@1",
+		"ai-review@2",
+		"ai-review@3",
+		"crypto-address@1",
+		"crypto-address@2",
+	]) {
+		test(`saved ${ref} remains valid after the catalog advances`, () => {
+			expect(
+				validateWorkflowForEnable(workflow(ref), resolveCatalog([])).valid,
+			).toBe(true);
+		});
+	}
+	test("an unregistered historical version cannot borrow the current schema", () => {
+		expect(
+			validateWorkflowForEnable(
+				workflow("crypto-address@99"),
+				resolveCatalog([]),
+			).valid,
+		).toBe(false);
 	});
 
 	test("the same ref fails against the static catalog alone", () => {

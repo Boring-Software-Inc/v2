@@ -2,10 +2,17 @@ import { z } from "zod";
 import { collectionSearchSchema, defineCollection } from "#/lib/collection";
 import type { RuleConfigView } from "#/lib/rules.functions";
 
-const byName = (a: RuleConfigView, b: RuleConfigView) =>
+type PilotRuleListItem = Pick<
+	RuleConfigView,
+	"name" | "ruleId" | "blurb" | "sentence" | "matches24h"
+> & { kind: "pilot" };
+
+const byName = (a: { name: string }, b: { name: string }) =>
 	a.name.localeCompare(b.name);
 
-export const RULES_COLLECTION = defineCollection<RuleConfigView>({
+export const RULES_COLLECTION = defineCollection<
+	RuleConfigView | PilotRuleListItem
+>({
 	id: "rules",
 	noun: "rules",
 	search: {

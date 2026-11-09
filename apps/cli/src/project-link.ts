@@ -14,6 +14,9 @@ export const projectLinkSchema = z.object({
 	org: z.string().min(1).optional(),
 	repo: z.string().min(1),
 	workflows: z.record(z.string().min(1), z.string().min(1)).optional(),
+	workflowPullHashes: z
+		.record(z.string().min(1), z.string().regex(/^[a-f0-9]{64}$/))
+		.optional(),
 });
 
 export type ProjectLink = z.infer<typeof projectLinkSchema>;

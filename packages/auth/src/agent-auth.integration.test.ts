@@ -1,5 +1,9 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { AGENT_ORGS_CLAIM, TRIPWIRE_CLI_CLIENT_ID } from "@tripwire/contracts";
+import {
+	AGENT_ORGS_CLAIM,
+	agentAccessClaimsSchema,
+	TRIPWIRE_CLI_CLIENT_ID,
+} from "@tripwire/contracts";
 import {
 	agentServices,
 	applyMigrations,
@@ -131,13 +135,14 @@ test("the cli device grant mints an audience-bound jwt that carries the granted 
 	expect(tokenRes.status).toBe(200);
 	expect(tokens.expires_in).toBeLessThanOrEqual(900);
 	expect(tokens.refresh_token).toBeString();
-	const claims = JSON.parse(
+	const decoded: unknown = JSON.parse(
 		Buffer.from(
 			tokens.access_token.split(".")[1] ?? "",
 			"base64url",
 		).toString(),
-	) as Record<string, unknown>;
-	expect(claims.aud).toContain(RESOURCE);
+	);
+	expect(decoded).toHaveProperty("aud", expect.arrayContaining([RESOURCE]));
+	const claims = agentAccessClaimsSchema.parse(decoded);
 	expect(claims.azp).toBe(TRIPWIRE_CLI_CLIENT_ID);
 	expect(claims.sub).toBe(userId);
 	expect(claims[AGENT_ORGS_CLAIM]).toEqual(["org-a"]);

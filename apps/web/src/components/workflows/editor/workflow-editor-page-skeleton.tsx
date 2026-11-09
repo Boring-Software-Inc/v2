@@ -1,35 +1,53 @@
-import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-
-export const PAGE_FRAME = "flex h-full w-full flex-col";
+import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 
 const SIDEBAR_SLOTS = [
-	{ key: "a", name: "w-24" },
-	{ key: "b", name: "w-32" },
-	{ key: "c", name: "w-28" },
-	{ key: "d", name: "w-36" },
-	{ key: "e", name: "w-24" },
+	{ key: "trigger", size: "narrow" },
+	{ key: "rules", size: "wide" },
+	{ key: "gates", size: "medium" },
+	{ key: "actions", size: "wider" },
+	{ key: "delivery", size: "narrow" },
 ] as const;
-
 const CANVAS_SLOTS = [
-	{ key: "a", position: "top-16 left-80", name: "w-28" },
-	{ key: "b", position: "top-52 left-136", name: "w-24" },
-	{ key: "c", position: "top-88 left-188", name: "w-32" },
+	{ key: "a", position: "start", nameSize: "medium" },
+	{ key: "b", position: "middle", nameSize: "narrow" },
+	{ key: "c", position: "end", nameSize: "wide" },
 ] as const;
 
-function NodeCardSkeleton({ name }: { name: string }) {
+function SkeletonBlock({
+	layoutRole,
+	size,
+}: {
+	layoutRole?: string;
+	size?: string;
+}) {
 	return (
-		<div className="min-w-44 max-w-64 rounded-panel border border-line-faint bg-paper px-3 py-2">
-			<SkeletonText className={name} type="label" />
-			<SkeletonText className="w-20" type="code-sm" />
-			<div className="mt-2 flex flex-col gap-1 border-line-faint border-t pt-2">
-				<div className="flex justify-between gap-2">
-					<SkeletonText className="w-16" type="caption" />
-					<SkeletonText className="w-8" type="caption" />
+		<div data-layout-role={layoutRole} data-layout-size={size}>
+			<Skeleton />
+		</div>
+	);
+}
+
+function NodeCardSkeleton({ nameSize }: { nameSize: string }) {
+	return (
+		<div data-layout-role="workflow-editor-skeleton-node">
+			<SkeletonText
+				data-layout-role="workflow-editor-skeleton-node-name"
+				data-layout-size={nameSize}
+				type="label"
+			/>
+			<SkeletonText
+				data-layout-role="workflow-editor-skeleton-node-code"
+				type="code-sm"
+			/>
+			<div data-layout-role="workflow-editor-skeleton-node-meta">
+				<div>
+					<SkeletonText data-layout-size="medium" type="caption" />
+					<SkeletonText data-layout-size="short" type="caption" />
 				</div>
-				<div className="flex justify-between gap-2">
-					<SkeletonText className="w-12" type="caption" />
-					<SkeletonText className="w-10" type="caption" />
+				<div>
+					<SkeletonText data-layout-size="narrow" type="caption" />
+					<SkeletonText data-layout-size="small" type="caption" />
 				</div>
 			</div>
 		</div>
@@ -39,7 +57,7 @@ function NodeCardSkeleton({ name }: { name: string }) {
 export function WorkflowEditorPageSkeleton() {
 	return (
 		<DashboardLayout counts={{}}>
-			<div className={PAGE_FRAME}>
+			<div data-layout-role="workflow-editor-frame">
 				<EditorFrameSkeleton />
 			</div>
 		</DashboardLayout>
@@ -48,26 +66,26 @@ export function WorkflowEditorPageSkeleton() {
 
 export function EditorFrameSkeleton() {
 	return (
-		<div aria-hidden className="flex h-full min-h-0 flex-1 flex-col">
-			<header className="flex shrink-0 flex-wrap items-center gap-2 border-line-faint border-b px-3 py-2">
-				<Skeleton className="h-(--control-sm) w-24 rounded-pill" />
-				<Skeleton className="h-(--control-sm) w-48 rounded-pill" />
-				<div className="ms-auto flex shrink-0 items-center gap-2">
-					<Skeleton className="h-(--control-sm) w-20 rounded-pill" />
-					<Skeleton className="h-(--control-sm) w-16 rounded-pill" />
-					<Skeleton className="h-(--control-sm) w-14 rounded-pill" />
+		<div aria-hidden data-layout-role="workflow-editor-skeleton">
+			<header data-layout-role="workflow-editor-skeleton-header">
+				<SkeletonBlock layoutRole="workflow-editor-skeleton-back" />
+				<SkeletonBlock layoutRole="workflow-editor-skeleton-name" />
+				<div data-layout-role="workflow-editor-skeleton-actions">
+					<SkeletonBlock size="wide" />
+					<SkeletonBlock size="medium" />
+					<SkeletonBlock size="narrow" />
 				</div>
 			</header>
-			<div className="relative min-h-0 flex-1 bg-page">
-				<div className="shell absolute start-3 top-3 bottom-3 z-(--z-raised) flex w-64 flex-col gap-(--shell-inset)">
-					<div className="flex shrink-0 gap-2 px-1 pt-1">
-						<Skeleton className="h-(--control-sm) w-20 rounded-pill" />
-						<Skeleton className="h-(--control-sm) w-20 rounded-pill" />
+			<div data-layout-role="workflow-editor-skeleton-workspace">
+				<div data-layout-role="workflow-editor-skeleton-sidebar">
+					<div data-layout-role="workflow-editor-skeleton-tabs">
+						<SkeletonBlock />
+						<SkeletonBlock />
 					</div>
-					<div className="panel flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3">
+					<div data-layout-role="workflow-editor-skeleton-palette">
 						{SIDEBAR_SLOTS.map((slot) => (
-							<div className="flex flex-col gap-1" key={slot.key}>
-								<SkeletonText className={slot.name} type="label" />
+							<div key={slot.key}>
+								<SkeletonText data-layout-size={slot.size} type="label" />
 								<SkeletonText lines={2} type="body-sm" />
 							</div>
 						))}
@@ -75,10 +93,11 @@ export function EditorFrameSkeleton() {
 				</div>
 				{CANVAS_SLOTS.map((slot) => (
 					<div
-						className={`absolute hidden md:block ${slot.position}`}
+						data-layout-position={slot.position}
+						data-layout-role="workflow-editor-skeleton-canvas-node"
 						key={slot.key}
 					>
-						<NodeCardSkeleton name={slot.name} />
+						<NodeCardSkeleton nameSize={slot.nameSize} />
 					</div>
 				))}
 			</div>

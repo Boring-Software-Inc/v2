@@ -1,9 +1,10 @@
 import { createServerFlagsManager } from "@databuddy/sdk/node";
 import type { Db } from "@tripwire/db";
 import { schema } from "@tripwire/db";
+import { getDatabuddyWebsiteId } from "@tripwire/utils/databuddy-server";
 import { eq } from "drizzle-orm";
 import { type AccessDenial, accessDenialFor, gateFromFlag } from "./access.ts";
-import { DATABUDDY_CLIENT_ID, FLAGS } from "./databuddy.ts";
+import { FLAGS } from "./databuddy.ts";
 
 /**
  * Server-side closed-beta gate evaluation. **Server-only** — imports
@@ -15,7 +16,7 @@ import { DATABUDDY_CLIENT_ID, FLAGS } from "./databuddy.ts";
  * exist yet, we fall back to the `ACCESS_GATE_ENABLED` env kill-switch so the
  * security boundary never hard-depends on an external service.
  */
-const flags = createServerFlagsManager({ clientId: DATABUDDY_CLIENT_ID });
+const flags = createServerFlagsManager({ clientId: getDatabuddyWebsiteId() });
 
 const GATE_CACHE_TTL_MS = 60_000;
 const GATE_CACHE_MAX_ENTRIES = 10_000;

@@ -165,3 +165,13 @@ describe("which tripwire.ts a command reads", () => {
 		);
 	});
 });
+
+test("a forge-qualified project link preserves its exact host through reload", () => {
+	for (const repo of [
+		"https://git.cafe/same/repo",
+		"https://github.com/same/repo",
+	]) {
+		writeProjectLink(root, { org: "same-org", repo });
+		expect(resolveRepo(undefined, findProjectLink(root))).toBe(repo);
+	}
+});
