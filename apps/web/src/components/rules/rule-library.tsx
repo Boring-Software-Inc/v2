@@ -61,7 +61,8 @@ export function RuleLibrary({
 	const pick = (list: readonly string[]) =>
 		list.flatMap((id) => available.filter((rule) => rule.ruleId === id));
 	const groups = [
-		{ title: "Recommended", rules: pick(ids.recommended), extra: pilot },
+		{ title: "Recommended", rules: pick(ids.recommended), extra: null },
+		{ title: "Shared blocklists", rules: [], extra: pilot },
 		{ title: "Most used", rules: pick(ids.mostUsed), extra: null },
 	].filter((group) => group.rules.length > 0 || group.extra);
 

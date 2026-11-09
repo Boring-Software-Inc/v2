@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import {
 	normalizedEventSchema,
 	SHARED_BLOCKLIST_MAX_AGE_MS,
-	sharedBlocklistAvailable,
 	sharedBlocklistSnapshotSchema,
 } from "@tripwire/contracts";
 import { evaluateRule, executeWorkflow, getRule } from "@tripwire/core";
@@ -35,15 +34,6 @@ test("only an exact account ID on a fresh list can queue human review", async ()
 			},
 		],
 	});
-	expect(
-		sharedBlocklistAvailable(undefined, { forge: "github", externalId: "1" }),
-	).toBe(false);
-	expect(
-		sharedBlocklistAvailable("1", { forge: "gitcafe", externalId: "1" }),
-	).toBe(false);
-	expect(
-		sharedBlocklistAvailable("1", { forge: "github", externalId: "1" }),
-	).toBe(true);
 	expect(
 		sharedBlocklistReviewWorkflow(
 			{ ...event, actor: { ...event.actor, externalId: "1" } },

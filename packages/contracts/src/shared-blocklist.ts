@@ -48,17 +48,6 @@ export type SharedBlocklistSnapshot = z.infer<
 	typeof sharedBlocklistSnapshotSchema
 >;
 
-export function sharedBlocklistAvailable(
-	allowedRepositoryId: string | undefined,
-	repo: { forge: string; externalId: string | null },
-): boolean {
-	return (
-		repo.forge === "github" &&
-		accountId.safeParse(allowedRepositoryId).success &&
-		repo.externalId === allowedRepositoryId
-	);
-}
-
 export const staffBlocklistAdditionSchema = z.strictObject({
 	login: z
 		.string()
