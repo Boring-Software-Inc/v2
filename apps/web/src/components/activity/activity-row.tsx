@@ -23,6 +23,7 @@ const KIND_LABEL = {
 	"change-request.opened": "opened",
 	"change-request.updated": "updated",
 	"change-request.closed": "closed",
+	"issue.opened": "opened",
 	"comment.created": "commented on",
 	push: "pushed to",
 	"schedule.matched": "schedule matched",
@@ -50,12 +51,16 @@ function subjectLine(event: NormalizedEvent): string {
 	if (event.kind === "schedule.matched") {
 		return `#${event.thread.number} ${event.thread.title}`;
 	}
+	if (event.kind === "issue.opened") {
+		return `#${event.issue.number} ${event.issue.title}`;
+	}
 	return `#${event.changeRequest.number} ${event.changeRequest.title}`;
 }
 
 function noRunReason(event: NormalizedEvent): string {
 	if (
 		event.kind === "push" ||
+		event.kind === "issue.opened" ||
 		event.kind === "comment.created" ||
 		event.kind === "schedule.matched" ||
 		event.kind.startsWith("installation")

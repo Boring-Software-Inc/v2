@@ -105,7 +105,9 @@ export async function markEventNormalized(
 				? valid.comment.subjectNumber
 				: "thread" in valid
 					? valid.thread.number
-					: null;
+					: valid.kind === "issue.opened"
+						? valid.issue.number
+						: null;
 	const headSha =
 		"changeRequest" in valid
 			? valid.changeRequest.headSha
@@ -414,6 +416,9 @@ function eventUrl(event: NormalizedEvent): string | null {
 	) {
 		return event.changeRequest.url;
 	}
+	if (event.kind === "issue.opened") {
+		return event.issue.url;
+	}
 	if (event.kind === "comment.created") {
 		return event.comment.url;
 	}
@@ -457,6 +462,7 @@ function buildGroup(rows: GroupedActivityRow[]): ActivityGroup {
 		throw new Error("buildGroup called with no rows");
 	}
 	const header = events.at(-1);
+	const issue = events.find((event) => event.kind === "issue.opened");
 	// Header identity: the most recent change-request event carries the title.
 	const cr = [...events]
 		.reverse()
@@ -484,8 +490,10 @@ function buildGroup(rows: GroupedActivityRow[]): ActivityGroup {
 		subjectNumber,
 		title: cr
 			? cr.changeRequest.title
-			: (historicalTitle ?? `#${subjectNumber}`),
-		url: cr ? eventUrl(cr) : header ? eventUrl(header) : null,
+			: (issue?.issue.title ?? historicalTitle ?? `#${subjectNumber}`),
+		url: cr
+			? eventUrl(cr)
+			: (issue?.issue.url ?? (header ? eventUrl(header) : null)),
 		actor: changeRequestAuthor(events),
 		currentVerdict: withRun ? withRun.verdict : null,
 		currentRunId: withRun ? withRun.run_id : null,

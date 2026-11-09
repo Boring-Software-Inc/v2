@@ -91,6 +91,7 @@ export interface RunActionView {
 	recordedAt: string;
 	url: string | null;
 	label?: string | null;
+	workflowName?: string | null;
 	delivery?:
 		| { state: "sent" }
 		| { state: "queued" }
@@ -139,6 +140,7 @@ export interface RunView {
 	redactionLevel: number;
 	event: RunEventView | null;
 	workflows: RunWorkflowView[];
+	workflowEditorLinks?: { id: string; name: string }[];
 	reviews: RunReviewView[];
 	previousRun: RunLinkView | null;
 	nextRun: RunLinkView | null;

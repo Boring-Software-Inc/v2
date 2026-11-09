@@ -16,6 +16,7 @@ import {
 	customRuleRef,
 	customRuleSummary,
 	isAiReviewNotRunStep,
+	isIssueWorkflow,
 	joinVerdicts,
 	nonEnforcingRuleNodeIds,
 	resolveEffectiveRuleConfig,
@@ -304,7 +305,17 @@ async function runWorkflowsInner(
 		event.repo.fullName,
 		event.forge,
 	);
-	const checkedStored = stored.map((definition) => ({
+	const issue = event.kind === "issue.opened" ? event.issue : null;
+	if (
+		issue &&
+		(event.forge !== "github" || event.repoExternalId !== repo.externalId)
+	) {
+		return none;
+	}
+	const applicable = stored.filter(
+		(definition) => isIssueWorkflow(definition) === (issue !== null),
+	);
+	const checkedStored = applicable.map((definition) => ({
 		definition,
 		issues: unrunnableIssues(definition),
 	}));
@@ -319,7 +330,7 @@ async function runWorkflowsInner(
 	// workflow node's config wins for owned rules). With no saved workflow the
 	// derived default runs alone, even trigger-only (all rules off ⇒ pass run).
 	const ownedRuleIds = new Set(
-		stored.flatMap((def) =>
+		applicable.flatMap((def) =>
 			def.nodes.flatMap((node) =>
 				node.type === "rule" ? [ruleIdOf(node.ref)] : [],
 			),
@@ -355,13 +366,15 @@ async function runWorkflowsInner(
 	);
 	const derivedHasRules = derived.nodes.some((node) => node.type === "rule");
 	const scheduled = event.kind === "schedule.matched" ? event : null;
-	const definitions: WorkflowDefinition[] = scheduled
-		? custom.filter((def) => def.id === scheduled.schedule.workflowId)
-		: custom.length > 0
-			? derivedHasRules
-				? [...custom, derived]
-				: custom
-			: [derived];
+	const definitions: WorkflowDefinition[] = issue
+		? custom
+		: scheduled
+			? custom.filter((def) => def.id === scheduled.schedule.workflowId)
+			: custom.length > 0
+				? derivedHasRules
+					? [...custom, derived]
+					: custom
+				: [derived];
 	if (
 		event.kind === "change-request.opened" &&
 		(!event.repoExternalId || event.repoExternalId === repo.externalId) &&
@@ -449,7 +462,9 @@ async function runWorkflowsInner(
 	if (
 		!scheduled &&
 		!exemptionDisabled &&
-		(ctx.contributor?.isMaintainer || ctx.contributor?.isOrgMember)
+		(issue?.maintainer ||
+			ctx.contributor?.isMaintainer ||
+			ctx.contributor?.isOrgMember)
 	) {
 		logger.info(
 			{ actor: event.actor.login },
@@ -589,7 +604,16 @@ async function runWorkflowsInner(
 	const unrunnableFloored = unrunnable.length > 0 && verdict === "pass";
 	const aiReviewNotRun = ruleSteps0.some(isAiReviewNotRunStep);
 	const floored = degraded || unrunnableFloored;
-	const heldBack = floored && scheduled !== null;
+	const heldBack =
+		(floored && scheduled !== null) ||
+		(issue !== null &&
+			(floored ||
+				ctx.contributor?.isMaintainer == null ||
+				degradedReads.includes("contributor") ||
+				skippedCount > 0));
+	if (issue && heldBack) {
+		verdict = "pass";
+	}
 	/**
 	 * The floor is configurable, and ON by default.
 	 *
@@ -651,7 +675,7 @@ async function runWorkflowsInner(
 			});
 		}
 	}
-	if (degraded) {
+	if (degraded || (issue !== null && heldBack && !unrunnableFloored)) {
 		const degradationOutput = {
 			degradedReads,
 			skippedRules: skippedCount,
@@ -688,7 +712,7 @@ async function runWorkflowsInner(
 				enforced: failClosed,
 			},
 			heldBack
-				? "evaluation degraded — scheduled run takes no action"
+				? "evaluation incomplete, no actions sent"
 				: failClosed
 					? "evaluation degraded — fail-closed floor routes run to moderation"
 					: "evaluation degraded — floor is off for this repo, run passes partial",
@@ -714,9 +738,8 @@ async function runWorkflowsInner(
 			? event.changeRequest.number
 			: "comment" in event
 				? event.comment.subjectNumber
-				: scheduled
-					? scheduled.thread.number
-					: null;
+				: (scheduled?.thread.number ?? issue?.number ?? null);
+	const subjectKind = scheduled?.thread.kind ?? (issue ? "issue" : null);
 	const backfill = deps.surface === false;
 	const silent = backfill || closedNow;
 	const terminalStatus = paused && !silent ? "paused" : "completed";
@@ -741,7 +764,7 @@ async function runWorkflowsInner(
 				eventId,
 				repoFullName: event.repo.fullName,
 				subjectNumber,
-				subjectKind: scheduled ? scheduled.thread.kind : null,
+				subjectKind,
 				headSha,
 				snapshot: matching,
 				status: terminalStatus,
@@ -783,7 +806,7 @@ async function runWorkflowsInner(
 				eventId,
 				repoFullName: event.repo.fullName,
 				subjectNumber,
-				subjectKind: scheduled ? scheduled.thread.kind : null,
+				subjectKind,
 				headSha,
 				snapshot: matching,
 				status: terminalStatus,

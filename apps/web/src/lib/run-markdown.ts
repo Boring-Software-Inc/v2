@@ -107,9 +107,10 @@ export function runToMarkdown(run: RunView, relativeTime: string): string {
 		// Ordinal any action line that would otherwise duplicate — BOTH members
 		// of a group get a number (never one bare + one numbered), so two
 		// blocks read (1) and (2). Run order is inherent; this only disambiguates.
-		const rendered = run.actions.map(
-			(action) => `**${action.kind}**: ${actionStatus(action)}`,
-		);
+		const rendered = run.actions.map((action) => {
+			const workflow = action.workflowName ? ` (${action.workflowName})` : "";
+			return `**${action.kind}**: ${actionStatus(action)}${workflow}`;
+		});
 		const counts = new Map<string, number>();
 		for (const line of rendered) {
 			counts.set(line, (counts.get(line) ?? 0) + 1);

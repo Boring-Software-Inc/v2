@@ -411,3 +411,50 @@ describe("backfill consumed loop with local rows", () => {
 		`);
 	});
 });
+
+test("workflow preview accepts a saved draft and returns action kinds without action payloads", () => {
+	control(`
+		import { executeWorkflow } from "@tripwire/core";
+		import { validateWorkflowForEnable, RULE_CATALOG } from "@tripwire/contracts";
+		${declarations("scripts/rule-check.core.ts", ["checkWorkflow"])}
+		const repo = "acme/widgets";
+		const id = "workflow";
+		const db = {};
+		const repoServices = { getRepoByFullName: async () => ({ id: "repo-id", armed: false }) };
+		const workflowServices = { getWorkflow: async (_, scope) => {
+			assert.deepEqual(scope, { repoId: "repo-id", workflowId: id });
+			return { enabled: false, definition: {
+				id, name: "Issue moderation", version: 1,
+				nodes: [
+					{ id: "t", type: "trigger", kinds: ["issue.opened"] },
+					{ id: "comment", type: "action", action: "post-comment", params: { message: "private draft" } },
+				],
+				edges: [{ id: "e", from: "t", to: "comment" }],
+			} };
+		} };
+		const loadCatalog = async () => ({ rows: [], catalog: RULE_CATALOG });
+		const buildForge = () => ({ reads: {}, signalHttp: {} });
+		const buildRuleContext = async () => ({
+			ctx: { contributor: { isMaintainer: false, isOrgMember: false } },
+			degradedReads: [],
+		});
+		const createForgeSignalCtx = () => ({});
+		const customRuleSource = () => ({});
+		const makeEvaluator = () => () => { throw new Error("no rules"); };
+		const floorStepsOf = (_, steps) => steps;
+		const logger = {};
+		const fetchIssueEvent = async (_, name, number) => {
+			assert.equal(name, repo);
+			assert.equal(number, 7);
+			return { kind: "issue.opened", issue: { number, maintainer: false } };
+		};
+		const fetchPrEvent = async () => ({ kind: "change-request.opened" });
+		const preview = await checkWorkflow({ db, repo, number: 7, kind: "issue", workflowId: id });
+		assert.equal(preview.armed, false);
+		assert.equal(preview.enabled, false);
+		assert.deepEqual(preview.plannedActions, [{ action: "post-comment", nodeId: "comment" }]);
+		assert.ok(!JSON.stringify(preview).includes("private draft"));
+		await assert.rejects(checkWorkflow({ db, repo, number: 7, kind: "pr", workflowId: id }),
+			/does not run on change-request.opened/);
+	`);
+});

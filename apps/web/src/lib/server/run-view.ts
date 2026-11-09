@@ -19,6 +19,7 @@ import {
 	repoServices,
 	responseServices,
 	runServices,
+	workflowServices,
 } from "@tripwire/db";
 import { z } from "zod";
 import {
@@ -33,7 +34,11 @@ import {
 	threadUrlOf,
 	toEventView,
 } from "#/lib/run-links";
-import { parseSnapshot, workflowOutcomes } from "#/lib/run-workflows";
+import {
+	actionWorkflowName,
+	parseSnapshot,
+	workflowOutcomes,
+} from "#/lib/run-workflows";
 import type { JsonValue, RunReviewView, RunView } from "#/lib/runs.functions";
 import type { SessionState } from "#/lib/server/session";
 
@@ -90,6 +95,21 @@ export async function loadRunView(
 		canRerun = rerunner && result.run.subjectNumber !== null;
 	}
 	const snapshot = parseSnapshot(result.run.workflowSnapshot as JsonValue);
+	const workflowEditorLinks =
+		access === "full" &&
+		repo &&
+		orgSlug &&
+		snapshot.length > 0 &&
+		(!session.authEnabled || permissions.includes("workflows:read"))
+			? (await workflowServices.listWorkflowRows(db, repo.id)).flatMap(
+					(row) => {
+						const saved = snapshot.find(
+							(entry) => entry.id === row.definition.id,
+						);
+						return saved ? [{ id: row.id, name: saved.name }] : [];
+					},
+				)
+			: [];
 	const nodeLabels = snapshotNodeLabels(snapshot);
 	// Resolve rule display names through the merged catalog: built-ins via
 	// ruleDisplayName, custom refs via the repo's stored names — else a custom
@@ -145,11 +165,12 @@ export async function loadRunView(
 					: null,
 		});
 	}
+	const subjectKind = threadSubjectOf(result.run.subjectKind, eventNormalized);
 	const view: RunView = {
 		id: result.run.id,
 		repoFullName: result.run.repoFullName,
 		subjectNumber: result.run.subjectNumber,
-		subjectKind: threadSubjectOf(result.run.subjectKind, eventNormalized),
+		subjectKind,
 		headSha: result.run.headSha,
 		status: result.run.status,
 		verdict: result.run.verdict as Verdict | null,
@@ -166,7 +187,8 @@ export async function loadRunView(
 				: null,
 		orgSlug,
 		repoName,
-		canRerun: canRerun && !scheduled,
+		canRerun: canRerun && !scheduled && eventRow?.kind !== "issue.opened",
+		workflowEditorLinks,
 		stepsHidden: false,
 		forge,
 		/**
@@ -205,23 +227,28 @@ export async function loadRunView(
 			})),
 		),
 		actions: collapseSurfaceActions(
-			result.actions.map((action) => ({
-				kind: action.kind,
-				status: action.status,
-				recordedAt: action.recordedAt.toISOString(),
-				label: actionDone(
-					action.kind,
-					actionParamsSchema.parse(action.payload),
-				),
-				url: actionUrl({
-					forge,
-					repoFullName: result.run.repoFullName,
-					number: result.run.subjectNumber,
+			result.actions.map((action) => {
+				const params = actionParamsSchema.parse(action.payload);
+				const nodeId = z.string().safeParse(params.nodeId).data ?? null;
+				return {
 					kind: action.kind,
-					externalId: action.externalId,
-				}),
-				delivery: deliveryStatus(action),
-			})),
+					status: action.status,
+					recordedAt: action.recordedAt.toISOString(),
+					label: actionDone(action.kind, params),
+					workflowName: COLLAPSIBLE_ACTION_KINDS.has(action.kind)
+						? null
+						: actionWorkflowName(snapshot, action.kind, nodeId),
+					url: actionUrl({
+						forge,
+						repoFullName: result.run.repoFullName,
+						number: result.run.subjectNumber,
+						subjectKind,
+						kind: action.kind,
+						externalId: action.externalId,
+					}),
+					delivery: deliveryStatus(action),
+				};
+			}),
 		),
 		redactionLevel: 0,
 		event: eventRow
