@@ -23,7 +23,6 @@ import {
 	ruleIdOf,
 	ruleResultSchema,
 	SHARED_BLOCKLIST_RULE_ID,
-	sharedBlocklistAvailable,
 	unrunnableIssues,
 } from "@tripwire/contracts";
 import {
@@ -378,10 +377,7 @@ async function runWorkflowsInner(
 	if (
 		event.kind === "change-request.opened" &&
 		(!event.repoExternalId || event.repoExternalId === repo.externalId) &&
-		sharedBlocklistAvailable(
-			process.env.TRIPWIRE_SHARED_BLOCKLIST_PILOT_REPOSITORY_ID,
-			repo,
-		) &&
+		event.forge === "github" &&
 		ruleConfigs.some(
 			(config) => config.ruleId === SHARED_BLOCKLIST_RULE_ID && config.enabled,
 		)

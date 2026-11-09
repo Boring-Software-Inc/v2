@@ -23,9 +23,11 @@ export const PILOT_DESCRIPTION =
 	"Send pull requests from listed accounts to Human review.";
 
 export function PilotLibraryRow({
+	canEdit,
 	pending,
 	onInstall,
 }: {
+	canEdit: boolean;
 	pending: boolean;
 	onInstall: () => void;
 }) {
@@ -41,6 +43,7 @@ export function PilotLibraryRow({
 				<ItemActions>
 					<Button
 						aria-label="Install Pilot"
+						disabled={!canEdit}
 						onClick={onInstall}
 						pending={pending}
 						pendingLabel="Installing"
@@ -56,10 +59,12 @@ export function PilotLibraryRow({
 }
 
 export function SharedBlocklistRuleCard({
+	canEdit,
 	highlighted,
 	pending,
 	onUninstall,
 }: {
+	canEdit: boolean;
 	highlighted: boolean;
 	pending: boolean;
 	onUninstall: () => void;
@@ -83,6 +88,7 @@ export function SharedBlocklistRuleCard({
 						<h2 className="min-w-0 truncate type-label-lg">Pilot</h2>
 						<Button
 							aria-label="Uninstall Pilot"
+							disabled={!canEdit}
 							data-layout-role="pilot-rule-action"
 							onClick={onUninstall}
 							pending={pending || undefined}

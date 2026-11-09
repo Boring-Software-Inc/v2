@@ -486,6 +486,7 @@ export function RulesPage() {
 											pilot={
 												pilotOffered ? (
 													<PilotLibraryRow
+														canEdit={isAdmin}
 														pending={savingPilot}
 														onInstall={() => setPilotInstalled(true)}
 													/>
@@ -560,6 +561,7 @@ export function RulesPage() {
 													{visible.map((rule) =>
 														"kind" in rule ? (
 															<SharedBlocklistRuleCard
+																canEdit={isAdmin}
 																key={rule.ruleId}
 																highlighted={pilotHighlighted}
 																pending={savingPilot}

@@ -793,6 +793,14 @@ Anyone can browse without a Tripwire account. GitHub remains the place to
 propose additions and corrections. Dashboard access also requires the staging
 Databuddy flag and repository allowlist. The repo's opt-in controls the worker.
 
+## 2026-11-09 · Pilot in the Rules Library
+
+The production rollout supersedes the staging repository allowlist and
+Databuddy flag. Maintainers can install Pilot from Shared blocklists in the
+Rules Library for a connected GitHub repository. The worker evaluates Pilot
+only after the repository is armed and Pilot is installed. Matches on new
+pull requests go to Human review.
+
 ## Shared blocklist publication
 
 The community blocklist repository keeps reviewed submissions on protected `main`. Its Actions publisher combines those entries with platform-admin submissions and writes a versioned snapshot to the separate `published` branch. Both the worker and public page consume that snapshot. Admin submissions remain inspectable in `published:staff-entries/`; community and staff removals follow their respective paths in the list repo's README.
