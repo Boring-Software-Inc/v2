@@ -1104,6 +1104,13 @@ export async function closedOnHead(
 	return rows.length > 0;
 }
 
+export async function pauseRun(db: Db, runId: string): Promise<void> {
+	await db
+		.update(runs)
+		.set({ status: "paused", verdict: "needs_review" })
+		.where(eq(runs.id, runId));
+}
+
 export async function getRunWithSteps(db: DbLike, runId: string) {
 	const runRows = await db.select().from(runs).where(eq(runs.id, runId));
 	const run = runRows[0];
