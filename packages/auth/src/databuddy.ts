@@ -12,5 +12,4 @@ export const DATABUDDY_CLIENT_ID = DATABUDDY_WEBSITE_ID;
 export const FLAGS = {
 	/** Closed-beta access gate. On → pending/rejected users are blocked. */
 	accessGate: "access-gate",
-	showSidebar: "show-sidebar",
 } as const;

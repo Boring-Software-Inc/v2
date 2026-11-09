@@ -1,7 +1,6 @@
-import { useFlag, useFlags } from "@databuddy/sdk/react";
+import { useFlags } from "@databuddy/sdk/react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
-import { FLAGS } from "@tripwire/auth/databuddy";
 import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import { DevScenarioSwitcher } from "#/components/dev/dev-scenario-switcher";
 import {
@@ -48,7 +47,6 @@ function DashboardShell({
 	children,
 }: DashboardLayoutProps) {
 	const { data: user } = useQuery(currentUserQueryOptions());
-	const sidebar = useFlag(FLAGS.showSidebar);
 	const { updateUser } = useFlags();
 	const flaggedUser = useRef<string | null>(null);
 	useEffect(() => {
@@ -66,7 +64,7 @@ function DashboardShell({
 	const { content, collapsed } = useSidePanel();
 	const isDesktop = useMediaQuery("(min-width: 768px)");
 	const showPanel = isDesktop && Boolean(content) && !collapsed;
-	const rail = isDesktop && !sidebar.loading && sidebar.on;
+	const rail = isDesktop;
 	const params = useParams({ strict: false });
 	const inset = Boolean(params.repo);
 
