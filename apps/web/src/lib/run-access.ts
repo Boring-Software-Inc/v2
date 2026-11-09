@@ -120,8 +120,9 @@ const MEMBER_ONLY_ACTIONS = new Set(["discord", "webhook"]);
 
 export function toPublicRunView(view: RunView, level = 0): RunView {
 	const namesHidden = redactionHides(level, "rule-names");
+	const { workflowEditorLinks: _workflowEditorLinks, ...publicFields } = view;
 	return {
-		...view,
+		...publicFields,
 		access: "public",
 		snapshot: null,
 		// §10: the FACT of a manual re-run is public; the actor never is.

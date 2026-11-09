@@ -59,6 +59,34 @@ const pullRequestPayload = z.object({
 	installation: z.object({ id: z.number() }).optional(),
 });
 
+const issueOpenedPayload = z.object({
+	action: z.literal("opened"),
+	installation: z.object({ id: z.number() }).optional(),
+	issue: z.object({
+		number: z.number().int().positive(),
+		title: z.string(),
+		body: z.string().nullable(),
+		author_association: z.enum([
+			"COLLABORATOR",
+			"CONTRIBUTOR",
+			"FIRST_TIMER",
+			"FIRST_TIME_CONTRIBUTOR",
+			"MANNEQUIN",
+			"MEMBER",
+			"NONE",
+			"OWNER",
+		]),
+		html_url: z.url(),
+		created_at: z.string(),
+		user: ghAccount,
+		pull_request: z.never().optional(),
+	}),
+	repository: ghRepository,
+	sender: ghAccount,
+});
+
+const issueAction = z.object({ action: z.string() });
+
 const issueCommentPayload = z.object({
 	action: z.string(),
 	/** Present on App-delivered deliveries; absent on repo/org webhooks. */
@@ -231,6 +259,35 @@ export function normalizeWebhook(
 				headRef: p.pull_request.head.ref,
 				draft: p.pull_request.draft,
 				url: p.pull_request.html_url,
+			},
+		});
+	}
+
+	if (event.eventName === "issues") {
+		if (issueAction.parse(payload).action !== "opened") {
+			return null;
+		}
+		const p = issueOpenedPayload.parse(payload);
+		return normalizedEventSchema.parse({
+			...base(
+				p.repository,
+				p.sender,
+				event,
+				receivedAt,
+				p.installation ? String(p.installation.id) : undefined,
+			),
+			actor: toActor(p.issue.user),
+			sender: toActor(p.sender),
+			kind: "issue.opened",
+			occurredAt: toUtcIso(p.issue.created_at, receivedAt),
+			issue: {
+				number: p.issue.number,
+				title: p.issue.title,
+				body: p.issue.body,
+				maintainer: ["OWNER", "MEMBER", "COLLABORATOR"].includes(
+					p.issue.author_association,
+				),
+				url: p.issue.html_url,
 			},
 		});
 	}

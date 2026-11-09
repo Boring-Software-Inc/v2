@@ -303,6 +303,15 @@ export async function emitPrSurface(
 		});
 		return;
 	}
+	if (event.kind === "issue.opened") {
+		await emitThreadActions(deps, input, {
+			number: event.issue.number,
+			title: event.issue.title,
+			author: event.actor.login,
+			skips: () => false,
+		});
+		return;
+	}
 	if (event.kind === "comment.created") {
 		await emitThreadActions(deps, input, {
 			number: event.comment.subjectNumber,

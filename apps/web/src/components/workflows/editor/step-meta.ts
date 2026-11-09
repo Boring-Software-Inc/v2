@@ -70,6 +70,7 @@ const TRIGGER_ICON: TriggerIconMap = {
 	"change-request.opened": ChangeRequest,
 	"change-request.updated": Commit,
 	"change-request.closed": Archive,
+	"issue.opened": Conversation,
 	"comment.created": Conversation,
 	push: Branch,
 	"schedule.matched": Time,

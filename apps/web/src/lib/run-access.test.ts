@@ -229,6 +229,17 @@ const fullView: RunView = {
 };
 
 describe("toPublicRunView", () => {
+	test("omits links to private workflow editor routes", () => {
+		const run: RunView = {
+			...fullView,
+			workflowEditorLinks: [{ id: "workflow-row", name: "Issue moderation" }],
+		};
+		expect(toFullRunView(run).workflowEditorLinks).toEqual(
+			run.workflowEditorLinks,
+		);
+		expect(toPublicRunView(run)).not.toHaveProperty("workflowEditorLinks");
+	});
+
 	const publicView = toPublicRunView(fullView);
 
 	test("swaps in the stored public evidence + one-liner, drops the threshold", () => {

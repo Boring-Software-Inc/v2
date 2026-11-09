@@ -520,7 +520,10 @@ export const githubForge = defineForge<GithubHttp>()({
 			if ("changeRequest" in ctx.event) {
 				return ctx.event.changeRequest.title;
 			}
-			signalUnavailable("This event has no change request.");
+			if (ctx.event.kind === "issue.opened") {
+				return ctx.event.issue.title;
+			}
+			signalUnavailable("This event has no title.");
 		},
 		[filesChanged.id]: async (ctx) => (await loadPrFiles(ctx)).length,
 		[changedPaths.id]: async (ctx) =>
@@ -563,6 +566,10 @@ export const githubForge = defineForge<GithubHttp>()({
 			const content: Record<string, string> = {};
 			if (ctx.event.kind === "comment.created") {
 				content.comment = ctx.event.comment.body;
+			}
+			if (ctx.event.kind === "issue.opened") {
+				content.title = ctx.event.issue.title;
+				if (ctx.event.issue.body) content.body = ctx.event.issue.body;
 			}
 			if ("changeRequest" in ctx.event) {
 				content.title = ctx.event.changeRequest.title;

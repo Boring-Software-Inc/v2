@@ -19,10 +19,11 @@ import {
 	resolveCatalog,
 	ruleIdOf,
 	storedJsonValueSchema,
+	validateWorkflowForEnable,
 	type WorkflowDefinition,
 } from "@tripwire/contracts";
 import { executeWorkflow } from "@tripwire/core";
-import { type Db, repoServices } from "@tripwire/db";
+import { type Db, repoServices, workflowServices } from "@tripwire/db";
 import {
 	GithubHttp,
 	GithubReads,
@@ -32,9 +33,13 @@ import {
 } from "@tripwire/forge-github";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
+import { z } from "zod";
 import { buildRuleContext } from "../apps/worker/src/context.ts";
 import { customRuleSource } from "../apps/worker/src/jobs/custom-rules.ts";
-import { makeEvaluator } from "../apps/worker/src/jobs/run-workflows.ts";
+import {
+	floorStepsOf,
+	makeEvaluator,
+} from "../apps/worker/src/jobs/run-workflows.ts";
 // @tripwire/sdk is not linked at the repo root (scripts/ declares no deps and we
 // must not touch bun.lock), so reach it by path — same as the worker internals.
 import {
@@ -142,6 +147,128 @@ async function fetchPrEvent(
 		throw new Error(`could not normalize PR ${repoFullName}#${prNumber}`);
 	}
 	return event;
+}
+
+const issueReadSchema = z
+	.object({
+		user: z.unknown(),
+		pull_request: z.unknown().optional(),
+	})
+	.passthrough();
+
+async function fetchIssueEvent(
+	http: GithubHttp,
+	repo: string,
+	number: number,
+	now: string,
+): Promise<RepoScopedEvent> {
+	const issue = issueReadSchema.parse(
+		await http.get(repo, `/repos/${repo}/issues/${number}`),
+	);
+	if (issue.pull_request !== undefined) {
+		throw new Error(`${repo}#${number} is a pull request. Use --pr.`);
+	}
+	const repository = await http.get(repo, `/repos/${repo}`);
+	const event = normalizeWebhook(
+		{
+			deliveryId: `workflow-preview-${repo}#${number}`,
+			eventName: "issues",
+			signature: null,
+			body: JSON.stringify({
+				action: "opened",
+				issue,
+				repository,
+				sender: issue.user,
+			}),
+		},
+		now,
+	);
+	if (event?.kind !== "issue.opened") {
+		throw new Error(`Could not read issue ${repo}#${number}.`);
+	}
+	return event;
+}
+
+export async function checkWorkflow(input: {
+	db: Db;
+	repo: string;
+	number: number;
+	kind: "issue" | "pr";
+	workflowId: string;
+}) {
+	const { db, repo: fullName, number, kind, workflowId } = input;
+	const repo = await repoServices.getRepoByFullName(db, fullName, "github");
+	if (!repo) throw new Error(`Repository not found. ${fullName}`);
+	const workflow = await workflowServices.getWorkflow(db, {
+		repoId: repo.id,
+		workflowId,
+	});
+	if (!workflow) throw new Error(`Workflow not found. ${workflowId}`);
+	const { rows, catalog } = await loadCatalog(db, repo.id);
+	const validation = validateWorkflowForEnable(workflow.definition, catalog);
+	if (!validation.valid) {
+		throw new Error(validation.issues.map((issue) => issue.message).join(" "));
+	}
+	const now = new Date().toISOString();
+	const { reads, signalHttp } = buildForge(db);
+	const event = await (kind === "issue"
+		? fetchIssueEvent(signalHttp, fullName, number, now)
+		: fetchPrEvent(signalHttp, fullName, number, now));
+	const { definition } = validation;
+	if (
+		!definition.nodes.some(
+			(node) => node.type === "trigger" && node.kinds.includes(event.kind),
+		)
+	) {
+		throw new Error(`This workflow does not run on ${event.kind}.`);
+	}
+	const { ctx, degradedReads } = await buildRuleContext(
+		event,
+		reads,
+		now,
+		logger,
+	);
+	const custom = customRuleSource(
+		rows,
+		createForgeSignalCtx({ forge: signalHttp, event, now }),
+	);
+	const result = await executeWorkflow({
+		definition,
+		event,
+		evaluateRuleRef: makeEvaluator(ctx, logger, custom),
+		now: () => now,
+	});
+	const skippedChecks = floorStepsOf(
+		[definition],
+		result.steps
+			.filter((step) => step.nodeKind === "rule")
+			.map((step) => ({ ...step, nodeId: `${definition.id}:${step.nodeId}` })),
+	).some((step) => step.status === "skipped");
+	return {
+		event: event.kind,
+		armed: repo.armed,
+		enabled: workflow.enabled,
+		exempt: Boolean(
+			(event.kind === "issue.opened" && event.issue.maintainer) ||
+				ctx.contributor?.isMaintainer ||
+				ctx.contributor?.isOrgMember,
+		),
+		contributorAvailable:
+			ctx.contributor?.isMaintainer != null &&
+			!degradedReads.includes("contributor"),
+		evaluation: result.verdict,
+		degradedReads,
+		skippedChecks,
+		steps: result.steps.map(({ nodeId, nodeKind, status }) => ({
+			nodeId,
+			nodeKind,
+			status,
+		})),
+		plannedActions: result.actions.map(({ action, nodeId }) => ({
+			action,
+			nodeId,
+		})),
+	};
 }
 
 async function loadCatalog(db: Db, repoId: string) {

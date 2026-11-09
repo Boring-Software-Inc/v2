@@ -20,6 +20,7 @@ export function actionUrl(input: {
 	forge: ForgeId | null;
 	repoFullName: string;
 	number: number | null;
+	subjectKind?: ThreadSubject;
 	kind: string;
 	externalId: string | null;
 }): string | null {
@@ -36,8 +37,9 @@ export function actionUrl(input: {
 	if (kind === "block") {
 		return `${GITHUB}/${repoFullName}/pull/${number}#pullrequestreview-${externalId}`;
 	}
-	if (kind === "comment") {
-		return `${GITHUB}/${repoFullName}/pull/${number}#issuecomment-${externalId}`;
+	if (kind === "comment" || kind === "post-comment") {
+		const path = input.subjectKind === "issue" ? "issues" : "pull";
+		return `${GITHUB}/${repoFullName}/${path}/${number}#issuecomment-${externalId}`;
 	}
 	return null;
 }
@@ -56,6 +58,7 @@ const normalizedShape = z
 	.object({
 		occurredAt: z.string().optional(),
 		changeRequest: z.object({ title: z.string() }).optional(),
+		issue: z.object({ title: z.string(), url: z.string() }).optional(),
 		thread: z
 			.object({
 				title: z.string(),
@@ -77,7 +80,11 @@ export function toEventView(row: {
 	return {
 		kind: eventKind(row.kind),
 		actor: row.actorLogin,
-		title: normalized.changeRequest?.title ?? normalized.thread?.title ?? null,
+		title:
+			normalized.changeRequest?.title ??
+			normalized.issue?.title ??
+			normalized.thread?.title ??
+			null,
 		headSha: row.headSha,
 		at: normalized.occurredAt ?? row.receivedAt.toISOString(),
 	};
@@ -95,7 +102,8 @@ export function threadSubjectOf(
 }
 
 export function threadUrlOf(normalized: JsonValue | null): string | null {
-	return normalizedShape.parse(normalized).thread?.url ?? null;
+	const event = normalizedShape.parse(normalized);
+	return event.thread?.url ?? event.issue?.url ?? null;
 }
 
 export function runLink(row: {

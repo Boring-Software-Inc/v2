@@ -13,6 +13,7 @@ export const eventKindSchema = z.enum([
 	"change-request.opened",
 	"change-request.updated",
 	"change-request.closed",
+	"issue.opened",
 	"comment.created",
 	"push",
 	"schedule.matched",
@@ -184,6 +185,17 @@ export const normalizedEventSchema = z.discriminatedUnion("kind", [
 		...eventBase,
 		kind: z.literal("change-request.closed"),
 		changeRequest: changeRequestPayloadSchema,
+	}),
+	z.object({
+		...eventBase,
+		kind: z.literal("issue.opened"),
+		issue: z.object({
+			number: z.number().int().positive(),
+			title: z.string(),
+			body: z.string().nullable(),
+			maintainer: z.boolean(),
+			url: z.url(),
+		}),
 	}),
 	z.object({
 		...eventBase,

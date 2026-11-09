@@ -5,6 +5,7 @@ import {
 	ACTION_CATALOG,
 	GATE_CATALOG,
 	gitCafeReviewerRefSchema,
+	isIssueWorkflow,
 	isRemovedAction,
 	isScheduleTrigger,
 	type JsonValue,
@@ -64,6 +65,8 @@ export const LINT_RULES = {
 	"no-action": { severity: "error", stage: "enable" },
 	"schedule-config": { severity: "error", stage: "enable" },
 	"action-params": { severity: "error", stage: "enable" },
+	"issue-trigger": { severity: "error", stage: "enable" },
+	"issue-action": { severity: "error", stage: "enable" },
 	"schedule-mixed": { severity: "error", stage: "enable" },
 	"schedule-needs-change-request": { severity: "error", stage: "enable" },
 	"unknown-rule": { severity: "error", stage: "enable" },
@@ -1095,6 +1098,43 @@ function lintParsed(
 			? []
 			: check(ctx).map((finding) => result(rule, finding, names)),
 	);
+	if (stage === "enable" && isIssueWorkflow(def)) {
+		for (const node of def.nodes) {
+			if (
+				node.type === "trigger" &&
+				(node.kinds.length !== 1 || node.kinds[0] !== "issue.opened")
+			) {
+				results.push(
+					result(
+						"issue-trigger",
+						{
+							nodeId: node.id,
+							message: "Keep issue and other triggers in separate workflows.",
+							fixes: [],
+						},
+						names,
+					),
+				);
+			}
+			if (
+				node.type === "action" &&
+				node.action !== "post-comment" &&
+				node.action !== "close"
+			) {
+				results.push(
+					result(
+						"issue-action",
+						{
+							nodeId: node.id,
+							message: "Issue workflows can post a comment or close the issue.",
+							fixes: [],
+						},
+						names,
+					),
+				);
+			}
+		}
+	}
 	const noAction = results.some((entry) => entry.rule === "no-action");
 	return noAction
 		? results.filter(

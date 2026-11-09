@@ -21,6 +21,9 @@ function eventForgeSubject(event: NormalizedEvent): string | null {
 	) {
 		return `#${event.changeRequest.number}`;
 	}
+	if (event.kind === "issue.opened") {
+		return `issue #${event.issue.number}`;
+	}
 	if (event.kind === "comment.created") {
 		return `the comment on #${event.comment.subjectNumber}`;
 	}
@@ -40,6 +43,9 @@ function eventForgeUrl(event: NormalizedEvent): string | null {
 		event.kind === "change-request.closed"
 	) {
 		return event.changeRequest.url;
+	}
+	if (event.kind === "issue.opened") {
+		return event.issue.url;
 	}
 	if (event.kind === "comment.created") {
 		return event.comment.url;
