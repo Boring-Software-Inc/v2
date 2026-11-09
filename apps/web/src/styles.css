@@ -216,6 +216,10 @@ body {
 	}
 }
 
+.glaze [data-slot="control-hit-area"] {
+	display: none;
+}
+
 @media (pointer: coarse) {
 	html .glaze {
 		--row: 44px;
@@ -232,6 +236,7 @@ body {
 
 	.glaze [data-slot="control-hit-area"],
 	.glaze :is([data-slot="filter-bar-button"], [data-slot="filter-bar-select"], [data-slot="select-trigger"], [data-slot="segmented-control-item"])::after {
+		display: block;
 		position: absolute;
 		left: 50%;
 		top: 50%;
