@@ -79,7 +79,7 @@ const countRowSchema = z.object({ n: z.coerce.number().nullish() }).optional();
 const ruleCountRowsSchema = z.array(
 	z.object({
 		ref: z.string(),
-		bucket: z.coerce.number(),
+		h: z.coerce.number(),
 		n: z.coerce.number(),
 	}),
 );
@@ -397,7 +397,7 @@ export async function getRulesStats(
 
 	const perRuleResult = await db.execute(sql`
 		SELECT s.rule_id AS ref,
-		       extract(hour FROM s.started_at)::int AS bucket,
+		       floor(extract(epoch FROM (now() - s.started_at)) / 3600)::int AS h,
 		       count(*)::int AS n
 		FROM run_steps s JOIN runs r ON r.id = s.run_id
 		WHERE r.repo_full_name = ${repo.fullName} AND EXISTS (SELECT 1 FROM events scope_event WHERE scope_event.id = r.event_id AND scope_event.forge = ${repo.forge})
@@ -412,10 +412,10 @@ export async function getRulesStats(
 			stat = { ref: row.ref, matches24h: 0, series: Array(24).fill(0) };
 			perRuleMap.set(row.ref, stat);
 		}
-		const index = Number(row.bucket);
+		const h = Number(row.h);
 		stat.matches24h += Number(row.n);
-		if (index >= 0 && index < 24) {
-			stat.series[index] = Number(row.n);
+		if (h >= 0 && h < 24) {
+			stat.series[23 - h] = Number(row.n);
 		}
 	}
 

@@ -43,13 +43,24 @@ afterAll(async () => {
 	await container?.stop();
 });
 
-function httpReturning(status: number, body: object[] | string) {
+function httpReturning(
+	status: number,
+	body: object[] | string,
+	paginated = false,
+) {
 	return new GithubHttp({
 		tokenFor: () => Promise.resolve("t"),
 		appId: 1,
 		fetchImpl: ((_url: string | URL | Request) =>
 			Promise.resolve(
-				new Response(JSON.stringify(body), { status }),
+				new Response(JSON.stringify(body), {
+					status,
+					headers: paginated
+						? {
+								link: '<https://api.github.com/repos/acme/app/collaborators?page=11>; rel="next"',
+							}
+						: {},
+				}),
 			)) as typeof fetch,
 	});
 }
@@ -101,7 +112,44 @@ describe("sync-repo-reviewers", () => {
 		).toHaveLength(1);
 	});
 
-	test("no github reads or no repo is a no-op", async () => {
+	test("a truncated collaborator list keeps the last set", async () => {
+		await syncRepoReviewers(
+			{ db, http: httpReturning(200, [OCTOCAT]), logger },
+			{ repoId },
+		);
+		expect(
+			(await reviewerServices.listRepoReviewers(db, repoId)).reviewers,
+		).toEqual([
+			{
+				id: 583231,
+				login: "octocat",
+				avatarUrl: "https://avatars.githubusercontent.com/u/583231?v=4",
+				permission: "admin",
+			},
+		]);
+
+		const fullPage = Array.from({ length: 100 }, (_, i) => ({
+			...OCTOCAT,
+			id: 583231 + i,
+			login: `user${i}`,
+		}));
+		await syncRepoReviewers(
+			{ db, http: httpReturning(200, fullPage, true), logger },
+			{ repoId },
+		);
+		expect(
+			(await reviewerServices.listRepoReviewers(db, repoId)).reviewers,
+		).toEqual([
+			{
+				id: 583231,
+				login: "octocat",
+				avatarUrl: "https://avatars.githubusercontent.com/u/583231?v=4",
+				permission: "admin",
+			},
+		]);
+	});
+
+	test("no github reads or no repo leaves the rows untouched", async () => {
 		await syncRepoReviewers({ db, http: null, logger }, { repoId });
 		await syncRepoReviewers(
 			{ db, http: httpReturning(200, []), logger },
@@ -110,6 +158,64 @@ describe("sync-repo-reviewers", () => {
 		expect(
 			(await reviewerServices.listRepoReviewers(db, repoId)).reviewers,
 		).toHaveLength(1);
+	});
+
+	test("a sync with github reads disabled stamps the sync time", async () => {
+		const disabledRepo = await repoServices.ensureRepo(db, {
+			externalId: "disabled",
+			owner: "acme",
+			name: "disabled",
+			fullName: "acme/disabled",
+			installationId: "7",
+		});
+		await syncRepoReviewers(
+			{ db, http: null, logger },
+			{ repoId: disabledRepo },
+		);
+		const list = await reviewerServices.listRepoReviewers(db, disabledRepo);
+		expect(list.reviewers).toEqual([]);
+		expect(list.syncedAt).not.toBeNull();
+		expect(reviewerServices.reviewersNeedSync(list.syncedAt, new Date())).toBe(
+			false,
+		);
+	});
+
+	test("a sync for a non-github repo stamps the sync time", async () => {
+		const opengitRepo = await repoServices.ensureRepo(db, {
+			forge: "opengit",
+			externalId: "og-1",
+			owner: "acme",
+			name: "opengit-repo",
+			fullName: "acme/opengit-repo",
+			installationId: "7",
+		});
+		await syncRepoReviewers(
+			{ db, http: httpReturning(200, [OCTOCAT]), logger },
+			{ repoId: opengitRepo },
+		);
+		const list = await reviewerServices.listRepoReviewers(db, opengitRepo);
+		expect(list.reviewers).toEqual([]);
+		expect(list.syncedAt).not.toBeNull();
+	});
+
+	test("an empty collaborator list stamps the sync time", async () => {
+		const emptyRepo = await repoServices.ensureRepo(db, {
+			externalId: "empty",
+			owner: "acme",
+			name: "empty",
+			fullName: "acme/empty",
+			installationId: "7",
+		});
+		await syncRepoReviewers(
+			{ db, http: httpReturning(200, []), logger },
+			{ repoId: emptyRepo },
+		);
+		const list = await reviewerServices.listRepoReviewers(db, emptyRepo);
+		expect(list.reviewers).toEqual([]);
+		expect(list.syncedAt).not.toBeNull();
+		expect(reviewerServices.reviewersNeedSync(list.syncedAt, new Date())).toBe(
+			false,
+		);
 	});
 
 	test("the queue holds one waiting sync per repo", async () => {

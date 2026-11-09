@@ -7,9 +7,9 @@ export function globMatch(pattern: string, path: string): boolean {
 	const regex = new RegExp(
 		`^${pattern
 			.replaceAll(/[.+^${}()|[\]\\]/g, "\\$&")
-			.replaceAll("**", " ")
-			.replaceAll("*", "[^/]*")
-			.replaceAll(" ", ".*")}$`,
+			.replaceAll(/\*\*|\*/g, (wildcard) =>
+				wildcard === "**" ? ".*" : "[^/]*",
+			)}$`,
 	);
 	return regex.test(path);
 }

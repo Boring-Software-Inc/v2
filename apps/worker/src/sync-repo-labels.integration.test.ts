@@ -92,7 +92,7 @@ describe("sync-repo-labels", () => {
 		).toHaveLength(2);
 	});
 
-	test("no github reads or no repo is a no-op", async () => {
+	test("no github reads or no repo leaves the rows untouched", async () => {
 		await syncRepoLabels({ db, http: null, logger }, { repoId });
 		await syncRepoLabels(
 			{ db, http: httpReturning(200, []), logger },
@@ -101,6 +101,57 @@ describe("sync-repo-labels", () => {
 		expect(
 			(await labelServices.listRepoLabels(db, repoId)).labels,
 		).toHaveLength(2);
+	});
+
+	test("a sync with github reads disabled stamps the sync time", async () => {
+		const disabledRepo = await repoServices.ensureRepo(db, {
+			externalId: "disabled-labels",
+			owner: "acme",
+			name: "disabled-labels",
+			fullName: "acme/disabled-labels",
+			installationId: "7",
+		});
+		await syncRepoLabels({ db, http: null, logger }, { repoId: disabledRepo });
+		const list = await labelServices.listRepoLabels(db, disabledRepo);
+		expect(list.labels).toEqual([]);
+		expect(list.syncedAt).not.toBeNull();
+		expect(labelServices.labelsNeedSync(list.syncedAt, new Date())).toBe(false);
+	});
+
+	test("a sync for a non-github repo stamps the sync time", async () => {
+		const opengitRepo = await repoServices.ensureRepo(db, {
+			forge: "opengit",
+			externalId: "og-labels",
+			owner: "acme",
+			name: "opengit-labels",
+			fullName: "acme/opengit-labels",
+			installationId: "7",
+		});
+		await syncRepoLabels(
+			{ db, http: httpReturning(200, [BUG]), logger },
+			{ repoId: opengitRepo },
+		);
+		const list = await labelServices.listRepoLabels(db, opengitRepo);
+		expect(list.labels).toEqual([]);
+		expect(list.syncedAt).not.toBeNull();
+	});
+
+	test("an empty label list stamps the sync time", async () => {
+		const emptyRepo = await repoServices.ensureRepo(db, {
+			externalId: "empty-labels",
+			owner: "acme",
+			name: "empty-labels",
+			fullName: "acme/empty-labels",
+			installationId: "7",
+		});
+		await syncRepoLabels(
+			{ db, http: httpReturning(200, []), logger },
+			{ repoId: emptyRepo },
+		);
+		const list = await labelServices.listRepoLabels(db, emptyRepo);
+		expect(list.labels).toEqual([]);
+		expect(list.syncedAt).not.toBeNull();
+		expect(labelServices.labelsNeedSync(list.syncedAt, new Date())).toBe(false);
 	});
 
 	test("the queue holds one waiting sync per repo", async () => {

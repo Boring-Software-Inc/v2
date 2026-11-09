@@ -42,16 +42,21 @@ export type RerunPreview = {
 
 /**
  * Names of rules that will evaluate for a re-run, matching deriveDefaultWorkflow
- * + saved-workflow composition. Used by the confirm dialog so the admin sees
- * the set before spending the evaluation.
+ * + saved-workflow composition, including enabled standalone custom rules.
+ * Used by the confirm dialog so the admin sees the set before spending the
+ * evaluation. Custom rules join the toggle set the same way the worker
+ * (run-workflows.ts) joins them: enabled standalone custom rules run, and
+ * workflow ownership excludes a custom id from the leftover set like any id.
  */
-function executableRuleNames(
+export function executableRuleNames(
 	configs: { ruleId: string; enabled: boolean }[],
 	enabledWorkflows: {
 		nodes: { type: string; ref?: string }[];
 	}[],
+	customRules: { id: string; name: string; enabled: boolean }[],
 ): string[] {
 	const byId = new Map(configs.map((c) => [c.ruleId, c]));
+	const customById = new Map(customRules.map((c) => [c.id, c]));
 	if (enabledWorkflows.length > 0) {
 		const names: string[] = [];
 		const seen = new Set<string>();
@@ -70,7 +75,10 @@ function executableRuleNames(
 					continue;
 				}
 				seen.add(id);
-				names.push(ruleDisplayName(node.ref));
+				// A custom rule in a workflow shows its stored name, not the
+				// generic "Custom rule" fallback ruleDisplayName would yield.
+				const custom = customById.get(id);
+				names.push(custom ? custom.name : ruleDisplayName(node.ref));
 			}
 		}
 		// Leftover standalone rules (not owned by any workflow) still run.
@@ -91,14 +99,38 @@ function executableRuleNames(
 				names.push(entry.name);
 			}
 		}
+		// Leftover standalone custom rules (not owned by any workflow) run
+		// when enabled, mirroring the worker's custom-rule toggle join.
+		for (const custom of customRules) {
+			if (seen.has(custom.id)) {
+				continue;
+			}
+			const owned = enabledWorkflows.some((wf) =>
+				wf.nodes.some(
+					(n) => n.type === "rule" && n.ref && ruleIdOf(n.ref) === custom.id,
+				),
+			);
+			if (owned) {
+				continue;
+			}
+			if (custom.enabled) {
+				names.push(custom.name);
+			}
+		}
 		return names;
 	}
-	return RULE_CATALOG.filter((entry) =>
+	const names: string[] = RULE_CATALOG.filter((entry) =>
 		ruleExecutes(
 			`${entry.ruleId}@${entry.version}`,
 			byId.get(entry.ruleId)?.enabled,
 		),
 	).map((entry) => entry.name);
+	for (const custom of customRules) {
+		if (custom.enabled) {
+			names.push(custom.name);
+		}
+	}
+	return names;
 }
 
 /**
@@ -135,14 +167,20 @@ export const getRerunPreview = createServerFn({ method: "GET" })
 		const { repoServices } = await import("@tripwire/db");
 		const { getDb } = await import("#/lib/server/db");
 		const db = getDb().db;
-		const [workflows, configs] = await Promise.all([
+		const [workflows, configs, customRules] = await Promise.all([
 			repoServices.listEnabledWorkflows(db, repo.fullName, repo.forge),
 			repoServices.listRuleConfigs(db, repo.id),
+			repoServices.listCustomRules(db, repo.id),
 		]);
 		return {
 			ruleNames: executableRuleNames(
 				configs.map((c) => ({ ruleId: c.ruleId, enabled: c.enabled })),
 				workflows,
+				customRules.map((c) => ({
+					id: c.id,
+					name: c.name,
+					enabled: c.enabled,
+				})),
 			),
 		};
 	});
@@ -180,13 +218,15 @@ export const rerunChangeRequest = createServerFn({ method: "POST" })
 		if (!repo.armed) {
 			return { status: "not-armed" };
 		}
-		const [workflows, configs] = await Promise.all([
+		const [workflows, configs, customRules] = await Promise.all([
 			repoServices.listEnabledWorkflows(db, repo.fullName, repo.forge),
 			repoServices.listRuleConfigs(db, repo.id),
+			repoServices.listCustomRules(db, repo.id),
 		]);
 		const names = executableRuleNames(
 			configs.map((c) => ({ ruleId: c.ruleId, enabled: c.enabled })),
 			workflows,
+			customRules.map((c) => ({ id: c.id, name: c.name, enabled: c.enabled })),
 		);
 		if (names.length === 0) {
 			return { status: "no-workflow" };

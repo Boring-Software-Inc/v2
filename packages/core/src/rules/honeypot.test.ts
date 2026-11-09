@@ -45,6 +45,33 @@ describe("honeypot@1", () => {
 		expect(double.passed).toBe(false);
 	});
 
+	test("a pattern with a space names only its literal directory (regression)", async () => {
+		const ctx = await fixtureContext({
+			diff: fixtureDiff([
+				{ path: "docs/MyXFolder/secret.yml" },
+				{ path: "docs/My Folder/secret.yml" },
+			]),
+		});
+		const result = await evaluateRule(honeypot, ctx, {
+			paths: ["docs/My Folder/**"],
+		});
+		expect(result.passed).toBe(false);
+		expect(result.evidence).toEqual({
+			touched: ["docs/My Folder/secret.yml"],
+		});
+	});
+
+	test("a pattern with a space does not block an unrelated path", async () => {
+		const ctx = await fixtureContext({
+			diff: fixtureDiff([{ path: "docs/MyXFolder/secret.yml" }]),
+		});
+		const result = await evaluateRule(honeypot, ctx, {
+			paths: ["docs/My Folder/**"],
+		});
+		expect(result.passed).toBe(true);
+		expect(result.evidence).toEqual({ touched: [] });
+	});
+
 	test("skips when the diff read was unavailable", async () => {
 		const result = await evaluateRule(
 			honeypot,

@@ -5,6 +5,12 @@ import type { GithubHttp } from "./http.ts";
 const PAGE_SIZE = 100;
 const MAX_PAGES = 10;
 
+export interface ListRepoReviewersResult {
+	reviewers: RepoReviewer[];
+	/** GitHub advertised another page after the request cap. */
+	truncated: boolean;
+}
+
 const collaboratorSchema = z.object({
 	id: z.number(),
 	login: z.string(),
@@ -37,15 +43,15 @@ function permissionOf(collaborator: Collaborator): string | null {
 export async function listRepoReviewers(
 	http: GithubHttp,
 	repoFullName: string,
-): Promise<RepoReviewer[]> {
+): Promise<ListRepoReviewersResult> {
 	const found: RepoReviewer[] = [];
+	let truncated = false;
 	for (let page = 1; page <= MAX_PAGES; page++) {
-		const rows = pageSchema.parse(
-			await http.get(
-				repoFullName,
-				`/repos/${repoFullName}/collaborators?affiliation=all&permission=push&per_page=${PAGE_SIZE}&page=${page}`,
-			),
+		const { body, next } = await http.getPage(
+			repoFullName,
+			`/repos/${repoFullName}/collaborators?affiliation=all&permission=push&per_page=${PAGE_SIZE}&page=${page}`,
 		);
+		const rows = pageSchema.parse(body);
 		for (const row of rows) {
 			const collaborator = collaboratorSchema.safeParse(row);
 			if (!collaborator.success) {
@@ -62,9 +68,10 @@ export async function listRepoReviewers(
 				found.push(reviewer.data);
 			}
 		}
-		if (rows.length < PAGE_SIZE) {
+		truncated = next !== null;
+		if (!truncated) {
 			break;
 		}
 	}
-	return found;
+	return { reviewers: found, truncated };
 }
