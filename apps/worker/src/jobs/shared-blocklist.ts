@@ -1,7 +1,9 @@
 import {
-	type RepoScopedEvent,
+	type NormalizedEvent,
 	SHARED_BLOCKLIST_RULE_REF,
+	type SharedBlocklistEvidence,
 	type SharedBlocklistSnapshot,
+	sharedBlocklistMatchSchema,
 	type WorkflowDefinition,
 } from "@tripwire/contracts";
 import {
@@ -9,14 +11,17 @@ import {
 	isSharedBlocklistFresh,
 } from "@tripwire/utils/shared-blocklist";
 
-export function sharedBlocklistReviewWorkflow(
-	event: RepoScopedEvent,
+export function sharedBlocklistEvidence(
+	event: NormalizedEvent,
 	snapshot: SharedBlocklistSnapshot | null,
 	now: number,
-): WorkflowDefinition | null {
+): SharedBlocklistEvidence | null {
 	if (
 		event.forge !== "github" ||
 		event.kind !== "change-request.opened" ||
+		!sharedBlocklistMatchSchema.shape.accountId.safeParse(
+			event.actor.externalId,
+		).success ||
 		!snapshot ||
 		!isSharedBlocklistFresh(snapshot, now)
 	)
@@ -26,8 +31,16 @@ export function sharedBlocklistReviewWorkflow(
 			item.accountId === event.actor.externalId &&
 			isSharedBlocklistEntryActive(item.expiresAt, now),
 	);
-	if (!entry) return null;
+	return entry
+		? {
+				accountId: entry.accountId,
+				reason: entry.reason,
+				revision: snapshot.revision,
+			}
+		: { revision: snapshot.revision };
+}
 
+export function sharedBlocklistReviewWorkflow(): WorkflowDefinition {
 	return {
 		id: "shared-spam-blocklist-review",
 		name: "Shared spam blocklist review",
@@ -38,11 +51,7 @@ export function sharedBlocklistReviewWorkflow(
 				id: "listed-author",
 				type: "rule",
 				ref: SHARED_BLOCKLIST_RULE_REF,
-				config: {
-					accountId: entry.accountId,
-					reason: entry.reason,
-					revision: snapshot.revision,
-				},
+				config: {},
 			},
 			{ id: "review", type: "action", action: "send-to-moderation" },
 		],

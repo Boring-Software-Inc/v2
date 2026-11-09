@@ -801,6 +801,13 @@ Rules Library for a connected GitHub repository. The worker evaluates Pilot
 only after the repository is armed and Pilot is installed. Matches on new
 pull requests go to Human review.
 
+## 2026-11-09 · Pilot in workflows
+
+Pilot is a catalog rule for newly opened GitHub pull requests. A fresh listing
+fails the check, a verified absence passes it, and unavailable evidence skips it.
+A runnable, enabled workflow that uses Pilot takes precedence over the Library
+installation. The standalone installation still sends matches to Human review.
+
 ## Shared blocklist publication
 
 The community blocklist repository keeps reviewed submissions on protected `main`. Its Actions publisher combines those entries with platform-admin submissions and writes a versioned snapshot to the separate `published` branch. Both the worker and public page consume that snapshot. Admin submissions remain inspectable in `published:staff-entries/`; community and staff removals follow their respective paths in the list repo's README.

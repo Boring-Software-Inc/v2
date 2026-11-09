@@ -1,6 +1,9 @@
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { SHARED_BLOCKLIST_RULE_ID } from "@tripwire/contracts";
+import {
+	SHARED_BLOCKLIST_RULE_ID,
+	SHARED_BLOCKLIST_RULE_VERSION,
+} from "@tripwire/contracts";
 import { z } from "zod";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import {
@@ -43,7 +46,7 @@ export const setSharedBlocklistPilot = createServerFn({ method: "POST" })
 		if (!pilot) throw notFound();
 		await pilot.repoServices.upsertRuleConfig(pilot.db, pilot.id, {
 			ruleId: SHARED_BLOCKLIST_RULE_ID,
-			version: 1,
+			version: SHARED_BLOCKLIST_RULE_VERSION,
 			enabled: data.enabled,
 			config: {},
 		});

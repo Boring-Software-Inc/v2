@@ -132,7 +132,19 @@ export function RulesPage() {
 	const [builderOpen, setBuilderOpen] = useState(false);
 	const repoId = repo?.id ?? "";
 	const rulesQuery = useQuery(ruleConfigsQueryOptions(org, repoId));
-	const rules = rulesQuery.data;
+	const pilotManaged = rulesQuery.data?.some(
+		(rule) =>
+			rule.ruleId === SHARED_BLOCKLIST_RULE_ID && rule.management === "managed",
+	);
+	const rules = useMemo(
+		() =>
+			rulesQuery.data?.filter(
+				(rule) =>
+					rule.ruleId !== SHARED_BLOCKLIST_RULE_ID ||
+					rule.management === "managed",
+			),
+		[rulesQuery.data],
+	);
 	const statsQuery = useQuery(rulesStatsQueryOptions(org, repoId));
 	const queryClient = useQueryClient();
 
@@ -151,21 +163,22 @@ export function RulesPage() {
 	const installedRules = (rules ?? []).filter((r) => r.enabled);
 	const customRules = (rules ?? []).filter((r) => r.source === "custom");
 	const offered = libraryRules(rules ?? []);
-	const pilotOffered = pilot?.enabled === false;
+	const pilotOffered = !pilotManaged && pilot?.enabled === false;
 	const libraryCount = offered.length + Number(pilotOffered);
-	const installed = pilot?.enabled
-		? [
-				...installedRules,
-				{
-					kind: "pilot" as const,
-					ruleId: SHARED_BLOCKLIST_RULE_ID,
-					name: "Pilot",
-					blurb: PILOT_DESCRIPTION,
-					sentence: null,
-					matches24h: 0,
-				},
-			]
-		: installedRules;
+	const installed =
+		!pilotManaged && pilot?.enabled
+			? [
+					...installedRules,
+					{
+						kind: "pilot" as const,
+						ruleId: SHARED_BLOCKLIST_RULE_ID,
+						name: "Pilot",
+						blurb: PILOT_DESCRIPTION,
+						sentence: null,
+						matches24h: 0,
+					},
+				]
+			: installedRules;
 	const starting =
 		rules !== undefined &&
 		tab === undefined &&

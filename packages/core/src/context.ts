@@ -1,5 +1,6 @@
 import type {
 	NormalizedEvent,
+	SharedBlocklistEvidence,
 	StarredContributionCount,
 	StarredContributionQuery,
 } from "@tripwire/contracts";
@@ -84,6 +85,8 @@ export interface RuleContext {
 	diff: ContextDiffFile[] | null;
 	commits: ContextCommit[] | null;
 	contributor: ContextContributor | null;
+	/** Verified by the worker against a fresh Pilot snapshot. */
+	sharedBlocklist?: SharedBlocklistEvidence | null;
 	/** Injected by the worker when AI credentials exist (§8). */
 	generate?: AiReviewGenerate;
 	/** Reads public GitHub history for the pull request author, if available. */

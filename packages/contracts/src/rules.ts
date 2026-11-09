@@ -5,6 +5,11 @@ import { threadKindSchema } from "./insights.ts";
 import { itemTypeSchema, modStatSchema } from "./moderation.ts";
 import type { RedactionItem } from "./redaction.ts";
 import { aiReviewConfigSchema } from "./review.ts";
+import {
+	SHARED_BLOCKLIST_RULE_ID,
+	SHARED_BLOCKLIST_RULE_VERSION,
+	sharedBlocklistRuleConfigSchema,
+} from "./shared-blocklist.ts";
 import type { JsonValue, WorkflowDefinition } from "./workflow.ts";
 
 /**
@@ -410,6 +415,18 @@ export const RULE_CATALOG = [
 		contributorLabel: "add a short bio to your profile.",
 	},
 	{
+		ruleId: SHARED_BLOCKLIST_RULE_ID,
+		forges: ["github"],
+		version: SHARED_BLOCKLIST_RULE_VERSION,
+		name: "Pilot",
+		blurb: "requires the pull request author to be absent from the Pilot list.",
+		configSchema: sharedBlocklistRuleConfigSchema,
+		defaultConfig: {},
+		optIn: true,
+		description: "Fails when the pull request author is listed in Pilot.",
+		contributorLabel: "this pull request did not pass the Pilot check.",
+	},
+	{
 		ruleId: "ai-review",
 		/** reads the diff; open-git exposes no files endpoint — see the forge-capability audit in
 		 * `core/src/rules/forge-support.test.ts`. */
@@ -802,6 +819,7 @@ export const RULE_PARAMS = {
 		],
 	},
 	"crypto-address": { sentences: [], params: [] },
+	[SHARED_BLOCKLIST_RULE_ID]: { sentences: [], params: [] },
 	honeypot: {
 		sentences: [
 			"blocks any change request that touches {paths}, which no legitimate change should need",
