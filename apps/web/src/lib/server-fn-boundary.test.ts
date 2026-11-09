@@ -23,7 +23,6 @@ const PUBLIC_ALLOWLIST = new Set([
 	"getProviderAvailability",
 	/** Public analytics ID is needed on signed-out pages; no secret configuration. */
 	"getPublicDatabuddyConfig",
-	"getPublicSharedBlocklist",
 	"getRun", // the unlisted-public run page — readable without a session by design
 	"getWebviewHost", // echoes the caller's own user-agent; /login is signed-out
 	"redeemOrgInvite", // §6: redemption APPROVES pending users — gating it deadlocks

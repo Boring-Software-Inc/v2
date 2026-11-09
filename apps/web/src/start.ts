@@ -4,6 +4,7 @@ import { createMiddleware, createStart } from "@tanstack/react-start";
 import { SHARED_BLOCKLIST_API_PATH } from "@tripwire/contracts";
 import { APP_OG_VIDEO_PATH, parseRunOgPath } from "#/lib/run-og";
 import { isServerOnlyAuthPath } from "#/lib/server-only-auth-paths";
+import { siteConfig } from "#/lib/site-config";
 
 /**
  * Better Auth is mounted HERE, as global request middleware — /api/auth is
@@ -27,9 +28,15 @@ const authRequestMiddleware = createMiddleware({ type: "request" }).server(
 			);
 			return handlePublicBlocklist(request);
 		}
-		if (url.pathname === "/" && url.hostname === "blocklist.tripwire.sh") {
-			url.pathname = "/pilot";
-			return Response.redirect(url, 307);
+		if (
+			(request.method === "GET" || request.method === "HEAD") &&
+			(url.pathname === "/pilot" ||
+				url.pathname === "/pilot/" ||
+				(url.pathname === "/" && url.hostname === "blocklist.tripwire.sh"))
+		) {
+			const destination = new URL(siteConfig.pilotUrl);
+			destination.search = url.search;
+			return Response.redirect(destination, 308);
 		}
 		// DEV persona switcher (§13). `import.meta.env.DEV` is a compile-time
 		// constant, so this whole branch is dead-code-eliminated from the

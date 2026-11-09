@@ -62,11 +62,8 @@ describe("resolveRunAccess", () => {
 });
 
 describe("isPublicPath", () => {
-	test("run pages, login, and Pilot are public", () => {
+	test("run pages and login are public", () => {
 		expect(isPublicPath("/login")).toBe(true);
-		expect(isPublicPath("/pilot")).toBe(true);
-		expect(isPublicPath("/pilot/")).toBe(true);
-		expect(isPublicPath("/pilot/review")).toBe(false);
 		expect(isPublicPath("/runs/019f54d3-0c13-7000-930a-dc97f87e1d5e")).toBe(
 			true,
 		);

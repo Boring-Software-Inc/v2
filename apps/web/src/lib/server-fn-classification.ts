@@ -33,7 +33,6 @@ export const SERVER_FN_CLASSIFICATION: ServerFnClassification = {
 	/** The signed-out login page needs provider IDs, never auth configuration. */
 	getProviderAvailability: "public",
 	getPublicDatabuddyConfig: "public",
-	getPublicSharedBlocklist: "public",
 	getRun: "public", // unlisted-public run page (§10)
 	getWebviewHost: "public", // reads the caller's own user-agent; /login is signed-out
 	/**

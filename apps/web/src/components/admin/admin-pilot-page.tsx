@@ -2,7 +2,8 @@ import { Link } from "@tanstack/react-router";
 import { AdminBlocklistForm } from "#/components/admin/admin-blocklist-form";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { Page, PageBody, PageHeader } from "#/components/layouts/page";
-import { Button } from "#/design-system/ui/button";
+import { buttonVariants } from "#/design-system/ui/button";
+import { siteConfig } from "#/lib/site-config";
 
 export function AdminPilotPage() {
 	return (
@@ -13,13 +14,13 @@ export function AdminPilotPage() {
 					description="Publish reviewed accounts to the public spam blocklist."
 					navigation={<Link to="/admin">Admin</Link>}
 					actions={
-						<Button
-							nativeButton={false}
-							render={<Link to="/pilot" />}
-							variant="secondary"
+						<a
+							className={buttonVariants({ variant: "secondary" })}
+							data-slot="button"
+							href={siteConfig.pilotUrl}
 						>
 							View public list
-						</Button>
+						</a>
 					}
 				/>
 				<PageBody>
