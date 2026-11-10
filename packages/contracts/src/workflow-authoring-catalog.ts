@@ -21,6 +21,7 @@ export const AUTHORING_EVENT_KINDS = [
 	"change-request.opened",
 	"change-request.updated",
 	"change-request.closed",
+	"issue.opened",
 	"comment.created",
 	"push",
 ] as const satisfies readonly EventKind[];

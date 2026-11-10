@@ -146,6 +146,7 @@ const SDK_EVENTS: Partial<
 	"change-request.opened": "changeRequest.opened",
 	"change-request.updated": "changeRequest.updated",
 	"change-request.closed": "changeRequest.closed",
+	"issue.opened": "issue.opened",
 	"comment.created": "comment.created",
 	push: "repository.pushed",
 };
@@ -736,10 +737,15 @@ export function resolveWorkflowSdk(
 				(node.ref === "owned-repo-stars@1" ||
 					node.ref === "merged-pr-repo-stars@1"),
 		) === true;
-	const minimum = stars ? "0.1.4" : MIN_WORKFLOW_SDK;
-	const requirement = stars
-		? "Repository star checks need"
-		: "Workflow commands need";
+	const issue = definition?.nodes.some(
+		(node) => node.type === "trigger" && node.kinds.includes("issue.opened"),
+	);
+	const minimum = issue ? "0.1.5" : stars ? "0.1.4" : MIN_WORKFLOW_SDK;
+	const requirement = issue
+		? "Issue workflows need"
+		: stars
+			? "Repository star checks need"
+			: "Workflow commands need";
 	const path = resolve(file);
 	const install = `Run npm install ${SDK_PACKAGE}@${IS_STAGING ? "staging" : "latest"} in your project.`;
 	let entry: string;
@@ -770,7 +776,8 @@ export function resolveWorkflowSdk(
 					(Number(release[1]) > 0 ||
 						Number(release[2]) > 1 ||
 						(Number(release[2]) === 1 &&
-							Number(release[3]) >= (stars ? 4 : release[4] ? 3 : 2)))
+							Number(release[3]) >=
+								(issue ? 5 : stars ? 4 : release[4] ? 3 : 2)))
 				) {
 					return entry;
 				}
@@ -969,7 +976,23 @@ export interface PulledWorkflow {
 }
 
 export function pulledWorkflows(data: JsonValue | null): PulledWorkflow[] {
-	return pulledSchema.parse(data).workflows.map((entry) => ({
+	const parsed = pulledSchema.safeParse(data);
+	if (!parsed.success) {
+		if (
+			parsed.error.issues.some(
+				({ code, path }) =>
+					code === "invalid_value" &&
+					path[0] === "workflows" &&
+					path.at(-2) === "kinds",
+			)
+		) {
+			throw new Error(
+				"A workflow uses a trigger this CLI does not recognize. Update with npm install -g @tripwire-sh/cli@latest and try again.",
+			);
+		}
+		throw parsed.error;
+	}
+	return parsed.data.workflows.map((entry) => ({
 		id: entry.id,
 		appId: entry.appId,
 		name: entry.name ?? entry.definition.name,
