@@ -63,6 +63,7 @@ import {
 	waitingText,
 } from "#/push-review";
 import type { System } from "#/system";
+import { offerWorkflowSdkUpgrade } from "#/workflow-sdk-upgrade";
 import {
 	DEFAULT_WORKFLOW_DIRECTORY,
 	discoverWorkflowFiles,
@@ -79,6 +80,7 @@ import {
 	selectPulled,
 	selectWorkflowSources,
 	typecheckSdkWorkflow,
+	WorkflowSdkUpgradeRequired,
 	writePulled,
 	writeSdkWorkflows,
 } from "#/workflows-code";
@@ -942,8 +944,30 @@ async function pullSdkWorkflows(
 				({ id }) => requested.size === 0 || requested.has(keys.get(id) ?? ""),
 			);
 	if (!picked) return 130;
-	for (const { id, definition } of picked) {
-		resolveWorkflowSdk(join(directory, `${keys.get(id)}.ts`), definition);
+	const selected = picked.map(({ id, definition }) => ({
+		file: join(directory, `${keys.get(id)}.ts`),
+		definition,
+	}));
+	let upgrade: WorkflowSdkUpgradeRequired | undefined;
+	for (const { file, definition } of selected) {
+		try {
+			resolveWorkflowSdk(file, definition);
+		} catch (error) {
+			if (
+				!(
+					canPromptPull(options, deps.system) &&
+					error instanceof WorkflowSdkUpgradeRequired
+				)
+			)
+				throw error;
+			if (!upgrade || error.minimum > upgrade.minimum) upgrade = error;
+		}
+	}
+	if (upgrade) {
+		const code = await offerWorkflowSdkUpgrade(deps.system, upgrade);
+		if (code !== 0) return code;
+		for (const { file, definition } of selected)
+			resolveWorkflowSdk(file, definition);
 	}
 	const written = writeSdkWorkflows(
 		directory,

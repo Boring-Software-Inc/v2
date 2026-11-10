@@ -62,7 +62,7 @@ function installedPackage(entry: string): string | undefined {
 	}
 }
 
-function npmCommand(system: System): [string, ...string[]] | undefined {
+export function npmCommand(system: System): [string, ...string[]] | undefined {
 	const npm = system.which("npm");
 	if (system.platform !== "win32") return npm ? [npm] : undefined;
 	const fromEnv = system.env.npm_execpath;
@@ -91,15 +91,17 @@ async function newerVersion(): Promise<string | undefined> {
 	}
 }
 
-function runChild(
+export function runChild(
 	command: string,
 	args: string[],
 	env: NodeJS.ProcessEnv,
 	updating = false,
+	cwd?: string,
 ): Promise<number> {
 	return new Promise((resolve) => {
 		const child = spawn(command, args, {
 			env,
+			cwd,
 			stdio: updating ? ["inherit", process.stderr, "inherit"] : "inherit",
 		});
 		child.once("error", () => resolve(1));
