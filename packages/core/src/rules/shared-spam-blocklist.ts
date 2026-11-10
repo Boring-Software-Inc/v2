@@ -1,4 +1,5 @@
 import {
+	PILOT_TRIGGER_KINDS,
 	SHARED_BLOCKLIST_RULE_ID,
 	SHARED_BLOCKLIST_RULE_VERSION,
 	sharedBlocklistEvidenceSchema,
@@ -39,11 +40,11 @@ export const sharedSpamBlocklistV2 = defineRule({
 	evaluate(ctx) {
 		if (
 			ctx.event.forge !== "github" ||
-			ctx.event.kind !== "change-request.opened"
+			!PILOT_TRIGGER_KINDS.includes(ctx.event.kind)
 		) {
 			return {
 				status: "skipped",
-				reason: "Pilot checks newly opened GitHub pull requests.",
+				reason: "Pilot checks newly opened GitHub issues and pull requests.",
 			};
 		}
 		const evidence = ctx.sharedBlocklist;
@@ -65,6 +66,6 @@ export const sharedSpamBlocklistV2 = defineRule({
 	},
 	publicEvidence: () => ({}),
 	summarize: (_evidence, passed) =>
-		passed ? null : "This pull request did not pass the Pilot check.",
+		passed ? null : "The author did not pass the Pilot check.",
 	remedy: "appeal",
 });

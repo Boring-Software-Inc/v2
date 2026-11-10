@@ -803,10 +803,12 @@ pull requests go to Human review.
 
 ## 2026-11-09 · Pilot in workflows
 
-Pilot is a catalog rule for newly opened GitHub pull requests. A fresh listing
-fails the check, a verified absence passes it, and unavailable evidence skips it.
-A runnable, enabled workflow that uses Pilot takes precedence over the Library
-installation. The standalone installation still sends matches to Human review.
+Pilot is a catalog rule for newly opened GitHub issues and pull requests. A fresh
+listing fails the check, a verified absence passes it, and unavailable evidence
+skips it.
+A runnable, enabled pull request workflow that uses Pilot takes precedence over
+the Library installation. The standalone installation sends matching pull
+requests to Human review.
 
 ## Shared blocklist publication
 

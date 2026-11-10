@@ -1,7 +1,12 @@
 import { z } from "zod";
+import type { EventKind } from "./events.ts";
 
 export const SHARED_BLOCKLIST_RULE_ID = "shared-spam-blocklist";
 export const SHARED_BLOCKLIST_RULE_VERSION = 2;
+export const PILOT_TRIGGER_KINDS: readonly EventKind[] = [
+	"change-request.opened",
+	"issue.opened",
+];
 export const SHARED_BLOCKLIST_RULE_REF = `${SHARED_BLOCKLIST_RULE_ID}@${SHARED_BLOCKLIST_RULE_VERSION}`;
 export const SHARED_BLOCKLIST_REPOSITORY =
 	"https://github.com/Boring-Software-Inc/Pilot";

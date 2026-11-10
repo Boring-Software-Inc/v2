@@ -1,7 +1,10 @@
 import { z } from "zod";
 import { fieldIssueSentence } from "./issue-copy.ts";
 import { HISTORICAL_RULE_CONFIG_SCHEMAS, RULE_CATALOG } from "./rules.ts";
-import { SHARED_BLOCKLIST_RULE_REF } from "./shared-blocklist.ts";
+import {
+	PILOT_TRIGGER_KINDS,
+	SHARED_BLOCKLIST_RULE_REF,
+} from "./shared-blocklist.ts";
 import {
 	ACTION_CATALOG,
 	GATE_CATALOG,
@@ -826,7 +829,7 @@ function checkPilotTriggers(ctx: LintContext): Finding[] {
 		ctx,
 		ctx.def.nodes.flatMap((node) =>
 			node.type === "trigger" &&
-			node.kinds.some((kind) => kind !== "change-request.opened")
+			node.kinds.some((kind) => !PILOT_TRIGGER_KINDS.includes(kind))
 				? [node.id]
 				: [],
 		),
@@ -835,7 +838,7 @@ function checkPilotTriggers(ctx: LintContext): Finding[] {
 		.filter((node) => reached.has(node.id))
 		.map((node) => ({
 			nodeId: node.id,
-			message: "Pilot needs a Change request opened trigger.",
+			message: "Pilot needs an Issue opened or Change request opened trigger.",
 			fixes: [],
 		}));
 }

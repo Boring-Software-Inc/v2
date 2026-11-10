@@ -9,6 +9,7 @@ import {
 	workflowReadiness,
 } from "@tripwire/contracts";
 import { executeWorkflow } from "@tripwire/core";
+import { normalizeWebhook } from "@tripwire/forge-github";
 import pino from "pino";
 import { makeEvaluator } from "./run-workflows.ts";
 import {
@@ -16,17 +17,34 @@ import {
 	sharedBlocklistReviewWorkflow,
 } from "./shared-blocklist.ts";
 
-test("only an exact account ID on a fresh list can queue human review", async () => {
-	const event = normalizedEventSchema.parse(
-		await Bun.file(
-			new URL(
-				"../../../../packages/core/fixtures/change-request.opened.event.json",
-				import.meta.url,
-			),
-		).json(),
-	);
-	if (event.kind !== "change-request.opened")
-		throw new Error("Expected an opened pull request");
+test.each([
+	"change-request.opened",
+	"issue.opened",
+] as const)("Pilot evaluates the author of %s against a fresh snapshot", async (kind) => {
+	const fixture = (path: string) =>
+		Bun.file(new URL(path, import.meta.url)).json();
+	const event =
+		kind === "issue.opened"
+			? normalizeWebhook(
+					{
+						deliveryId: "pilot-issue-opened",
+						eventName: "issues",
+						signature: null,
+						body: JSON.stringify({
+							...(await fixture(
+								"../../../../packages/forge-github/fixtures/issue_comment.created.json",
+							)),
+							action: "opened",
+						}),
+					},
+					"2026-11-07T12:00:00Z",
+				)
+			: normalizedEventSchema.parse(
+					await fixture(
+						"../../../../packages/core/fixtures/change-request.opened.event.json",
+					),
+				);
+	if (event?.kind !== kind) throw new Error(`Expected ${kind}`);
 	const now = Date.parse("2026-11-07T12:00:00Z");
 	const snapshot = sharedBlocklistSnapshotSchema.parse({
 		version: 1,
@@ -107,21 +125,31 @@ test("only an exact account ID on a fresh list can queue human review", async ()
 		});
 
 	const review = sharedBlocklistReviewWorkflow();
-	expect((await run(review, match)).pausedAtNodeIds).toEqual(["review"]);
-	expect((await run(review, notListed)).actions).toEqual([]);
+	if (kind === "change-request.opened") {
+		expect((await run(review, match)).pausedAtNodeIds).toEqual(["review"]);
+		expect((await run(review, notListed)).actions).toEqual([]);
+	} else {
+		expect((await run(review, match)).actions).toEqual([]);
+		expect((await run(review, match)).pausedAtNodeIds).toEqual([]);
+	}
 
 	const authored: WorkflowDefinition = {
 		...review,
 		nodes: [
-			{ id: "opened", type: "trigger", kinds: ["change-request.opened"] },
+			{ id: "opened", type: "trigger", kinds: [kind] },
 			{ id: "pilot", type: "rule", ref: SHARED_BLOCKLIST_RULE_REF, config: {} },
 			{ id: "close", type: "action", action: "close" },
-			{ id: "lock", type: "action", action: "lock" },
+			{
+				id: "comment",
+				type: "action",
+				action: "post-comment",
+				params: { message: "Thanks for the report." },
+			},
 		],
 		edges: [
 			{ id: "check", from: "opened", to: "pilot" },
 			{ id: "matched", from: "pilot", to: "close", when: "fail" },
-			{ id: "unlisted", from: "pilot", to: "lock", when: "pass" },
+			{ id: "unlisted", from: "pilot", to: "comment", when: "pass" },
 		],
 	};
 	expect(workflowReadiness(authored).canTurnOn).toBe(true);
@@ -130,7 +158,7 @@ test("only an exact account ID on a fresh list can queue human review", async ()
 	).toEqual(["close"]);
 	expect(
 		(await run(authored, notListed)).actions.map(({ action }) => action),
-	).toEqual(["lock"]);
+	).toEqual(["post-comment"]);
 	expect((await run(authored, stale)).actions).toEqual([]);
 	expect(
 		(await run(authored, stale)).steps.find((step) => step.nodeId === "pilot")

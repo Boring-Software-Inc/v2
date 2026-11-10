@@ -1,5 +1,6 @@
 import {
 	type NormalizedEvent,
+	PILOT_TRIGGER_KINDS,
 	SHARED_BLOCKLIST_RULE_REF,
 	type SharedBlocklistEvidence,
 	type SharedBlocklistSnapshot,
@@ -18,7 +19,7 @@ export function sharedBlocklistEvidence(
 ): SharedBlocklistEvidence | null {
 	if (
 		event.forge !== "github" ||
-		event.kind !== "change-request.opened" ||
+		!PILOT_TRIGGER_KINDS.includes(event.kind) ||
 		!sharedBlocklistMatchSchema.shape.accountId.safeParse(
 			event.actor.externalId,
 		).success ||

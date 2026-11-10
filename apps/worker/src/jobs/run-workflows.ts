@@ -19,6 +19,7 @@ import {
 	isIssueWorkflow,
 	joinVerdicts,
 	nonEnforcingRuleNodeIds,
+	PILOT_TRIGGER_KINDS,
 	resolveEffectiveRuleConfig,
 	ruleIdOf,
 	ruleResultSchema,
@@ -1133,7 +1134,7 @@ export function publicSkipReason(reason: string): string {
 }
 
 async function readPilotEvidence(event: RuleContext["event"], logger: Logger) {
-	if (event.forge !== "github" || event.kind !== "change-request.opened")
+	if (event.forge !== "github" || !PILOT_TRIGGER_KINDS.includes(event.kind))
 		return null;
 	const snapshot = await loadSharedBlocklist(() =>
 		logger.warn("Shared blocklist snapshot could not be refreshed"),
