@@ -1,7 +1,8 @@
 import { z } from "zod";
 
 export const SHARED_BLOCKLIST_RULE_ID = "shared-spam-blocklist";
-export const SHARED_BLOCKLIST_RULE_REF = "shared-spam-blocklist@1";
+export const SHARED_BLOCKLIST_RULE_VERSION = 2;
+export const SHARED_BLOCKLIST_RULE_REF = `${SHARED_BLOCKLIST_RULE_ID}@${SHARED_BLOCKLIST_RULE_VERSION}`;
 export const SHARED_BLOCKLIST_REPOSITORY =
 	"https://github.com/Boring-Software-Inc/Pilot";
 export const SHARED_BLOCKLIST_API_PATH = "/api/blocklist";
@@ -38,11 +39,22 @@ export const sharedBlocklistPageQuerySchema = z.object({
 	page: z.coerce.number().int().min(1).max(400).optional().catch(undefined),
 });
 
+export const sharedBlocklistRuleConfigSchema = z.strictObject({});
+
 export const sharedBlocklistMatchSchema = z.strictObject({
 	accountId,
 	reason: entry.shape.reason,
 	revision: z.int().positive(),
 });
+
+/** Evidence records the snapshot checked and, for a match, the account and listing reason. */
+export const sharedBlocklistEvidenceSchema = z.union([
+	sharedBlocklistMatchSchema,
+	sharedBlocklistMatchSchema.pick({ revision: true }),
+]);
+export type SharedBlocklistEvidence = z.infer<
+	typeof sharedBlocklistEvidenceSchema
+>;
 
 export type SharedBlocklistSnapshot = z.infer<
 	typeof sharedBlocklistSnapshotSchema

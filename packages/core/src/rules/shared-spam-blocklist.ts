@@ -1,6 +1,9 @@
 import {
 	SHARED_BLOCKLIST_RULE_ID,
+	SHARED_BLOCKLIST_RULE_VERSION,
+	sharedBlocklistEvidenceSchema,
 	sharedBlocklistMatchSchema,
+	sharedBlocklistRuleConfigSchema,
 } from "@tripwire/contracts";
 import { defineRule } from "./define.ts";
 
@@ -25,5 +28,43 @@ export const sharedSpamBlocklist = defineRule({
 	},
 	publicEvidence: () => ({}),
 	summarize: () => "This pull request was sent to a maintainer for review.",
+	remedy: "appeal",
+});
+
+export const sharedSpamBlocklistV2 = defineRule({
+	id: SHARED_BLOCKLIST_RULE_ID,
+	version: SHARED_BLOCKLIST_RULE_VERSION,
+	configSchema: sharedBlocklistRuleConfigSchema,
+	resultSchema: sharedBlocklistEvidenceSchema,
+	evaluate(ctx) {
+		if (
+			ctx.event.forge !== "github" ||
+			ctx.event.kind !== "change-request.opened"
+		) {
+			return {
+				status: "skipped",
+				reason: "Pilot checks newly opened GitHub pull requests.",
+			};
+		}
+		const evidence = ctx.sharedBlocklist;
+		if (
+			!evidence ||
+			("accountId" in evidence &&
+				evidence.accountId !== ctx.event.actor.externalId)
+		) {
+			return {
+				status: "skipped",
+				reason: "Tripwire could not verify this author against Pilot.",
+			};
+		}
+		return {
+			status: "evaluated",
+			passed: !("accountId" in evidence),
+			evidence,
+		};
+	},
+	publicEvidence: () => ({}),
+	summarize: (_evidence, passed) =>
+		passed ? null : "This pull request did not pass the Pilot check.",
 	remedy: "appeal",
 });

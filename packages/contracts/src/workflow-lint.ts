@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { fieldIssueSentence } from "./issue-copy.ts";
 import { HISTORICAL_RULE_CONFIG_SCHEMAS, RULE_CATALOG } from "./rules.ts";
+import { SHARED_BLOCKLIST_RULE_REF } from "./shared-blocklist.ts";
 import {
 	ACTION_CATALOG,
 	GATE_CATALOG,
@@ -67,6 +68,7 @@ export const LINT_RULES = {
 	"action-params": { severity: "error", stage: "enable" },
 	"issue-trigger": { severity: "error", stage: "enable" },
 	"issue-action": { severity: "error", stage: "enable" },
+	"pilot-trigger": { severity: "error", stage: "enable" },
 	"schedule-mixed": { severity: "error", stage: "enable" },
 	"schedule-needs-change-request": { severity: "error", stage: "enable" },
 	"unknown-rule": { severity: "error", stage: "enable" },
@@ -815,6 +817,29 @@ function reachableFrom(ctx: LintContext, startIds: string[]): Set<string> {
 	return reached;
 }
 
+function checkPilotTriggers(ctx: LintContext): Finding[] {
+	const pilot = ctx.def.nodes.filter(
+		(node) => node.type === "rule" && node.ref === SHARED_BLOCKLIST_RULE_REF,
+	);
+	if (pilot.length === 0) return [];
+	const reached = reachableFrom(
+		ctx,
+		ctx.def.nodes.flatMap((node) =>
+			node.type === "trigger" &&
+			node.kinds.some((kind) => kind !== "change-request.opened")
+				? [node.id]
+				: [],
+		),
+	);
+	return pilot
+		.filter((node) => reached.has(node.id))
+		.map((node) => ({
+			nodeId: node.id,
+			message: "Pilot needs a Change request opened trigger.",
+			fixes: [],
+		}));
+}
+
 function checkScheduleActions(ctx: LintContext): Finding[] {
 	const reached = reachableFrom(
 		ctx,
@@ -1047,6 +1072,7 @@ const CHECKS: { rule: CheckedRule; check: (ctx: LintContext) => Finding[] }[] =
 			rule: "schedule-needs-change-request",
 			check: checkScheduleActions,
 		},
+		{ rule: "pilot-trigger", check: checkPilotTriggers },
 		{ rule: "unknown-rule", check: checkUnknownRules },
 		{ rule: "rule-unavailable", check: checkUnavailableRules },
 		{ rule: "rule-config", check: checkRuleConfigs },

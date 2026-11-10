@@ -23,6 +23,7 @@ import {
 	ruleIdOf,
 	ruleResultSchema,
 	SHARED_BLOCKLIST_RULE_ID,
+	SHARED_BLOCKLIST_RULE_REF,
 	unrunnableIssues,
 } from "@tripwire/contracts";
 import {
@@ -69,7 +70,10 @@ import {
 	customRuleSource,
 	evaluateCustomRule,
 } from "./custom-rules.ts";
-import { sharedBlocklistReviewWorkflow } from "./shared-blocklist.ts";
+import {
+	sharedBlocklistEvidence,
+	sharedBlocklistReviewWorkflow,
+} from "./shared-blocklist.ts";
 
 /**
  * §5.7–5.12: match enabled workflows by trigger → build RuleContext (reads
@@ -374,27 +378,32 @@ async function runWorkflowsInner(
 					? [...custom, derived]
 					: custom
 				: [derived];
-	if (
-		event.kind === "change-request.opened" &&
-		(!event.repoExternalId || event.repoExternalId === repo.externalId) &&
-		event.forge === "github" &&
-		ruleConfigs.some(
-			(config) => config.ruleId === SHARED_BLOCKLIST_RULE_ID && config.enabled,
-		)
-	) {
-		const pilot = sharedBlocklistReviewWorkflow(
-			event,
-			await loadSharedBlocklist(() =>
-				logger.warn("Shared blocklist snapshot could not be refreshed"),
-			),
-			Date.now(),
-		);
-		if (pilot) definitions.push(pilot);
-	}
 	const triggeredBy = (def: WorkflowDefinition) =>
 		def.nodes.some(
 			(node) => node.type === "trigger" && node.kinds.includes(event.kind),
 		);
+	let pilotEvidence: RuleContext["sharedBlocklist"];
+	if (
+		event.kind === "change-request.opened" &&
+		(!event.repoExternalId || event.repoExternalId === repo.externalId) &&
+		event.forge === "github" &&
+		!custom.some(
+			(def) =>
+				triggeredBy(def) &&
+				def.nodes.some(
+					(node) =>
+						node.type === "rule" && node.ref === SHARED_BLOCKLIST_RULE_REF,
+				),
+		) &&
+		ruleConfigs.some(
+			(config) => config.ruleId === SHARED_BLOCKLIST_RULE_ID && config.enabled,
+		)
+	) {
+		pilotEvidence = await readPilotEvidence(event, logger);
+		if (pilotEvidence && "accountId" in pilotEvidence) {
+			definitions.push(sharedBlocklistReviewWorkflow());
+		}
+	}
 	const matching = definitions.filter(triggeredBy);
 	const unrunnable = broken.filter(
 		(entry) =>
@@ -492,7 +501,11 @@ async function runWorkflowsInner(
 			? createForgeSignalCtx({ forge: deps.signalHttp, event, now })
 			: null,
 	);
-	const evaluateRuleRef = makeEvaluator(ctx, logger, customSignals);
+	const evaluateRuleRef = makeEvaluator(
+		{ ...ctx, sharedBlocklist: pilotEvidence },
+		logger,
+		customSignals,
+	);
 	const executions: Execution[] = [];
 	try {
 		for (const definition of matching) {
@@ -1119,11 +1132,21 @@ export function publicSkipReason(reason: string): string {
 		: reason;
 }
 
+async function readPilotEvidence(event: RuleContext["event"], logger: Logger) {
+	if (event.forge !== "github" || event.kind !== "change-request.opened")
+		return null;
+	const snapshot = await loadSharedBlocklist(() =>
+		logger.warn("Shared blocklist snapshot could not be refreshed"),
+	);
+	return sharedBlocklistEvidence(event, snapshot, Date.now());
+}
+
 export function makeEvaluator(
 	ctx: RuleContext,
 	logger: Logger,
 	custom?: CustomRuleSource,
 ) {
+	let pilotRead: ReturnType<typeof readPilotEvidence> | undefined;
 	return async (ref: string, config: JsonValue): Promise<RuleResult> => {
 		const stored = custom?.records.get(ref);
 		if (stored && custom) {
@@ -1148,10 +1171,25 @@ export function makeEvaluator(
 			}
 		}
 		const rule = getRule(ref);
-		if (!rule) {
+		if (
+			!rule ||
+			(ruleIdOf(ref) === SHARED_BLOCKLIST_RULE_ID &&
+				ref !== SHARED_BLOCKLIST_RULE_REF)
+		) {
 			return skippedResult(ref, `unknown rule ${ref}`, ctx.now);
 		}
 		try {
+			if (
+				ref === SHARED_BLOCKLIST_RULE_REF &&
+				ctx.sharedBlocklist === undefined
+			) {
+				pilotRead ??= readPilotEvidence(ctx.event, logger);
+				return await evaluateRule(
+					rule,
+					{ ...ctx, sharedBlocklist: await pilotRead },
+					config,
+				);
+			}
 			return await evaluateRule(rule, ctx, config);
 		} catch (error) {
 			logger.error(
