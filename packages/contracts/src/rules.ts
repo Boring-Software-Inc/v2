@@ -419,12 +419,13 @@ export const RULE_CATALOG = [
 		forges: ["github"],
 		version: SHARED_BLOCKLIST_RULE_VERSION,
 		name: "Pilot",
-		blurb: "requires the pull request author to be absent from the Pilot list.",
+		blurb: "requires the author to be absent from the Pilot list.",
 		configSchema: sharedBlocklistRuleConfigSchema,
 		defaultConfig: {},
 		optIn: true,
-		description: "Fails when the pull request author is listed in Pilot.",
-		contributorLabel: "this pull request did not pass the Pilot check.",
+		description:
+			"Fails when the author of a new issue or pull request is listed in Pilot.",
+		contributorLabel: "the author did not pass the Pilot check.",
 	},
 	{
 		ruleId: "ai-review",
