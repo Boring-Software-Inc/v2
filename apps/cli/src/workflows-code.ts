@@ -721,9 +721,37 @@ const sdkCompileResultSchema = z.discriminatedUnion("ok", [
 	}),
 ]);
 
-const SDK_PACKAGE = "@tripwire-sh/sdk";
+export const SDK_PACKAGE = "@tripwire-sh/sdk";
 const MIN_WORKFLOW_SDK = "0.1.2";
 const sdkPackageManifest = z.object({ name: z.string(), version: z.string() });
+
+export type WorkflowSdkMinimum = "0.1.2" | "0.1.4" | "0.1.5";
+
+export function supportsWorkflowSdk(
+	version: string,
+	minimum: WorkflowSdkMinimum,
+): boolean {
+	const release =
+		/^(\d+)\.(\d+)\.(\d+)(-staging\.[1-9]\d*)?(?:\+[^\s]+)?$/.exec(version);
+	if (!release || (release[4] && !IS_STAGING)) return false;
+	const patch = Math.max(Number(minimum.split(".")[2]), release[4] ? 3 : 2);
+	return (
+		Number(release[1]) > 0 ||
+		Number(release[2]) > 1 ||
+		(Number(release[2]) === 1 && Number(release[3]) >= patch)
+	);
+}
+
+export class WorkflowSdkUpgradeRequired extends Error {
+	constructor(
+		readonly file: string,
+		readonly installed: string,
+		readonly minimum: WorkflowSdkMinimum,
+		message: string,
+	) {
+		super(message);
+	}
+}
 
 /** Resolve from the workflow so a global CLI checks the SDK the project actually uses. */
 export function resolveWorkflowSdk(
@@ -747,7 +775,8 @@ export function resolveWorkflowSdk(
 			? "Repository star checks need"
 			: "Workflow commands need";
 	const path = resolve(file);
-	const install = `Run npm install ${SDK_PACKAGE}@${IS_STAGING ? "staging" : "latest"} in your project.`;
+	const tag = IS_STAGING && !issue ? "staging" : "latest";
+	const install = `Run npm install ${SDK_PACKAGE}@${tag} in your project.`;
 	let entry: string;
 	try {
 		entry = createRequire(pathToFileURL(path)).resolve(
@@ -766,22 +795,11 @@ export function resolveWorkflowSdk(
 			);
 			if (parsed.success && parsed.data.name === SDK_PACKAGE) {
 				const { version } = parsed.data;
-				const release =
-					/^(\d+)\.(\d+)\.(\d+)(-staging\.[1-9]\d*)?(?:\+[^\s]+)?$/.exec(
-						version,
-					);
-				if (
-					release &&
-					(!release[4] || IS_STAGING) &&
-					(Number(release[1]) > 0 ||
-						Number(release[2]) > 1 ||
-						(Number(release[2]) === 1 &&
-							Number(release[3]) >=
-								(issue ? 5 : stars ? 4 : release[4] ? 3 : 2)))
-				) {
-					return entry;
-				}
-				throw new Error(
+				if (supportsWorkflowSdk(version, minimum)) return entry;
+				throw new WorkflowSdkUpgradeRequired(
+					path,
+					version,
+					minimum,
 					`This project uses ${SDK_PACKAGE}@${version}. ${requirement} ${minimum} or later. ${install}`,
 				);
 			}

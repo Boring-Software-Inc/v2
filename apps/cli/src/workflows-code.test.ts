@@ -10,7 +10,7 @@ import {
 } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { workflowDefinitionSchema } from "@tripwire/contracts";
 import { realSystem } from "#/system";
 import {
@@ -26,6 +26,7 @@ import {
 	selectPulled,
 	selectWorkflowSources,
 	typecheckSdkWorkflow,
+	WorkflowSdkUpgradeRequired,
 	workflowChoices,
 	writePulled,
 	writeSdkWorkflows,
@@ -122,6 +123,31 @@ describe("loading one SDK workflow", () => {
 		).rejects.toThrow(
 			"This project uses @tripwire-sh/sdk@0.1.1. Workflow commands need 0.1.2 or later. Run npm install @tripwire-sh/sdk@latest in your project.",
 		);
+	});
+
+	test("an issue workflow requires a newer SDK than a staging 0.1.4 release", () => {
+		const issue = workflowDefinitionSchema.parse({
+			id: "issue-triage",
+			name: "Issue triage",
+			version: 1,
+			nodes: [
+				{ id: "trigger", type: "trigger", kinds: ["issue.opened"] },
+				{ id: "close", type: "action", action: "close" },
+			],
+			edges: [{ id: "trigger-close", from: "trigger", to: "close" }],
+		});
+		const file = sdkWorkflowProject(true, false, "0.1.4-staging.11");
+		expect(() => resolveWorkflowSdk(file, issue)).toThrow(
+			WorkflowSdkUpgradeRequired,
+		);
+		expect(() => resolveWorkflowSdk(file, issue)).toThrow(
+			"0.1.4-staging.11. Issue workflows need 0.1.5 or later.",
+		);
+		expect(
+			basename(
+				resolveWorkflowSdk(sdkWorkflowProject(true, false, "0.1.5"), issue),
+			),
+		).toBe("workflows.js");
 	});
 
 	test("rejects SDK output that does not satisfy contracts", async () => {
