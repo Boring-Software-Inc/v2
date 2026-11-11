@@ -75,6 +75,12 @@ export async function executeAction(
 		case "request-review": {
 			throw new Error("open-git does not support review requests.");
 		}
+		case "reopen":
+		case "unlock":
+			return {
+				refused: true,
+				reason: "open-git does not support appeal restoration",
+			};
 		case "lock": {
 			throw new Error("open-git does not support locking threads.");
 		}

@@ -358,6 +358,20 @@
       "when": 1794132526753,
       "tag": "0050_repo_sync_stamps",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1794359185667,
+      "tag": "0051_moderation_policy",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1794360438247,
+      "tag": "0052_contribution_appeals",
+      "breakpoints": true
     }
   ]
 }

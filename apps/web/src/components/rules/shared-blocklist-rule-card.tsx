@@ -20,7 +20,7 @@ import { useAgentMotion } from "#/hooks/use-agent-motion";
 import { siteConfig } from "#/lib/site-config";
 
 export const PILOT_DESCRIPTION =
-	"Send pull requests from listed accounts to Human review.";
+	"Check contribution authors against the public Pilot list.";
 
 export function PilotLibraryRow({
 	canEdit,

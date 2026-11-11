@@ -4,6 +4,7 @@ import { orgSlugSchema } from "@tripwire/contracts";
 import { useState } from "react";
 import { DeleteOrgDialog } from "#/components/organizations/delete-org-dialog";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
+import { OrgModerationDefaults } from "#/components/organizations/org-moderation-defaults";
 import {
 	SettingsHeader,
 	SettingsSection,
@@ -52,6 +53,7 @@ export function OrgGeneralSettingsPage({ org }: { org: string }) {
 							org={org}
 							timezone={orgContext.timezone}
 						/>
+						<OrgModerationDefaults canManage={canManage} org={org} />
 						{canManage && !orgContext.isPersonal ? (
 							<DeleteOrgRow org={org} orgContext={orgContext} />
 						) : null}

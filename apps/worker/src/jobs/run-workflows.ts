@@ -1,6 +1,7 @@
 import type {
 	GitCafeRepositoryBinding,
 	JsonValue,
+	ModerationSubject,
 	RepoScopedEvent,
 	RuleResult,
 	UsageSource,
@@ -10,12 +11,16 @@ import type {
 import {
 	AI_REVIEW_RULE_ID,
 	actionCommentMarker,
+	allowlistAccountIdSchema,
+	CONTRIBUTOR_ALLOWLIST_RULE_REF,
 	type CustomRuleRecord,
 	commentObservedEvidenceSchema,
 	commentRuleEnvelopeSchema,
+	customRuleDefinitionSchema,
 	customRuleRef,
 	customRuleSummary,
 	isAiReviewNotRunStep,
+	isCustomRuleId,
 	isIssueWorkflow,
 	joinVerdicts,
 	nonEnforcingRuleNodeIds,
@@ -41,8 +46,10 @@ import {
 import type { Db } from "@tripwire/db";
 import {
 	aiProviderServices,
+	contributionAppealServices,
 	economicsServices,
 	eventServices,
+	moderationPolicyServices,
 	moderationServices,
 	repoServices,
 	runServices,
@@ -71,10 +78,13 @@ import {
 	customRuleSource,
 	evaluateCustomRule,
 } from "./custom-rules.ts";
+import { sharedBlocklistEvidence } from "./shared-blocklist.ts";
 import {
-	sharedBlocklistEvidence,
-	sharedBlocklistReviewWorkflow,
-} from "./shared-blocklist.ts";
+	applyStandaloneOutcome,
+	STANDALONE_OUTCOME_NODE,
+	standaloneChecks,
+	strictAllowlistChecks,
+} from "./standalone-moderation.ts";
 
 /**
  * §5.7–5.12: match enabled workflows by trigger → build RuleContext (reads
@@ -183,6 +193,7 @@ export interface RunWorkflowsDeps {
 	signalHttp?: GithubHttp | null;
 	/** §8 — injected AI effect factory; null without ANTHROPIC_API_KEY. */
 	makeGenerate: ((event: RepoScopedEvent) => AiReviewGenerate) | null;
+	loadPilotSnapshot?: typeof loadSharedBlocklist;
 	/**
 	 * §5.6b — fire AFTER we know this event will evaluate (matched workflow,
 	 * actor not exempt). Emitting the pending check earlier orphans an
@@ -327,86 +338,108 @@ async function runWorkflowsInner(
 		entry.issues.length === 0 ? [entry.definition] : [],
 	);
 	const broken = checkedStored.filter((entry) => entry.issues.length > 0);
-	// Saved workflows orchestrate the rules they CONTAIN — they do not turn the
-	// rest off. Rules outside every enabled workflow keep running standalone via
-	// the derived default over the leftover toggles; owned rule ids are excluded
-	// from the derivation so a rule never runs twice with two configs (the
-	// workflow node's config wins for owned rules). With no saved workflow the
-	// derived default runs alone, even trigger-only (all rules off ⇒ pass run).
-	const ownedRuleIds = new Set(
-		applicable.flatMap((def) =>
-			def.nodes.flatMap((node) =>
-				node.type === "rule" ? [ruleIdOf(node.ref)] : [],
-			),
-		),
-	);
-	// §6 (b) — resolve each pinned config to the version it ACTUALLY runs:
-	// auto-advance to current when the config carries forward, hold on the
-	// pinned (still-registered) version when it can't. derive keys by rule
-	// id, so a held old version replaces — never doubles — the baseline.
-	const derived = deriveDefaultWorkflow(
-		[
-			...ruleConfigs
-				.filter((config) => config.ruleId !== SHARED_BLOCKLIST_RULE_ID)
-				.map((config) =>
-					resolveEffectiveRuleConfig({
-						ruleId: config.ruleId,
-						version: config.version,
-						enabled: config.enabled,
-						config: config.config as JsonValue,
-					}),
-				),
-			// Custom rules join the toggle set like any non-baseline rule: they
-			// run when enabled, and workflow ownership excludes them like any id.
-			...customRows.map((row) => ({
-				ref: customRuleRef(row.id),
-				enabled: row.enabled,
-				config: {} as JsonValue,
-				held: false,
-			})),
-		],
-		ownedRuleIds,
-		event.forge,
-	);
-	const derivedHasRules = derived.nodes.some((node) => node.type === "rule");
-	const scheduled = event.kind === "schedule.matched" ? event : null;
-	const definitions: WorkflowDefinition[] = issue
-		? custom
-		: scheduled
-			? custom.filter((def) => def.id === scheduled.schedule.workflowId)
-			: custom.length > 0
-				? derivedHasRules
-					? [...custom, derived]
-					: custom
-				: [derived];
 	const triggeredBy = (def: WorkflowDefinition) =>
 		def.nodes.some(
 			(node) => node.type === "trigger" && node.kinds.includes(event.kind),
 		);
+	const subject: ModerationSubject | null =
+		event.forge === "github" &&
+		(!event.repoExternalId || event.repoExternalId === repo.externalId)
+			? issue
+				? "issue"
+				: event.kind === "change-request.opened" ||
+						event.kind === "change-request.updated"
+					? "change-request"
+					: null
+			: null;
+	const policy = subject
+		? await moderationPolicyServices.getEffectiveRepoPolicy(db, repo.id)
+		: null;
+	const ownedRuleIds = new Set(
+		applicable
+			.filter((def) => !subject || triggeredBy(def))
+			.flatMap((def) =>
+				def.nodes.flatMap((node) =>
+					node.type === "rule" ? [ruleIdOf(node.ref)] : [],
+				),
+			),
+	);
+	const standaloneIssuePilot = subject === "issue" && policy?.issueRulesEnabled;
 	let pilotEvidence: RuleContext["sharedBlocklist"];
 	if (
+		subject === "change-request" &&
 		event.kind === "change-request.opened" &&
-		(!event.repoExternalId || event.repoExternalId === repo.externalId) &&
-		event.forge === "github" &&
-		!custom.some(
-			(def) =>
-				triggeredBy(def) &&
-				def.nodes.some(
-					(node) =>
-						node.type === "rule" && node.ref === SHARED_BLOCKLIST_RULE_REF,
-				),
-		) &&
+		!ownedRuleIds.has(SHARED_BLOCKLIST_RULE_ID) &&
 		ruleConfigs.some(
 			(config) => config.ruleId === SHARED_BLOCKLIST_RULE_ID && config.enabled,
 		)
 	) {
-		pilotEvidence = await readPilotEvidence(event, logger);
-		if (pilotEvidence && "accountId" in pilotEvidence) {
-			definitions.push(sharedBlocklistReviewWorkflow());
-		}
+		pilotEvidence = await readPilotEvidence(
+			event,
+			logger,
+			deps.loadPilotSnapshot,
+		);
 	}
-	const matching = definitions.filter(triggeredBy);
-	const unrunnable = broken.filter(
+	const derived = deriveDefaultWorkflow(
+		[
+			...ruleConfigs
+				.filter(
+					(config) =>
+						config.ruleId !== SHARED_BLOCKLIST_RULE_ID ||
+						standaloneIssuePilot ||
+						(pilotEvidence && "accountId" in pilotEvidence),
+				)
+				.map((config) =>
+					config.ruleId === SHARED_BLOCKLIST_RULE_ID
+						? {
+								ref: SHARED_BLOCKLIST_RULE_REF,
+								enabled: config.enabled,
+								config: {},
+							}
+						: resolveEffectiveRuleConfig({
+								ruleId: config.ruleId,
+								version: config.version,
+								enabled: config.enabled,
+								config: config.config as JsonValue,
+							}),
+				),
+			...customRows
+				.filter((row) => {
+					if (!issue) return true;
+					const parsed = customRuleDefinitionSchema.safeParse(row.definition);
+					return (
+						parsed.success &&
+						(parsed.data.when.id.startsWith("contributor.") ||
+							parsed.data.when.id.startsWith("repoRelation."))
+					);
+				})
+				.map((row) => ({
+					ref: customRuleRef(row.id),
+					enabled: row.enabled,
+					config: {} as JsonValue,
+				})),
+		],
+		ownedRuleIds,
+		event.forge,
+	);
+	let standalone =
+		subject && (subject !== "issue" || policy?.issueRulesEnabled)
+			? standaloneChecks(derived, subject)
+			: null;
+	const scheduled = event.kind === "schedule.matched" ? event : null;
+	const fallback = standalone ?? derived;
+	const hasRules = fallback.nodes.some((node) => node.type === "rule");
+	const definitions: WorkflowDefinition[] = issue
+		? standalone && hasRules
+			? [...custom, standalone]
+			: custom
+		: scheduled
+			? custom.filter((def) => def.id === scheduled.schedule.workflowId)
+			: custom.length > 0 && !hasRules
+				? custom
+				: [...custom, fallback];
+	let matching = definitions.filter(triggeredBy);
+	let unrunnable = broken.filter(
 		(entry) =>
 			triggeredBy(entry.definition) &&
 			(!scheduled || entry.definition.id === scheduled.schedule.workflowId),
@@ -465,21 +498,40 @@ async function runWorkflowsInner(
 		);
 	}
 	const exemptionDisabled = isExemptionDisabled();
-	if (
+	const maintainerExempt =
 		!scheduled &&
 		!exemptionDisabled &&
 		(issue?.maintainer ||
 			ctx.contributor?.isMaintainer ||
-			ctx.contributor?.isOrgMember)
-	) {
-		logger.info(
-			{ actor: event.actor.login },
-			"actor exempt (maintainer/org member) — no run",
+			ctx.contributor?.isOrgMember);
+	if (maintainerExempt) {
+		const strictWorkflows = matching.filter(
+			(definition) =>
+				subject !== null &&
+				definition !== standalone &&
+				definition.nodes.some(
+					(node) =>
+						node.type === "rule" && node.ref === CONTRIBUTOR_ALLOWLIST_RULE_REF,
+				),
 		);
-		if (deps.claimRunId) {
-			await runServices.failRun(db, deps.claimRunId);
+		standalone = standalone ? strictAllowlistChecks(standalone) : null;
+		if (
+			!standalone?.nodes.some((node) => node.type === "rule") &&
+			strictWorkflows.length === 0
+		) {
+			logger.info(
+				{ actor: event.actor.login },
+				"actor exempt (maintainer/org member) — no run",
+			);
+			if (deps.claimRunId) {
+				await runServices.failRun(db, deps.claimRunId);
+			}
+			return none;
 		}
-		return none;
+		matching = standalone?.nodes.some((node) => node.type === "rule")
+			? [...strictWorkflows, standalone]
+			: strictWorkflows;
+		unrunnable = [];
 	}
 
 	// Hold the merge button only once evaluation is actually about to run.
@@ -506,36 +558,77 @@ async function runWorkflowsInner(
 		{ ...ctx, sharedBlocklist: pilotEvidence },
 		logger,
 		customSignals,
+		() => readAllowlistStatus(db, repo.id, event, logger),
+		deps.loadPilotSnapshot,
 	);
+	const subjectNumberForAppeal =
+		issue?.number ??
+		("changeRequest" in event ? event.changeRequest.number : null);
+	const approvedAppealId =
+		standalone &&
+		subject &&
+		subjectNumberForAppeal !== null &&
+		matching.includes(standalone)
+			? await contributionAppealServices.getApprovedAppealId(db, {
+					repoId: repo.id,
+					subjectKind: subject,
+					subjectNumber: subjectNumberForAppeal,
+					accountId: event.actor.externalId,
+				})
+			: null;
 	const executions: Execution[] = [];
 	try {
 		for (const definition of matching) {
-			executions.push({
+			const recordStep = async (step: StepRecord) => {
+				if (!liveRunId || event.forge === "gitcafe") return;
+				await runServices.recordSteps(
+					db,
+					liveRunId,
+					withPublicProjection(
+						[{ ...step, nodeId: `${definition.id}:${step.nodeId}` }],
+						customSignals.records,
+					),
+				);
+			};
+			const waived = definition === standalone ? approvedAppealId : null;
+			const result = await executeWorkflow({
 				definition,
-				result: await executeWorkflow({
-					definition,
-					event,
-					evaluateRuleRef,
-					now: () => new Date().toISOString(),
-					// Stream each finished step onto the pre-materialized run so the
-					// run page can list completed checks as the DAG walks.
-					onStep:
-						liveRunId && event.forge !== "gitcafe"
-							? async (step) => {
-									const projected = withPublicProjection(
-										[
-											{
-												...step,
-												nodeId: `${definition.id}:${step.nodeId}`,
-											},
-										],
-										customSignals.records,
-									);
-									await runServices.recordSteps(db, liveRunId, projected);
-								}
-							: undefined,
-				}),
+				event,
+				evaluateRuleRef,
+				isRuleExempt: (ref) =>
+					Boolean(waived) ||
+					(Boolean(maintainerExempt) && ref !== CONTRIBUTOR_ALLOWLIST_RULE_REF),
+				now: () => new Date().toISOString(),
+				onStep: recordStep,
 			});
+			if (waived) {
+				const waiver: StepRecord = {
+					nodeId: `${STANDALONE_OUTCOME_NODE}:resume`,
+					nodeKind: "action",
+					status: "skipped",
+					input: { appealId: waived },
+					output: { waived: true, appealId: waived },
+					startedAt: now,
+					finishedAt: now,
+					durationMs: 0,
+				};
+				result.steps.push(waiver);
+				await recordStep(waiver);
+			} else if (definition === standalone && subject && policy) {
+				applyStandaloneOutcome(definition, result, subject, (ref) => {
+					const id = ruleIdOf(ref);
+					return moderationPolicyServices.resolveRuleOutcome(
+						policy,
+						isCustomRuleId(id) ? ref : id,
+						subject,
+					);
+				});
+				const decision = result.steps.at(-1);
+				if (decision?.nodeId === STANDALONE_OUTCOME_NODE) {
+					await recordStep(decision);
+				}
+			}
+			executions.push({ definition, result });
 		}
 	} catch (error) {
 		if (liveRunId) {
@@ -618,11 +711,23 @@ async function runWorkflowsInner(
 		(floored && scheduled !== null) ||
 		(issue !== null &&
 			(floored ||
-				ctx.contributor?.isMaintainer == null ||
-				degradedReads.includes("contributor") ||
+				(!maintainerExempt &&
+					(ctx.contributor?.isMaintainer == null ||
+						degradedReads.includes("contributor"))) ||
 				skippedCount > 0));
 	if (issue && heldBack) {
-		verdict = "pass";
+		for (const execution of executions) {
+			if (execution.definition === standalone) continue;
+			execution.result.actions = [];
+			execution.result.pausedAtNodeIds = [];
+			execution.result.verdict = "pass";
+		}
+		verdict = worstVerdict(
+			executions.map((execution) => execution.result.verdict),
+		);
+		paused = executions.some(
+			(execution) => execution.result.pausedAtNodeIds.length > 0,
+		);
 	}
 	/**
 	 * The floor is configurable, and ON by default.
@@ -749,7 +854,7 @@ async function runWorkflowsInner(
 			: "comment" in event
 				? event.comment.subjectNumber
 				: (scheduled?.thread.number ?? issue?.number ?? null);
-	const subjectKind = scheduled?.thread.kind ?? (issue ? "issue" : null);
+	const subjectKind = scheduled?.thread.kind ?? subject;
 	const backfill = deps.surface === false;
 	const silent = backfill || closedNow;
 	const terminalStatus = paused && !silent ? "paused" : "completed";
@@ -786,13 +891,14 @@ async function runWorkflowsInner(
 			steps: withPublicProjection(steps, customSignals.records),
 			moderationNodeIds,
 			actions: executions.flatMap((execution) =>
-				(heldBack ? [] : execution.result.actions.filter(postsSomething)).map(
-					(action) => ({
-						kind: action.action,
-						payload: actionPayload(action, execution.definition.id, id),
-						idempotencyKey: `${action.action}:${execution.definition.id}:${action.nodeId}`,
-					}),
-				),
+				(heldBack && execution.definition !== standalone
+					? []
+					: execution.result.actions.filter(postsSomething)
+				).map((action) => ({
+					kind: action.action,
+					payload: actionPayload(action, execution.definition.id, id),
+					idempotencyKey: `${action.action}:${execution.definition.id}:${action.nodeId}`,
+				})),
 			),
 			suppressed: silent,
 		});
@@ -853,13 +959,14 @@ async function runWorkflowsInner(
 			db,
 			runId,
 			executions.flatMap((execution) =>
-				(heldBack ? [] : execution.result.actions.filter(postsSomething)).map(
-					(action) => ({
-						kind: action.action,
-						payload: actionPayload(action, execution.definition.id, runId),
-						idempotencyKey: `${action.action}:${execution.definition.id}:${action.nodeId}`,
-					}),
-				),
+				(heldBack && execution.definition !== standalone
+					? []
+					: execution.result.actions.filter(postsSomething)
+				).map((action) => ({
+					kind: action.action,
+					payload: actionPayload(action, execution.definition.id, runId),
+					idempotencyKey: `${action.action}:${execution.definition.id}:${action.nodeId}`,
+				})),
 			),
 			silent ? "suppressed" : "recorded",
 		);
@@ -1133,20 +1240,59 @@ export function publicSkipReason(reason: string): string {
 		: reason;
 }
 
-async function readPilotEvidence(event: RuleContext["event"], logger: Logger) {
+async function readPilotEvidence(
+	event: RuleContext["event"],
+	logger: Logger,
+	loadSnapshot = loadSharedBlocklist,
+) {
 	if (event.forge !== "github" || !PILOT_TRIGGER_KINDS.includes(event.kind))
 		return null;
-	const snapshot = await loadSharedBlocklist(() =>
+	const snapshot = await loadSnapshot(() =>
 		logger.warn("Shared blocklist snapshot could not be refreshed"),
 	);
 	return sharedBlocklistEvidence(event, snapshot, Date.now());
+}
+
+export async function readAllowlistStatus(
+	db: Db,
+	repoId: string,
+	event: RepoScopedEvent,
+	logger: Logger,
+): Promise<boolean | null> {
+	if (
+		event.forge !== "github" ||
+		![
+			"issue.opened",
+			"change-request.opened",
+			"change-request.updated",
+		].includes(event.kind) ||
+		!allowlistAccountIdSchema.safeParse(event.actor.externalId).success
+	) {
+		return null;
+	}
+	try {
+		return await moderationPolicyServices.isAuthorAllowlisted(
+			db,
+			repoId,
+			event.actor.externalId,
+		);
+	} catch (error) {
+		logger.warn(
+			{ repoId, error: getErrorMessage(error) },
+			"allowlist could not be read",
+		);
+		return null;
+	}
 }
 
 export function makeEvaluator(
 	ctx: RuleContext,
 	logger: Logger,
 	custom?: CustomRuleSource,
+	readAllowlist?: () => Promise<boolean | null>,
+	loadPilotSnapshot?: typeof loadSharedBlocklist,
 ) {
+	let allowlistRead: Promise<boolean | null> | undefined;
 	let pilotRead: ReturnType<typeof readPilotEvidence> | undefined;
 	return async (ref: string, config: JsonValue): Promise<RuleResult> => {
 		const stored = custom?.records.get(ref);
@@ -1184,10 +1330,18 @@ export function makeEvaluator(
 				ref === SHARED_BLOCKLIST_RULE_REF &&
 				ctx.sharedBlocklist === undefined
 			) {
-				pilotRead ??= readPilotEvidence(ctx.event, logger);
+				pilotRead ??= readPilotEvidence(ctx.event, logger, loadPilotSnapshot);
 				return await evaluateRule(
 					rule,
 					{ ...ctx, sharedBlocklist: await pilotRead },
+					config,
+				);
+			}
+			if (ref === CONTRIBUTOR_ALLOWLIST_RULE_REF && readAllowlist) {
+				allowlistRead ??= readAllowlist();
+				return await evaluateRule(
+					rule,
+					{ ...ctx, authorAllowlisted: await allowlistRead },
 					config,
 				);
 			}

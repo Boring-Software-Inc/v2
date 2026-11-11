@@ -11,6 +11,7 @@ import {
 	type JsonValue,
 	type RunStanding,
 	ruleResultSchema,
+	STANDALONE_MODERATION_NODE_ID,
 	type StoredActionPayload,
 	standingVerdict,
 	storedActionPayloadSchema,
@@ -900,7 +901,8 @@ export async function getLatestBlockReviewId(
 				sql`${events.forge} = ${repo.forge}`,
 				eq(runs.subjectNumber, subjectNumber),
 				eq(runActions.kind, "block"),
-				eq(runActions.status, "executed"),
+				inArray(runActions.status, ["executed", "suppressed"]),
+				isNotNull(runActions.executedAt),
 				isNotNull(runActions.externalId),
 			),
 		)
@@ -955,7 +957,7 @@ export async function getRunStanding(
 	runId: string,
 ): Promise<RunStanding> {
 	const runRows = await db
-		.select({ headSha: runs.headSha })
+		.select({ headSha: runs.headSha, subjectKind: runs.subjectKind })
 		.from(runs)
 		.where(eq(runs.id, runId));
 	const actions = await db
@@ -965,7 +967,13 @@ export async function getRunStanding(
 			and(
 				eq(runActions.runId, runId),
 				ne(runActions.status, "suppressed"),
-				inArray(runActions.kind, ["close", "block", "request-fix"]),
+				or(
+					inArray(runActions.kind, ["close", "block", "request-fix"]),
+					and(
+						eq(runActions.kind, "lock"),
+						sql`${runActions.payload}->>'nodeId' = ${STANDALONE_MODERATION_NODE_ID}`,
+					),
+				),
 			),
 		);
 	const outstanding = await db
@@ -986,8 +994,11 @@ export async function getRunStanding(
 	const count = (kind: string) =>
 		actions.filter((action) => action.kind === kind).length;
 	return {
-		closes: runRows[0]?.headSha ? count("close") : 0,
-		blocks: count("block"),
+		closes:
+			runRows[0]?.headSha || runRows[0]?.subjectKind === "issue"
+				? count("close")
+				: 0,
+		blocks: count("block") + count("lock"),
 		fixes: count("request-fix"),
 		reviewsPending: outstanding.length,
 	};

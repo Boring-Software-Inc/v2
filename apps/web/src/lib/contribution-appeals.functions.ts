@@ -1,0 +1,133 @@
+import { notFound } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
+import {
+	contributionAppealRunSchema,
+	decideContributionAppealSchema,
+	listContributionAppealsSchema,
+	submitContributionAppealSchema,
+} from "@tripwire/contracts";
+import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
+import {
+	type OrgContext,
+	orgPermissionMiddleware,
+	resolveOrgRepo,
+} from "#/lib/server/org-guard";
+import { sameOriginMiddleware } from "#/lib/server/staff-guard";
+
+async function readAppealSession() {
+	const { getAuth } = await import("#/lib/server/auth");
+	const { getStartContext } = await import("@tanstack/start-storage-context");
+	const { fenceOf } = await import("#/lib/server/staff-users");
+	const session = await getAuth()?.api.getSession({
+		headers: getStartContext().request.headers,
+	});
+	if (!session) return null;
+	const fence = await fenceOf(session);
+	return fence.live && !fence.banned && !fence.impersonatedBy
+		? session.user.id
+		: null;
+}
+
+export const getContributionAppeal = createServerFn({ method: "GET" })
+	.inputValidator(contributionAppealRunSchema)
+	.handler(async ({ data }) => {
+		const userId = await readAppealSession();
+		if (!userId) return { state: "signed-out" } as const;
+		const { contributionAppealServices } = await import("@tripwire/db");
+		const { getDb } = await import("#/lib/server/db");
+		const appeal = await contributionAppealServices.getOwnAppeal(
+			getDb().db,
+			data.runId,
+			userId,
+		);
+		return appeal
+			? ({ state: "eligible", ...appeal } as const)
+			: ({ state: "unavailable" } as const);
+	});
+
+export const submitContributionAppeal = createServerFn({ method: "POST" })
+	.middleware([sameOriginMiddleware])
+	.inputValidator(submitContributionAppealSchema)
+	.handler(async ({ data }) => {
+		const userId = await readAppealSession();
+		if (!userId) return null;
+		const { contributionAppealServices } = await import("@tripwire/db");
+		const { getDb } = await import("#/lib/server/db");
+		return contributionAppealServices.submitAppeal(getDb().db, {
+			...data,
+			userId,
+		});
+	});
+
+export const listContributionAppeals = createServerFn({ method: "GET" })
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("moderation:read"),
+	])
+	.inputValidator(listContributionAppealsSchema)
+	.handler(async ({ data, context }) => {
+		const { org } = context as OrgContext;
+		const repo = await resolveOrgRepo(org.id, data.repo);
+		const { contributionAppealServices } = await import("@tripwire/db");
+		const { getDb } = await import("#/lib/server/db");
+		const rows = await contributionAppealServices.listPendingAppeals(
+			getDb().db,
+			repo.id,
+		);
+		return rows.map(
+			({ id, runId, subjectKind, subjectNumber, login, reason }) => ({
+				id,
+				runId,
+				subjectKind,
+				subjectNumber,
+				login,
+				reason,
+			}),
+		);
+	});
+
+export const decideContributionAppeal = createServerFn({ method: "POST" })
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("moderation:manage"),
+		sameOriginMiddleware,
+	])
+	.inputValidator(decideContributionAppealSchema)
+	.handler(async ({ data, context }) => {
+		const { org } = context as OrgContext;
+		const repo = await resolveOrgRepo(org.id, data.repo);
+		const userId = await readAppealSession();
+		if (
+			!userId ||
+			(data.decision === "approve-author" &&
+				!org.permissions.includes("rules:manage"))
+		) {
+			throw notFound();
+		}
+		const { contributionAppealServices, moderationPolicyServices } =
+			await import("@tripwire/db");
+		const { getDb, getBoss, isDemoMode } = await import("#/lib/server/db");
+		const { db, pool } = getDb();
+		const queue =
+			data.decision === "deny" || isDemoMode()
+				? undefined
+				: { pool, boss: await getBoss() };
+		return contributionAppealServices.decideAppeal(
+			db,
+			{
+				repoId: repo.id,
+				appealId: data.appealId,
+				decidedBy: userId,
+				decision: data.decision,
+			},
+			async (tx, appeal, decision) => {
+				if (decision === "approve-author") {
+					await moderationPolicyServices.addAllowlistEntry(tx, repo.id, {
+						accountId: appeal.accountId,
+						login: appeal.login,
+					});
+				}
+			},
+			queue,
+		);
+	});

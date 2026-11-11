@@ -16,6 +16,7 @@ import {
 	CustomRuleBuilder,
 	type CustomRuleDraft,
 } from "#/components/rules/custom-rule-builder";
+import { RepoModerationSettings } from "#/components/rules/repo-moderation-settings";
 import { RuleCard } from "#/components/rules/rule-card";
 import { RuleHeaderStats } from "#/components/rules/rule-header-stats";
 import { libraryRules, RuleLibrary } from "#/components/rules/rule-library";
@@ -372,22 +373,35 @@ export function RulesPage() {
 				<Page purpose="task">
 					<PageHeader
 						actions={
-							isAdmin ? (
-								<Button
-									onClick={() => setBuilderOpen(true)}
-									variant="secondary"
-								>
-									<Icon icon={Add} />
-									Create rule
-								</Button>
-							) : null
+							<>
+								{repo?.forge === "github" && (
+									<RepoModerationSettings
+										canManage={isAdmin}
+										key={repo.id}
+										onBrowseLibrary={() => void showTab("library")}
+										org={org}
+										pilotEnabled={Boolean(!pilotManaged && pilot?.enabled)}
+										repo={repoName}
+										rules={rules}
+									/>
+								)}
+								{isAdmin && (
+									<Button
+										onClick={() => setBuilderOpen(true)}
+										variant="secondary"
+									>
+										<Icon icon={Add} />
+										Create rule
+									</Button>
+								)}
+							</>
 						}
 						description={
 							starting
 								? undefined
 								: orgContext && !isAdmin
-									? "Requirements that every contributor outside your org must meet. Your role can view rules but not change them."
-									: "Requirements that every contributor outside your org must meet on every change request."
+									? "Your role can view the rules for this repository."
+									: "Manage the checks Tripwire runs on contributions to this repository."
 						}
 						title="Rules"
 					/>

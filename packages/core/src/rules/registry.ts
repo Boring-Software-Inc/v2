@@ -5,6 +5,7 @@ import {
 } from "@tripwire/contracts";
 import { accountAge } from "./account-age.ts";
 import { aiReview, aiReviewV2, aiReviewV3 } from "./ai-review/rule.ts";
+import { contributorAllowlist } from "./contributor-allowlist.ts";
 import { cryptoAddress, cryptoAddressV2 } from "./crypto-address.ts";
 import { type RuleDefinition, ruleRef } from "./define.ts";
 import { englishOnly } from "./english-only.ts";
@@ -35,6 +36,7 @@ function register(rule: RuleDefinition): void {
 }
 
 register(accountAge);
+register(contributorAllowlist);
 // @1 stays registered (frozen) so stored runs stay interpretable; @2 is current.
 register(minMergedPrs);
 register(minMergedPrsV2);

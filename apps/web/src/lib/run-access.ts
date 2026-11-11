@@ -3,6 +3,7 @@ import {
 	redactEvidence,
 	redactionHides,
 	redactSummary,
+	STANDALONE_MODERATION_NODE_ID,
 } from "@tripwire/contracts";
 import { z } from "zod";
 import type { JsonValue, RunStepView, RunView } from "#/lib/runs.functions";
@@ -49,6 +50,7 @@ export function isPublicPath(pathname: string): boolean {
 	return (
 		pathname === "/login" ||
 		PUBLIC_RUN_PATH.test(pathname) ||
+		/^\/appeals\/[^/]+\/?$/.test(pathname) ||
 		(import.meta.env.DEV === true &&
 			(pathname === "/mascot" || pathname === "/game"))
 	);
@@ -100,6 +102,11 @@ function toPublicStep(step: RunStepView, level: number): RunStepView {
 }
 
 function visibleToPublic(step: RunStepView, level: number): boolean {
+	if (
+		step.nodeId === STANDALONE_MODERATION_NODE_ID ||
+		step.nodeId.startsWith(`${STANDALONE_MODERATION_NODE_ID}:`)
+	)
+		return false;
 	if (step.nodeKind !== "rule") {
 		return !redactionHides(level, "rule-names");
 	}

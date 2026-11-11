@@ -127,6 +127,8 @@ describe("every org server fn, gated on a real database", () => {
 				...ORG_SHELL,
 				"listModerationQueue",
 				"decideModeration",
+				"listContributionAppeals",
+				"decideContributionAppeal",
 				"getRepoSetup",
 			].sort(),
 		);
@@ -136,7 +138,10 @@ describe("every org server fn, gated on a real database", () => {
 		const manageFns = Object.entries(SERVER_FN_CLASSIFICATION)
 			.filter(([, cls]) => cls.endsWith(":manage"))
 			.map(([name]) => name)
-			.filter((name) => name !== "decideModeration");
+			.filter(
+				(name) =>
+					name !== "decideModeration" && name !== "decideContributionAppeal",
+			);
 		expect(manageFns.length).toBeGreaterThan(30);
 		for (const name of manageFns) {
 			const fn = ORG_FNS.find((entry) => entry.name === name);

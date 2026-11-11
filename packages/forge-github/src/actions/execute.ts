@@ -1,3 +1,9 @@
+import {
+	appealRestorationAppSchema,
+	appealRestorationEventsSchema,
+	appealRestorationPullSchema,
+	appealRestorationThreadSchema,
+} from "@tripwire/contracts";
 import type { ForgeAction, ForgeActionResult } from "@tripwire/forge";
 import { type GithubHttp, GithubHttpError } from "../client/http.ts";
 import { DISMISS_REVIEW_MESSAGE } from "../copy.ts";
@@ -99,6 +105,9 @@ export async function executeAction(
 			const result = await setCheck(http, action.repoFullName, action.check);
 			return { externalId: result.externalId };
 		}
+		case "reopen":
+		case "unlock":
+			return restoreAppealedThread(http, action);
 		case "lock": {
 			await http.put(
 				action.repoFullName,
@@ -218,4 +227,73 @@ async function updateReview(
 		await http.put(action.repoFullName, path, { body: action.reason });
 	}
 	return { externalId: action.reviewId };
+}
+
+async function restoreAppealedThread(
+	http: GithubHttp,
+	action: Extract<ForgeAction, { kind: "reopen" | "unlock" }>,
+): Promise<ForgeActionResult> {
+	const path = `/repos/${action.repoFullName}/issues/${action.number}`;
+	const issue = appealRestorationThreadSchema.parse(
+		await http.get(action.repoFullName, path),
+	);
+	const isPull = issue.pull_request !== undefined;
+	const pullPath = `/repos/${action.repoFullName}/pulls/${action.number}`;
+	if (
+		String(issue.user.id) !== action.guard.authorId ||
+		isPull !== (action.guard.subject === "change-request")
+	)
+		return { refused: true, reason: "appeal-subject-changed" };
+	if (isPull) {
+		const pull = appealRestorationPullSchema.parse(
+			await http.get(action.repoFullName, pullPath),
+		);
+		if (pull.merged || pull.head.sha !== action.guard.headSha)
+			return { refused: true, reason: "appeal-head-changed" };
+	}
+	if (action.kind === "reopen" ? issue.state === "open" : !issue.locked)
+		return { externalId: null };
+	const eventKind = action.kind === "reopen" ? "closed" : "locked";
+	let latest:
+		| {
+				created_at: string;
+				actor: { login: string; type: string };
+				performed_via_github_app?: { id: number } | null;
+		  }
+		| undefined;
+	let next: string | null = `${path}/events?per_page=100`;
+	for (let page = 0; next && page < 10; page++) {
+		const response = await http.getPage(action.repoFullName, next);
+		for (const event of appealRestorationEventsSchema.parse(response.body)) {
+			if (event.event === eventKind) latest = event;
+		}
+		next = response.next;
+	}
+	if (
+		next ||
+		!latest ||
+		latest.actor.type !== "Bot" ||
+		!latest.actor.login.endsWith("[bot]") ||
+		Date.parse(latest.created_at) <
+			Date.parse(action.guard.appliedAfter) - 1000 ||
+		Date.parse(latest.created_at) >
+			Date.parse(action.guard.appliedBefore) + 1000
+	)
+		return { refused: true, reason: "appeal-effect-no-longer-owned" };
+	const app = appealRestorationAppSchema.parse(
+		await http.get(
+			action.repoFullName,
+			`/apps/${encodeURIComponent(latest.actor.login.slice(0, -5))}`,
+		),
+	);
+	if (app.id !== http.appId)
+		return { refused: true, reason: "appeal-effect-no-longer-owned" };
+	if (action.kind === "reopen") {
+		await http.patch(action.repoFullName, isPull ? pullPath : path, {
+			state: "open",
+		});
+	} else {
+		await http.delete(action.repoFullName, `${path}/lock`);
+	}
+	return { externalId: null };
 }

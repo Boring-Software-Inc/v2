@@ -81,6 +81,8 @@ export class GitCafeActions {
 		action: ForgeAction,
 		input: GitCafeActionBinding,
 	): Promise<GitCafeActionResult<{ externalId: string | null }>> {
+		if (action.kind === "reopen" || action.kind === "unlock")
+			return { ok: false, reason: "configuration" };
 		const parsed = gitCafeActionBindingSchema.safeParse(input);
 		if (!parsed.success) return { ok: false, reason: "invalid-response" };
 		const binding = parsed.data;

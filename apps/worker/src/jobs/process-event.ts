@@ -30,7 +30,7 @@ import {
 	recoverGitCafeRunSurface,
 } from "./pr-surface.ts";
 import { refreshBranchSuggestions } from "./refresh-suggestions.ts";
-import { runWorkflows } from "./run-workflows.ts";
+import { type RunWorkflowsDeps, runWorkflows } from "./run-workflows.ts";
 
 export interface ProcessEventDeps {
 	resumeNormalized?: boolean;
@@ -46,6 +46,7 @@ export interface ProcessEventDeps {
 	resolveForge: (forge: Forge) => ForgeRuntime | null;
 	/** §8 — null without ANTHROPIC_API_KEY; ai-review skips. */
 	makeGenerate: ((event: RepoScopedEvent) => AiReviewGenerate) | null;
+	loadPilotSnapshot?: RunWorkflowsDeps["loadPilotSnapshot"];
 	/** Base URL for run deep links. */
 	appUrl: string;
 	/** Derived COGS source, threaded to runWorkflows for best-effort metering. */
@@ -377,6 +378,7 @@ export async function processEvent(
 			reads: reads,
 			signalHttp: signalHttp ?? null,
 			makeGenerate: deps.makeGenerate,
+			loadPilotSnapshot: deps.loadPilotSnapshot,
 			meterSource: deps.meterSource,
 			// Pending check only after exemption/match — otherwise an exempt
 			// actor leaves `tripwire` stuck in_progress forever (lifecycle E2E
