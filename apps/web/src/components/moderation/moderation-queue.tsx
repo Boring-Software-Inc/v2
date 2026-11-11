@@ -12,13 +12,7 @@ import { ScrollList } from "#/components/common/scroll-list";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { isCommentItem } from "#/components/moderation/moderation-collection";
 import { ZonedTime } from "#/components/timezones/zoned-time";
-import {
-	Blocked,
-	ChangeRequest,
-	Check,
-	Comment,
-	Icon,
-} from "#/design-system/icon";
+import { Blocked, Check, Icon } from "#/design-system/icon";
 import { Badge } from "#/design-system/ui/badge";
 import { Button } from "#/design-system/ui/button";
 import {
@@ -45,7 +39,6 @@ import {
 	ItemContent,
 	ItemDescription,
 	ItemGroup,
-	ItemMedia,
 	ItemTitle,
 } from "#/design-system/ui/item";
 import { toast } from "#/design-system/ui/toast";
@@ -147,9 +140,6 @@ export function ModerationQueue({
 						const name = number ?? `this ${subjectLabel.toLowerCase()}`;
 						return (
 							<Item key={item.id}>
-								<ItemMedia variant="icon">
-									<Icon icon={comment || issue ? Comment : ChangeRequest} />
-								</ItemMedia>
 								<ItemContent>
 									<ItemTitle>
 										<ItemRouterLink
@@ -157,24 +147,32 @@ export function ModerationQueue({
 											search={{ from: "review" }}
 											to="/runs/$runId"
 										>
-											<MetaRow>
-												{number ? <span>{number}</span> : null}
-												<span>{item.title ?? subjectLabel}</span>
-											</MetaRow>
+											{item.title ?? subjectLabel}
 										</ItemRouterLink>
+										{number ? (
+											<span data-layout-role="moderation-item-number">
+												{number}
+											</span>
+										) : null}
 										{item.nodeId === "run:degraded" ? (
 											<Badge variant="warn">Check incomplete</Badge>
 										) : null}
 									</ItemTitle>
-									<ItemDescription>
-										<MetaRow wrap>
+									<ItemDescription
+										className="flex flex-col line-clamp-none"
+										data-layout-role="moderation-item-description"
+									>
+										{item.reason ? (
+											<span className="line-clamp-2">{item.reason}</span>
+										) : null}
+										<MetaRow data-layout-role="moderation-item-meta" wrap>
 											<span>{item.actorLogin ?? "Unknown contributor"}</span>
 											<ZonedTime at={item.createdAt} format="short" />
-											{item.reason ? <span>{item.reason}</span> : null}
+											<span>{subjectLabel}</span>
 										</MetaRow>
 									</ItemDescription>
 								</ItemContent>
-								<ItemActions className="me-0 gap-2">
+								<ItemActions>
 									<BlockButton
 										disabled={decide.isPending || !canDecide}
 										name={name}
@@ -217,7 +215,15 @@ export function ModerationQueue({
 										size="sm"
 										variant="secondary"
 									>
-										<Icon className="text-ok" icon={Check} />
+										<span
+											className="flex size-4 items-center justify-center rounded-full text-text-inverse"
+											data-layout-role="approve-glyph"
+										>
+											<Icon
+												className="size-3! text-text-inverse!"
+												icon={Check}
+											/>
+										</span>
 										Approve
 									</Button>
 								</ItemActions>
@@ -253,7 +259,7 @@ function BlockButton({
 					/>
 				}
 			>
-				<Icon className="text-fail" icon={Blocked} />
+				<Icon data-layout-role="block-glyph" icon={Blocked} />
 				Block
 			</DialogTrigger>
 			<DialogContent size="sm">

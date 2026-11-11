@@ -305,6 +305,7 @@ function DialogAction({close, onAction, onClick, disabled, size = 'sm', pending:
   return <Button
     data-slot="dialog-action"
     data-dialog-action="primary"
+    confirmation={false}
     size={size}
     disabled={disabled || !matched}
     // The dialog's pending is the action's. A boolean from the start (onAction or a pendingLabel) makes Button

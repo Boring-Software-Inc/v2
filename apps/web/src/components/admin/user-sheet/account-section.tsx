@@ -11,6 +11,7 @@ import {
 	SubHeading,
 } from "#/components/admin/user-sheet/sheet-parts";
 import { useStaffAction } from "#/components/admin/user-sheet/use-staff-action";
+import { ConfirmDestructiveDialog } from "#/components/common/confirm-destructive-dialog";
 import { TimezonePicker } from "#/components/timezones/timezone-picker";
 import { ChevronRight, External, Icon } from "#/design-system/icon";
 import { Badge } from "#/design-system/ui/badge";
@@ -139,6 +140,15 @@ export function AccountSection({ view }: { view: AdminUserView }) {
 		failure: "Tripwire couldn't end this session.",
 	});
 	const signOutAll = useSignOutEverywhere(user.id, user.name);
+	const [signOutAllOpen, setSignOutAllOpen] = useState(false);
+	const [selectedSession, setSelectedSession] = useState<{
+		id: string;
+		device: string;
+	} | null>(null);
+	const [selectedAgent, setSelectedAgent] = useState<{
+		clientId: string;
+		name: string;
+	} | null>(null);
 	const revokeAgent = useStaffAction<string>({
 		userId: user.id,
 		run: (clientId) =>
@@ -176,10 +186,11 @@ export function AccountSection({ view }: { view: AdminUserView }) {
 					action={
 						view.sessions.length > 0 ? (
 							<Button
+								confirmation={false}
 								disabled={signOutAll.isPending || view.viewerId === user.id}
-								onClick={() => signOutAll.mutate()}
+								onClick={() => setSignOutAllOpen(true)}
 								size="sm"
-								variant="secondary"
+								variant="destructive"
 							>
 								Sign out everywhere
 							</Button>
@@ -210,10 +221,16 @@ export function AccountSection({ view }: { view: AdminUserView }) {
 								<span data-layout-role="user-sheet-list-action">
 									<Button
 										aria-label={`Sign out ${describeUserAgent(entry.userAgent)}`}
+										confirmation={false}
 										disabled={revokeSession.isPending}
-										onClick={() => revokeSession.mutate(entry.id)}
+										onClick={() =>
+											setSelectedSession({
+												id: entry.id,
+												device: describeUserAgent(entry.userAgent),
+											})
+										}
 										size="sm"
-										variant="secondary"
+										variant="destructive"
 									>
 										Sign out
 									</Button>
@@ -250,10 +267,16 @@ export function AccountSection({ view }: { view: AdminUserView }) {
 								<span data-layout-role="user-sheet-list-action">
 									<Button
 										aria-label={`Revoke ${agent.name}`}
+										confirmation={false}
 										disabled={revokeAgent.isPending}
-										onClick={() => revokeAgent.mutate(agent.clientId)}
+										onClick={() =>
+											setSelectedAgent({
+												clientId: agent.clientId,
+												name: agent.name,
+											})
+										}
 										size="sm"
-										variant="secondary"
+										variant="destructive"
 									>
 										Revoke
 									</Button>
@@ -333,6 +356,49 @@ export function AccountSection({ view }: { view: AdminUserView }) {
 					</ListRows>
 				)}
 			</div>
+			<ConfirmDestructiveDialog
+				actionLabel="Sign out everywhere"
+				description={`This ends all ${view.sessions.length} active sessions for ${user.name}.`}
+				onConfirm={() => signOutAll.mutateAsync()}
+				onOpenChange={setSignOutAllOpen}
+				open={signOutAllOpen}
+				pendingLabel="Signing out"
+				title={`Sign ${user.name} out everywhere?`}
+			/>
+			<ConfirmDestructiveDialog
+				actionLabel="Sign out device"
+				description={
+					selectedSession
+						? `This ends ${user.name}'s active Tripwire session on ${selectedSession.device}.`
+						: "This ends the selected active session."
+				}
+				onConfirm={() =>
+					selectedSession
+						? revokeSession.mutateAsync(selectedSession.id)
+						: undefined
+				}
+				onOpenChange={(open) => {
+					if (!open) setSelectedSession(null);
+				}}
+				open={selectedSession !== null}
+				pendingLabel="Signing out"
+				title={`Sign out ${selectedSession?.device ?? "this device"}?`}
+			/>
+			<ConfirmDestructiveDialog
+				actionLabel="Revoke agent"
+				description={`${selectedAgent?.name ?? "This agent"} immediately loses access to every workspace granted through this connection.`}
+				onConfirm={() =>
+					selectedAgent
+						? revokeAgent.mutateAsync(selectedAgent.clientId)
+						: undefined
+				}
+				onOpenChange={(open) => {
+					if (!open) setSelectedAgent(null);
+				}}
+				open={selectedAgent !== null}
+				pendingLabel="Revoking"
+				title={`Revoke ${selectedAgent?.name ?? "this agent"}?`}
+			/>
 		</SheetSectionBlock>
 	);
 }

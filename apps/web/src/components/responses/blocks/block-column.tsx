@@ -1,5 +1,6 @@
 import type { BlockOutcome } from "@tripwire/contracts";
-import type { ComponentProps } from "react";
+import { type ComponentProps, useState } from "react";
+import { ConfirmDestructiveDialog } from "#/components/common/confirm-destructive-dialog";
 import { BlockPalette } from "#/components/responses/blocks/block-palette";
 import { BlockSettings } from "#/components/responses/blocks/block-settings";
 import type { BlockBuilder } from "#/components/responses/blocks/use-block-builder";
@@ -31,6 +32,7 @@ export function BlockColumn({
 	helpDefaultContent,
 }: BlockColumnProps) {
 	const { selected } = builder;
+	const [confirmingRemove, setConfirmingRemove] = useState(false);
 	const showTab: NonNullable<ComponentProps<typeof Tabs>["onValueChange"]> = (
 		tab,
 	) => {
@@ -79,7 +81,7 @@ export function BlockColumn({
 			{selected && !readOnly ? (
 				<SheetFooter>
 					<SheetAction
-						onAction={() => builder.remove(selected.id)}
+						onAction={() => setConfirmingRemove(true)}
 						variant="destructive"
 					>
 						<Icon icon={TrashCan} />
@@ -87,6 +89,18 @@ export function BlockColumn({
 					</SheetAction>
 				</SheetFooter>
 			) : null}
+			<ConfirmDestructiveDialog
+				actionLabel="Remove block"
+				description="This response block will be removed after you save the response."
+				onConfirm={() => {
+					if (selected) builder.remove(selected.id);
+					return undefined;
+				}}
+				onOpenChange={setConfirmingRemove}
+				open={confirmingRemove && selected !== null}
+				pendingLabel="Removing"
+				title="Remove this block?"
+			/>
 		</>
 	);
 }

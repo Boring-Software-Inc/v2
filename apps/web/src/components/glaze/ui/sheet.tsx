@@ -408,6 +408,7 @@ function SheetAction({close, onAction, onClick, size = 'sm', pending: pendingPro
   return <Button
     data-slot="sheet-action"
     data-dialog-action="primary"
+    confirmation={false}
     size={size}
     pending={pendingProp ?? (onAction !== undefined || props.pendingLabel !== undefined || pending ? pending : undefined)}
     onClick={event => {

@@ -6,6 +6,7 @@ import {
 } from "@tripwire/contracts";
 import { useId, useState } from "react";
 import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
+import { ConfirmDestructiveDialog } from "#/components/common/confirm-destructive-dialog";
 import {
 	RULE_CARD_CLASS,
 	RULE_FOOTER_CLASS,
@@ -49,6 +50,7 @@ export function RuleCard({
 	onDelete?: (ruleId: string) => Promise<void>;
 }) {
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
+	const [confirmingDisable, setConfirmingDisable] = useState(false);
 	const { valueFor, setField, pending } = useSaveQueue();
 	const queuedId = useId();
 	const queued = Object.keys(pending).some((key) =>
@@ -98,9 +100,15 @@ export function RuleCard({
 			aria-describedby={queuedId}
 			aria-label={`${verb} ${rule.name}`}
 			disabled={!canEdit || forgeBlocked || (unavailable && off)}
-			onClick={() => setEnabled(!enabled)}
+			onClick={() => {
+				if (enabled) {
+					setConfirmingDisable(true);
+					return;
+				}
+				setEnabled(true);
+			}}
 			size="sm"
-			variant="secondary"
+			variant={enabled ? "destructive" : "secondary"}
 		>
 			{verb}
 		</Button>
@@ -274,6 +282,18 @@ export function RuleCard({
 				onOpenChange={setConfirmingDelete}
 				open={Boolean(deletable) && confirmingDelete}
 				title={`Delete ${rule.name}?`}
+			/>
+			<ConfirmDestructiveDialog
+				actionLabel="Uninstall rule"
+				description={`${rule.name} will stop evaluating new change requests after you save this change.`}
+				onConfirm={() => {
+					setEnabled(false);
+					return undefined;
+				}}
+				onOpenChange={setConfirmingDisable}
+				open={confirmingDisable}
+				pendingLabel="Uninstalling"
+				title={`Uninstall ${rule.name}?`}
 			/>
 		</Card>
 	);

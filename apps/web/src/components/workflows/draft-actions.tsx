@@ -1,6 +1,4 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
 import { Button } from "#/design-system/ui/button";
 import { toast } from "#/design-system/ui/toast";
 import { discardRepoDraft, promoteRepoDraft } from "#/lib/workflows.functions";
@@ -27,7 +25,6 @@ export function DraftActions({
 	onDiscarded,
 }: DraftActionsProps) {
 	const queryClient = useQueryClient();
-	const [discarding, setDiscarding] = useState(false);
 	const refresh = () => {
 		queryClient.invalidateQueries({
 			queryKey: workflowsQueryKeys.list(org, repoId),
@@ -61,7 +58,25 @@ export function DraftActions({
 
 	return (
 		<>
-			<Button onClick={() => setDiscarding(true)} size="sm" variant="secondary">
+			<Button
+				confirmation={{
+					actionLabel: "Discard",
+					description: replacesLive
+						? "The live version keeps running as it is."
+						: "This can't be undone.",
+					pendingLabel: "Discarding",
+					title: "Discard this draft?",
+				}}
+				onAction={async () => {
+					const result = await discard.mutateAsync();
+					if (!result.discarded) {
+						throw new Error("This draft is already gone.");
+					}
+					onDiscarded?.();
+				}}
+				size="sm"
+				variant="destructive"
+			>
 				Discard
 			</Button>
 			<Button
@@ -72,25 +87,6 @@ export function DraftActions({
 			>
 				{replacesLive ? "Save over live version" : "Save workflow"}
 			</Button>
-			<ConfirmDeleteDialog
-				actionLabel="Discard"
-				description={
-					replacesLive
-						? "The live version keeps running as it is."
-						: "This can't be undone."
-				}
-				onConfirm={async () => {
-					const result = await discard.mutateAsync();
-					if (!result.discarded) {
-						throw new Error("This draft is already gone.");
-					}
-					onDiscarded?.();
-				}}
-				onOpenChange={setDiscarding}
-				open={discarding}
-				pendingLabel="Discarding"
-				title="Discard this draft?"
-			/>
 		</>
 	);
 }

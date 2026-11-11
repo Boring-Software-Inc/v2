@@ -15,6 +15,7 @@ import { AgentOutline } from "#/components/agent/agent-outline";
 import { AgentPresence } from "#/components/agent/agent-presence";
 import { Collection } from "#/components/collection/collection";
 import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
+import { ConfirmDestructiveDialog } from "#/components/common/confirm-destructive-dialog";
 import { EntityCard } from "#/components/common/entity-card";
 import { MetaRow } from "#/components/common/meta-row";
 import { CardRouterLink } from "#/components/common/router-links";
@@ -465,6 +466,7 @@ function WorkflowRow({
 	const [renaming, setRenaming] = useState(false);
 	const [renameValue, setRenameValue] = useState(workflow.name);
 	const [deleting, setDeleting] = useState(false);
+	const [turningOff, setTurningOff] = useState(false);
 
 	const invalidateList = () => {
 		queryClient.invalidateQueries({ queryKey: listKey });
@@ -616,8 +618,11 @@ function WorkflowRow({
 										!canManage || (!queuedEnabled && !protectionAvailable)
 									}
 									onCheckedChange={(enabled) => {
-										if (!enabled || protectionAvailable)
-											setQueuedEnabled(enabled);
+										if (!enabled) {
+											setTurningOff(true);
+											return;
+										}
+										if (protectionAvailable) setQueuedEnabled(true);
 									}}
 									size="sm"
 								/>
@@ -650,7 +655,10 @@ function WorkflowRow({
 												Duplicate workflow
 											</DropdownMenuItem>
 											<DropdownMenuSeparator />
-											<DropdownMenuItem onClick={() => setDeleting(true)}>
+											<DropdownMenuItem
+												onClick={() => setDeleting(true)}
+												variant="destructive"
+											>
 												Delete workflow
 											</DropdownMenuItem>
 										</DropdownMenuContent>
@@ -706,6 +714,18 @@ function WorkflowRow({
 				onOpenChange={setDeleting}
 				open={deleting}
 				title={`Delete ${workflow.name}?`}
+			/>
+			<ConfirmDestructiveDialog
+				actionLabel="Turn off workflow"
+				description={`${workflow.name} will stop evaluating new change requests after you save this change.`}
+				onConfirm={() => {
+					setQueuedEnabled(false);
+					return undefined;
+				}}
+				onOpenChange={setTurningOff}
+				open={turningOff}
+				pendingLabel="Turning off"
+				title={`Turn off ${workflow.name}?`}
 			/>
 		</>
 	);

@@ -255,7 +255,12 @@ function DeleteOrgRow({
 	return (
 		<div className="flex items-center justify-between gap-3 border-line-faint border-t pt-4">
 			<p className="type-label">Delete org</p>
-			<Button onClick={() => setOpen(true)} size="sm" variant="destructive">
+			<Button
+				confirmation={false}
+				onClick={() => setOpen(true)}
+				size="sm"
+				variant="destructive"
+			>
 				Delete org
 			</Button>
 			<DeleteOrgDialog

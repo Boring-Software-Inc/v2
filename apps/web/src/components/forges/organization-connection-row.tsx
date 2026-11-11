@@ -100,9 +100,10 @@ export function OrganizationConnectionRow({
 									<ItemActions>
 										<Button
 											aria-label={`Disconnect ${repo.fullName} from ${label}`}
+											confirmation={false}
 											onClick={() => setSelection({ repo, href })}
 											size="sm"
-											variant="secondary"
+											variant="destructive"
 										>
 											Disconnect
 										</Button>

@@ -90,6 +90,7 @@ type TooltipContentProps = Omit<TooltipPrimitive.Popup.Props, 'children'> & Pick
   children: TooltipChildren;
   /** Keys for the action's shortcut, one string per key: ['⌘', 'C']. */
   shortcut?: string[];
+  variant?: 'default' | 'sidebar';
 };
 
 /** The inverse chip: ink with the inverse label, a tag corner, 24px tall, 4px of room before a shortcut. */
@@ -101,6 +102,7 @@ const tooltipPopupClass = cn(
 
 /** How it appears: the overlay recipe, sliding --overlay-shift from its trigger, in over --dur-overlay and out over --dur-state; instant inside a group. */
 const tooltipMotionClass = 'overlay-motion data-instant:duration-0 data-instant:data-ending-style:duration-0';
+const sidebarTooltipClass = 'relative min-h-[34px] rounded-[13px] bg-[var(--sidebar-tooltip)] px-3 py-2 type-label text-[var(--sidebar-tooltip-text)] before:pointer-events-none before:absolute before:inset-1 before:rounded-[8px] hover:before:bg-[var(--sidebar-tooltip-hover)] [&>span]:relative';
 
 /**
  * The chip rendered in place, with the popup's look and none of its behaviour: no portal, no timers.
@@ -114,7 +116,7 @@ function TooltipChip({className, children, shortcut, ...props}: Omit<React.Compo
   </div>;
 }
 
-function TooltipContent({className, side = 'top', sideOffset = 6, align = 'center', alignOffset = 0, collisionPadding = 8, children, shortcut, ...props}: TooltipContentProps) {
+function TooltipContent({className, side = 'top', sideOffset = 6, align = 'center', alignOffset = 0, collisionPadding = 8, children, shortcut, variant = 'default', ...props}: TooltipContentProps) {
   const container = useGlazePortal();
   const {text, shortcut: shortcutChild} = readLabel(children);
   // Nothing to say: no chip at all, rather than an empty 8px one on hover.
@@ -130,7 +132,7 @@ function TooltipContent({className, side = 'top', sideOffset = 6, align = 'cente
     >
       <TooltipPrimitive.Popup
         data-slot="tooltip-content"
-        className={mergeClass([tooltipPopupClass, tooltipMotionClass], className)}
+        className={mergeClass([tooltipPopupClass, variant === 'sidebar' && sidebarTooltipClass, tooltipMotionClass], className)}
         {...props}
       >
         <span className="min-w-0">{text}</span>

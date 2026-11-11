@@ -8,7 +8,12 @@ const orgRoute = getRouteApi("/$org");
 export function SettingsLayout() {
 	const { org } = orgRoute.useParams();
 	return (
-		<DashboardLayout counts={{}}>
+		<DashboardLayout
+			counts={{}}
+			settingsNav={(collapsed) => (
+				<SettingsNav collapsed={collapsed} org={org} variant="rail" />
+			)}
+		>
 			<SettingsFrame nav={<SettingsNav org={org} />}>
 				<Outlet />
 			</SettingsFrame>

@@ -5,6 +5,7 @@ import {cva, type VariantProps} from 'class-variance-authority';
 import {useEffect, useMemo, useRef, useState, type ReactNode, type Ref} from 'react';
 import {motion, useReducedMotion} from 'motion/react';
 import {Icon, Pending} from '#/components/glaze/icon.tsx';
+import {resolveDestructiveConfirmation, useDestructiveConfirmation, type DestructiveConfirmationOptions} from '#/components/glaze/ui/destructive-confirmation-context.ts';
 import {cn, controlHeight, mergeClass, mergeRefs} from '#/lib/glaze/utils.ts';
 import {SLOW_NOTICE, StillLabel} from '#/components/glaze/ui/slow-notice.tsx';
 import {useSlowAfter} from '#/lib/glaze/waiting.ts';
@@ -71,6 +72,10 @@ type ButtonProps = ButtonPrimitive.Props & VariantProps<typeof buttonVariants> &
   pending?: boolean;
   /** An optional pending verb ("Publishing"), shown while pending, never announced. Both labels share one cell. */
   pendingLabel?: ReactNode;
+  /** Overrides the automatic destructive confirmation. False is reserved for an action already inside a guard. */
+  confirmation?: DestructiveConfirmationOptions | false;
+  /** Runs after the automatic destructive confirmation succeeds. */
+  onAction?: () => void | Promise<unknown>;
   ref?: Ref<HTMLButtonElement>;
 };
 
@@ -135,7 +140,7 @@ function FitWidth({children}: {children: ReactNode}) {
   </motion.span>;
 }
 
-function Button({className, variant, size, pending, pendingLabel, disabled, focusableWhenDisabled, children, ref, ...props}: ButtonProps) {
+function Button({className, variant, size, pending, pendingLabel, disabled, focusableWhenDisabled, children, ref, confirmation, onAction, onClick, ...props}: ButtonProps) {
   const v = variant ?? 'primary';
   const s = size ?? 'default';
   const iconOnly = s.startsWith('icon');
@@ -143,6 +148,8 @@ function Button({className, variant, size, pending, pendingLabel, disabled, focu
   const named = useNameCheck();
   const still = useSlowAfter(pending === true);
   const mergedRef = useMemo(() => mergeRefs(ref as Ref<HTMLElement> | undefined, named), [ref, named]);
+  const requestDestructiveConfirmation = useDestructiveConfirmation();
+  const confirmsDestructiveAction = v === 'destructive' && confirmation !== false;
 
   // A text label never wraps; a label too long for its container ends in an ellipsis and stays the accessible name.
   const label = typeof children === 'string' ? <span data-slot="button-text" className="min-w-0 truncate">{children}</span> : children;
@@ -165,6 +172,17 @@ function Button({className, variant, size, pending, pendingLabel, disabled, focu
     aria-busy={pending || undefined}
     title={still ? SLOW_NOTICE : undefined}
     className={mergeClass(buttonVariants({variant: v, size: s}), className)}
+    onClick={confirmsDestructiveAction ? event => {
+      event.preventDefault();
+      const label = visibleName(event.currentTarget) || 'Continue';
+      requestDestructiveConfirmation({
+        options: resolveDestructiveConfirmation(label, confirmation || undefined),
+        onConfirm: async () => {
+          if (onAction) await onAction();
+          else onClick?.(event);
+        },
+      });
+    } : onClick}
     {...props}
   >{content}<span aria-hidden="true" data-slot="control-hit-area"/></ButtonPrimitive>;
 }

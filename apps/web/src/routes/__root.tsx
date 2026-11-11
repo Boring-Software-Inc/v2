@@ -15,6 +15,7 @@ import { AccountFlagsProvider } from "#/components/common/account-flags-provider
 import { AnalyticsIdentity } from "#/components/common/analytics-identity";
 import { DatabuddyAnalytics } from "#/components/common/databuddy-analytics";
 import { ImpersonationBanner } from "#/components/common/impersonation-banner";
+import { SettingsReturnHistory } from "#/components/settings/settings-return-history";
 import { RepoTabsProvider } from "#/components/tabs/repo-tabs-provider";
 import {
 	DesignSystemRoot,
@@ -162,6 +163,7 @@ function RootComponent() {
 			disableTransitionOnChange
 		>
 			<TripwireSkulletProvider>
+				<SettingsReturnHistory />
 				{/* Above the Outlet, not inside DashboardLayout: pages own their own
 				    layout wrap, so a provider down there would remount — and re-read
 				    storage — on every navigation. */}

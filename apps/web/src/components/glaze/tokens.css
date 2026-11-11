@@ -49,6 +49,9 @@
   --hover-row: rgb(5 5 5 / 0.035); /* ink at 3.5%: a list row under the pointer, lighter than the selected row's --pressed | item, table row, data grid row */
   --pressed: rgb(5 5 5 / 0.10); /* ink at 10%: a plain button held, a selected row | ghost button active, selected row */
   --scrim: rgb(5 5 5 / 0.24); /* the dim behind a dialog: ink at 24% | dialog, sheet */
+  --sidebar-tooltip: #0c0c0c; /* the fixed dark sidebar label, unchanged by theme | collapsed sidebar tooltip */
+  --sidebar-tooltip-text: #f4f4f3; /* the fixed light label on a sidebar tooltip | collapsed sidebar tooltip */
+  --sidebar-tooltip-hover: rgb(244 244 243 / 0.10); /* the light wash inside a hovered sidebar tooltip | collapsed sidebar tooltip */
 
   /* == Ink == */
   --ink: #050505; /* solid ink, a neutral near-black: every text and line is this at an alpha | chart mark, tooltip */

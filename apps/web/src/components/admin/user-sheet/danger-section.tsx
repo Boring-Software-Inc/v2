@@ -93,6 +93,7 @@ function BanForm({
 					Cancel
 				</Button>
 				<Button
+					confirmation={false}
 					pending={ban.isPending}
 					pendingLabel="Banning"
 					size="sm"
@@ -198,11 +199,12 @@ export function DangerSection({
 					<div data-layout-role="user-sheet-danger-row">
 						<Body as="span">Ban from Tripwire</Body>
 						<Button
+							confirmation={false}
 							data-state-tone="danger"
 							disabled={protectedUser}
 							onClick={() => onBanOpenChange(true)}
 							size="sm"
-							variant="secondary"
+							variant="destructive"
 						>
 							Ban
 						</Button>
@@ -211,11 +213,12 @@ export function DangerSection({
 				<div data-layout-role="user-sheet-danger-row">
 					<Body as="span">Delete account</Body>
 					<Button
+						confirmation={false}
 						data-state-tone="danger"
 						disabled={protectedUser}
 						onClick={onDelete}
 						size="sm"
-						variant="secondary"
+						variant="destructive"
 					>
 						Delete account
 					</Button>

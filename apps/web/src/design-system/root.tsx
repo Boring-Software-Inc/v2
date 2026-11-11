@@ -3,6 +3,7 @@ import semanticLayoutCss from "@tripwire/ui/styles/layout.css?url";
 import typographyCss from "@tripwire/ui/styles/typography.css?url";
 import type { ReactNode } from "react";
 import type { SkulletTheme } from "skullet";
+import { DestructiveConfirmationProvider } from "#/components/common/destructive-confirmation-provider";
 import glazeCss from "#/components/glaze/styles.css?url";
 import layoutContractCss from "#/design-system/layout-contract.css?url";
 import { GlazePortalProvider } from "#/lib/glaze/portal";
@@ -32,5 +33,11 @@ export const designSystemSkulletTheme: SkulletTheme = {
 };
 
 export function DesignSystemRoot({ children }: { children: ReactNode }) {
-	return <GlazePortalProvider>{children}</GlazePortalProvider>;
+	return (
+		<GlazePortalProvider>
+			<DestructiveConfirmationProvider>
+				{children}
+			</DestructiveConfirmationProvider>
+		</GlazePortalProvider>
+	);
 }
