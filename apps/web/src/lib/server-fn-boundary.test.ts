@@ -29,6 +29,9 @@ const PUBLIC_ALLOWLIST = new Set([
 	/** Appeals self-gate on the original GitHub author, including pending accounts. */
 	"getContributionAppeal",
 	"submitContributionAppeal",
+	/** Portal requests read and write only the signed-in contributor’s own appeals. */
+	"getContributionAppealPortal",
+	"submitOrganizationAppeal",
 	"stopImpersonating",
 	"recordDatabuddyAnonId",
 ]);
@@ -277,11 +280,12 @@ describe("staff mutations and impersonation guards", () => {
 		expect(open).toEqual([]);
 	});
 
-	test("the public impersonation and analytics writes are same-origin only", () => {
+	test("public impersonation, analytics, and appeal writes are same-origin only", () => {
 		for (const name of [
 			"stopImpersonating",
 			"recordDatabuddyAnonId",
 			"submitContributionAppeal",
+			"submitOrganizationAppeal",
 		]) {
 			expect(fns.find((f) => f.name === name)?.sameOrigin).toBe(true);
 		}

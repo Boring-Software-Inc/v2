@@ -43,7 +43,9 @@ export const SERVER_FN_CLASSIFICATION: ServerFnClassification = {
 	 */
 	redeemOrgInvite: "public",
 	getContributionAppeal: "public",
+	getContributionAppealPortal: "public",
 	submitContributionAppeal: "public",
+	submitOrganizationAppeal: "public",
 	stopImpersonating: "public",
 	recordDatabuddyAnonId: "public",
 
@@ -93,6 +95,7 @@ export const SERVER_FN_CLASSIFICATION: ServerFnClassification = {
 	listModerationQueue: "permission:moderation:read",
 	listContributionAppeals: "permission:moderation:read",
 	decideContributionAppeal: "permission:moderation:manage",
+	resolveOrganizationAppeal: "permission:moderation:manage",
 	decideModeration: "permission:moderation:manage",
 
 	// ── activity (runs) ───────────────────────────────────────────────────
