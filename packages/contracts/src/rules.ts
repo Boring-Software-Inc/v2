@@ -868,6 +868,10 @@ export const RULE_PARAMS = {
 			},
 		],
 	},
+	[CONTRIBUTOR_ALLOWLIST_RULE_ID]: {
+		sentences: ["requires the author to be on this repository’s allowlist"],
+		params: [],
+	},
 	"ai-review": {
 		sentences: ["reviews the change in up to {maxSteps}"],
 		params: [
