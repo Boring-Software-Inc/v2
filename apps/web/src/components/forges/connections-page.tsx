@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FORGE_BY_ID, type ForgeConnection } from "@tripwire/contracts";
 import { useState } from "react";
-import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { MetaRow } from "#/components/common/meta-row";
 import { ConnectForgeDialog } from "#/components/forges/connect-forge-dialog";
@@ -47,7 +46,6 @@ function ConnectionRow({
 	login: string | null;
 }) {
 	const queryClient = useQueryClient();
-	const [confirming, setConfirming] = useState(false);
 	const label = FORGE_BY_ID[connection.forge]?.label ?? connection.forge;
 	const needsReauth = tokenExpired(connection) && !connection.canRefresh;
 	const confirmText = connection.forge === "github" && login ? login : label;
@@ -110,27 +108,23 @@ function ConnectionRow({
 				) : null}
 				<Button
 					aria-label={`Disconnect ${label}`}
-					onClick={() => setConfirming(true)}
+					confirmation={{
+						actionLabel: "Disconnect",
+						confirmText,
+						description:
+							connection.repoCount > 0
+								? `Tripwire stops watching ${connection.repoCount} ${connection.repoCount === 1 ? "repo" : "repos"}.`
+								: undefined,
+						pendingLabel: "Disconnecting",
+						title: `Disconnect ${label}?`,
+					}}
+					onAction={() => disconnect.mutateAsync()}
 					size="sm"
-					variant="secondary"
+					variant="destructive"
 				>
 					Disconnect
 				</Button>
 			</ItemActions>
-			<ConfirmDeleteDialog
-				actionLabel="Disconnect"
-				confirmText={confirmText}
-				description={
-					connection.repoCount > 0
-						? `Tripwire stops watching ${connection.repoCount} ${connection.repoCount === 1 ? "repo" : "repos"}.`
-						: undefined
-				}
-				onConfirm={() => disconnect.mutateAsync()}
-				onOpenChange={setConfirming}
-				open={confirming}
-				pendingLabel="Disconnecting"
-				title={`Disconnect ${label}?`}
-			/>
 		</Item>
 	);
 }

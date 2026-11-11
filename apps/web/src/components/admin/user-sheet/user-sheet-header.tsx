@@ -1,5 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import type { AccessStatus } from "@tripwire/contracts";
+import { useState } from "react";
 import { useAccessReview } from "#/components/admin/user-sheet/access-section";
 import { useSignOutEverywhere } from "#/components/admin/user-sheet/account-section";
 import {
@@ -7,6 +8,7 @@ import {
 	unwrapStaffAction,
 	useStaffAction,
 } from "#/components/admin/user-sheet/use-staff-action";
+import { ConfirmDestructiveDialog } from "#/components/common/confirm-destructive-dialog";
 import { Check, Failed, Icon, More, Time } from "#/design-system/icon";
 import { Avatar } from "#/design-system/ui/avatar";
 import { Badge } from "#/design-system/ui/badge";
@@ -75,6 +77,7 @@ export function UserSheetHeader({
 	const { user } = view;
 	const review = useAccessReview(user.id, user.name);
 	const signOutAll = useSignOutEverywhere(user.id, user.name);
+	const [signOutAllOpen, setSignOutAllOpen] = useState(false);
 	const unban = useStaffAction<void>({
 		userId: user.id,
 		run: () => unbanAdminUser({ data: { userId: user.id } }),
@@ -105,109 +108,125 @@ export function UserSheetHeader({
 		</Button>
 	);
 	return (
-		<header data-layout-role="user-sheet-header">
-			<div data-layout-role="user-sheet-identity">
-				<Avatar
-					decorative
-					name={user.name}
-					size="lg"
-					src={user.image ?? undefined}
-				/>
-				<div data-layout-role="user-sheet-identity-copy">
-					<div data-layout-role="user-sheet-title-row">
-						<SheetTitle>{user.name}</SheetTitle>
-						<AccessBadge status={user.accessStatus} />
-						{user.banned ? <Badge variant="fail">Banned</Badge> : null}
-						{user.isPlatformAdmin ? (
-							<Badge variant="outline">Staff</Badge>
-						) : null}
-					</div>
-					<div data-layout-role="user-sheet-contact">
-						{user.login ? (
-							<SupportingText as="span">{user.login}</SupportingText>
-						) : null}
-						<SupportingText as="span">{user.email}</SupportingText>
+		<>
+			<header data-layout-role="user-sheet-header">
+				<div data-layout-role="user-sheet-identity">
+					<Avatar
+						decorative
+						name={user.name}
+						size="lg"
+						src={user.image ?? undefined}
+					/>
+					<div data-layout-role="user-sheet-identity-copy">
+						<div data-layout-role="user-sheet-title-row">
+							<SheetTitle>{user.name}</SheetTitle>
+							<AccessBadge status={user.accessStatus} />
+							{user.banned ? <Badge variant="fail">Banned</Badge> : null}
+							{user.isPlatformAdmin ? (
+								<Badge variant="outline">Staff</Badge>
+							) : null}
+						</div>
+						<div data-layout-role="user-sheet-contact">
+							{user.login ? (
+								<SupportingText as="span">{user.login}</SupportingText>
+							) : null}
+							<SupportingText as="span">{user.email}</SupportingText>
+						</div>
 					</div>
 				</div>
-			</div>
-			<div data-layout-role="user-sheet-header-actions">
-				{pending ? (
-					<>
-						<Button
-							data-layout-role="user-sheet-leading-action"
-							disabled={review.isPending}
-							onClick={() => review.mutate("reject")}
-							size="sm"
-							variant="secondary"
-						>
-							Decline
-						</Button>
-						<Button
-							data-layout-role="user-sheet-leading-action"
-							disabled={review.isPending}
-							onClick={() => review.mutate("approve")}
-							size="sm"
-						>
-							Approve
-						</Button>
-					</>
-				) : view.impersonation.ok ? (
-					impersonateButton
-				) : (
-					<Tooltip>
-						<TooltipTrigger
-							render={<span data-layout-role="user-sheet-action-tooltip" />}
-						>
-							{impersonateButton}
-						</TooltipTrigger>
-						<TooltipContent>{view.impersonation.reason}</TooltipContent>
-					</Tooltip>
-				)}
-				<DropdownMenu>
-					<DropdownMenuTrigger
-						render={
+				<div data-layout-role="user-sheet-header-actions">
+					{pending ? (
+						<>
 							<Button
-								aria-label={`More actions for ${user.name}`}
-								size="icon-sm"
+								data-layout-role="user-sheet-leading-action"
+								disabled={review.isPending}
+								onClick={() => review.mutate("reject")}
+								size="sm"
 								variant="secondary"
-							/>
-						}
-					>
-						<Icon icon={More} />
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end" size="sm">
-						<DropdownMenuItem onClick={() => void copy(user.id, "user id")}>
-							Copy user id
-						</DropdownMenuItem>
-						<DropdownMenuItem onClick={() => void copy(user.email, "email")}>
-							Copy email
-						</DropdownMenuItem>
-						<DropdownMenuSeparator />
-						<DropdownMenuItem
-							disabled={self || view.sessions.length === 0}
-							onClick={() => signOutAll.mutate()}
+							>
+								Decline
+							</Button>
+							<Button
+								data-layout-role="user-sheet-leading-action"
+								disabled={review.isPending}
+								onClick={() => review.mutate("approve")}
+								size="sm"
+							>
+								Approve
+							</Button>
+						</>
+					) : view.impersonation.ok ? (
+						impersonateButton
+					) : (
+						<Tooltip>
+							<TooltipTrigger
+								render={<span data-layout-role="user-sheet-action-tooltip" />}
+							>
+								{impersonateButton}
+							</TooltipTrigger>
+							<TooltipContent>{view.impersonation.reason}</TooltipContent>
+						</Tooltip>
+					)}
+					<DropdownMenu>
+						<DropdownMenuTrigger
+							render={
+								<Button
+									aria-label={`More actions for ${user.name}`}
+									size="icon-sm"
+									variant="secondary"
+								/>
+							}
 						>
-							Sign out everywhere
-						</DropdownMenuItem>
-						{user.banned ? (
-							<DropdownMenuItem onClick={() => unban.mutate()}>
-								Unban
+							<Icon icon={More} />
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end" size="sm">
+							<DropdownMenuItem onClick={() => void copy(user.id, "user id")}>
+								Copy user id
 							</DropdownMenuItem>
-						) : (
+							<DropdownMenuItem onClick={() => void copy(user.email, "email")}>
+								Copy email
+							</DropdownMenuItem>
+							<DropdownMenuSeparator />
 							<DropdownMenuItem
-								disabled={guarded}
-								onClick={onBan}
+								disabled={self || view.sessions.length === 0}
+								onClick={() => setSignOutAllOpen(true)}
 								variant="destructive"
 							>
-								Ban
+								Sign out everywhere
 							</DropdownMenuItem>
-						)}
-						<DropdownMenuItem disabled={guarded} onClick={onDelete}>
-							Delete account
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
-			</div>
-		</header>
+							{user.banned ? (
+								<DropdownMenuItem onClick={() => unban.mutate()}>
+									Unban
+								</DropdownMenuItem>
+							) : (
+								<DropdownMenuItem
+									disabled={guarded}
+									onClick={onBan}
+									variant="destructive"
+								>
+									Ban
+								</DropdownMenuItem>
+							)}
+							<DropdownMenuItem
+								disabled={guarded}
+								onClick={onDelete}
+								variant="destructive"
+							>
+								Delete account
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</div>
+			</header>
+			<ConfirmDestructiveDialog
+				actionLabel="Sign out everywhere"
+				description={`This ends all ${view.sessions.length} active sessions for ${user.name}.`}
+				onConfirm={() => signOutAll.mutateAsync()}
+				onOpenChange={setSignOutAllOpen}
+				open={signOutAllOpen}
+				pendingLabel="Signing out"
+				title={`Sign ${user.name} out everywhere?`}
+			/>
+		</>
 	);
 }

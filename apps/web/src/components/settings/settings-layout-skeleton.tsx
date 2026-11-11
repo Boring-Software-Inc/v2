@@ -11,7 +11,12 @@ export function SettingsSectionSkeleton() {
 
 export function SettingsLayoutSkeleton() {
 	return (
-		<DashboardLayout counts={{}}>
+		<DashboardLayout
+			counts={{}}
+			settingsNav={(collapsed) => (
+				<SettingsNavSkeleton collapsed={collapsed} variant="rail" />
+			)}
+		>
 			<SettingsFrame nav={<SettingsNavSkeleton />}>
 				<SettingsSectionSkeleton />
 			</SettingsFrame>

@@ -501,6 +501,7 @@ export function AdminUsersPage() {
 														confirmRejectId === user.id ? (
 															<Button
 																aria-label={`Confirm decline for ${user.name}`}
+																confirmation={false}
 																onBlur={() => setConfirmRejectId(null)}
 																onClick={() => decide([user.id], "reject")}
 																onKeyDown={(event) => {

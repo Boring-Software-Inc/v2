@@ -1,0 +1,95 @@
+[data-sidebar-swap] {
+	view-transition-name: tripwire-sidebar-nav;
+}
+
+[data-sidebar-snapshot] {
+	position: fixed;
+	z-index: var(--z-overlay);
+	overflow: hidden;
+	pointer-events: none;
+}
+
+[data-sidebar-snapshot][data-sidebar-transition-direction="forward"] {
+	animation: sidebar-nav-out-forward var(--dur-slide) var(--ease-out) both;
+}
+
+[data-sidebar-swap][data-sidebar-entering="forward"] {
+	animation: sidebar-nav-in-forward var(--dur-slide) var(--ease-out) both;
+}
+
+[data-sidebar-snapshot][data-sidebar-transition-direction="back"] {
+	animation: sidebar-nav-out-back var(--dur-slide) var(--ease-out) both;
+}
+
+[data-sidebar-swap][data-sidebar-entering="back"] {
+	animation: sidebar-nav-in-back var(--dur-slide) var(--ease-out) both;
+}
+
+::view-transition-group(tripwire-sidebar-nav) {
+	overflow: hidden;
+	animation-duration: var(--dur-slide);
+	animation-timing-function: var(--ease-out);
+}
+
+::view-transition-old(tripwire-sidebar-nav),
+::view-transition-new(tripwire-sidebar-nav) {
+	mix-blend-mode: normal;
+}
+
+html[data-sidebar-transition-direction="forward"]
+	::view-transition-old(tripwire-sidebar-nav) {
+	animation: sidebar-nav-out-forward var(--dur-slide) var(--ease-out) both;
+}
+
+html[data-sidebar-transition-direction="forward"]
+	::view-transition-new(tripwire-sidebar-nav) {
+	animation: sidebar-nav-in-forward var(--dur-slide) var(--ease-out) both;
+}
+
+html[data-sidebar-transition-direction="back"]
+	::view-transition-old(tripwire-sidebar-nav) {
+	animation: sidebar-nav-out-back var(--dur-slide) var(--ease-out) both;
+}
+
+html[data-sidebar-transition-direction="back"]
+	::view-transition-new(tripwire-sidebar-nav) {
+	animation: sidebar-nav-in-back var(--dur-slide) var(--ease-out) both;
+}
+
+@keyframes sidebar-nav-out-forward {
+	to {
+		opacity: 0;
+		transform: translateX(var(--space-6));
+	}
+}
+
+@keyframes sidebar-nav-in-forward {
+	from {
+		opacity: 0;
+		transform: translateX(calc(var(--space-6) * -1));
+	}
+}
+
+@keyframes sidebar-nav-out-back {
+	to {
+		opacity: 0;
+		transform: translateX(calc(var(--space-6) * -1));
+	}
+}
+
+@keyframes sidebar-nav-in-back {
+	from {
+		opacity: 0;
+		transform: translateX(var(--space-6));
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	::view-transition-group(tripwire-sidebar-nav),
+	::view-transition-old(tripwire-sidebar-nav),
+	::view-transition-new(tripwire-sidebar-nav),
+	[data-sidebar-snapshot],
+	[data-sidebar-swap][data-sidebar-entering] {
+		animation-duration: 0.001ms;
+	}
+}

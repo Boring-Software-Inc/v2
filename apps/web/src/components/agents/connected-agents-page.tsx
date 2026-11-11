@@ -1,6 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
 import { MetaRow } from "#/components/common/meta-row";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { SettingsHeader } from "#/components/settings/settings-frame";
@@ -28,7 +26,6 @@ import {
 
 function AgentRow({ agent }: { agent: ConnectedAgent }) {
 	const queryClient = useQueryClient();
-	const [confirming, setConfirming] = useState(false);
 	const revoke = useMutation({
 		mutationFn: () =>
 			revokeConnectedAgent({ data: { clientId: agent.clientId } }),
@@ -66,22 +63,19 @@ function AgentRow({ agent }: { agent: ConnectedAgent }) {
 			<ItemActions>
 				<Button
 					aria-label={`Disconnect ${agent.name}`}
-					onClick={() => setConfirming(true)}
+					confirmation={{
+						actionLabel: "Disconnect",
+						confirmText: agent.name,
+						pendingLabel: "Disconnecting",
+						title: `Disconnect ${agent.name}?`,
+					}}
+					onAction={() => revoke.mutateAsync()}
 					size="sm"
-					variant="secondary"
+					variant="destructive"
 				>
 					Disconnect
 				</Button>
 			</ItemActions>
-			<ConfirmDeleteDialog
-				actionLabel="Disconnect"
-				confirmText={agent.name}
-				onConfirm={() => revoke.mutateAsync()}
-				onOpenChange={setConfirming}
-				open={confirming}
-				pendingLabel="Disconnecting"
-				title={`Disconnect ${agent.name}?`}
-			/>
 		</Item>
 	);
 }

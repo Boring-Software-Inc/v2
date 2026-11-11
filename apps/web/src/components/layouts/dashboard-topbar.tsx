@@ -1,5 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useTheme } from "next-themes";
+import { useState } from "react";
+import { ConfirmDestructiveDialog } from "#/components/common/confirm-destructive-dialog";
 import { TripwireWordmark } from "#/components/common/tripwire-wordmark";
 import { useFeedback } from "#/components/feedback";
 import { CommandPaletteButton } from "#/components/layouts/command-palette-launcher";
@@ -33,6 +35,7 @@ import { useActiveScope } from "#/hooks/use-active-scope";
 import { useHasMounted } from "#/hooks/use-has-mounted";
 import { useSignOut } from "#/hooks/use-sign-out";
 import type { CurrentUser } from "#/lib/auth.functions";
+import { accountIdentity, PLACEHOLDER_USER } from "#/lib/current-user";
 
 interface DashboardTopbarProps {
 	user: CurrentUser | null;
@@ -88,15 +91,6 @@ export function Brand({ org }: { org: string | undefined }) {
 	);
 }
 
-const PLACEHOLDER_USER: CurrentUser = {
-	id: "",
-	name: "local session",
-	login: "dev",
-	forgeLogin: null,
-	email: null,
-	image: "",
-};
-
 export function UserMenu({
 	user,
 	showName = false,
@@ -112,81 +106,86 @@ export function UserMenu({
 	const hasMounted = useHasMounted();
 	const isDark = hasMounted && resolvedTheme === "dark";
 	const org = useActiveScope().org?.slug;
+	const [signOutOpen, setSignOutOpen] = useState(false);
 	return (
-		<DropdownMenu>
-			<DropdownMenuTrigger
-				render={
-					<Button
-						aria-label={`Account menu for ${moderator.name}`}
-						className={showName ? "w-full min-w-0 justify-start" : undefined}
-						size={showName ? "default" : "icon"}
-						variant="ghost"
-					/>
-				}
-			>
-				<Avatar
-					decorative
-					name={moderator.name}
-					size={showName ? "default" : "lg"}
-					src={moderator.image || undefined}
-				/>
-				{showName ? (
-					<span className="min-w-0 truncate">{moderator.name}</span>
-				) : null}
-			</DropdownMenuTrigger>
-			<DropdownMenuContent
-				align="end"
-				className="min-w-(--menu-min) max-w-popover"
-			>
-				<DropdownMenuGroup>
-					<DropdownMenuLabel className="flex-col items-start justify-center gap-0.5 py-1.5">
-						<span className="max-w-full truncate type-label text-text-1">
-							{moderator.name}
-						</span>
-						{identity ? (
-							<span className="max-w-full truncate type-caption text-text-2">
-								{identity}
-							</span>
-						) : null}
-					</DropdownMenuLabel>
-				</DropdownMenuGroup>
-				<DropdownMenuSeparator />
-				<DropdownMenuLinkItem
+		<>
+			<DropdownMenu>
+				<DropdownMenuTrigger
 					render={
-						org ? (
-							<Link params={{ org }} to="/$org/settings/account" />
-						) : (
-							<Link to="/account" />
-						)
+						<Button
+							aria-label={`Account menu for ${moderator.name}`}
+							className={showName ? "w-full min-w-0 justify-start" : undefined}
+							size={showName ? "default" : "icon"}
+							variant="ghost"
+						/>
 					}
 				>
-					<Icon icon={Settings} />
-					Account settings
-				</DropdownMenuLinkItem>
-				<DropdownMenuItem onClick={openFeedback}>
-					<Icon icon={Comment} />
-					Send feedback
-				</DropdownMenuItem>
-				<DropdownMenuItem onClick={() => setTheme(isDark ? "light" : "dark")}>
-					<Icon icon={isDark ? Light : Dark} />
-					{isDark ? "Light theme" : "Dark theme"}
-				</DropdownMenuItem>
-				<DropdownMenuSeparator />
-				<DropdownMenuItem onClick={() => signOut.mutate()}>
-					<Icon icon={SignOut} />
-					Sign out
-				</DropdownMenuItem>
-			</DropdownMenuContent>
-		</DropdownMenu>
+					<Avatar
+						decorative
+						name={moderator.name}
+						size={showName ? "default" : "lg"}
+						src={moderator.image || undefined}
+					/>
+					{showName ? (
+						<span className="min-w-0 truncate">{moderator.name}</span>
+					) : null}
+				</DropdownMenuTrigger>
+				<DropdownMenuContent
+					align="end"
+					className="min-w-(--menu-min) max-w-popover"
+				>
+					<DropdownMenuGroup>
+						<DropdownMenuLabel className="flex-col items-start justify-center gap-0.5 py-1.5">
+							<span className="max-w-full truncate type-label text-text-1">
+								{moderator.name}
+							</span>
+							{identity ? (
+								<span className="max-w-full truncate type-caption text-text-2">
+									{identity}
+								</span>
+							) : null}
+						</DropdownMenuLabel>
+					</DropdownMenuGroup>
+					<DropdownMenuSeparator />
+					<DropdownMenuLinkItem
+						render={
+							org ? (
+								<Link params={{ org }} to="/$org/settings/account" />
+							) : (
+								<Link to="/account" />
+							)
+						}
+					>
+						<Icon icon={Settings} />
+						Account settings
+					</DropdownMenuLinkItem>
+					<DropdownMenuItem onClick={openFeedback}>
+						<Icon icon={Comment} />
+						Send feedback
+					</DropdownMenuItem>
+					<DropdownMenuItem onClick={() => setTheme(isDark ? "light" : "dark")}>
+						<Icon icon={isDark ? Light : Dark} />
+						{isDark ? "Light theme" : "Dark theme"}
+					</DropdownMenuItem>
+					<DropdownMenuSeparator />
+					<DropdownMenuItem
+						onClick={() => setSignOutOpen(true)}
+						variant="destructive"
+					>
+						<Icon icon={SignOut} />
+						Sign out
+					</DropdownMenuItem>
+				</DropdownMenuContent>
+			</DropdownMenu>
+			<ConfirmDestructiveDialog
+				actionLabel="Sign out"
+				description="Your session on this device ends. You'll need to sign in again to use Tripwire."
+				onConfirm={() => signOut.mutateAsync()}
+				onOpenChange={setSignOutOpen}
+				open={signOutOpen}
+				pendingLabel="Signing out"
+				title="Sign out of Tripwire?"
+			/>
+		</>
 	);
-}
-
-function accountIdentity(user: CurrentUser): string | null {
-	if (user.email) {
-		return user.email;
-	}
-	if (user.login && user.login !== user.name) {
-		return `@${user.login}`;
-	}
-	return null;
 }

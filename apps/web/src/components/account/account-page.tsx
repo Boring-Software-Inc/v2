@@ -278,11 +278,15 @@ function SessionRow({ session }: { session: AccountSession }) {
 				) : (
 					<Button
 						aria-label={`Sign out ${device}`}
-						onClick={() => revoke.mutate()}
-						pending={revoke.isPending}
-						pendingLabel="Signing out"
+						confirmation={{
+							actionLabel: "Sign out device",
+							description: `This ends the active Tripwire session on ${device}.`,
+							pendingLabel: "Signing out",
+							title: `Sign out ${device}?`,
+						}}
+						onAction={() => revoke.mutateAsync()}
 						size="sm"
-						variant="secondary"
+						variant="destructive"
 					>
 						Sign out
 					</Button>
@@ -307,11 +311,15 @@ function SessionsSection() {
 		<SettingsSection
 			action={
 				others > 0 ? (
-					<Dialog>
-						<DialogTrigger render={<Button size="sm" variant="destructive" />}>
+					<Dialog role="alertdialog">
+						<DialogTrigger
+							render={
+								<Button confirmation={false} size="sm" variant="destructive" />
+							}
+						>
 							Sign out everywhere else
 						</DialogTrigger>
-						<DialogContent role="alertdialog">
+						<DialogContent>
 							<DialogHeader>
 								<DialogTitle>Sign out everywhere else?</DialogTitle>
 								<DialogDescription>
@@ -493,10 +501,26 @@ function AccountFooter() {
 	const [deleting, setDeleting] = useState(false);
 	return (
 		<div className="flex flex-wrap items-center justify-between gap-3 border-line-faint border-t pt-4">
-			<Button onClick={() => signOut.mutate()} size="sm" variant="secondary">
+			<Button
+				confirmation={{
+					actionLabel: "Sign out",
+					description:
+						"Your session on this device ends. You'll need to sign in again to use Tripwire.",
+					pendingLabel: "Signing out",
+					title: "Sign out of Tripwire?",
+				}}
+				onAction={() => signOut.mutateAsync()}
+				size="sm"
+				variant="destructive"
+			>
 				Sign out
 			</Button>
-			<Button onClick={() => setDeleting(true)} size="sm" variant="secondary">
+			<Button
+				confirmation={false}
+				onClick={() => setDeleting(true)}
+				size="sm"
+				variant="destructive"
+			>
 				Delete account
 			</Button>
 			<DeleteAccountDialog

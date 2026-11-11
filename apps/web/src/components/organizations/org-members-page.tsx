@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { OrgRole } from "@tripwire/contracts";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Collection } from "#/components/collection/collection";
 import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
 import {
@@ -12,7 +12,6 @@ import {
 	MemberRowActions,
 	MemberRowsSkeleton,
 } from "#/components/layouts/collection-row";
-import { FormActions, FormSection } from "#/components/layouts/section";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { DeleteOrgDialog } from "#/components/organizations/delete-org-dialog";
 import {
@@ -28,6 +27,18 @@ import {
 import { Icon, More } from "#/design-system/icon";
 import { Avatar } from "#/design-system/ui/avatar";
 import { Button } from "#/design-system/ui/button";
+import {
+	Dialog,
+	DialogAction,
+	DialogBody,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from "#/design-system/ui/dialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -156,21 +167,26 @@ export function OrgMembersPage({ org }: { org: string }) {
 		<>
 			<SettingsHeader title="Members">
 				{canInvite ? (
-					<Button aria-expanded={inviting} onClick={() => setInviting(true)}>
-						Invite
-					</Button>
+					<Dialog onOpenChange={setInviting} open={inviting}>
+						<DialogTrigger render={<Button />}>Invite</DialogTrigger>
+						<DialogContent size="sm">
+							<DialogHeader>
+								<DialogTitle>Create an invite link</DialogTitle>
+								<DialogDescription>
+									Choose who can use the link and when it expires.
+								</DialogDescription>
+							</DialogHeader>
+							<InviteForm
+								onCreated={(token) => {
+									setCreatedToken(token);
+									setInviting(false);
+								}}
+								org={org}
+							/>
+						</DialogContent>
+					</Dialog>
 				) : null}
 			</SettingsHeader>
-			{canInvite && inviting ? (
-				<InviteForm
-					onCancel={() => setInviting(false)}
-					onCreated={(token) => {
-						setCreatedToken(token);
-						setInviting(false);
-					}}
-					org={org}
-				/>
-			) : null}
 			{createdToken ? <FreshInviteLink token={createdToken} /> : null}
 			<Collection
 				collection={members}
@@ -318,7 +334,10 @@ function MemberRow({
 										<Icon icon={More} />
 									</DropdownMenuTrigger>
 									<DropdownMenuContent align="end" size="sm">
-										<DropdownMenuItem onClick={() => setConfirmRemove(true)}>
+										<DropdownMenuItem
+											onClick={() => setConfirmRemove(true)}
+											variant="destructive"
+										>
 											Remove
 										</DropdownMenuItem>
 									</DropdownMenuContent>
@@ -392,7 +411,12 @@ function LeaveOrgRow({
 	return (
 		<SettingsDangerRow
 			action={
-				<Button onClick={() => setOpen(true)} size="sm" variant="destructive">
+				<Button
+					confirmation={false}
+					onClick={() => setOpen(true)}
+					size="sm"
+					variant="destructive"
+				>
 					Leave org
 				</Button>
 			}
@@ -427,7 +451,12 @@ function DeleteOrgMembershipRow({
 	return (
 		<SettingsDangerRow
 			action={
-				<Button onClick={() => setOpen(true)} size="sm" variant="destructive">
+				<Button
+					confirmation={false}
+					onClick={() => setOpen(true)}
+					size="sm"
+					variant="destructive"
+				>
 					Delete org
 				</Button>
 			}
@@ -501,13 +530,12 @@ function InviteLinksSection({ org }: { org: string }) {
 function InviteForm({
 	org,
 	onCreated,
-	onCancel,
 }: {
 	org: string;
 	onCreated: (token: string) => void;
-	onCancel: () => void;
 }) {
 	const queryClient = useQueryClient();
+	const formId = useId();
 	const [role, setRole] = useState<OrgRole>("member");
 	const [maxUses, setMaxUses] = useState(1);
 	const [expiresInDays, setExpiresInDays] = useState(7);
@@ -535,79 +563,78 @@ function InviteForm({
 	const inputsValid = maxUsesValid && expiryValid;
 
 	return (
-		<SettingsCard>
-			<FormSection
-				aria-label="New invite link"
-				onSubmit={(event) => {
-					event.preventDefault();
-					if (inputsValid) {
-						createMutation.mutate();
-					}
-				}}
-			>
-				<Field>
-					<FieldLabel>Role</FieldLabel>
-					<Select
-						items={ROLE_ITEMS}
-						onValueChange={(value) => {
-							if (isOrgRole(value)) {
-								setRole(value);
-							}
-						}}
-						value={role}
-					>
-						<SelectTrigger>
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							{ROLE_ITEMS.map((item) => (
-								<SelectItem key={item.value} value={item.value}>
-									{item.label}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-				</Field>
-				<Field invalid={!maxUsesValid}>
-					<FieldLabel>Use limit</FieldLabel>
-					<NumberInput
-						max={1000}
-						min={1}
-						onValueChange={(value) => setMaxUses(value ?? 0)}
-						value={maxUses}
-					/>
-					{maxUsesValid ? null : <FieldError>Enter 1 to 1000.</FieldError>}
-				</Field>
-				<Field invalid={!expiryValid}>
-					<FieldLabel>Expires in</FieldLabel>
-					<NumberInput
-						max={90}
-						min={1}
-						onValueChange={(value) => setExpiresInDays(value ?? 0)}
-						unit="days"
-						value={expiresInDays}
-					/>
-					{expiryValid ? null : <FieldError>Enter 1 to 90 days.</FieldError>}
-				</Field>
-				<FormActions
-					primary={
-						<Button
-							disabled={!inputsValid}
-							pending={createMutation.isPending}
-							pendingLabel="Creating"
-							type="submit"
+		<>
+			<DialogBody>
+				<form
+					className="flex flex-col gap-4"
+					id={formId}
+					onSubmit={(event) => {
+						event.preventDefault();
+						if (inputsValid) {
+							createMutation.mutate();
+						}
+					}}
+				>
+					<Field>
+						<FieldLabel>Role</FieldLabel>
+						<Select
+							items={ROLE_ITEMS}
+							onValueChange={(value) => {
+								if (isOrgRole(value)) {
+									setRole(value);
+								}
+							}}
+							value={role}
 						>
-							Create invite link
-						</Button>
-					}
-					secondary={
-						<Button onClick={onCancel} type="button" variant="secondary">
-							Cancel
-						</Button>
-					}
-				/>
-			</FormSection>
-		</SettingsCard>
+							<SelectTrigger>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{ROLE_ITEMS.map((item) => (
+									<SelectItem key={item.value} value={item.value}>
+										{item.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</Field>
+					<Field invalid={!maxUsesValid}>
+						<FieldLabel>Use limit</FieldLabel>
+						<NumberInput
+							max={1000}
+							min={1}
+							onValueChange={(value) => setMaxUses(value ?? 0)}
+							value={maxUses}
+						/>
+						{maxUsesValid ? null : <FieldError>Enter 1 to 1000.</FieldError>}
+					</Field>
+					<Field invalid={!expiryValid}>
+						<FieldLabel>Expires in</FieldLabel>
+						<NumberInput
+							max={90}
+							min={1}
+							onValueChange={(value) => setExpiresInDays(value ?? 0)}
+							unit="days"
+							value={expiresInDays}
+						/>
+						{expiryValid ? null : <FieldError>Enter 1 to 90 days.</FieldError>}
+					</Field>
+				</form>
+			</DialogBody>
+			<DialogFooter>
+				<DialogClose>Cancel</DialogClose>
+				<DialogAction
+					close={false}
+					disabled={!inputsValid}
+					form={formId}
+					pending={createMutation.isPending}
+					pendingLabel="Creating"
+					type="submit"
+				>
+					Create invite link
+				</DialogAction>
+			</DialogFooter>
+		</>
 	);
 }
 
@@ -666,9 +693,10 @@ function InviteLinkRow({
 					{revoked ? null : (
 						<Button
 							aria-label={`Revoke ${roleName} invite link`}
+							confirmation={false}
 							onClick={() => setConfirmRevoke(true)}
 							size="sm"
-							variant="secondary"
+							variant="destructive"
 						>
 							Revoke
 						</Button>

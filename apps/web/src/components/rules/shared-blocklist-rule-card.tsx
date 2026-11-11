@@ -1,5 +1,7 @@
 import { SHARED_BLOCKLIST_RULE_ID } from "@tripwire/contracts";
+import { useState } from "react";
 import { AgentOutline } from "#/components/agent/agent-outline";
+import { ConfirmDestructiveDialog } from "#/components/common/confirm-destructive-dialog";
 import {
 	RULE_CARD_CLASS,
 	RULE_FOOTER_CLASS,
@@ -74,6 +76,7 @@ export function SharedBlocklistRuleCard({
 	onUninstall: () => void;
 }) {
 	const motion = useAgentMotion();
+	const [confirmingUninstall, setConfirmingUninstall] = useState(false);
 
 	return (
 		<div className="relative" id="shared-spam-blocklist">
@@ -94,13 +97,12 @@ export function SharedBlocklistRuleCard({
 							{" "}
 							<Button
 								aria-label="Uninstall Pilot"
-								disabled={!canEdit}
+								confirmation={false}
+								disabled={!canEdit || pending}
 								data-layout-role="pilot-rule-action"
-								onClick={onUninstall}
-								pending={pending || undefined}
-								pendingLabel="Uninstalling"
+								onClick={() => setConfirmingUninstall(true)}
 								size="sm"
-								variant="secondary"
+								variant="destructive"
 							>
 								Uninstall
 							</Button>
@@ -119,6 +121,18 @@ export function SharedBlocklistRuleCard({
 					<a href={siteConfig.pilotUrl}>Browse the public list</a>
 				</CardFooter>
 			</Card>
+			<ConfirmDestructiveDialog
+				actionLabel="Uninstall Pilot"
+				description="Pilot will stop checking new contribution authors after you save this change."
+				onConfirm={() => {
+					onUninstall();
+					return undefined;
+				}}
+				onOpenChange={setConfirmingUninstall}
+				open={confirmingUninstall}
+				pendingLabel="Uninstalling"
+				title="Uninstall Pilot?"
+			/>
 		</div>
 	);
 }

@@ -43,7 +43,6 @@ import {
 import { useCollection } from "#/hooks/use-collection";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { useTimezones } from "#/hooks/use-timezones";
-import { LIVE_FORGES } from "#/lib/forge-copy";
 import { useHomeDigest } from "#/lib/home-digest.query";
 import type { SwitcherRepo } from "#/lib/onboarding.functions";
 import { orgContextQueryOptions, orgHomeQueryOptions } from "#/lib/org.query";
@@ -172,7 +171,7 @@ function InstallCta({ org }: { org: string }) {
 				<EmptyTitle>No repos yet</EmptyTitle>
 				<EmptyDescription>
 					{isAdmin
-						? `Connect ${LIVE_FORGES} and choose the repos Tripwire checks.`
+						? "Connect the repos you want Tripwire to check."
 						: "Ask an admin of this org to connect repos."}
 				</EmptyDescription>
 			</EmptyHeader>

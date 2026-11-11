@@ -10,13 +10,15 @@ import {
 } from "@tanstack/react-router";
 import { renderToString } from "react-dom/server";
 import { type NestedNavItem, ShellNav } from "#/components/layouts/shell-nav";
+import type { OrgHomeState } from "#/lib/onboarding.functions";
 import type { OrgWithPermissions } from "#/lib/org.functions";
-import { orgContextQueryOptions } from "#/lib/org.query";
+import { orgContextQueryOptions, orgHomeQueryOptions } from "#/lib/org.query";
 
 async function renderNav(
 	queue: number | undefined,
 	permissions: OrgWithPermissions["permissions"],
 	parent?: NestedNavItem["parent"],
+	collapsed = false,
 ) {
 	const client = new QueryClient();
 	client.setQueryData(orgContextQueryOptions("team").queryKey, {
@@ -39,7 +41,9 @@ async function renderNav(
 	const activity = createRoute({
 		getParentRoute: () => root,
 		path: "$org/$repo/activity",
-		component: () => <ShellNav counts={{ queue }} />,
+		component: () => (
+			<ShellNav collapsed={collapsed} counts={{ queue }} variant="rail" />
+		),
 	});
 	const run = createRoute({
 		getParentRoute: () => root,
@@ -60,6 +64,52 @@ async function renderNav(
 		history: createMemoryHistory({
 			initialEntries: [parent ? "/runs/42" : "/team/scratch/activity"],
 		}),
+	});
+	await router.load();
+	for (const match of router.state.matches) {
+		if (match.error) throw match.error;
+	}
+	const html = renderToString(<RouterProvider router={router} />).replaceAll(
+		"<!-- -->",
+		"",
+	);
+	client.clear();
+	return html;
+}
+
+async function renderOrgNav(repos: OrgHomeState["repos"]) {
+	const client = new QueryClient();
+	client.setQueryData(orgContextQueryOptions("team").queryKey, {
+		id: "org-team",
+		slug: "team",
+		name: "Team",
+		role: "member",
+		isPersonal: false,
+		avatarHue: null,
+		timezone: null,
+		permissions: ["analytics:read"],
+	});
+	client.setQueryData(orgHomeQueryOptions("team").queryKey, {
+		hasInstallation: true,
+		repos,
+	} satisfies OrgHomeState);
+	const root = createRootRoute({
+		component: () => (
+			<QueryClientProvider client={client}>
+				<Outlet />
+			</QueryClientProvider>
+		),
+	});
+	const home = createRoute({
+		getParentRoute: () => root,
+		path: "$org/home",
+		component: () => <ShellNav counts={{}} variant="rail" />,
+	});
+	const router = createRouter({
+		isServer: true,
+		origin: "https://tripwire.test",
+		routeTree: root.addChildren([home]),
+		history: createMemoryHistory({ initialEntries: ["/team/home"] }),
 	});
 	await router.load();
 	for (const match of router.state.matches) {
@@ -94,6 +144,19 @@ describe("ShellNav review count", () => {
 		expect(html).not.toContain("Human review");
 		expect(html).not.toContain("to review</span>");
 	});
+
+	test("collapsed links keep their tooltip labels as accessible names", async () => {
+		const html = await renderNav(
+			7,
+			["moderation:read", "activity:read", "rules:read"],
+			undefined,
+			true,
+		);
+		expect(html).toContain('aria-label="Human review"');
+		expect(html).toContain('aria-label="Activity"');
+		expect(html).toContain('aria-label="Rules"');
+		expect(html).not.toContain("to review</span>");
+	});
 });
 
 describe("ShellNav run navigation", () => {
@@ -116,5 +179,30 @@ describe("ShellNav run navigation", () => {
 				html.indexOf(">Activity<"),
 			);
 		}
+	});
+});
+
+describe("ShellNav org navigation", () => {
+	test("hides analytics when the org has no repos", async () => {
+		const html = await renderOrgNav([]);
+		expect(html).toContain('href="/team/home"');
+		expect(html).not.toContain('href="/team/analytics"');
+	});
+
+	test("shows analytics when the org has repos", async () => {
+		const html = await renderOrgNav([
+			{
+				id: "repo-1",
+				forge: "github",
+				owner: "tripwire",
+				fullName: "tripwire/team-web",
+				name: "team-web",
+				armed: true,
+				pendingModeration: 0,
+				blocked24h: 0,
+				lastActivityAt: null,
+			},
+		]);
+		expect(html).toContain('href="/team/analytics"');
 	});
 });

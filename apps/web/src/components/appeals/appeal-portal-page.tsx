@@ -8,6 +8,7 @@ import {
 import { useState } from "react";
 import { AppealPageSkeleton } from "#/components/appeals/appeal-page-skeleton";
 import { AppealSignIn } from "#/components/appeals/appeal-sign-in";
+import { ConfirmDestructiveDialog } from "#/components/common/confirm-destructive-dialog";
 import { ContributionAppealLayout } from "#/components/layouts/contribution-appeal-layout";
 import { FormActions } from "#/components/layouts/section";
 import { Button } from "#/design-system/ui/button";
@@ -199,6 +200,7 @@ function NewAppeal({ org, disabled }: { org: string; disabled: boolean }) {
 export function AppealPortalPage({ org }: { org: string }) {
 	const returnTo = `/appeals/${encodeURIComponent(org)}`;
 	const signOut = useSignOut(returnTo);
+	const [signOutOpen, setSignOutOpen] = useState(false);
 	const query = useQuery(contributionAppealPortalOptions(org));
 	if (query.isPending) return <AppealPageSkeleton />;
 	const portal = query.data;
@@ -217,8 +219,7 @@ export function AppealPortalPage({ org }: { org: string }) {
 			headerAction={
 				portal?.state === "signed-in" && (
 					<Button
-						onClick={() => signOut.mutate()}
-						pending={signOut.isPending}
+						onClick={() => setSignOutOpen(true)}
 						size="sm"
 						variant="ghost"
 					>
@@ -227,6 +228,15 @@ export function AppealPortalPage({ org }: { org: string }) {
 				)
 			}
 		>
+			<ConfirmDestructiveDialog
+				actionLabel="Sign out"
+				description="Your appeal portal session ends. You'll need to sign in again to view or submit appeals."
+				onConfirm={() => signOut.mutateAsync()}
+				onOpenChange={setSignOutOpen}
+				open={signOutOpen}
+				pendingLabel="Signing out"
+				title="Sign out of the appeal portal?"
+			/>
 			<div className="flex items-center justify-between">
 				<PageTitle>Appeals</PageTitle>
 				{portal?.state === "signed-in" && !query.isError && (
