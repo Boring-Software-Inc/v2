@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTheme } from "next-themes";
-import { useState } from "react";
+import { type UIEvent, useState } from "react";
 import { ConfirmDestructiveDialog } from "#/components/common/confirm-destructive-dialog";
 import { useFeedback } from "#/components/feedback";
 import { CreateOrgDialog } from "#/components/organizations/create-org-dialog";
@@ -302,6 +302,12 @@ export function AccountMenu({
 	);
 }
 
+/**
+ * Workspace picker with a fixed five-row viewport and a Skiper UI-inspired
+ * progressive blur cue.
+ *
+ * @see https://skiper-ui.com/v1/skiper41
+ */
 function OrganizationDialog({
 	organizations,
 	selectedId,
@@ -320,11 +326,36 @@ function OrganizationDialog({
 	const count = organizations.length;
 	const [query, setQuery] = useState("");
 	const [visibleCount, setVisibleCount] = useState(WORKSPACE_DIALOG_BATCH_SIZE);
+	const [scrollCueVisible, setScrollCueVisible] = useState(false);
 	const searching = query.trim().length > 0;
 	const shownOrganizations = searching
 		? organizations
 		: organizations.slice(0, visibleCount);
 	const hasMore = !searching && shownOrganizations.length < count;
+
+	function handleQueryChange(value: string) {
+		setQuery(value);
+		setScrollCueVisible(
+			value.trim().length === 0 && visibleCount > WORKSPACE_DIALOG_BATCH_SIZE,
+		);
+	}
+
+	function handleOrganizationScroll(event: UIEvent<HTMLDivElement>) {
+		const { clientHeight, scrollHeight, scrollTop } = event.currentTarget;
+		setScrollCueVisible(
+			!searching && scrollHeight - scrollTop - clientHeight > 1,
+		);
+	}
+
+	function revealMoreOrganizations() {
+		const nextVisibleCount = Math.min(
+			visibleCount + WORKSPACE_DIALOG_BATCH_SIZE,
+			count,
+		);
+		setVisibleCount(nextVisibleCount);
+		setScrollCueVisible(nextVisibleCount > WORKSPACE_DIALOG_BATCH_SIZE);
+	}
+
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
 			<DialogContent size="sm">
@@ -338,38 +369,55 @@ function OrganizationDialog({
 					<Command className="rounded-none border-0" label="Workspaces" loop>
 						<CommandInput
 							autoFocus
-							onValueChange={setQuery}
+							onValueChange={handleQueryChange}
 							placeholder="Search workspaces"
 							value={query}
 						/>
-						<CommandList>
+						<CommandList className="max-h-none overflow-visible p-0">
 							<CommandEmpty>No workspaces match</CommandEmpty>
 							<CommandGroup>
-								{shownOrganizations.map((candidate) => (
-									<CommandItem
-										key={candidate.id}
-										keywords={[candidate.slug]}
-										onSelect={() => onSelect(candidate.slug)}
-										value={candidate.name}
+								<div className="relative">
+									<div
+										className="h-[calc(var(--menu-row)*5+var(--space-2))] scroll-py-1 overflow-y-auto overscroll-contain p-1"
+										onScroll={handleOrganizationScroll}
 									>
-										<OrgAvatar
-											hue={candidate.avatarHue}
-											name={candidate.name}
-											size="default"
+										{shownOrganizations.map((candidate) => (
+											<CommandItem
+												key={candidate.id}
+												keywords={[candidate.slug]}
+												onSelect={() => onSelect(candidate.slug)}
+												value={candidate.name}
+											>
+												<OrgAvatar
+													hue={candidate.avatarHue}
+													name={candidate.name}
+													size="default"
+												/>
+												<CommandLabel>{candidate.name}</CommandLabel>
+												{candidate.id === selectedId ? (
+													<Icon className="ms-auto" icon={Check} />
+												) : null}
+											</CommandItem>
+										))}
+									</div>
+									{scrollCueVisible ? (
+										<div
+											aria-hidden
+											className="pointer-events-none absolute inset-x-0 bottom-0 h-[calc(var(--menu-row)*2)] select-none [-webkit-backdrop-filter:blur(var(--scroll-cue-blur))] [backdrop-filter:blur(var(--scroll-cue-blur))]"
+											style={{
+												background:
+													"linear-gradient(to bottom, transparent, var(--paper))",
+												maskImage:
+													"linear-gradient(to bottom, transparent, var(--ink))",
+												WebkitMaskImage:
+													"linear-gradient(to bottom, transparent, var(--ink))",
+											}}
 										/>
-										<CommandLabel>{candidate.name}</CommandLabel>
-										{candidate.id === selectedId ? (
-											<Icon className="ms-auto" icon={Check} />
-										) : null}
-									</CommandItem>
-								))}
+									) : null}
+								</div>
 								{hasMore ? (
 									<CommandItem
-										onSelect={() =>
-											setVisibleCount((current) =>
-												Math.min(current + WORKSPACE_DIALOG_BATCH_SIZE, count),
-											)
-										}
+										onSelect={revealMoreOrganizations}
 										value="View more"
 									>
 										<Icon icon={ChevronDown} />
