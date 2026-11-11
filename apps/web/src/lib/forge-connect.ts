@@ -2,20 +2,6 @@ import { FORGE_BY_ID, type ForgeId } from "@tripwire/contracts";
 import { authClient } from "#/lib/auth-client";
 
 /**
- * Thrown when a forge rejected our stored credentials and no refresh can save
- * it — the user has to re-authorize. Distinct from a generic failure because
- * the recovery is a button, not a retry.
- */
-export class ForgeReauthRequiredError extends Error {
-	readonly forge: ForgeId;
-	constructor(forge: ForgeId, message: string) {
-		super(message);
-		this.name = "ForgeReauthRequiredError";
-		this.forge = forge;
-	}
-}
-
-/**
  * Re-run OAuth for a forge the user has ALREADY linked, to replace dead tokens.
  *
  * `linkSocial`, not `signIn.social`: signing in again is a no-op once a session
@@ -52,11 +38,4 @@ const PENDING_CONNECT_KEY = "tripwire:pending-forge-connect";
 
 export function markPendingConnect(forge: ForgeId): void {
 	sessionStorage.setItem(PENDING_CONNECT_KEY, forge);
-}
-
-/** Reads AND clears — a reload must not re-trigger the import. */
-export function takePendingConnect(): string | null {
-	const value = sessionStorage.getItem(PENDING_CONNECT_KEY);
-	sessionStorage.removeItem(PENDING_CONNECT_KEY);
-	return value;
 }
