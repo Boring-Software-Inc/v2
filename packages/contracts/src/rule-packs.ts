@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { CONTRIBUTOR_ALLOWLIST_RULE_ID } from "./rules.ts";
+import { SHARED_BLOCKLIST_RULE_ID } from "./shared-blocklist.ts";
 import { type JsonValue, jsonValueSchema } from "./workflow.ts";
 
 export interface RulePack {
@@ -52,6 +54,8 @@ export const RULE_FALLBACK_ORDER: readonly string[] = [
 	"ai-review",
 	"owned-repo-stars",
 	"merged-pr-repo-stars",
+	SHARED_BLOCKLIST_RULE_ID,
+	CONTRIBUTOR_ALLOWLIST_RULE_ID,
 ];
 
 export const MOST_USED_MIN_REPOS = 10;

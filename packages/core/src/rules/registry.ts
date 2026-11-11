@@ -5,6 +5,7 @@ import {
 } from "@tripwire/contracts";
 import { accountAge } from "./account-age.ts";
 import { aiReview, aiReviewV2, aiReviewV3 } from "./ai-review/rule.ts";
+import { contributorAllowlist } from "./contributor-allowlist.ts";
 import { cryptoAddress, cryptoAddressV2 } from "./crypto-address.ts";
 import { type RuleDefinition, ruleRef } from "./define.ts";
 import { englishOnly } from "./english-only.ts";
@@ -13,7 +14,10 @@ import { maxFilesChanged } from "./max-files-changed.ts";
 import { minMergedPrs, minMergedPrsV2 } from "./min-merged-prs.ts";
 import { prRateLimit } from "./pr-rate-limit.ts";
 import { profileReadme } from "./profile-readme.ts";
-import { sharedSpamBlocklist } from "./shared-spam-blocklist.ts";
+import {
+	sharedSpamBlocklist,
+	sharedSpamBlocklistV2,
+} from "./shared-spam-blocklist.ts";
 import { mergedPrRepoStars, ownedRepoStars } from "./starred-contributions.ts";
 
 /**
@@ -32,11 +36,13 @@ function register(rule: RuleDefinition): void {
 }
 
 register(accountAge);
+register(contributorAllowlist);
 // @1 stays registered (frozen) so stored runs stay interpretable; @2 is current.
 register(minMergedPrs);
 register(minMergedPrsV2);
 register(ownedRepoStars);
 register(sharedSpamBlocklist);
+register(sharedSpamBlocklistV2);
 register(mergedPrRepoStars);
 register(prRateLimit);
 register(maxFilesChanged);

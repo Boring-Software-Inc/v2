@@ -146,6 +146,7 @@ const SDK_EVENTS: Partial<
 	"change-request.opened": "changeRequest.opened",
 	"change-request.updated": "changeRequest.updated",
 	"change-request.closed": "changeRequest.closed",
+	"issue.opened": "issue.opened",
 	"comment.created": "comment.created",
 	push: "repository.pushed",
 };
@@ -720,9 +721,37 @@ const sdkCompileResultSchema = z.discriminatedUnion("ok", [
 	}),
 ]);
 
-const SDK_PACKAGE = "@tripwire-sh/sdk";
+export const SDK_PACKAGE = "@tripwire-sh/sdk";
 const MIN_WORKFLOW_SDK = "0.1.2";
 const sdkPackageManifest = z.object({ name: z.string(), version: z.string() });
+
+export type WorkflowSdkMinimum = "0.1.2" | "0.1.4" | "0.1.5";
+
+export function supportsWorkflowSdk(
+	version: string,
+	minimum: WorkflowSdkMinimum,
+): boolean {
+	const release =
+		/^(\d+)\.(\d+)\.(\d+)(-staging\.[1-9]\d*)?(?:\+[^\s]+)?$/.exec(version);
+	if (!release || (release[4] && !IS_STAGING)) return false;
+	const patch = Math.max(Number(minimum.split(".")[2]), release[4] ? 3 : 2);
+	return (
+		Number(release[1]) > 0 ||
+		Number(release[2]) > 1 ||
+		(Number(release[2]) === 1 && Number(release[3]) >= patch)
+	);
+}
+
+export class WorkflowSdkUpgradeRequired extends Error {
+	constructor(
+		readonly file: string,
+		readonly installed: string,
+		readonly minimum: WorkflowSdkMinimum,
+		message: string,
+	) {
+		super(message);
+	}
+}
 
 /** Resolve from the workflow so a global CLI checks the SDK the project actually uses. */
 export function resolveWorkflowSdk(
@@ -736,12 +765,18 @@ export function resolveWorkflowSdk(
 				(node.ref === "owned-repo-stars@1" ||
 					node.ref === "merged-pr-repo-stars@1"),
 		) === true;
-	const minimum = stars ? "0.1.4" : MIN_WORKFLOW_SDK;
-	const requirement = stars
-		? "Repository star checks need"
-		: "Workflow commands need";
+	const issue = definition?.nodes.some(
+		(node) => node.type === "trigger" && node.kinds.includes("issue.opened"),
+	);
+	const minimum = issue ? "0.1.5" : stars ? "0.1.4" : MIN_WORKFLOW_SDK;
+	const requirement = issue
+		? "Issue workflows need"
+		: stars
+			? "Repository star checks need"
+			: "Workflow commands need";
 	const path = resolve(file);
-	const install = `Run npm install ${SDK_PACKAGE}@${IS_STAGING ? "staging" : "latest"} in your project.`;
+	const tag = IS_STAGING && !issue ? "staging" : "latest";
+	const install = `Run npm install ${SDK_PACKAGE}@${tag} in your project.`;
 	let entry: string;
 	try {
 		entry = createRequire(pathToFileURL(path)).resolve(
@@ -760,21 +795,11 @@ export function resolveWorkflowSdk(
 			);
 			if (parsed.success && parsed.data.name === SDK_PACKAGE) {
 				const { version } = parsed.data;
-				const release =
-					/^(\d+)\.(\d+)\.(\d+)(-staging\.[1-9]\d*)?(?:\+[^\s]+)?$/.exec(
-						version,
-					);
-				if (
-					release &&
-					(!release[4] || IS_STAGING) &&
-					(Number(release[1]) > 0 ||
-						Number(release[2]) > 1 ||
-						(Number(release[2]) === 1 &&
-							Number(release[3]) >= (stars ? 4 : release[4] ? 3 : 2)))
-				) {
-					return entry;
-				}
-				throw new Error(
+				if (supportsWorkflowSdk(version, minimum)) return entry;
+				throw new WorkflowSdkUpgradeRequired(
+					path,
+					version,
+					minimum,
 					`This project uses ${SDK_PACKAGE}@${version}. ${requirement} ${minimum} or later. ${install}`,
 				);
 			}
@@ -969,7 +994,23 @@ export interface PulledWorkflow {
 }
 
 export function pulledWorkflows(data: JsonValue | null): PulledWorkflow[] {
-	return pulledSchema.parse(data).workflows.map((entry) => ({
+	const parsed = pulledSchema.safeParse(data);
+	if (!parsed.success) {
+		if (
+			parsed.error.issues.some(
+				({ code, path }) =>
+					code === "invalid_value" &&
+					path[0] === "workflows" &&
+					path.at(-2) === "kinds",
+			)
+		) {
+			throw new Error(
+				"A workflow uses a trigger this CLI does not recognize. Update with npm install -g @tripwire-sh/cli@latest and try again.",
+			);
+		}
+		throw parsed.error;
+	}
+	return parsed.data.workflows.map((entry) => ({
 		id: entry.id,
 		appId: entry.appId,
 		name: entry.name ?? entry.definition.name,

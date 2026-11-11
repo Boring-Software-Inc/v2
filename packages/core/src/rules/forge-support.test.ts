@@ -50,6 +50,8 @@ const AUDITED_BLOCKS = new Map<string, readonly string[]>(
 		// no users — so every rule that reads more than the webhook payload is inert
 		// there. Verified against its openapi.json, which has 8 paths and no reads.
 		"min-merged-prs": ["opengit", "gitcafe"],
+		"shared-spam-blocklist": ["opengit", "gitcafe"],
+		"contributor-allowlist": ["opengit", "gitcafe"],
 		"owned-repo-stars": ["opengit", "gitcafe"],
 		"merged-pr-repo-stars": ["opengit", "gitcafe"],
 		"pr-rate-limit": ["opengit", "gitcafe"],

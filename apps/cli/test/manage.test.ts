@@ -719,6 +719,52 @@ export default workflows({
 		expect(result.stdout).not.toContain("Select All");
 	});
 
+	function serveIssueWorkflow(kind: string) {
+		const [first] = z
+			.object({ workflows: z.array(z.json()) })
+			.parse(cannedResult("get_workflow")).workflows;
+		server.answerNext("get_workflow", {
+			workflows: [
+				first ?? null,
+				{
+					id: "issue-triage",
+					definition: {
+						id: "issue-triage",
+						name: "Issue triage",
+						version: 1,
+						nodes: [
+							{ id: "opened", type: "trigger", kinds: [kind] },
+							{ id: "close", type: "action", action: "close" },
+						],
+						edges: [{ id: "close-issue", from: "opened", to: "close" }],
+					},
+				},
+			],
+		});
+	}
+
+	test("pulling every workflow includes issue workflows", async () => {
+		serveIssueWorkflow("issue.opened");
+		const result = await runCli(
+			["workflows", "pull", "--all", "--repo", "scratch", "--file", file()],
+			env(),
+		);
+		expect(result.code).toBe(0);
+		expect(result.stdout).toContain("(2 workflows)");
+		expect(readFileSync(file(), "utf8")).toContain('trigger("issue.opened")');
+	});
+
+	test("pull gives an update command when a trigger is newer than the CLI", async () => {
+		serveIssueWorkflow("issue.reopened");
+		const result = await runCli(
+			["workflows", "pull", "--repo", "scratch", "--file", file()],
+			env(),
+		);
+		expect(result.code).toBe(1);
+		expect(result.stderr).toContain("npm install -g @tripwire-sh/cli@latest");
+		expect(result.stderr).not.toContain("invalid_value");
+	});
+
 	test("validate compiles the pulled file and says it can be turned on", async () => {
 		await pulled();
 		const result = await runCli(

@@ -5,6 +5,11 @@ import { threadKindSchema } from "./insights.ts";
 import { itemTypeSchema, modStatSchema } from "./moderation.ts";
 import type { RedactionItem } from "./redaction.ts";
 import { aiReviewConfigSchema } from "./review.ts";
+import {
+	SHARED_BLOCKLIST_RULE_ID,
+	SHARED_BLOCKLIST_RULE_VERSION,
+	sharedBlocklistRuleConfigSchema,
+} from "./shared-blocklist.ts";
 import type { JsonValue, WorkflowDefinition } from "./workflow.ts";
 
 /**
@@ -13,6 +18,13 @@ import type { JsonValue, WorkflowDefinition } from "./workflow.ts";
  * `AutomodMatch`. The §6 `RuleResult` envelope lands with the rules-registry
  * build step.
  */
+
+export const CONTRIBUTOR_ALLOWLIST_RULE_ID = "contributor-allowlist";
+export const CONTRIBUTOR_ALLOWLIST_RULE_REF = `${CONTRIBUTOR_ALLOWLIST_RULE_ID}@1`;
+export const contributorAllowlistConfigSchema = z.strictObject({});
+export const contributorAllowlistEvidenceSchema = z.strictObject({
+	allowlisted: z.boolean(),
+});
 
 export const ruleCategorySchema = z.enum([
 	"blocklist",
@@ -410,6 +422,32 @@ export const RULE_CATALOG = [
 		contributorLabel: "add a short bio to your profile.",
 	},
 	{
+		ruleId: CONTRIBUTOR_ALLOWLIST_RULE_ID,
+		forges: ["github"],
+		version: 1,
+		name: "Contributor allowlist",
+		blurb: "requires the author to be on this repository’s allowlist.",
+		configSchema: contributorAllowlistConfigSchema,
+		defaultConfig: {},
+		optIn: true,
+		description:
+			"Checks whether the author's GitHub account is on the repository allowlist.",
+		contributorLabel: "ask a maintainer for access to contribute.",
+	},
+	{
+		ruleId: SHARED_BLOCKLIST_RULE_ID,
+		forges: ["github"],
+		version: SHARED_BLOCKLIST_RULE_VERSION,
+		name: "Pilot",
+		blurb: "requires the author to be absent from the Pilot list.",
+		configSchema: sharedBlocklistRuleConfigSchema,
+		defaultConfig: {},
+		optIn: true,
+		description:
+			"Fails when the author of a new issue or pull request is listed in Pilot.",
+		contributorLabel: "the author did not pass the Pilot check.",
+	},
+	{
 		ruleId: "ai-review",
 		/** reads the diff; open-git exposes no files endpoint — see the forge-capability audit in
 		 * `core/src/rules/forge-support.test.ts`. */
@@ -802,6 +840,7 @@ export const RULE_PARAMS = {
 		],
 	},
 	"crypto-address": { sentences: [], params: [] },
+	[SHARED_BLOCKLIST_RULE_ID]: { sentences: [], params: [] },
 	honeypot: {
 		sentences: [
 			"blocks any change request that touches {paths}, which no legitimate change should need",
@@ -828,6 +867,10 @@ export const RULE_PARAMS = {
 				default: 32,
 			},
 		],
+	},
+	[CONTRIBUTOR_ALLOWLIST_RULE_ID]: {
+		sentences: ["requires the author to be on this repository’s allowlist"],
+		params: [],
 	},
 	"ai-review": {
 		sentences: ["reviews the change in up to {maxSteps}"],

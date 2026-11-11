@@ -6,6 +6,7 @@ import {
 	DEFAULT_RESPONSE_CONFIG,
 	planSurfaces,
 	redactionPolicySchema,
+	STANDALONE_MODERATION_NODE_ID,
 	type WorkflowDefinition,
 } from "@tripwire/contracts";
 import { skipWhenDraft } from "@tripwire/utils";
@@ -1249,4 +1250,25 @@ describe("Skip when on the run page", () => {
 		]);
 		expect(branch && branchOutcomeLabel(branch)?.label).toBe("Changes needed");
 	});
+});
+
+test("standalone outcomes identify the deciding rule for maintainers", () => {
+	const deciding = rule("default@1:age", "account-age@1", "fail");
+	const outcome = {
+		...rule(STANDALONE_MODERATION_NODE_ID, "account-age@1", "pass"),
+		nodeKind: "action",
+		ruleRef: null,
+		output: {
+			outcome: "block",
+			ruleRef: "account-age@1",
+			failed: [{ nodeId: "age", ref: "account-age@1", outcome: "block" }],
+		},
+	} satisfies RunStepView;
+	const run = view({ steps: [deciding, outcome] });
+	expect(buildRunChain(run).outcome.detail).toBe(
+		"Tripwire selected Block after Account age failed.",
+	);
+	const publicRun = toPublicRunView(run);
+	expect(publicRun.steps.map((step) => step.nodeId)).toEqual([deciding.nodeId]);
+	expect(buildRunChain(publicRun).outcome.detail).toBeNull();
 });

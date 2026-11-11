@@ -4,6 +4,7 @@ import { IS_STAGING, SERVER_NAME, VERSION } from "#/config";
 import { runInstall } from "#/install";
 import { type ManageDeps, registerManageCommands } from "#/manage";
 import type { System } from "#/system";
+import { updateCli } from "#/update";
 
 export async function main(system: System, argv: string[]): Promise<void> {
 	const program = buildProgram(system);
@@ -16,11 +17,28 @@ export async function main(system: System, argv: string[]): Promise<void> {
 	if (json) {
 		program.configureOutput({ writeErr: () => undefined });
 	}
+	program.hook("preAction", async () => {
+		const code = await updateCli(system, argv);
+		if (code !== undefined) {
+			throw new CommanderError(code, "tripwire.updateFinished", "");
+		}
+	});
 	try {
+		if (argv.length === 1 && (argv[0] === "--version" || argv[0] === "-V")) {
+			const code = await updateCli(system, argv);
+			if (code !== undefined) {
+				process.exitCode = code;
+				return;
+			}
+		}
 		await program.parseAsync(argv, { from: "user" });
 	} catch (error) {
 		if (!(error instanceof CommanderError)) {
 			throw error;
+		}
+		if (error.code === "tripwire.updateFinished") {
+			process.exitCode = error.exitCode;
+			return;
 		}
 		if (
 			error.code === "commander.helpDisplayed" ||

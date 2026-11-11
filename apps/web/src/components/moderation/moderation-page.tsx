@@ -4,6 +4,7 @@ import { ChartAtRest } from "#/components/analytics/chart-at-rest";
 import { BackfillProgress } from "#/components/arming/backfill-progress";
 import { Collection } from "#/components/collection/collection";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { ContributionAppealsQueue } from "#/components/moderation/contribution-appeals-queue";
 import { MODERATION_COLLECTION } from "#/components/moderation/moderation-collection";
 import { ModerationPageFrame } from "#/components/moderation/moderation-page-frame";
 import {
@@ -91,7 +92,10 @@ export function ModerationPage() {
 	) {
 		return (
 			<DashboardLayout counts={{}}>
-				<ModerationPageFrame>{checklist}</ModerationPageFrame>
+				<ModerationPageFrame>
+					{checklist}
+					<ContributionAppealsQueue org={org} repo={repoName} />
+				</ModerationPageFrame>
 			</DashboardLayout>
 		);
 	}
@@ -230,6 +234,7 @@ export function ModerationPage() {
 					<div data-layout-role="moderation-primary">
 						<BackfillProgress org={org} repo={repoName} />
 						<div data-layout-role="moderation-queue">{queueContent}</div>
+						<ContributionAppealsQueue org={org} repo={repoName} />
 					</div>
 					<div data-layout-role="moderation-secondary">{analyticsContent}</div>
 				</div>

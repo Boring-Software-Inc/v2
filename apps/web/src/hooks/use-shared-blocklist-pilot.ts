@@ -16,14 +16,14 @@ export function useSharedBlocklistPilot() {
 	const scope = useActiveScope();
 	const org = scope.org?.slug ?? "";
 	const repo = scope.repo ?? "";
-	const canManage = useOrgPermission(org, "rules:manage");
+	const canRead = useOrgPermission(org, "rules:read");
 	const queryClient = useQueryClient();
 	const queryKey = ["shared-blocklist-pilot", org, repo] as const;
 	const saving = useIsMutating({ mutationKey: queryKey, exact: true }) > 0;
 	const pilot = useQuery({
 		queryKey,
 		queryFn: () => getSharedBlocklistPilot({ data: { org, repo } }),
-		enabled: Boolean(org && repo && canManage),
+		enabled: Boolean(org && repo && canRead),
 		retry: false,
 	});
 	const save = useMutation({
@@ -51,7 +51,7 @@ export function useSharedBlocklistPilot() {
 	return {
 		org,
 		repo,
-		pilot: canManage ? pilot.data : null,
+		pilot: canRead ? pilot.data : null,
 		save,
 		saving,
 		installedAt: saves.at(-1),

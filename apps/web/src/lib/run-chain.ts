@@ -6,6 +6,7 @@ import {
 	exceptionRuleNodeIds,
 	exceptionRuleNodes,
 	isHeldVerdict,
+	MODERATION_OUTCOME_LABELS,
 	RUN_RESULT_LABELS,
 	type RunResult,
 	redactionHides,
@@ -13,6 +14,9 @@ import {
 	ruleIdOf,
 	runResult,
 	runResultLabel,
+	STANDALONE_MODERATION_NODE_ID,
+	standaloneModerationDecisionSchema,
+	standaloneModerationWaiverSchema,
 	summaryRevealsHidden,
 	type WorkflowDefinition,
 } from "@tripwire/contracts";
@@ -870,12 +874,36 @@ export function runViewResult(run: RunView): RunResult | null {
 	});
 }
 
+function standaloneOutcomeDetail(run: RunView): string | null {
+	if (run.access !== "full" || run.stepsHidden) return null;
+	const decision = standaloneModerationDecisionSchema.safeParse(
+		run.steps.find((step) => step.nodeId === STANDALONE_MODERATION_NODE_ID)
+			?.output,
+	);
+	const waived = run.steps.some(
+		(step) =>
+			step.nodeId === `${STANDALONE_MODERATION_NODE_ID}:resume` &&
+			standaloneModerationWaiverSchema.safeParse(step.output).success,
+	);
+	if (!decision.success)
+		return waived ? "Tripwire applied the approved appeal." : null;
+	const { outcome, ruleRef } = decision.data;
+	const name =
+		run.steps.find((step) => step.ruleRef === ruleRef && step.status === "fail")
+			?.ruleName ?? ruleDisplayName(ruleRef);
+	const label = MODERATION_OUTCOME_LABELS[outcome];
+	return waived
+		? `Appeal approved. Tripwire had selected ${label} after ${name} failed.`
+		: `Tripwire selected ${label} after ${name} failed.`;
+}
+
 function verdictOutcome(run: RunView): ChainOutcome {
+	const detail = standaloneOutcomeDetail(run);
 	const offsetMs = offsetBetween(run.createdAt, outcomeReachedAt(run));
 	const base = {
 		at: null,
 		offsetMs,
-		detail: null,
+		detail,
 		openReview: null,
 		chips: outcomeChips(run),
 	};
@@ -952,7 +980,7 @@ function verdictOutcome(run: RunView): ChainOutcome {
 				detail:
 					!run.aiReviewNotRun && run.reviews.some((review) => review.degraded)
 						? "Tripwire could not check every rule."
-						: null,
+						: detail,
 			};
 		default:
 			return {

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { checkStateSchema } from "./check.ts";
+import { appealRestorationGuardSchema } from "./contribution-appeals.ts";
 import { verdictSchema } from "./runs.ts";
 import { storedJsonValueSchema } from "./serialization.ts";
 import {
@@ -89,6 +90,14 @@ export const persistedForgeActionSchema = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("remove-label"), payload: labelParamsSchema }),
 	z.object({ kind: z.literal("lock"), payload: lockParamsSchema }),
 	z.object({ kind: z.literal("close"), payload: z.object({}) }),
+	z.object({
+		kind: z.literal("reopen"),
+		payload: appealRestorationGuardSchema,
+	}),
+	z.object({
+		kind: z.literal("unlock"),
+		payload: appealRestorationGuardSchema,
+	}),
 	z.object({
 		kind: z.literal("post-comment"),
 		payload: postCommentParamsSchema.extend({ marker: z.string() }),
@@ -203,6 +212,10 @@ export function actionDone(kind: string, params: ActionParams): string | null {
 		}
 		case "lock":
 			return "Locked";
+		case "unlock":
+			return "Unlocked";
+		case "reopen":
+			return "Reopened";
 		case "close":
 			return "Closed";
 		default:

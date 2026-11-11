@@ -4,11 +4,12 @@ import { defineRule } from "./define.ts";
 import { getRule, listRules } from "./registry.ts";
 
 describe("registry", () => {
-	test("every launch rule is registered; ai-review + min-merged-prs carry @1 AND @2", () => {
+	test("registers every current and historical rule version", () => {
 		const refs = listRules().map((r) => r.ref);
 		expect(refs.sort()).toEqual(
 			[
 				"account-age@1",
+				"contributor-allowlist@1",
 				// ai-review@1 stays registered so stored @1 runs remain interpretable;
 				// @2 (backticked findings) is the current version.
 				"ai-review@1",
@@ -25,6 +26,7 @@ describe("registry", () => {
 				"min-merged-prs@2",
 				"owned-repo-stars@1",
 				"shared-spam-blocklist@1",
+				"shared-spam-blocklist@2",
 				"merged-pr-repo-stars@1",
 				"pr-rate-limit@1",
 				"profile-readme@1",

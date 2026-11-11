@@ -422,6 +422,9 @@ function issueTail(input: CommentInput, level: number) {
 
 export interface CommentInput extends OutcomeIssues {
 	verdict: Verdict;
+	subjectKind?: "issue" | "change-request";
+	standaloneWarning?: boolean;
+	appealUrl?: string;
 	contributorLogin: string;
 	reasons: CommentReason[];
 	runUrl: string;
@@ -576,6 +579,19 @@ function headlineText(input: CommentInput, level: number): string {
 		previousVerdict: input.previousVerdict,
 	});
 	const notes = notesLine(input.notes ?? []);
+	if (input.verdict === "pass" && input.standaloneWarning && notes) {
+		return notes;
+	}
+	if (input.subjectKind === "issue") {
+		switch (input.verdict) {
+			case "pass":
+				return "Tripwire approved this issue.";
+			case "block":
+				return "Tripwire locked this issue.";
+			case "needs_review":
+				return `@${input.contributorLogin}, this issue needs human review. A maintainer will decide whether it stays open for discussion.`;
+		}
+	}
 	return input.verdict === "pass" && notes ? `${headline} ${notes}` : headline;
 }
 
@@ -776,7 +792,7 @@ function renderBody(
 	surface: BlockRenderSurface,
 ): string {
 	const notes = (input.notes ?? []).length > 0;
-	return renderBlocks(
+	const body = renderBlocks(
 		blocksFor(config, input.verdict, { notes, surface }),
 		input,
 		{
@@ -785,6 +801,9 @@ function renderBody(
 			viewer: "outsider",
 		},
 	);
+	return body && input.appealUrl && policy.showHelp
+		? `${body}\n\n[Request a review](${input.appealUrl})`
+		: body;
 }
 
 function gifAlt(title: string): string {

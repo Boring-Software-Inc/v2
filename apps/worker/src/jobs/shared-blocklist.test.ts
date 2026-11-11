@@ -2,23 +2,49 @@ import { expect, test } from "bun:test";
 import {
 	normalizedEventSchema,
 	SHARED_BLOCKLIST_MAX_AGE_MS,
-	sharedBlocklistAvailable,
+	SHARED_BLOCKLIST_RULE_REF,
+	type SharedBlocklistEvidence,
 	sharedBlocklistSnapshotSchema,
+	type WorkflowDefinition,
+	workflowReadiness,
 } from "@tripwire/contracts";
-import { evaluateRule, executeWorkflow, getRule } from "@tripwire/core";
-import { sharedBlocklistReviewWorkflow } from "./shared-blocklist.ts";
+import { executeWorkflow } from "@tripwire/core";
+import { normalizeWebhook } from "@tripwire/forge-github";
+import pino from "pino";
+import { makeEvaluator } from "./run-workflows.ts";
+import {
+	sharedBlocklistEvidence,
+	sharedBlocklistReviewWorkflow,
+} from "./shared-blocklist.ts";
 
-test("only an exact account ID on a fresh list can queue human review", async () => {
-	const event = normalizedEventSchema.parse(
-		await Bun.file(
-			new URL(
-				"../../../../packages/core/fixtures/change-request.opened.event.json",
-				import.meta.url,
-			),
-		).json(),
-	);
-	if (event.kind !== "change-request.opened")
-		throw new Error("Expected an opened pull request");
+test.each([
+	"change-request.opened",
+	"issue.opened",
+] as const)("Pilot evaluates the author of %s against a fresh snapshot", async (kind) => {
+	const fixture = (path: string) =>
+		Bun.file(new URL(path, import.meta.url)).json();
+	const event =
+		kind === "issue.opened"
+			? normalizeWebhook(
+					{
+						deliveryId: "pilot-issue-opened",
+						eventName: "issues",
+						signature: null,
+						body: JSON.stringify({
+							...(await fixture(
+								"../../../../packages/forge-github/fixtures/issue_comment.created.json",
+							)),
+							action: "opened",
+						}),
+					},
+					"2026-11-07T12:00:00Z",
+				)
+			: normalizedEventSchema.parse(
+					await fixture(
+						"../../../../packages/core/fixtures/change-request.opened.event.json",
+					),
+				);
+	if (event?.kind !== kind) throw new Error(`Expected ${kind}`);
 	const now = Date.parse("2026-11-07T12:00:00Z");
 	const snapshot = sharedBlocklistSnapshotSchema.parse({
 		version: 1,
@@ -35,80 +61,125 @@ test("only an exact account ID on a fresh list can queue human review", async ()
 			},
 		],
 	});
+	const match = sharedBlocklistEvidence(event, snapshot, now);
+	expect(match).toEqual({
+		accountId: event.actor.externalId,
+		reason: "Recorded test match",
+		revision: 5,
+	});
 	expect(
-		sharedBlocklistAvailable(undefined, { forge: "github", externalId: "1" }),
-	).toBe(false);
-	expect(
-		sharedBlocklistAvailable("1", { forge: "gitcafe", externalId: "1" }),
-	).toBe(false);
-	expect(
-		sharedBlocklistAvailable("1", { forge: "github", externalId: "1" }),
-	).toBe(true);
-	expect(
-		sharedBlocklistReviewWorkflow(
+		sharedBlocklistEvidence(
 			{ ...event, actor: { ...event.actor, externalId: "1" } },
 			snapshot,
 			now,
 		),
-	).toBeNull();
-	expect(
-		sharedBlocklistReviewWorkflow(
-			event,
-			snapshot,
-			now + SHARED_BLOCKLIST_MAX_AGE_MS,
-		),
-	).toBeNull();
-	expect(
-		sharedBlocklistReviewWorkflow(event, { ...snapshot, entries: [] }, now),
-	).toBeNull();
+	).toEqual({ revision: 5 });
+	const notListed = sharedBlocklistEvidence(
+		event,
+		{ ...snapshot, entries: [] },
+		now,
+	);
+	expect(notListed).toEqual({ revision: 5 });
+	const stale = sharedBlocklistEvidence(
+		event,
+		snapshot,
+		now + SHARED_BLOCKLIST_MAX_AGE_MS,
+	);
+	expect(stale).toBeNull();
+	const expired = sharedBlocklistSnapshotSchema.parse({
+		...snapshot,
+		entries: snapshot.entries.map((entry) => ({
+			...entry,
+			expiresAt: new Date(now).toISOString(),
+		})),
+	});
+	expect(sharedBlocklistEvidence(event, expired, now)).toEqual({ revision: 5 });
 	const permanent = sharedBlocklistSnapshotSchema.parse({
 		...snapshot,
-		entries: [
+		entries: snapshot.entries.map(({ expiresAt: _, ...entry }) => entry),
+	});
+	expect(sharedBlocklistEvidence(event, permanent, now)).toEqual(match);
+
+	const date = new Date(now).toISOString();
+	const evaluator = (evidence: SharedBlocklistEvidence | null) =>
+		makeEvaluator(
 			{
-				accountId: event.actor.externalId,
-				login: "older-handle",
-				reason: "Recorded test match",
+				event,
+				now: date,
+				contributor: null,
+				diff: null,
+				commits: null,
+				sharedBlocklist: evidence,
+			},
+			pino({ level: "silent" }),
+		);
+	const run = (
+		definition: WorkflowDefinition,
+		evidence: SharedBlocklistEvidence | null,
+	) =>
+		executeWorkflow({
+			definition,
+			event,
+			now: () => date,
+			evaluateRuleRef: evaluator(evidence),
+		});
+
+	const review = sharedBlocklistReviewWorkflow();
+	if (kind === "change-request.opened") {
+		expect((await run(review, match)).pausedAtNodeIds).toEqual(["review"]);
+		expect((await run(review, notListed)).actions).toEqual([]);
+	} else {
+		expect((await run(review, match)).actions).toEqual([]);
+		expect((await run(review, match)).pausedAtNodeIds).toEqual([]);
+	}
+
+	const authored: WorkflowDefinition = {
+		...review,
+		nodes: [
+			{ id: "opened", type: "trigger", kinds: [kind] },
+			{ id: "pilot", type: "rule", ref: SHARED_BLOCKLIST_RULE_REF, config: {} },
+			{ id: "close", type: "action", action: "close" },
+			{
+				id: "comment",
+				type: "action",
+				action: "post-comment",
+				params: { message: "Thanks for the report." },
 			},
 		],
-	});
-	expect(permanent.entries[0]?.expiresAt).toBeNull();
-	expect(sharedBlocklistReviewWorkflow(event, permanent, now)).not.toBeNull();
+		edges: [
+			{ id: "check", from: "opened", to: "pilot" },
+			{ id: "matched", from: "pilot", to: "close", when: "fail" },
+			{ id: "unlisted", from: "pilot", to: "comment", when: "pass" },
+		],
+	};
+	expect(workflowReadiness(authored).canTurnOn).toBe(true);
 	expect(
-		sharedBlocklistReviewWorkflow(
-			event,
-			{
-				...permanent,
-				entries: permanent.entries.map((entry) => ({
-					...entry,
-					expiresAt: new Date(now).toISOString(),
-				})),
-			},
-			now,
-		),
-	).toBeNull();
-	const definition = sharedBlocklistReviewWorkflow(event, snapshot, now);
-	expect(definition).not.toBeNull();
-	if (!definition) throw new Error("Expected a review workflow");
-	const date = new Date(now).toISOString();
-	const result = await executeWorkflow({
-		definition,
-		event,
-		now: () => date,
-		evaluateRuleRef: (ref, config) => {
-			const rule = getRule(ref);
-			if (!rule) throw new Error("Expected a registered rule");
-			return evaluateRule(
-				rule,
-				{ event, now: date, contributor: null, diff: null, commits: null },
-				config,
-			);
-		},
-	});
-	expect(result.verdict).toBe("needs_review");
-	expect(result.pausedAtNodeIds).toEqual(["review"]);
+		(await run(authored, match)).actions.map(({ action }) => action),
+	).toEqual(["close"]);
 	expect(
-		result.actions.every(
-			({ action }) => action !== "block" && action !== "close",
+		(await run(authored, notListed)).actions.map(({ action }) => action),
+	).toEqual(["post-comment"]);
+	expect((await run(authored, stale)).actions).toEqual([]);
+	expect(
+		(await run(authored, stale)).steps.find((step) => step.nodeId === "pilot")
+			?.status,
+	).toBe("skipped");
+	expect(
+		await evaluator(notListed)(SHARED_BLOCKLIST_RULE_REF, match),
+	).toMatchObject({ status: "skipped" });
+	expect(
+		await evaluator(notListed)("shared-spam-blocklist@1", match),
+	).toMatchObject({ status: "skipped" });
+
+	const wrongTrigger: WorkflowDefinition = {
+		...authored,
+		nodes: authored.nodes.map((node) =>
+			node.type === "trigger"
+				? { ...node, kinds: ["change-request.updated"] }
+				: node,
 		),
-	).toBe(true);
+	};
+	expect(workflowReadiness(wrongTrigger).issues).toContainEqual(
+		expect.objectContaining({ rule: "pilot-trigger", nodeId: "pilot" }),
+	);
 });

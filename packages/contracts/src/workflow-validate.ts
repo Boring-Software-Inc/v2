@@ -82,6 +82,7 @@ export function issuesInState<T extends { rule?: LintRuleId }>(
 const UNRUNNABLE_RULES: ReadonlySet<LintRuleId> = new Set<LintRuleId>([
 	"issue-trigger",
 	"issue-action",
+	"pilot-trigger",
 	"cycle",
 	"gate-input",
 	"not-input",

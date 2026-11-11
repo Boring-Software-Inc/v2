@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { stripVTControlCharacters } from "node:util";
 import * as p from "@clack/prompts";
 import {
 	type CompileIssue,
@@ -39,6 +40,7 @@ import {
 	warnLine,
 } from "#/format";
 import { callTool, type ToolArgs, type ToolOutput } from "#/mcp-client";
+import { runPicker } from "#/picker";
 import {
 	type FoundLink,
 	findProjectLink,
@@ -61,6 +63,7 @@ import {
 	waitingText,
 } from "#/push-review";
 import type { System } from "#/system";
+import { offerWorkflowSdkUpgrade } from "#/workflow-sdk-upgrade";
 import {
 	DEFAULT_WORKFLOW_DIRECTORY,
 	discoverWorkflowFiles,
@@ -68,6 +71,7 @@ import {
 	type LocalWorkflows,
 	loadWorkflowFileWithFormat,
 	localCatalog,
+	type PulledWorkflow,
 	pulledCountText,
 	pulledWorkflows,
 	type ReportView,
@@ -76,6 +80,7 @@ import {
 	selectPulled,
 	selectWorkflowSources,
 	typecheckSdkWorkflow,
+	WorkflowSdkUpgradeRequired,
 	writePulled,
 	writeSdkWorkflows,
 } from "#/workflows-code";
@@ -653,6 +658,8 @@ async function workflowAction(
 }
 
 interface PullOptions {
+	repo?: string;
+	all?: boolean;
 	file?: string;
 	regenerate?: boolean;
 	force?: boolean;
@@ -781,142 +788,279 @@ function keptText(kept: readonly string[]): string {
 		: `${names}, not pulled and left as they were`;
 }
 
-function pullSdkWorkflows(
+const pullOrgsSchema = z.object({
+	orgs: z.array(
+		z.object({
+			slug: z.string(),
+			name: z.string().optional(),
+			agentAllowed: z.boolean(),
+		}),
+	),
+});
+
+const pullReposSchema = z.array(
+	z.object({
+		name: z.string(),
+		fullName: z.string().optional(),
+	}),
+);
+
+function canPromptPull(options: GlobalOptions, system: System): boolean {
+	return (
+		!options.json &&
+		!system.env.CI &&
+		process.stdin.isTTY === true &&
+		process.stdout.isTTY === true &&
+		process.stderr.isTTY === true
+	);
+}
+
+function pickerLabel(value: string): string {
+	return stripVTControlCharacters(value).replace(/\s+/g, " ").trim();
+}
+
+async function choosePullRepo(
 	deps: ManageDeps,
-	command: Command,
+	options: GlobalOptions,
+): Promise<{ org: string; repo: string } | null> {
+	let org = options.org;
+	if (!org) {
+		const identity = await callForData(deps, options, "whoami", {});
+		if (identity.isError)
+			throw new Error(friendlyError(identity.text, identity.data));
+		const orgs = pullOrgsSchema
+			.parse(identity.data)
+			.orgs.filter((entry) => entry.agentAllowed);
+		if (orgs.length === 0)
+			throw new Error(
+				"This CLI session has no organization access. Run tripwire login to connect an organization.",
+			);
+		const choice =
+			orgs.length === 1
+				? orgs[0]?.slug
+				: await p.select({
+						message: "Choose an organization",
+						options: orgs.map(({ slug, name }) => ({
+							value: slug,
+							label: pickerLabel(name || slug),
+							hint: name && name !== slug ? slug : undefined,
+						})),
+						output: process.stderr,
+					});
+		if (p.isCancel(choice) || !choice) return null;
+		org = choice;
+	}
+	const listed = await callForData(deps, { ...options, org }, "list_repos", {});
+	if (listed.isError) throw new Error(friendlyError(listed.text, listed.data));
+	const repos = pullReposSchema.parse(listed.data);
+	if (repos.length === 0)
+		throw new Error(
+			`No repositories connected to ${org}. Run tripwire status --org ${org} to see how to connect one.`,
+		);
+	const repo = await p.autocomplete({
+		message: "Choose a repository",
+		options: repos.map(({ name, fullName }) => ({
+			value: fullName || name,
+			label: pickerLabel(fullName || name),
+		})),
+		output: process.stderr,
+	});
+	return p.isCancel(repo) ? null : { org, repo };
+}
+
+async function promptPullWorkflows(
+	workflows: readonly PulledWorkflow[],
+	keys: ReadonlyMap<string, string>,
+): Promise<PulledWorkflow[] | null> {
+	if (workflows.length === 0) return [];
+	const chosen = await runPicker(
+		{
+			message: "Select workflows to pull",
+			items: workflows.map(({ id, name, enabled }) => ({
+				value: keys.get(id) ?? id,
+				label: pickerLabel(name),
+				hint: enabled ? "on" : "off",
+			})),
+		},
+		[],
+		{
+			input: process.stdin,
+			write: (text) => process.stderr.write(text),
+			columns: () => process.stderr.columns ?? 80,
+		},
+	);
+	if (!chosen) return null;
+	const selected = new Set(chosen);
+	return workflows.filter(({ id }) => selected.has(keys.get(id) ?? id));
+}
+
+async function pullSdkWorkflows(
+	deps: ManageDeps,
+	options: GlobalOptions,
 	repo: string,
 	wanted: string[],
 	opts: PullOptions,
-): Promise<void> {
-	return workflowAction(command, deps, async (options) => {
-		if (options.link && options.link.link.repo !== repo) {
-			throw new Error(
-				`This project is linked to ${options.link.link.repo}, not ${repo}. Run tripwire unlink, then tripwire link ${repo} before pulling another repository here.`,
+	prompt: boolean,
+): Promise<number> {
+	if (options.link && options.link.link.repo !== repo) {
+		throw new Error(
+			`This project is linked to ${options.link.link.repo}, not ${repo}. Run tripwire unlink, then tripwire link ${repo} before pulling another repository here.`,
+		);
+	}
+	const output = await callForData(deps, options, "get_workflow", { repo });
+	if (output.isError) {
+		return render("get_workflow", output, options);
+	}
+	const workflows = pulledWorkflows(output.data);
+	const mapping =
+		options.link?.link.repo === repo ? (options.link.link.workflows ?? {}) : {};
+	const savedKeys = new Map(
+		Object.entries(mapping).map(([key, id]): [string, string] => [id, key]),
+	);
+	const directory = defaultWorkflowDirectory(options);
+	const localSlugs = new Set(
+		discoverWorkflowFiles(directory).map(({ slug }) => slug),
+	);
+	const remoteIds = new Set(workflows.map(({ id }) => id));
+	const stale = Object.entries(mapping)
+		.filter(([key, id]) => localSlugs.has(key) && !remoteIds.has(id))
+		.map(([key, id]) => ({ id, name: key }));
+	const allKeys = workflowKeys(
+		[...workflows.map(({ definition }) => definition), ...stale],
+		savedKeys,
+	);
+	const keys = new Map(workflows.map(({ id }) => [id, allKeys.get(id) ?? id]));
+	const requested = new Set(wanted);
+	const available = new Set(keys.values());
+	const unknown = [...requested].filter((slug) => !available.has(slug));
+	if (unknown.length > 0) {
+		throw new Error(
+			`No workflow ${unknown.join(", ")} on ${repo}. Available workflows: ${[...available].join(", ") || "none"}.`,
+		);
+	}
+	const picked = prompt
+		? await promptPullWorkflows(workflows, keys)
+		: workflows.filter(
+				({ id }) => requested.size === 0 || requested.has(keys.get(id) ?? ""),
 			);
+	if (!picked) return 130;
+	const selected = picked.map(({ id, definition }) => ({
+		file: join(directory, `${keys.get(id)}.ts`),
+		definition,
+	}));
+	let upgrade: WorkflowSdkUpgradeRequired | undefined;
+	for (const { file, definition } of selected) {
+		try {
+			resolveWorkflowSdk(file, definition);
+		} catch (error) {
+			if (
+				!(
+					canPromptPull(options, deps.system) &&
+					error instanceof WorkflowSdkUpgradeRequired
+				)
+			)
+				throw error;
+			if (!upgrade || error.minimum > upgrade.minimum) upgrade = error;
 		}
-		const output = await callForData(deps, options, "get_workflow", { repo });
-		if (output.isError) {
-			return render("get_workflow", output, options);
-		}
-		const workflows = pulledWorkflows(output.data);
-		const mapping =
-			options.link?.link.repo === repo
-				? (options.link.link.workflows ?? {})
-				: {};
-		const savedKeys = new Map(
-			Object.entries(mapping).map(([key, id]): [string, string] => [id, key]),
-		);
-		const directory = defaultWorkflowDirectory(options);
-		const localSlugs = new Set(
-			discoverWorkflowFiles(directory).map(({ slug }) => slug),
-		);
-		const remoteIds = new Set(workflows.map(({ id }) => id));
-		const stale = Object.entries(mapping)
-			.filter(([key, id]) => localSlugs.has(key) && !remoteIds.has(id))
-			.map(([key, id]) => ({ id, name: key }));
-		const allKeys = workflowKeys(
-			[...workflows.map(({ definition }) => definition), ...stale],
-			savedKeys,
-		);
-		const keys = new Map(
-			workflows.map(({ id }) => [id, allKeys.get(id) ?? id]),
-		);
-		const requested = new Set(wanted);
-		const available = new Set(keys.values());
-		const unknown = [...requested].filter((slug) => !available.has(slug));
-		if (unknown.length > 0) {
-			throw new Error(
-				`No workflow ${unknown.join(", ")} on ${repo}. Available workflows: ${[...available].join(", ") || "none"}.`,
-			);
-		}
-		const picked = workflows.filter(
-			({ id }) => requested.size === 0 || requested.has(keys.get(id) ?? ""),
-		);
-		for (const { id, definition } of picked) {
-			resolveWorkflowSdk(join(directory, `${keys.get(id)}.ts`), definition);
-		}
-		const written = writeSdkWorkflows(
-			directory,
-			picked.map(({ definition }) =>
-				opts.regenerate
-					? { ...definition, authoredSource: undefined }
-					: definition,
-			),
-			keys,
-			opts.force === true,
-			options.link?.link.workflowPullHashes,
-		);
-		let link: string | null = null;
-		if (opts.link) {
-			const root = options.link
-				? dirname(dirname(options.link.path))
-				: process.cwd();
-			const next: ProjectLink = {
-				org: options.org,
-				repo,
-				workflows: {
-					...Object.fromEntries(
-						stale.map(({ id }) => [allKeys.get(id) ?? id, id]),
-					),
-					...workflowMapping(keys),
-				},
-			};
-			next.workflowPullHashes = {
+	}
+	if (upgrade) {
+		const code = await offerWorkflowSdkUpgrade(deps.system, upgrade);
+		if (code !== 0) return code;
+		for (const { file, definition } of selected)
+			resolveWorkflowSdk(file, definition);
+	}
+	const written = writeSdkWorkflows(
+		directory,
+		picked.map(({ definition }) =>
+			opts.regenerate
+				? { ...definition, authoredSource: undefined }
+				: definition,
+		),
+		keys,
+		opts.force === true,
+		options.link?.link.workflowPullHashes,
+	);
+	let link: string | null = null;
+	if (opts.link) {
+		const root = options.link
+			? dirname(dirname(options.link.path))
+			: process.cwd();
+		const next: ProjectLink = {
+			org: options.org,
+			repo,
+			workflows: {
 				...Object.fromEntries(
-					Object.entries(options.link?.link.workflowPullHashes ?? {}).filter(
-						([slug]) => next.workflows?.[slug] === mapping[slug],
-					),
+					stale.map(({ id }) => [allKeys.get(id) ?? id, id]),
 				),
-				...written.hashes,
-			};
-			link =
-				options.link && sameLink(options.link.link, next)
-					? options.link.path
-					: writeProjectLink(root, next);
-		}
-		if (options.json) {
-			out(
-				JSON.stringify({
-					directory,
-					files: written.files,
-					unchanged: written.unchanged,
-					link,
-					keys: Object.fromEntries(keys),
-				}),
-			);
-			return 0;
-		}
-		out(
-			pairs(
-				[
-					[
-						"wrote",
-						`${written.files.length} workflow file${written.files.length === 1 ? "" : "s"}`,
-					],
-					["kept", `${written.unchanged.length} unchanged`],
-					...(link
-						? ([["linked", `${repo} in ${link}`]] as [string, string][])
-						: []),
-				],
-				options.style,
+				...workflowMapping(keys),
+			},
+		};
+		next.workflowPullHashes = {
+			...Object.fromEntries(
+				Object.entries(options.link?.link.workflowPullHashes ?? {}).filter(
+					([slug]) => next.workflows?.[slug] === mapping[slug],
+				),
 			),
+			...written.hashes,
+		};
+		link =
+			options.link && sameLink(options.link.link, next)
+				? options.link.path
+				: writeProjectLink(root, next);
+	}
+	if (options.json) {
+		out(
+			JSON.stringify({
+				directory,
+				files: written.files,
+				unchanged: written.unchanged,
+				link,
+				keys: Object.fromEntries(keys),
+			}),
 		);
 		return 0;
-	});
+	}
+	out(
+		pairs(
+			[
+				[
+					"wrote",
+					`${written.files.length} workflow file${written.files.length === 1 ? "" : "s"}`,
+				],
+				["kept", `${written.unchanged.length} unchanged`],
+				...(link
+					? ([["linked", `${repo} in ${link}`]] as [string, string][])
+					: []),
+			],
+			options.style,
+		),
+	);
+	return 0;
 }
 
 function pullWorkflows(
 	deps: ManageDeps,
 	command: Command,
-	repo: string,
 	wanted: string[],
 	opts: PullOptions,
 ): Promise<void> {
-	if (opts.file === undefined) {
-		return pullSdkWorkflows(deps, command, repo, wanted, opts);
-	}
-	const file = opts.file;
-	return workflowAction(command, deps, async (options) => {
+	return workflowAction(command, deps, async (global) => {
+		if (opts.all && wanted.length > 0) {
+			throw new Error("Pass workflow names or --all.");
+		}
+		const interactive = canPromptPull(global, deps.system);
+		const target =
+			opts.repo || global.link || global.linkError || !interactive
+				? { org: global.org, repo: linkedRepo(global, opts.repo) }
+				: await choosePullRepo(deps, global);
+		if (!target) return 130;
+		const { repo, org } = target;
+		const options = { ...global, org };
+		const prompt = interactive && wanted.length === 0 && !opts.all;
+		const file = opts.file;
+		if (file === undefined) {
+			return pullSdkWorkflows(deps, options, repo, wanted, opts, prompt);
+		}
 		if (opts.regenerate) {
 			throw new Error("--regenerate is only available for SDK workflow files.");
 		}
@@ -954,7 +1098,11 @@ function pullWorkflows(
 			),
 		]);
 		let picked = workflows;
-		if (wanted.length > 0) {
+		if (prompt) {
+			const chosen = await promptPullWorkflows(workflows, localKeys);
+			if (!chosen) return 130;
+			picked = chosen;
+		} else if (wanted.length > 0) {
 			const selection = selectPulled(workflows, wanted, localKeys);
 			if (selection.unknown.length > 0) {
 				throw new Error(
@@ -1827,18 +1975,12 @@ export function registerManageCommands(program: Command, deps: ManageDeps) {
 		.description("Write one SDK file per workflow in .tripwire/workflows")
 		.option("--file <path>", "Explicit legacy tripwire.ts collection output")
 		.option("--repo <repo>", "Repository to pull; defaults to the project link")
+		.option("--all", "Pull every workflow without prompting for a selection")
 		.option("--force", "Replace selected files that have local edits")
 		.option("--regenerate", "Generate SDK code from the current workflow graph")
 		.option("--no-link", "Do not save the repo to .tripwire/project.json")
-		.action(
-			(
-				wanted: string[],
-				opts: PullOptions & { repo?: string },
-				command: Command,
-			) =>
-				withRepo(deps, command, opts.repo, (target) =>
-					pullWorkflows(deps, command, target, wanted, opts),
-				),
+		.action((wanted: string[], opts: PullOptions, command: Command) =>
+			pullWorkflows(deps, command, wanted, opts),
 		);
 	workflows
 		.command("validate [workflows...]")

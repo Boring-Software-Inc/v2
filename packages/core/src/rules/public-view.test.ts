@@ -25,6 +25,7 @@ const SAMPLE_EVIDENCE = {
 		min: 5,
 		trustedAfter: 3,
 	},
+	"contributor-allowlist": { allowlisted: false },
 	"shared-spam-blocklist": {
 		accountId: "123",
 		reason: "fixture match",

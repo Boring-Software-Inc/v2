@@ -16,6 +16,7 @@ import {
 	CustomRuleBuilder,
 	type CustomRuleDraft,
 } from "#/components/rules/custom-rule-builder";
+import { RepoModerationSettings } from "#/components/rules/repo-moderation-settings";
 import { RuleCard } from "#/components/rules/rule-card";
 import { RuleHeaderStats } from "#/components/rules/rule-header-stats";
 import { libraryRules, RuleLibrary } from "#/components/rules/rule-library";
@@ -132,7 +133,19 @@ export function RulesPage() {
 	const [builderOpen, setBuilderOpen] = useState(false);
 	const repoId = repo?.id ?? "";
 	const rulesQuery = useQuery(ruleConfigsQueryOptions(org, repoId));
-	const rules = rulesQuery.data;
+	const pilotManaged = rulesQuery.data?.some(
+		(rule) =>
+			rule.ruleId === SHARED_BLOCKLIST_RULE_ID && rule.management === "managed",
+	);
+	const rules = useMemo(
+		() =>
+			rulesQuery.data?.filter(
+				(rule) =>
+					rule.ruleId !== SHARED_BLOCKLIST_RULE_ID ||
+					rule.management === "managed",
+			),
+		[rulesQuery.data],
+	);
 	const statsQuery = useQuery(rulesStatsQueryOptions(org, repoId));
 	const queryClient = useQueryClient();
 
@@ -151,21 +164,22 @@ export function RulesPage() {
 	const installedRules = (rules ?? []).filter((r) => r.enabled);
 	const customRules = (rules ?? []).filter((r) => r.source === "custom");
 	const offered = libraryRules(rules ?? []);
-	const pilotOffered = pilot?.enabled === false;
+	const pilotOffered = !pilotManaged && pilot?.enabled === false;
 	const libraryCount = offered.length + Number(pilotOffered);
-	const installed = pilot?.enabled
-		? [
-				...installedRules,
-				{
-					kind: "pilot" as const,
-					ruleId: SHARED_BLOCKLIST_RULE_ID,
-					name: "Pilot",
-					blurb: PILOT_DESCRIPTION,
-					sentence: null,
-					matches24h: 0,
-				},
-			]
-		: installedRules;
+	const installed =
+		!pilotManaged && pilot?.enabled
+			? [
+					...installedRules,
+					{
+						kind: "pilot" as const,
+						ruleId: SHARED_BLOCKLIST_RULE_ID,
+						name: "Pilot",
+						blurb: PILOT_DESCRIPTION,
+						sentence: null,
+						matches24h: 0,
+					},
+				]
+			: installedRules;
 	const starting =
 		rules !== undefined &&
 		tab === undefined &&
@@ -359,22 +373,35 @@ export function RulesPage() {
 				<Page purpose="task">
 					<PageHeader
 						actions={
-							isAdmin ? (
-								<Button
-									onClick={() => setBuilderOpen(true)}
-									variant="secondary"
-								>
-									<Icon icon={Add} />
-									Create rule
-								</Button>
-							) : null
+							<>
+								{repo?.forge === "github" && (
+									<RepoModerationSettings
+										canManage={isAdmin}
+										key={repo.id}
+										onBrowseLibrary={() => void showTab("library")}
+										org={org}
+										pilotEnabled={Boolean(!pilotManaged && pilot?.enabled)}
+										repo={repoName}
+										rules={rules}
+									/>
+								)}
+								{isAdmin && (
+									<Button
+										onClick={() => setBuilderOpen(true)}
+										variant="secondary"
+									>
+										<Icon icon={Add} />
+										Create rule
+									</Button>
+								)}
+							</>
 						}
 						description={
 							starting
 								? undefined
 								: orgContext && !isAdmin
-									? "Requirements that every contributor outside your org must meet. Your role can view rules but not change them."
-									: "Requirements that every contributor outside your org must meet on every change request."
+									? "Your role can view the rules for this repository."
+									: "Manage the checks Tripwire runs on contributions to this repository."
 						}
 						title="Rules"
 					/>
@@ -486,6 +513,7 @@ export function RulesPage() {
 											pilot={
 												pilotOffered ? (
 													<PilotLibraryRow
+														canEdit={isAdmin}
 														pending={savingPilot}
 														onInstall={() => setPilotInstalled(true)}
 													/>
@@ -560,6 +588,7 @@ export function RulesPage() {
 													{visible.map((rule) =>
 														"kind" in rule ? (
 															<SharedBlocklistRuleCard
+																canEdit={isAdmin}
 																key={rule.ruleId}
 																highlighted={pilotHighlighted}
 																pending={savingPilot}

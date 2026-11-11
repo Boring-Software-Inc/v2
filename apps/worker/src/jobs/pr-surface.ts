@@ -304,12 +304,57 @@ export async function emitPrSurface(
 		return;
 	}
 	if (event.kind === "issue.opened") {
-		await emitThreadActions(deps, input, {
-			number: event.issue.number,
-			title: event.issue.title,
-			author: event.actor.login,
-			skips: () => false,
-		});
+		const { reasons, issues, standaloneOutcome, standaloneWarning } =
+			await loadRunIssues(db, runId, input.reasons);
+		let pendingActionRows = input.pendingActionRows;
+		if (standaloneOutcome) {
+			const repo = await repoServices.getRepoByFullName(
+				db,
+				event.repo.fullName,
+				event.forge,
+			);
+			const [config, policy] = await Promise.all([
+				repoServices.getResponseConfig(db, repo?.id ?? null),
+				responseServices.getRedactionPolicy(db, repo?.id ?? null),
+			]);
+			const previous = input.resumedFrom ?? null;
+			const plan = planSurfaces(
+				{
+					verdict,
+					previousVerdict: previous,
+					contributorLogin: event.actor.login,
+					runUrl: `${deps.appUrl}/runs/${runId}`,
+					title: event.issue.title,
+					subjectKind: "issue",
+					standaloneWarning,
+					appealUrl:
+						verdict !== "pass" || standaloneWarning
+							? `${deps.appUrl}/appeals/${runId}`
+							: undefined,
+					reasons,
+					...issues,
+				},
+				config,
+				policy,
+				{ reviewPosted: false },
+			);
+			const responses = await runServices.recordActions(
+				db,
+				runId,
+				commentRows(plan, event.issue.number, verdict, previous),
+			);
+			pendingActionRows = [...responses, ...pendingActionRows];
+		}
+		await emitThreadActions(
+			deps,
+			{ ...input, pendingActionRows },
+			{
+				number: event.issue.number,
+				title: event.issue.title,
+				author: event.actor.login,
+				skips: () => false,
+			},
+		);
 		return;
 	}
 	if (event.kind === "comment.created") {
@@ -328,7 +373,8 @@ export async function emitPrSurface(
 	const number = event.changeRequest.number;
 	const sha = event.changeRequest.headSha;
 	const runUrl = `${deps.appUrl}/runs/${runId}`;
-	const { reasons, issues } = await loadRunIssues(db, runId, input.reasons);
+	const { reasons, issues, standaloneOutcome, standaloneWarning } =
+		await loadRunIssues(db, runId, input.reasons);
 
 	// The verdict the PR already shows — drives the resolution copy AND whether a
 	// stale request-changes review must be dismissed (§7).
@@ -374,6 +420,11 @@ export async function emitPrSurface(
 	const plan = planSurfaces(
 		{
 			verdict,
+			standaloneWarning,
+			appealUrl:
+				standaloneOutcome && (verdict !== "pass" || standaloneWarning)
+					? `${deps.appUrl}/appeals/${runId}`
+					: undefined,
 			contributorLogin: event.actor.login,
 			reasons,
 			runUrl,
@@ -966,6 +1017,20 @@ export function toForgeAction(
 				repoFullName,
 				number,
 				labels: row.payload.labels ?? [],
+			};
+		case "reopen":
+			return {
+				kind: "reopen" as const,
+				repoFullName,
+				number,
+				guard: row.payload,
+			};
+		case "unlock":
+			return {
+				kind: "unlock" as const,
+				repoFullName,
+				number,
+				guard: row.payload,
 			};
 		case "lock": {
 			const reason = row.payload.reason;

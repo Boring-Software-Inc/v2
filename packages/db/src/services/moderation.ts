@@ -82,7 +82,7 @@ export async function listPendingItems(
 		       m.created_at AS "createdAt", r.repo_full_name AS "repoFullName",
 		       r.subject_number AS "subjectNumber", e.actor_login AS "actorLogin",
 		       e.kind AS "eventKind",
-		       e.normalized->'changeRequest'->>'title' AS title,
+		       COALESCE(e.normalized->'changeRequest'->>'title', e.normalized->'issue'->>'title') AS title,
 		       fr.summary AS reason
 		FROM moderation_items m
 		JOIN runs r ON r.id = m.run_id

@@ -793,6 +793,23 @@ Anyone can browse without a Tripwire account. GitHub remains the place to
 propose additions and corrections. Dashboard access also requires the staging
 Databuddy flag and repository allowlist. The repo's opt-in controls the worker.
 
+## 2026-11-09 · Pilot in the Rules Library
+
+The production rollout supersedes the staging repository allowlist and
+Databuddy flag. Maintainers can install Pilot from Shared blocklists in the
+Rules Library for a connected GitHub repository. The worker evaluates Pilot
+only after the repository is armed and Pilot is installed. Matches on new
+pull requests go to Human review.
+
+## 2026-11-09 · Pilot in workflows
+
+Pilot is a catalog rule for newly opened GitHub issues and pull requests. A fresh
+listing fails the check, a verified absence passes it, and unavailable evidence
+skips it.
+A runnable, enabled pull request workflow that uses Pilot takes precedence over
+the Library installation. The standalone installation sends matching pull
+requests to Human review.
+
 ## Shared blocklist publication
 
 The community blocklist repository keeps reviewed submissions on protected `main`. Its Actions publisher combines those entries with platform-admin submissions and writes a versioned snapshot to the separate `published` branch. Both the worker and public page consume that snapshot. Admin submissions remain inspectable in `published:staff-entries/`; community and staff removals follow their respective paths in the list repo's README.
@@ -830,3 +847,34 @@ It evaluates saved drafts and reports whether the repository is armed, the
 workflow is enabled, and the author is exempt. It writes neither forge
 actions nor Tripwire runs. AI review needs a configured runtime and skips
 in this tool. The published CLI and SDK do not expose the issue trigger yet.
+
+## 2026-11-10 | Standalone moderation outcomes and contributor appeals
+
+Grim approved organization defaults, repository overrides, and per-rule
+outcomes for standalone GitHub rules. The four outcomes are Warn, Human review,
+Block, and Close. Organization-level settings are approved for this policy.
+Pull requests retain Block as their default. Existing Pilot installations retain
+Human review. Standalone issue enforcement requires a repository opt-in and
+starts with Warn.
+
+When multiple checks fail, the strongest outcome applies once per contribution,
+ordered Close, Block, Human review, Warn. Runs retain all check results and
+identify the rule that determined the outcome. Explicit workflows keep their
+configured branches. Responses and redaction govern contributor-facing copy.
+Missing evidence holds destructive issue actions.
+
+Contributor allowlists use verified GitHub account IDs, including GitHub App
+accounts. The allowlist rule applies to maintainers. Approval for one
+contribution covers that issue or pull request across later events. Account-wide
+approval adds the author to the repository allowlist. Other installed rules
+continue to evaluate approved authors.
+
+Contributors can submit a run-linked appeal after GitHub sign-in. The appeal
+form accepts one reason and verifies the original author's account. Maintainers
+can approve the contribution, approve and allowlist its author, or deny.
+Contributor access to the form grants no repository membership or private run
+visibility. Approved appeals restore only actions attributable to Tripwire's
+standalone decision. Restoration is recorded and retried through the worker.
+
+The first rollout targets staging. A pull request to main follows staging
+validation and remains available for Grim's review.
