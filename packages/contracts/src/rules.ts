@@ -19,6 +19,13 @@ import type { JsonValue, WorkflowDefinition } from "./workflow.ts";
  * build step.
  */
 
+export const CONTRIBUTOR_ALLOWLIST_RULE_ID = "contributor-allowlist";
+export const CONTRIBUTOR_ALLOWLIST_RULE_REF = `${CONTRIBUTOR_ALLOWLIST_RULE_ID}@1`;
+export const contributorAllowlistConfigSchema = z.strictObject({});
+export const contributorAllowlistEvidenceSchema = z.strictObject({
+	allowlisted: z.boolean(),
+});
+
 export const ruleCategorySchema = z.enum([
 	"blocklist",
 	"heuristic",
@@ -413,6 +420,19 @@ export const RULE_CATALOG = [
 		description:
 			"Requires a minimum of profile text. Throwaway accounts rarely add one.",
 		contributorLabel: "add a short bio to your profile.",
+	},
+	{
+		ruleId: CONTRIBUTOR_ALLOWLIST_RULE_ID,
+		forges: ["github"],
+		version: 1,
+		name: "Contributor allowlist",
+		blurb: "requires the author to be on this repository’s allowlist.",
+		configSchema: contributorAllowlistConfigSchema,
+		defaultConfig: {},
+		optIn: true,
+		description:
+			"Checks whether the author's GitHub account is on the repository allowlist.",
+		contributorLabel: "ask a maintainer for access to contribute.",
 	},
 	{
 		ruleId: SHARED_BLOCKLIST_RULE_ID,
@@ -847,6 +867,10 @@ export const RULE_PARAMS = {
 				default: 32,
 			},
 		],
+	},
+	[CONTRIBUTOR_ALLOWLIST_RULE_ID]: {
+		sentences: ["requires the author to be on this repository’s allowlist"],
+		params: [],
 	},
 	"ai-review": {
 		sentences: ["reviews the change in up to {maxSteps}"],

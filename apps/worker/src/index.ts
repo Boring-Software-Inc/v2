@@ -2,6 +2,7 @@ import type { Forge } from "@tripwire/contracts";
 import {
 	deriveUsageSource,
 	rerunChangeRequestJobSchema,
+	restoreContributionAppealJobSchema,
 } from "@tripwire/contracts";
 import {
 	aiProviderServices,
@@ -15,6 +16,7 @@ import {
 	RECOVER_INSTALLATION_QUEUE,
 	REFRESH_SURFACES_QUEUE,
 	RERUN_QUEUE,
+	RESTORE_CONTRIBUTION_APPEAL_QUEUE,
 	RESUME_RUN_QUEUE,
 	type RecoverInstallationJob,
 	type RefreshSurfacesJob,
@@ -76,6 +78,7 @@ import { recoverInstallation } from "./jobs/recover-installation.ts";
 import { syncRepoBranches } from "./jobs/refresh-suggestions.ts";
 import { refreshRepoSurfaces } from "./jobs/refresh-surfaces.ts";
 import { rerunChangeRequest } from "./jobs/rerun.ts";
+import { restoreContributionAppeal } from "./jobs/restore-contribution-appeal.ts";
 import { resumeRun } from "./jobs/resume-run.ts";
 import { rollup } from "./jobs/rollup.ts";
 import { refreshRulePreview } from "./jobs/rule-preview.ts";
@@ -323,6 +326,30 @@ if (import.meta.main && workerMode === "standard") {
 			}
 		});
 
+		await work<unknown>(RESTORE_CONTRIBUTION_APPEAL_QUEUE, async (jobs) => {
+			for (const job of jobs) {
+				const parsed = restoreContributionAppealJobSchema.safeParse(job.data);
+				if (!parsed.success) {
+					logger.error(
+						{ jobId: job.id, issues: parsed.error.issues },
+						"invalid appeal restoration job",
+					);
+					continue;
+				}
+				await restoreContributionAppeal(
+					{
+						db,
+						pool: directPool,
+						resolveForge,
+						makeGenerate,
+						meterSource,
+						appUrl: process.env.APP_URL ?? "http://localhost:3000",
+						logger: logger.child({ jobId: job.id }),
+					},
+					parsed.data,
+				);
+			}
+		});
 		await work<unknown>(RERUN_QUEUE, async (jobs) => {
 			for (const job of jobs) {
 				const parsed = rerunChangeRequestJobSchema.safeParse(job.data);
@@ -641,6 +668,7 @@ if (import.meta.main && workerMode === "standard") {
 			queues: [
 				PROCESS_EVENT_QUEUE,
 				RESUME_RUN_QUEUE,
+				RESTORE_CONTRIBUTION_APPEAL_QUEUE,
 				RERUN_QUEUE,
 				BACKFILL_REPO_QUEUE,
 				SYNC_REPO_REVIEWERS_QUEUE,

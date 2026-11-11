@@ -1,0 +1,10 @@
+{
+	"source": "https://api.github.com/repos/Boring-Software-Inc/scratch/issues/182/events",
+	"method": "GET",
+	"status": 200,
+	"capturedAt": "2026-11-11T01:28:34.553574+00:00",
+	"originalPath": "/tmp/appeal-issue-events.json",
+	"originalSha256": "9dec25b75987a00a3b2bd8140ea8bec52fca76d10bb42211edc94c865962d464",
+	"scrubbing": "No private fields or credentials returned. JSON indentation only.",
+	"purpose": "Verify app-owned close event actor when performed_via_github_app is null."
+}

@@ -847,3 +847,34 @@ It evaluates saved drafts and reports whether the repository is armed, the
 workflow is enabled, and the author is exempt. It writes neither forge
 actions nor Tripwire runs. AI review needs a configured runtime and skips
 in this tool. The published CLI and SDK do not expose the issue trigger yet.
+
+## 2026-11-10 | Standalone moderation outcomes and contributor appeals
+
+Grim approved organization defaults, repository overrides, and per-rule
+outcomes for standalone GitHub rules. The four outcomes are Warn, Human review,
+Block, and Close. Organization-level settings are approved for this policy.
+Pull requests retain Block as their default. Existing Pilot installations retain
+Human review. Standalone issue enforcement requires a repository opt-in and
+starts with Warn.
+
+When multiple checks fail, the strongest outcome applies once per contribution,
+ordered Close, Block, Human review, Warn. Runs retain all check results and
+identify the rule that determined the outcome. Explicit workflows keep their
+configured branches. Responses and redaction govern contributor-facing copy.
+Missing evidence holds destructive issue actions.
+
+Contributor allowlists use verified GitHub account IDs, including GitHub App
+accounts. The allowlist rule applies to maintainers. Approval for one
+contribution covers that issue or pull request across later events. Account-wide
+approval adds the author to the repository allowlist. Other installed rules
+continue to evaluate approved authors.
+
+Contributors can submit a run-linked appeal after GitHub sign-in. The appeal
+form accepts one reason and verifies the original author's account. Maintainers
+can approve the contribution, approve and allowlist its author, or deny.
+Contributor access to the form grants no repository membership or private run
+visibility. Approved appeals restore only actions attributable to Tripwire's
+standalone decision. Restoration is recorded and retried through the worker.
+
+The first rollout targets staging. A pull request to main follows staging
+validation and remains available for Grim's review.

@@ -26,6 +26,9 @@ const PUBLIC_ALLOWLIST = new Set([
 	"getRun", // the unlisted-public run page — readable without a session by design
 	"getWebviewHost", // echoes the caller's own user-agent; /login is signed-out
 	"redeemOrgInvite", // §6: redemption APPROVES pending users — gating it deadlocks
+	/** Appeals self-gate on the original GitHub author, including pending accounts. */
+	"getContributionAppeal",
+	"submitContributionAppeal",
 	"stopImpersonating",
 	"recordDatabuddyAnonId",
 ]);
@@ -275,7 +278,11 @@ describe("staff mutations and impersonation guards", () => {
 	});
 
 	test("the public impersonation and analytics writes are same-origin only", () => {
-		for (const name of ["stopImpersonating", "recordDatabuddyAnonId"]) {
+		for (const name of [
+			"stopImpersonating",
+			"recordDatabuddyAnonId",
+			"submitContributionAppeal",
+		]) {
 			expect(fns.find((f) => f.name === name)?.sameOrigin).toBe(true);
 		}
 	});

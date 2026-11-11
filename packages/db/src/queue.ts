@@ -10,6 +10,7 @@ export interface ProcessEventJob {
 
 /** Moderation decision → worker resume (§6). */
 export const RESUME_RUN_QUEUE = "resume-run";
+export const RESTORE_CONTRIBUTION_APPEAL_QUEUE = "restore-contribution-appeal";
 
 export interface ResumeRunJob {
 	itemId: string;
@@ -195,6 +196,11 @@ export async function createBoss(
 	await boss.start();
 	await boss.createQueue(PROCESS_EVENT_QUEUE);
 	await boss.createQueue(RESUME_RUN_QUEUE);
+	await boss.createQueue(RESTORE_CONTRIBUTION_APPEAL_QUEUE, {
+		retryLimit: 10,
+		retryDelay: 15,
+		retryBackoff: true,
+	});
 	await boss.createQueue(BACKFILL_REPO_QUEUE);
 	await boss.createQueue(RERUN_QUEUE);
 	await boss.createQueue(SYNC_REPO_REVIEWERS_QUEUE, { policy: "stately" });

@@ -127,7 +127,11 @@ export async function sweepActions(
 	};
 
 	for (const row of stuck) {
-		if (DELIVERY_KINDS.has(row.kind)) {
+		if (
+			DELIVERY_KINDS.has(row.kind) ||
+			row.kind === "reopen" ||
+			row.kind === "unlock"
+		) {
 			continue;
 		}
 		const payload = storedActionPayloadSchema.safeParse(row.payload);

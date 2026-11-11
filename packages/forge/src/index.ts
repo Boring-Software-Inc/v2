@@ -1,4 +1,5 @@
 import type {
+	AppealRestorationGuard,
 	CheckState,
 	Forge,
 	LockReason,
@@ -151,6 +152,11 @@ export type ForgeAction =
 			reason?: LockReason;
 	  }
 	| { kind: "close"; repoFullName: string; number: number }
+	| (({ kind: "reopen" } | { kind: "unlock" }) & {
+			repoFullName: string;
+			number: number;
+			guard: AppealRestorationGuard;
+	  })
 	| {
 			kind: "remove-label";
 			repoFullName: string;

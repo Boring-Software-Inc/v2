@@ -7,6 +7,7 @@ import type {
 	WorkflowDefinition,
 } from "@tripwire/contracts";
 import {
+	CONTRIBUTOR_ALLOWLIST_RULE_REF,
 	isAiReviewNotRunStep,
 	stepLocalId,
 	verdictSchema,
@@ -22,6 +23,7 @@ import {
 import { createForgeSignalCtx } from "@tripwire/sdk";
 import { z } from "zod";
 import { buildRuleContext } from "../context.ts";
+import { isExemptionDisabled } from "../exemption.ts";
 import { buildCommentReasons } from "./comment-reasons.ts";
 import { customRuleSource } from "./custom-rules.ts";
 import {
@@ -34,6 +36,7 @@ import {
 	actionPayload,
 	makeEvaluator,
 	postsSomething,
+	readAllowlistStatus,
 	withPublicProjection,
 } from "./run-workflows.ts";
 
@@ -101,6 +104,14 @@ export async function resumeRun(
 	const item = await moderationServices.getModerationItem(db, job.itemId);
 	if (!item) {
 		logger.error({ itemId: job.itemId }, "moderation item not found");
+		return;
+	}
+	const expectedStatus = job.decision === "approve" ? "approved" : "denied";
+	if (item.status !== expectedStatus) {
+		logger.info(
+			{ itemId: item.id, status: item.status, decision: job.decision },
+			"outdated moderation decision ignored",
+		);
 		return;
 	}
 	const runData = await runServices.getRunWithSteps(db, item.runId);
@@ -193,7 +204,24 @@ export async function resumeRun(
 	const result = await executeWorkflow({
 		definition,
 		event: normalized,
-		evaluateRuleRef: makeEvaluator(ctx, logger, custom),
+		evaluateRuleRef: makeEvaluator(
+			ctx,
+			logger,
+			custom,
+			repo
+				? () => readAllowlistStatus(db, repo.id, normalized, logger)
+				: undefined,
+		),
+		isRuleExempt: (ref) =>
+			!isExemptionDisabled() &&
+			ref !== CONTRIBUTOR_ALLOWLIST_RULE_REF &&
+			((normalized.kind === "issue.opened" && normalized.issue.maintainer) ||
+				ctx.contributor?.isMaintainer === true ||
+				ctx.contributor?.isOrgMember === true) &&
+			definition.nodes.some(
+				(node) =>
+					node.type === "rule" && node.ref === CONTRIBUTOR_ALLOWLIST_RULE_REF,
+			),
 		now: () => new Date().toISOString(),
 		resume: {
 			outcomes,
@@ -220,7 +248,8 @@ export async function resumeRun(
 			"deny produced no block action — verdict floored to block",
 		);
 	}
-	const actions = [
+	const denyKind = normalized.kind === "issue.opened" ? "lock" : "block";
+	const actions: runServices.RecordActionInput[] = [
 		...result.actions.filter(postsSomething).map((action) => ({
 			kind: action.action,
 			payload: actionPayload(action, definition.id, item.runId),
@@ -229,11 +258,15 @@ export async function resumeRun(
 		...(denyFloored
 			? [
 					{
-						kind: "block",
-						payload: {
-							reason: "A maintainer reviewed this and blocked it.",
-						},
-						idempotencyKey: `block:${definition.id}:${pausedNode}:deny-floor`,
+						kind: denyKind,
+						payload:
+							denyKind === "block"
+								? {
+										reason: "A maintainer reviewed this and blocked it.",
+										nodeId: item.nodeId,
+									}
+								: { nodeId: item.nodeId },
+						idempotencyKey: `${denyKind}:${definition.id}:${pausedNode}:deny-floor`,
 					},
 				]
 			: []),

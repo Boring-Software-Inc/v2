@@ -825,3 +825,53 @@ describe("stored comment projections", () => {
 		).toEqual({ observed: undefined });
 	});
 });
+
+describe("standalone moderation responses", () => {
+	const appealUrl = "https://app.tripwire.sh/appeals/0198abcd";
+	const input: CommentInput = {
+		verdict: "block",
+		contributorLogin: "octocat",
+		reasons: [AGE],
+		runUrl: RUN_URL,
+		subjectKind: "issue",
+		appealUrl,
+	};
+	test("issue block describes the lock and provides the review link", () => {
+		const body = renderVerdictComment(input, DEFAULT_RESPONSE_CONFIG);
+		expect(body).toContain("Tripwire locked this issue.");
+		expect(body).toContain(`[Request a review](${appealUrl})`);
+		expect(body).not.toContain("change request");
+	});
+	test("a warning describes the rule flag without a passing headline", () => {
+		const body = renderVerdictComment(
+			{
+				...input,
+				verdict: "pass",
+				standaloneWarning: true,
+				notes: ["A repository rule flagged this contribution."],
+			},
+			DEFAULT_RESPONSE_CONFIG,
+		);
+		expect(body).toContain("A repository rule flagged this contribution.");
+		expect(body).not.toContain("Tripwire approved");
+		expect(body).not.toContain("Tripwire passed");
+	});
+	test("hidden help also hides the contributor review link", () => {
+		const body = renderVerdictComment(
+			input,
+			DEFAULT_RESPONSE_CONFIG,
+			redactionPolicySchema.parse({ showHelp: false }),
+		);
+		expect(body).not.toContain("/appeals/");
+	});
+	test("silent outcome configuration does not create an appeal-only comment", () => {
+		const plan = planSurfaces(
+			input,
+			responseConfigSchema.parse({ onBlock: "silent" }),
+			redactionPolicySchema.parse({}),
+			{ reviewPosted: false },
+		);
+		expect(plan.comment).toBe("none");
+		expect(plan.commentBody).toBeNull();
+	});
+});

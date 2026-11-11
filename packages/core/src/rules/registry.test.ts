@@ -9,6 +9,7 @@ describe("registry", () => {
 		expect(refs.sort()).toEqual(
 			[
 				"account-age@1",
+				"contributor-allowlist@1",
 				// ai-review@1 stays registered so stored @1 runs remain interpretable;
 				// @2 (backticked findings) is the current version.
 				"ai-review@1",

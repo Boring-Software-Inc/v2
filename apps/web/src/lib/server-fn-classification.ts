@@ -42,6 +42,8 @@ export const SERVER_FN_CLASSIFICATION: ServerFnClassification = {
 	 * in the service.
 	 */
 	redeemOrgInvite: "public",
+	getContributionAppeal: "public",
+	submitContributionAppeal: "public",
 	stopImpersonating: "public",
 	recordDatabuddyAnonId: "public",
 
@@ -89,6 +91,8 @@ export const SERVER_FN_CLASSIFICATION: ServerFnClassification = {
 
 	// ── moderation (human review) ─────────────────────────────────────────
 	listModerationQueue: "permission:moderation:read",
+	listContributionAppeals: "permission:moderation:read",
+	decideContributionAppeal: "permission:moderation:manage",
 	decideModeration: "permission:moderation:manage",
 
 	// ── activity (runs) ───────────────────────────────────────────────────
@@ -100,6 +104,12 @@ export const SERVER_FN_CLASSIFICATION: ServerFnClassification = {
 	getRerunPreview: "permission:activity:manage",
 
 	// ── rules ─────────────────────────────────────────────────────────────
+	getOrgModerationPolicy: "permission:settings:read",
+	saveOrgModerationPolicy: "permission:settings:manage",
+	getRepoModerationSettings: "permission:rules:read",
+	saveRepoModerationPolicy: "permission:rules:manage",
+	addRepoAllowlistLogin: "permission:rules:manage",
+	removeRepoAllowlistAccount: "permission:rules:manage",
 	listRuleConfigViews: "permission:rules:read",
 	listCustomRuleViews: "permission:rules:read",
 	getRulesHeaderStats: "permission:rules:read",

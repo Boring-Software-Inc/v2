@@ -61,6 +61,7 @@ export interface ExecuteWorkflowOptions {
 	) => Promise<RuleResult>;
 	/** Injected clock for step timings. */
 	now: () => string;
+	isRuleExempt?: (ref: string) => boolean;
 	/**
 	 * Resume (§6 moderation): prior outcomes from the paused run plus the
 	 * decision for the node that paused it.
@@ -240,6 +241,18 @@ export async function executeWorkflow(
 		}
 
 		if (node.type === "rule") {
+			if (options.isRuleExempt?.(node.ref)) {
+				outcomes.set(node.id, "pass");
+				conducted.add(node.id);
+				await record(
+					node,
+					"disabled",
+					{ ref: node.ref, exemption: "maintainer" },
+					null,
+					startedAt,
+				);
+				continue;
+			}
 			// A rule placed in a workflow is OWNED by the workflow (§6): it is
 			// active because it is wired, regardless of its standalone /rules
 			// toggle. The toggle governs only standalone use, applied by the

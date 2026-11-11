@@ -34,6 +34,7 @@ export {
 	REFRESH_SURFACES_QUEUE,
 	RERUN_COOLDOWN_SECONDS,
 	RERUN_QUEUE,
+	RESTORE_CONTRIBUTION_APPEAL_QUEUE,
 	RESUME_RUN_QUEUE,
 	type RecoverInstallationJob,
 	type RefreshSurfacesJob,
@@ -117,6 +118,8 @@ export * as agentWorkServices from "./services/agent-work.ts";
 export type { AgentGrant, ConnectedAgent } from "./services/agents.ts";
 export * as agentServices from "./services/agents.ts";
 export * as aiProviderServices from "./services/ai-provider.ts";
+export * as contributionAppealRestorationServices from "./services/contribution-appeal-restoration.ts";
+export * as contributionAppealServices from "./services/contribution-appeals.ts";
 export type {
 	CustomRuleView,
 	SaveCustomRuleResult,
@@ -162,6 +165,7 @@ export * as labelServices from "./services/labels.ts";
 export type { LiveViewer } from "./services/live.ts";
 export * as liveServices from "./services/live.ts";
 export * as moderationServices from "./services/moderation.ts";
+export * as moderationPolicyServices from "./services/moderation-policy.ts";
 export type { RepoLite, SwitcherRepo } from "./services/onboarding.ts";
 export type {
 	ApprovedInstallRequest,

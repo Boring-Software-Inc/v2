@@ -62,6 +62,15 @@ describe("resolveRunAccess", () => {
 });
 
 describe("isPublicPath", () => {
+	test("single contributor appeals are public while their index stays gated", () => {
+		expect(isPublicPath("/appeals/019f54d3-0c13-7000-930a-dc97f87e1d5e")).toBe(
+			true,
+		);
+		expect(isPublicPath("/appeals")).toBe(false);
+		expect(isPublicPath("/appeals/")).toBe(false);
+		expect(isPublicPath("/appeals/id/reasons")).toBe(false);
+	});
+
 	test("run pages and login are public", () => {
 		expect(isPublicPath("/login")).toBe(true);
 		expect(isPublicPath("/runs/019f54d3-0c13-7000-930a-dc97f87e1d5e")).toBe(
