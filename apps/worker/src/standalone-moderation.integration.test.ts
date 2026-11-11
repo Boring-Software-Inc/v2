@@ -746,3 +746,14 @@ test("a contribution approval waives the standalone outcome on a later delivery"
 		false,
 	);
 });
+
+test("the review queue shows the original issue title", async () => {
+	const fixture = await setup("issue", "human-review");
+	const result = await fixture.deliver();
+	if (!result) throw new Error("Expected an issue review");
+	const rows = await moderationServices.listPendingItems(db, [
+		{ forge: "github", fullName: fixture.fullName },
+	]);
+	expect(rows).toHaveLength(1);
+	expect(rows[0]?.title).toBe(issueFixture.issue.title);
+});

@@ -83,7 +83,7 @@ export function ModerationQueueEmpty({
 			<EmptyHeader>
 				<EmptyTitle>Nothing to decide</EmptyTitle>
 				<EmptyDescription>
-					Change requests that need human review wait here for you to approve or
+					Contributions that need human review wait here for you to approve or
 					block.
 				</EmptyDescription>
 			</EmptyHeader>
@@ -137,12 +137,18 @@ export function ModerationQueue({
 						const subject = number
 							? `${number} in ${item.repoFullName}`
 							: item.repoFullName;
-						const name = number ?? "this change request";
 						const comment = isCommentItem(item);
+						const issue = item.eventKind === "issue.opened";
+						const subjectLabel = comment
+							? "Comment"
+							: issue
+								? "Issue"
+								: "Change request";
+						const name = number ?? `this ${subjectLabel.toLowerCase()}`;
 						return (
 							<Item key={item.id}>
 								<ItemMedia variant="icon">
-									<Icon icon={comment ? Comment : ChangeRequest} />
+									<Icon icon={comment || issue ? Comment : ChangeRequest} />
 								</ItemMedia>
 								<ItemContent>
 									<ItemTitle>
@@ -152,10 +158,7 @@ export function ModerationQueue({
 										>
 											<MetaRow>
 												{number ? <span>{number}</span> : null}
-												<span>
-													{item.title ??
-														(comment ? "Comment" : "Change request")}
-												</span>
+												<span>{item.title ?? subjectLabel}</span>
 											</MetaRow>
 										</ItemRouterLink>
 										{item.nodeId === "run:degraded" ? (
