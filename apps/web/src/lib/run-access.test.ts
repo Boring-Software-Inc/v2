@@ -67,6 +67,8 @@ describe("isPublicPath", () => {
 			true,
 		);
 		expect(isPublicPath("/appeals")).toBe(false);
+		expect(isPublicPath("/appeals/example")).toBe(true);
+		expect(isPublicPath("/appeals/org/example")).toBe(false);
 		expect(isPublicPath("/appeals/")).toBe(false);
 		expect(isPublicPath("/appeals/id/reasons")).toBe(false);
 	});

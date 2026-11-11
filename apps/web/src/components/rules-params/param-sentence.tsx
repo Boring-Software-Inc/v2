@@ -1,4 +1,4 @@
-import { Button as InlineTrigger } from "@base-ui/react/button";
+import { Link } from "@tanstack/react-router";
 import {
 	formatParamValue,
 	type JsonValue,
@@ -6,17 +6,17 @@ import {
 	ruleUiSchema,
 } from "@tripwire/contracts";
 import { Fragment, type ReactNode, useState } from "react";
-import { cn } from "#/design-system/lib/utils";
+import { Button } from "#/design-system/ui/button";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTitle,
+	PopoverTrigger,
+} from "#/design-system/ui/popover";
+import { SupportingText } from "#/design-system/ui/typography";
 import { ParamEditor } from "./param-editor";
 import { ParamValue } from "./param-value";
 
-/**
- * A rule's config as human sentences (§9) — the templates read as one paragraph, each value
- * rendered inline via `ParamValue`. When `canEdit`, a value is a button that
- * swaps to `ParamEditor` in place; otherwise it's static text. Params not named
- * in any sentence (e.g. ai-review's advanced `model`) never render here. Returns
- * null for a param-less rule, so the card shows no config region at all.
- */
 function spokenValue(
 	param: RuleParam,
 	value: Parameters<typeof formatParamValue>[1],
@@ -36,12 +36,14 @@ export function ParamSentence({
 	canEdit,
 	onSaveParam,
 	className,
+	settingsScope,
 }: {
 	ruleId: string;
 	config: JsonValue;
 	canEdit: boolean;
 	onSaveParam: (key: string, value: JsonValue) => void;
 	className?: string;
+	settingsScope?: { org: string; repo: string };
 }) {
 	const ui = ruleUiSchema(ruleId);
 	const [editing, setEditing] = useState<string | null>(null);
@@ -55,54 +57,73 @@ export function ParamSentence({
 	const byKey = new Map(ui.params.map((p) => [p.key, p] as const));
 
 	const renderValue = (param: RuleParam): ReactNode => {
-		if (editing === param.key) {
-			return (
-				<ParamEditor
-					onCancel={() => setEditing(null)}
-					onSave={(value) => {
-						setEditing(null);
-						onSaveParam(param.key, value);
-					}}
-					param={param}
-					value={cfg[param.key]}
-				/>
-			);
-		}
 		if (!canEdit) {
 			return <ParamValue param={param} value={cfg[param.key]} />;
 		}
 		return (
-			<InlineTrigger
-				aria-label={`Change ${param.label}, now ${spokenValue(param, cfg[param.key])}`}
-				className="cursor-pointer rounded-tag text-text-1 underline decoration-text-3 decoration-dotted underline-offset-3 transition-[text-decoration-color] duration-(--dur-state) ease-out focus-sm hover:decoration-text-1"
-				onClick={() => setEditing(param.key)}
+			<Popover
+				open={editing === param.key}
+				onOpenChange={(open) =>
+					setEditing((current) =>
+						open ? param.key : current === param.key ? null : current,
+					)
+				}
 			>
-				<ParamValue param={param} value={cfg[param.key]} />
-			</InlineTrigger>
+				<PopoverTrigger
+					aria-label={`Edit ${param.label}, now ${spokenValue(param, cfg[param.key])}`}
+					className="cursor-pointer rounded-tag underline decoration-line-strong decoration-dotted underline-offset-3 transition-colors duration-(--dur-state) ease-out focus-sm hover:decoration-solid data-popup-open:decoration-solid"
+				>
+					<ParamValue param={param} value={cfg[param.key]} />
+				</PopoverTrigger>
+				<PopoverContent
+					align="start"
+					initialFocus={param.kind === "string-list" ? false : undefined}
+				>
+					<PopoverTitle>{param.label}</PopoverTitle>
+					<ParamEditor
+						onCancel={() => setEditing(null)}
+						onSave={(value) => onSaveParam(param.key, value)}
+						param={param}
+						value={cfg[param.key]}
+					/>
+					{settingsScope && (
+						<Button
+							className="self-start"
+							nativeButton={false}
+							render={
+								<Link
+									params={{ ...settingsScope, ruleId }}
+									to="/$org/$repo/rules/$ruleId/settings"
+								/>
+							}
+							size="sm"
+							variant="secondary"
+						>
+							Open settings
+						</Button>
+					)}
+				</PopoverContent>
+			</Popover>
 		);
 	};
 
 	return (
-		<div
-			className={cn(
-				"type-body-sm text-text-2",
-				className,
-				editing && "line-clamp-none",
-			)}
-		>
-			{ui.sentences.map((sentence, index) => (
-				<Fragment key={sentence}>
-					{index > 0 ? "; " : null}
-					{sentence.split(/(\{\w+\})/).map((part, i) => {
-						const match = /^\{(\w+)\}$/.exec(part);
-						const param = match ? byKey.get(match[1] as string) : undefined;
-						return (
-							// biome-ignore lint/suspicious/noArrayIndexKey: fixed template segments
-							<Fragment key={i}>{param ? renderValue(param) : part}</Fragment>
-						);
-					})}
-				</Fragment>
-			))}
+		<div className={className}>
+			<SupportingText as="span">
+				{ui.sentences.map((sentence, index) => (
+					<Fragment key={sentence}>
+						{index > 0 ? "; " : null}
+						{sentence.split(/(\{\w+\})/).map((part, i) => {
+							const match = /^\{(\w+)\}$/.exec(part);
+							const param = match ? byKey.get(match[1] as string) : undefined;
+							return (
+								// biome-ignore lint/suspicious/noArrayIndexKey: fixed template segments
+								<Fragment key={i}>{param ? renderValue(param) : part}</Fragment>
+							);
+						})}
+					</Fragment>
+				))}
+			</SupportingText>
 		</div>
 	);
 }

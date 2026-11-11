@@ -1,3 +1,4 @@
+import { SHARED_BLOCKLIST_RULE_ID } from "@tripwire/contracts";
 import { AgentOutline } from "#/components/agent/agent-outline";
 import {
 	RULE_CARD_CLASS,
@@ -6,6 +7,7 @@ import {
 	RULE_PANEL_CLASS,
 	RULE_SENTENCE_CLASS,
 } from "#/components/rules/rule-card-frame";
+import { RuleSettingsMenu } from "#/components/rules/rule-settings-menu";
 import { Button } from "#/design-system/ui/button";
 import { Card, CardFooter } from "#/design-system/ui/card";
 import {
@@ -60,11 +62,13 @@ export function PilotLibraryRow({
 
 export function SharedBlocklistRuleCard({
 	canEdit,
+	scope,
 	highlighted,
 	pending,
 	onUninstall,
 }: {
 	canEdit: boolean;
+	scope?: { org: string; repo: string };
 	highlighted: boolean;
 	pending: boolean;
 	onUninstall: () => void;
@@ -86,18 +90,28 @@ export function SharedBlocklistRuleCard({
 				<Panel className={RULE_PANEL_CLASS}>
 					<div className={RULE_HEADER_CLASS}>
 						<h2 className="min-w-0 truncate type-label-lg">Pilot</h2>
-						<Button
-							aria-label="Uninstall Pilot"
-							disabled={!canEdit}
-							data-layout-role="pilot-rule-action"
-							onClick={onUninstall}
-							pending={pending || undefined}
-							pendingLabel="Uninstalling"
-							size="sm"
-							variant="secondary"
-						>
-							Uninstall
-						</Button>
+						<span className="flex items-center">
+							{" "}
+							<Button
+								aria-label="Uninstall Pilot"
+								disabled={!canEdit}
+								data-layout-role="pilot-rule-action"
+								onClick={onUninstall}
+								pending={pending || undefined}
+								pendingLabel="Uninstalling"
+								size="sm"
+								variant="secondary"
+							>
+								Uninstall
+							</Button>
+							{scope && (
+								<RuleSettingsMenu
+									{...scope}
+									name="Pilot"
+									ruleId={SHARED_BLOCKLIST_RULE_ID}
+								/>
+							)}
+						</span>
 					</div>
 					<p className={RULE_SENTENCE_CLASS}>{PILOT_DESCRIPTION}</p>
 				</Panel>

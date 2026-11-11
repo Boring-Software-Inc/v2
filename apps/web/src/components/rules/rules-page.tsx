@@ -378,11 +378,8 @@ export function RulesPage() {
 									<RepoModerationSettings
 										canManage={isAdmin}
 										key={repo.id}
-										onBrowseLibrary={() => void showTab("library")}
 										org={org}
-										pilotEnabled={Boolean(!pilotManaged && pilot?.enabled)}
 										repo={repoName}
-										rules={rules}
 									/>
 								)}
 								{isAdmin && (
@@ -588,6 +585,7 @@ export function RulesPage() {
 													{visible.map((rule) =>
 														"kind" in rule ? (
 															<SharedBlocklistRuleCard
+																scope={{ org, repo: repoName }}
 																canEdit={isAdmin}
 																key={rule.ruleId}
 																highlighted={pilotHighlighted}

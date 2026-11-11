@@ -18,7 +18,10 @@ import {
 import { toast } from "#/design-system/ui/toast";
 import { SupportingText } from "#/design-system/ui/typography";
 import { useOrgPermission } from "#/hooks/use-org-permission";
-import { decideContributionAppeal } from "#/lib/contribution-appeals.functions";
+import {
+	decideContributionAppeal,
+	resolveOrganizationAppeal,
+} from "#/lib/contribution-appeals.functions";
 import { contributionAppealsOptions } from "#/lib/contribution-appeals.query";
 
 const decisions: { value: ContributionAppealDecision; label: string }[] = [
@@ -57,11 +60,38 @@ export function ContributionAppealsQueue({
 			toast.fail("Tripwire couldn't resolve the appeal. Try again."),
 	});
 
-	if (query.isPending || (!query.isError && !query.data?.length)) return null;
+	const resolve = useMutation({
+		mutationFn: (appealId: string) =>
+			resolveOrganizationAppeal({ data: { org, appealId } }),
+		onSuccess: async (result) => {
+			await client.invalidateQueries({
+				queryKey: ["contribution-appeals", org],
+			});
+			toast(
+				result ? "Appeal resolved" : "This appeal has already been resolved",
+			);
+		},
+		onError: () =>
+			toast.fail("Tripwire couldn't resolve the appeal. Try again."),
+	});
+
+	if (query.isPending) return null;
 
 	return (
 		<Section id="contribution-appeals">
-			<SectionHeader title="Appeals" />
+			<SectionHeader
+				title="Appeals"
+				actions={
+					<Button
+						nativeButton={false}
+						render={<Link params={{ target: org }} to="/appeals/$target" />}
+						size="sm"
+						variant="secondary"
+					>
+						Appeal portal
+					</Button>
+				}
+			/>
 			{query.isError ? (
 				<SectionBody>
 					<SupportingText>Tripwire couldn't load appeals.</SupportingText>
@@ -73,15 +103,21 @@ export function ContributionAppealsQueue({
 						Try again
 					</Button>
 				</SectionBody>
+			) : !query.data?.contributions.length &&
+				!query.data?.organizationAppeals.length ? (
+				<SectionBody>
+					<SupportingText>No pending appeals.</SupportingText>
+				</SectionBody>
 			) : (
 				<SectionBody>
-					{query.data?.map((appeal) => (
+					{query.data?.contributions.map((appeal) => (
 						<Card key={appeal.id}>
 							<CardHeader>
 								<CardTitle>
 									<Link
 										className="hover:underline"
 										params={{ runId: appeal.runId }}
+										search={{ from: "review" }}
 										to="/runs/$runId"
 									>
 										{appeal.subjectKind === "issue" ? "Issue" : "Pull request"}{" "}
@@ -125,6 +161,42 @@ export function ContributionAppealsQueue({
 										))}
 								</CardFooter>
 							) : null}
+						</Card>
+					))}
+					{query.data?.organizationAppeals.map((appeal) => (
+						<Card key={appeal.id}>
+							<CardHeader>
+								<CardTitle>Organization appeal</CardTitle>
+								<CardDescription>
+									{appeal.type === "issue"
+										? "Issue moderation"
+										: appeal.type === "pull-request"
+											? "Pull request moderation"
+											: "Other"}
+									{" · "}GitHub account {appeal.accountId}
+								</CardDescription>
+							</CardHeader>
+							<CardContent>
+								<p className="whitespace-pre-wrap break-words">
+									{appeal.reason}
+								</p>
+								<SupportingText>Case {appeal.id}</SupportingText>
+							</CardContent>
+							{canDecide && (
+								<CardFooter>
+									<Button
+										disabled={resolve.isPending}
+										onClick={() => resolve.mutate(appeal.id)}
+										pending={
+											resolve.isPending && resolve.variables === appeal.id
+										}
+										size="sm"
+										variant="secondary"
+									>
+										Mark resolved
+									</Button>
+								</CardFooter>
+							)}
 						</Card>
 					))}
 				</SectionBody>

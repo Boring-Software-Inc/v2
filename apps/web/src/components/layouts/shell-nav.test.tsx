@@ -9,13 +9,14 @@ import {
 	RouterProvider,
 } from "@tanstack/react-router";
 import { renderToString } from "react-dom/server";
-import { ShellNav } from "#/components/layouts/shell-nav";
+import { type NestedNavItem, ShellNav } from "#/components/layouts/shell-nav";
 import type { OrgWithPermissions } from "#/lib/org.functions";
 import { orgContextQueryOptions } from "#/lib/org.query";
 
 async function renderNav(
 	queue: number | undefined,
 	permissions: OrgWithPermissions["permissions"],
+	parent?: NestedNavItem["parent"],
 ) {
 	const client = new QueryClient();
 	client.setQueryData(orgContextQueryOptions("team").queryKey, {
@@ -40,12 +41,24 @@ async function renderNav(
 		path: "$org/$repo/activity",
 		component: () => <ShellNav counts={{ queue }} />,
 	});
+	const run = createRoute({
+		getParentRoute: () => root,
+		path: "runs/$runId",
+		component: () => (
+			<ShellNav
+				counts={{ queue }}
+				nestedItem={parent ? { parent, label: "Run #42" } : undefined}
+				scope={{ org: "team", repo: "scratch" }}
+				variant="rail"
+			/>
+		),
+	});
 	const router = createRouter({
 		isServer: true,
 		origin: "https://tripwire.test",
-		routeTree: root.addChildren([activity]),
+		routeTree: root.addChildren([activity, run]),
 		history: createMemoryHistory({
-			initialEntries: ["/team/scratch/activity"],
+			initialEntries: [parent ? "/runs/42" : "/team/scratch/activity"],
 		}),
 	});
 	await router.load();
@@ -80,5 +93,28 @@ describe("ShellNav review count", () => {
 		expect(html).toContain('href="/team/scratch/activity"');
 		expect(html).not.toContain("Human review");
 		expect(html).not.toContain("to review</span>");
+	});
+});
+
+describe("ShellNav run navigation", () => {
+	test.each([
+		["activity", "Activity"],
+		["moderation", "Human review"],
+	] as const)("nests the active run under %s", async (parent, label) => {
+		const html = await renderNav(
+			undefined,
+			["moderation:read", "activity:read"],
+			parent,
+		);
+		expect(html).toContain('href="/team/scratch/moderation"');
+		expect(html).toContain('href="/team/scratch/activity"');
+		expect(html).toMatch(/aria-current="page"[^>]*href="\/runs\/42"/);
+		expect(html).toContain(label);
+		expect(html.indexOf(label)).toBeLessThan(html.indexOf('title="Run #42"'));
+		if (parent === "moderation") {
+			expect(html.indexOf('title="Run #42"')).toBeLessThan(
+				html.indexOf(">Activity<"),
+			);
+		}
 	});
 });

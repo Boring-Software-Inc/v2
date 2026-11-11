@@ -37,11 +37,13 @@ import {
 } from "#/design-system/ui/empty-state";
 import { toast } from "#/design-system/ui/toast";
 import { PageTitle } from "#/design-system/ui/typography";
+import { useActiveScope } from "#/hooks/use-active-scope";
 import {
 	getRerunPreview,
 	rerunChangeRequest,
 	rerunRulesLine,
 } from "#/lib/activity.functions";
+import { currentUserQueryOptions } from "#/lib/auth.query";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 import { buildRunChain } from "#/lib/run-chain";
 import { mergeLiveSteps } from "#/lib/run-live-steps";
@@ -59,8 +61,12 @@ function sentence(text: string): string {
 export function RunPage() {
 	const { runId } = route.useParams();
 	const { data: run, isLoading } = useQuery(runQueryOptions(runId));
+	const user = useQuery({
+		...currentUserQueryOptions(),
+		enabled: run?.access === "public",
+	});
 
-	if (isLoading) {
+	if (isLoading || (run?.access === "public" && user.isPending)) {
 		return <RunPageSkeleton />;
 	}
 	if (!run) {
@@ -93,7 +99,7 @@ export function RunPage() {
 		);
 	}
 
-	if (run.access === "public") {
+	if (run.access === "public" && !user.data) {
 		return (
 			<div data-layout-role="public-run-shell">
 				<main data-layout-role="public-run-main">
@@ -113,8 +119,25 @@ export function RunPage() {
 		);
 	}
 
+	return <DashboardRun run={run} />;
+}
+
+function DashboardRun({ run }: { run: RunView }) {
+	const { from } = route.useSearch();
+	const { org, repo } = useActiveScope();
 	return (
-		<DashboardLayout counts={{}}>
+		<DashboardLayout
+			counts={{}}
+			scope={org ? { org: org.slug, repo } : undefined}
+			nestedNavItem={
+				run.access !== "public"
+					? {
+							parent: from === "review" ? "moderation" : "activity",
+							label: run.subjectNumber ? `Run #${run.subjectNumber}` : "Run",
+						}
+					: undefined
+			}
+		>
 			<RunBody run={run} />
 		</DashboardLayout>
 	);
@@ -185,6 +208,7 @@ function RunBody({ run }: { run: RunView }) {
 					metadata={
 						<MetaRow wrap>
 							<RunStatusMark outcome={chain.outcome} />
+							{run.access === "public" ? <span>Public view</span> : null}
 							{run.backfill ? <span>{BACKFILL_RUN_LABEL}</span> : null}
 							<span>{run.repoFullName}</span>
 							<span>{formatRelativeTime(run.createdAt)}</span>
@@ -258,7 +282,11 @@ function RerunRunButton({
 			if (result.status === "queued") {
 				setOpen(false);
 				toast("Re-run queued. Opening the new run.");
-				void navigate({ params: { runId: result.runId }, to: "/runs/$runId" });
+				void navigate({
+					params: { runId: result.runId },
+					search: true,
+					to: "/runs/$runId",
+				});
 			} else if (result.status === "cooldown") {
 				setOpen(false);
 				toast(

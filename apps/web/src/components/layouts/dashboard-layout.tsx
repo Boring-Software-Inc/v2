@@ -7,9 +7,10 @@ import {
 	FeedbackPicker,
 	FeedbackProvider,
 } from "#/components/feedback";
-import { ShellNav } from "#/components/layouts/shell-nav";
+import { type NestedNavItem, ShellNav } from "#/components/layouts/shell-nav";
 import { cn } from "#/design-system/lib/utils";
 import { useMediaQuery } from "#/hooks/use-media-query";
+import type { RouteScope } from "#/lib/active-scope";
 import { currentUserQueryOptions } from "#/lib/auth.query";
 import { CommandPaletteLauncher } from "./command-palette-launcher";
 import { DashboardRail } from "./dashboard-rail";
@@ -25,6 +26,8 @@ import { RouteProgress } from "./route-progress";
 interface DashboardLayoutProps {
 	counts: { queue?: number };
 	nav?: boolean;
+	nestedNavItem?: NestedNavItem;
+	scope?: RouteScope;
 	children: ReactNode;
 }
 
@@ -43,6 +46,8 @@ function prefersReducedMotion(): boolean {
 function DashboardShell({
 	counts,
 	nav = true,
+	nestedNavItem,
+	scope,
 	children,
 }: DashboardLayoutProps) {
 	const { data: user } = useQuery(currentUserQueryOptions());
@@ -51,7 +56,7 @@ function DashboardShell({
 	const showPanel = isDesktop && Boolean(content) && !collapsed;
 	const rail = isDesktop;
 	const params = useParams({ strict: false });
-	const inset = Boolean(params.repo);
+	const inset = Boolean(params.repo || scope);
 
 	const pageRef = useRef<HTMLElement>(null);
 	const restoreTop = useRef(0);
@@ -97,13 +102,26 @@ function DashboardShell({
 				{rail ? null : (
 					<>
 						<DashboardTopbar user={user ?? null} />
-						{nav ? <ShellNav counts={counts} /> : null}
+						{nav ? (
+							<ShellNav
+								counts={counts}
+								nestedItem={nestedNavItem}
+								scope={scope}
+							/>
+						) : null}
 					</>
 				)}
 				<RouteProgress />
 
 				<div className={cn("flex min-h-0 flex-1", rail && "py-2 pe-2")}>
-					{rail ? <DashboardRail counts={counts} user={user ?? null} /> : null}
+					{rail ? (
+						<DashboardRail
+							counts={counts}
+							nestedNavItem={nestedNavItem}
+							scope={scope}
+							user={user ?? null}
+						/>
+					) : null}
 					<div
 						className={cn(
 							"grid min-h-0 flex-1 transition-[padding] duration-(--dur-overlay) ease-out",

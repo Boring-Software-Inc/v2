@@ -3149,3 +3149,32 @@
 	padding: calc(var(--space-2) * 5) var(--space-4);
 	background: var(--page);
 }
+
+@font-face {
+	font-family: Geist;
+	src: url("../lib/server/og/assets/Geist-Regular.ttf") format("truetype");
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+}
+
+[data-layout-role="allowlist-username"]::placeholder {
+	font-family: Geist, var(--font-sans);
+	font-weight: 400;
+}
+
+[data-theme="dark"] [data-layout-role="allowlist-username"]::placeholder {
+	color: rgb(255 255 255 / 50%);
+}
+
+[data-appeal-form][data-layout-role="form-section"] {
+	flex-direction: column;
+	flex-wrap: nowrap;
+	align-items: stretch;
+	gap: var(--space-4);
+	padding: var(--space-5);
+}
+
+[data-appeal-form][data-layout-role="form-section"] > [data-slot="field"] {
+	inline-size: 100%;
+}

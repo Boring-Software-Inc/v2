@@ -876,5 +876,12 @@ Contributor access to the form grants no repository membership or private run
 visibility. Approved appeals restore only actions attributable to Tripwire's
 standalone decision. Restoration is recorded and retried through the worker.
 
+The organization portal at /appeals/[org-slug] accepts an appeal category and
+reason from the verified GitHub account that received a moderation decision in
+that organization. The request belongs to the organization and has no
+repository, issue, pull request, or run target. Organization moderators can
+resolve it in Human review. Resolving it applies no forge action or allowlist
+change. A contributor may have only one open appeal across both paths.
+
 The first rollout targets staging. A pull request to main follows staging
 validation and remains available for Grim's review.

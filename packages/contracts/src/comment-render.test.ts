@@ -841,7 +841,26 @@ describe("standalone moderation responses", () => {
 		expect(body).toContain("Tripwire locked this issue.");
 		expect(body).toContain(`[Request a review](${appealUrl})`);
 		expect(body).not.toContain("change request");
+		expect(body).toContain("Use **Request a review**");
+		expect(body).not.toMatch(/commit|merge|say so in a comment/i);
 	});
+	test("issue help without an appeal link gives a maintainer contact path at high redaction", () => {
+		const body = renderVerdictComment(
+			{ ...input, appealUrl: undefined },
+			DEFAULT_RESPONSE_CONFIG,
+			redactionPolicySchema.parse({ level: 6 }),
+		);
+		expect(body).toContain("Contact a repository maintainer");
+		expect(body).not.toMatch(/commit|merge|request a review/i);
+	});
+	test("pull request help still gives commit guidance", () => {
+		const body = renderVerdictComment(
+			{ ...input, subjectKind: "change-request" },
+			DEFAULT_RESPONSE_CONFIG,
+		);
+		expect(body).toContain("A new commit will not fix this.");
+	});
+
 	test("a warning describes the rule flag without a passing headline", () => {
 		const body = renderVerdictComment(
 			{

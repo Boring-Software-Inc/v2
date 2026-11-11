@@ -154,6 +154,7 @@ export function ModerationQueue({
 									<ItemTitle>
 										<ItemRouterLink
 											params={{ runId: item.runId }}
+											search={{ from: "review" }}
 											to="/runs/$runId"
 										>
 											<MetaRow>

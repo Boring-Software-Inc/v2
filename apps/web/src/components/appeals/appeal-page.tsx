@@ -1,19 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getRouteApi } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import type { ContributionAppealStatus } from "@tripwire/contracts";
 import { useState } from "react";
 import { AppealPageSkeleton } from "#/components/appeals/appeal-page-skeleton";
+import { AppealSignIn } from "#/components/appeals/appeal-sign-in";
 import { ContributionAppealLayout } from "#/components/layouts/contribution-appeal-layout";
-import { FormSection } from "#/components/layouts/section";
+import { FormActions, FormSection } from "#/components/layouts/section";
 import { Button } from "#/design-system/ui/button";
 import { Field, FieldLabel } from "#/design-system/ui/field";
 import { Textarea } from "#/design-system/ui/textarea";
-import { PageTitle, SupportingText } from "#/design-system/ui/typography";
-import { authClient } from "#/lib/auth-client";
+import {
+	Caption,
+	PageTitle,
+	SupportingText,
+} from "#/design-system/ui/typography";
 import { submitContributionAppeal } from "#/lib/contribution-appeals.functions";
 import { contributionAppealOptions } from "#/lib/contribution-appeals.query";
-
-const route = getRouteApi("/appeals/$runId");
 
 const statusCopy = {
 	pending: "Your appeal is waiting for a maintainer.",
@@ -23,20 +25,10 @@ const statusCopy = {
 	deny: "A maintainer denied your appeal.",
 } satisfies Record<ContributionAppealStatus, string>;
 
-export function AppealPage() {
-	const { runId } = route.useParams();
+export function AppealPage({ runId }: { runId: string }) {
 	const client = useQueryClient();
 	const query = useQuery(contributionAppealOptions(runId));
 	const [reason, setReason] = useState("");
-	const signIn = useMutation({
-		mutationFn: async () => {
-			const result = await authClient.signIn.social({
-				provider: "github",
-				callbackURL: `/appeals/${runId}`,
-			});
-			if (result.error) throw new Error("GitHub sign-in failed");
-		},
-	});
 	const submit = useMutation({
 		mutationFn: async () => {
 			const result = await submitContributionAppeal({
@@ -49,6 +41,9 @@ export function AppealPage() {
 			client.setQueryData(contributionAppealOptions(runId).queryKey, {
 				state: "eligible",
 				...appeal,
+			});
+			void client.invalidateQueries({
+				queryKey: ["contribution-appeal-portal"],
 			});
 		},
 	});
@@ -67,43 +62,52 @@ export function AppealPage() {
 					</Button>
 				</>
 			) : appeal?.state === "signed-out" ? (
-				<>
-					<SupportingText>
-						Sign in with the GitHub account that opened the contribution.
-					</SupportingText>
-					<Button
-						className="self-start"
-						onClick={() => signIn.mutate()}
-						pending={signIn.isPending}
-					>
-						Sign in with GitHub
-					</Button>
-					{signIn.isError ? (
-						<SupportingText role="alert">
-							GitHub sign-in failed. Try again.
-						</SupportingText>
-					) : null}
-				</>
+				<AppealSignIn returnTo={`/appeals/${runId}`} />
 			) : appeal?.state !== "eligible" ? (
 				<SupportingText>
 					This appeal is unavailable for your GitHub account.
 				</SupportingText>
 			) : appeal.status ? (
 				<output>
-					<SupportingText as="span">{statusCopy[appeal.status]}</SupportingText>
+					<SupportingText>{statusCopy[appeal.status]}</SupportingText>
+					{appeal.appealId && <Caption>Case {appeal.appealId}</Caption>}
 				</output>
+			) : appeal.pendingRunId || appeal.pendingOrgSlug ? (
+				<>
+					<SupportingText>
+						You can submit another appeal after a maintainer resolves your open
+						case.
+					</SupportingText>
+					<Button
+						className="self-start"
+						nativeButton={false}
+						render={
+							<Link
+								params={{
+									target: appeal.pendingRunId ?? appeal.pendingOrgSlug ?? "",
+								}}
+								to="/appeals/$target"
+							/>
+						}
+						variant="secondary"
+					>
+						View open appeal
+					</Button>
+				</>
 			) : (
 				<FormSection
+					data-appeal-form=""
 					onSubmit={(event) => {
 						event.preventDefault();
 						if (reason.trim() && !submit.isPending) submit.mutate();
 					}}
 				>
 					<Field>
-						<FieldLabel htmlFor="appeal-reason">
+						<FieldLabel htmlFor="appeal-reason" id="appeal-reason-label">
 							Why should a maintainer review this decision?
 						</FieldLabel>
 						<Textarea
+							aria-labelledby="appeal-reason-label"
 							id="appeal-reason"
 							maxLength={2000}
 							onChange={(event) => setReason(event.target.value)}
@@ -112,19 +116,23 @@ export function AppealPage() {
 							value={reason}
 						/>
 					</Field>
-					<Button
-						className="self-start"
-						disabled={!reason.trim()}
-						pending={submit.isPending}
-						type="submit"
-					>
-						Submit appeal
-					</Button>
+
 					{submit.isError ? (
 						<SupportingText role="alert">
 							Tripwire couldn't submit the appeal. Try again.
 						</SupportingText>
 					) : null}
+					<FormActions
+						primary={
+							<Button
+								disabled={!reason.trim()}
+								pending={submit.isPending}
+								type="submit"
+							>
+								Submit appeal
+							</Button>
+						}
+					/>
 				</FormSection>
 			)}
 		</ContributionAppealLayout>

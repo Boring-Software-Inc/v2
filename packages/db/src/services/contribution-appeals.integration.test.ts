@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, beforeEach, expect, test } from "bun:test";
 import { DEFAULT_WORKFLOW, normalizedEventSchema } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
 import { eq } from "drizzle-orm";
@@ -9,6 +9,7 @@ import {
 	contributionAppeals,
 	events,
 	organization,
+	organizationAppeals,
 	repos,
 	runSteps,
 	runs,
@@ -19,8 +20,12 @@ import {
 	decideAppeal,
 	getApprovedAppealId,
 	getOwnAppeal,
+	listOwnAppealCases,
 	listPendingAppeals,
+	listPendingOrganizationAppeals,
+	resolveOrganizationAppeal,
 	submitAppeal,
+	submitOrganizationAppeal,
 } from "./contribution-appeals.ts";
 import { addAllowlistEntry, isAuthorAllowlisted } from "./moderation-policy.ts";
 
@@ -55,6 +60,11 @@ beforeAll(async () => {
 afterAll(async () => {
 	await close?.();
 	await container?.stop();
+});
+
+beforeEach(async () => {
+	await db.delete(contributionAppeals);
+	await db.delete(organizationAppeals);
 });
 
 async function seedSubject(withPolicyOutcome = true) {
@@ -144,7 +154,7 @@ test("only the original GitHub author can access and submit a policy appeal", as
 			reason: "Please review",
 		}),
 	).toBeNull();
-	expect(await getOwnAppeal(db, subject.runId, authorId)).toEqual({
+	expect(await getOwnAppeal(db, subject.runId, authorId)).toMatchObject({
 		status: null,
 	});
 	expect(
@@ -153,7 +163,7 @@ test("only the original GitHub author can access and submit a policy appeal", as
 			userId: authorId,
 			reason: "  Please review  ",
 		}),
-	).toEqual({ status: "pending" });
+	).toMatchObject({ status: "pending" });
 	const rows = await listPendingAppeals(db, subject.repoId);
 	expect(rows).toHaveLength(1);
 	expect(rows[0]?.reason).toBe("Please review");
@@ -179,6 +189,85 @@ test("parallel submissions preserve the original reason and create one appeal", 
 		}),
 	]);
 	expect(await listPendingAppeals(db, subject.repoId)).toHaveLength(1);
+});
+
+test("concurrent appeals across organizations enforce one open case per contributor", async () => {
+	const first = await seedSubject();
+	const second = await seedSubject();
+	const otherOrg = generateId();
+	await db
+		.insert(organization)
+		.values({ id: otherOrg, name: "Other", slug: "appeal-other" });
+	await db
+		.update(repos)
+		.set({ orgId: otherOrg })
+		.where(eq(repos.id, second.repoId));
+	const subjects = [first, second];
+	const results = await Promise.all(
+		subjects.map(({ runId }) =>
+			submitAppeal(db, { runId, userId: authorId, reason: "Please review" }),
+		),
+	);
+	const winningIndex = results.findIndex(
+		(result) => result?.status === "pending",
+	);
+	const losingIndex = 1 - winningIndex;
+	const winner = subjects[winningIndex];
+	const loser = subjects[losingIndex];
+	if (!winner || !loser) throw new Error("Expected one open appeal");
+	expect(results[winningIndex]?.appealId).toBeDefined();
+	expect(results[losingIndex]).toMatchObject({
+		status: null,
+		pendingRunId: winner.runId,
+	});
+
+	const portal = await listOwnAppealCases(db, "appeal-other", authorId);
+	expect(portal.cases.map(({ runId }) => runId)).toEqual(
+		winner.runId === second.runId ? [second.runId] : [],
+	);
+	expect(portal.pendingRunId).toBe(winner.runId);
+	expect(await listOwnAppealCases(db, "appeal-other", outsiderId)).toEqual({
+		cases: [],
+		pendingRunId: null,
+		pendingOrgSlug: null,
+		requests: [],
+	});
+
+	const [open] = await listPendingAppeals(db, winner.repoId);
+	if (!open) throw new Error("Expected the winning appeal");
+	await decideAppeal(
+		db,
+		{
+			repoId: winner.repoId,
+			appealId: open.id,
+			decidedBy: reviewerId,
+			decision: "deny",
+		},
+		async () => {},
+	);
+	expect(
+		await submitAppeal(db, {
+			runId: loser.runId,
+			userId: authorId,
+			reason: "Please review",
+		}),
+	).toMatchObject({ status: "pending", pendingRunId: null });
+});
+
+test("warnings do not create appeal entitlement", async () => {
+	const subject = await seedSubject();
+	await db
+		.update(runs)
+		.set({ verdict: "pass" })
+		.where(eq(runs.id, subject.runId));
+	expect(await getOwnAppeal(db, subject.runId, authorId)).toBeNull();
+	expect(
+		await submitAppeal(db, {
+			runId: subject.runId,
+			userId: authorId,
+			reason: "Please review",
+		}),
+	).toBeNull();
 });
 
 test("an approval is scoped to its repository, author, contribution, and subject kind", async () => {
@@ -276,7 +365,7 @@ test("a failed approval effect rolls back its decision", async () => {
 			},
 		),
 	).rejects.toThrow("Unavailable");
-	expect(await getOwnAppeal(db, subject.runId, authorId)).toEqual({
+	expect(await getOwnAppeal(db, subject.runId, authorId)).toMatchObject({
 		status: "pending",
 	});
 	expect(await getApprovedAppealId(db, subject)).toBeNull();
@@ -318,4 +407,71 @@ test("empty reasons are rejected before persisting", async () => {
 		submitAppeal(db, { runId: subject.runId, userId: authorId, reason: "  " }),
 	).rejects.toThrow();
 	expect(await listPendingAppeals(db, subject.repoId)).toHaveLength(0);
+});
+
+test("an organization appeal has no contribution target and is private to its author and organization", async () => {
+	const { runId } = await seedSubject();
+	const input = {
+		org: "appeals",
+		type: "other",
+		reason: "Please review my restriction.",
+	} as const;
+	expect(
+		await submitOrganizationAppeal(db, { ...input, userId: outsiderId }),
+	).toEqual({ status: "unavailable" });
+	expect(
+		await submitOrganizationAppeal(db, {
+			...input,
+			org: "unknown-org",
+			userId: authorId,
+		}),
+	).toEqual({ status: "unavailable" });
+	const [first, second] = await Promise.all([
+		submitOrganizationAppeal(db, { ...input, userId: authorId }),
+		submitOrganizationAppeal(db, { ...input, userId: authorId }),
+	]);
+	expect([first.status, second.status].sort()).toEqual([
+		"already-pending",
+		"submitted",
+	]);
+	const [request] = await listPendingOrganizationAppeals(db, orgId);
+	if (!request) throw new Error("Expected an organization appeal");
+	expect(request).toMatchObject({ reason: input.reason, type: "other" });
+	expect(await listPendingOrganizationAppeals(db, generateId())).toEqual([]);
+	expect(
+		(await listOwnAppealCases(db, "appeals", outsiderId)).requests,
+	).toEqual([]);
+	expect((await listOwnAppealCases(db, "appeals", authorId)).requests).toEqual([
+		{ id: request.id, type: "other", resolvedAt: null },
+	]);
+	expect(
+		await submitAppeal(db, { runId, userId: authorId, reason: "Same account" }),
+	).toMatchObject({
+		status: null,
+		pendingOrgSlug: "appeals",
+	});
+	expect(
+		await resolveOrganizationAppeal(db, {
+			orgId: generateId(),
+			appealId: request.id,
+			userId: reviewerId,
+		}),
+	).toBe(false);
+	expect(
+		await resolveOrganizationAppeal(db, {
+			orgId,
+			appealId: request.id,
+			userId: reviewerId,
+		}),
+	).toBe(true);
+	expect(
+		await submitAppeal(db, {
+			runId,
+			userId: authorId,
+			reason: "Please review this PR",
+		}),
+	).toMatchObject({ status: "pending" });
+	expect(
+		await submitOrganizationAppeal(db, { ...input, userId: authorId }),
+	).toEqual({ status: "already-pending" });
 });
