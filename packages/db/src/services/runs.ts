@@ -901,8 +901,13 @@ export async function getLatestBlockReviewId(
 				sql`${events.forge} = ${repo.forge}`,
 				eq(runs.subjectNumber, subjectNumber),
 				eq(runActions.kind, "block"),
-				inArray(runActions.status, ["executed", "suppressed"]),
-				isNotNull(runActions.executedAt),
+				or(
+					eq(runActions.status, "executed"),
+					and(
+						eq(runActions.status, "suppressed"),
+						isNotNull(runActions.executedAt),
+					),
+				),
 				isNotNull(runActions.externalId),
 			),
 		)
