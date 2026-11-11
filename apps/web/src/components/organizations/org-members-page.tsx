@@ -566,7 +566,8 @@ function InviteForm({
 		<>
 			<DialogBody>
 				<form
-					className="flex flex-col gap-4"
+					className="flex flex-col"
+					data-layout-role="invite-dialog-form"
 					id={formId}
 					onSubmit={(event) => {
 						event.preventDefault();

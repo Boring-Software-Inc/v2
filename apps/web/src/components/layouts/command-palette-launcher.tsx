@@ -122,12 +122,9 @@ export function CommandPaletteButton({
 		return (
 			<Button
 				aria-keyshortcuts="Meta+K Control+K"
-				className="mx-1 h-7 w-auto justify-start gap-1.5 rounded-[8px]! bg-[#FFFFFF30] px-1 text-[13px] text-[#A6A6A6] leading-5! hover:bg-[#FFFFFF30] hover:text-[#A6A6A6]"
+				className="w-auto justify-start"
+				data-layout-role="command-palette-wide-trigger"
 				onClick={openCommandPalette}
-				style={{
-					boxShadow:
-						"inset 0 0 0 1px #FFFFFF05, inset 0 1px 1px #FFFFFF0F, inset 0 0 12px 1px #FFFFFF0F, 0 1px 2px #0000001A, 0 0 0 1px #0000001A",
-				}}
 				variant="ghost"
 			>
 				<span className="flex size-[18px] items-center justify-center">

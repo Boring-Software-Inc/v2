@@ -67,7 +67,8 @@ export function DashboardRail({
 								aria-label={
 									homeOrg ? "Tripwire, go to org home" : "Tripwire, go to home"
 								}
-								className="flex size-[34px] items-center justify-center rounded-tag text-text-1 hover:bg-hover"
+								className="flex size-[34px] items-center justify-center rounded-tag"
+								data-layout-role="sidebar-brand-link"
 								params={homeOrg ? { org: homeOrg } : {}}
 								to={homeOrg ? "/$org/home" : "/"}
 							>

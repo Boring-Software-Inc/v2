@@ -150,17 +150,22 @@ export function ModerationQueue({
 											{item.title ?? subjectLabel}
 										</ItemRouterLink>
 										{number ? (
-											<span className="type-code-xs text-text-2">{number}</span>
+											<span data-layout-role="moderation-item-number">
+												{number}
+											</span>
 										) : null}
 										{item.nodeId === "run:degraded" ? (
 											<Badge variant="warn">Check incomplete</Badge>
 										) : null}
 									</ItemTitle>
-									<ItemDescription className="flex flex-col gap-1 line-clamp-none">
+									<ItemDescription
+										className="flex flex-col line-clamp-none"
+										data-layout-role="moderation-item-description"
+									>
 										{item.reason ? (
 											<span className="line-clamp-2">{item.reason}</span>
 										) : null}
-										<MetaRow className="type-caption" wrap>
+										<MetaRow data-layout-role="moderation-item-meta" wrap>
 											<span>{item.actorLogin ?? "Unknown contributor"}</span>
 											<ZonedTime at={item.createdAt} format="short" />
 											<span>{subjectLabel}</span>
@@ -210,7 +215,10 @@ export function ModerationQueue({
 										size="sm"
 										variant="secondary"
 									>
-										<span className="flex size-4 items-center justify-center rounded-full bg-ok text-text-inverse">
+										<span
+											className="flex size-4 items-center justify-center rounded-full text-text-inverse"
+											data-layout-role="approve-glyph"
+										>
 											<Icon
 												className="size-3! text-text-inverse!"
 												icon={Check}
@@ -251,7 +259,7 @@ function BlockButton({
 					/>
 				}
 			>
-				<Icon className="text-fail" icon={Blocked} />
+				<Icon data-layout-role="block-glyph" icon={Blocked} />
 				Block
 			</DialogTrigger>
 			<DialogContent size="sm">

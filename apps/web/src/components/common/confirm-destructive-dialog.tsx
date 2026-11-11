@@ -44,7 +44,11 @@ export function ConfirmDestructiveDialog({
 		>
 			<DialogContent size="sm">
 				<DialogHeader>
-					{media ? <div className="mb-3 flex">{media}</div> : null}
+					{media ? (
+						<div className="flex" data-layout-role="destructive-dialog-media">
+							{media}
+						</div>
+					) : null}
 					<DialogTitle>{title}</DialogTitle>
 					<DialogDescription>{description}</DialogDescription>
 				</DialogHeader>
@@ -74,10 +78,16 @@ function TypeToConfirm() {
 	if (confirmText === undefined) return null;
 	const mismatch = typed.trim().length > 0 && !matched;
 	return (
-		<div className="flex flex-col gap-2">
-			<label className="type-label text-text-1" htmlFor={id}>
+		<div
+			className="flex flex-col"
+			data-layout-role="destructive-confirmation-field"
+		>
+			<label data-layout-role="destructive-confirmation-label" htmlFor={id}>
 				Type{" "}
-				<span className="mono rounded-tag bg-field px-1 break-all select-all">
+				<span
+					className="mono rounded-tag break-all select-all"
+					data-layout-role="destructive-confirmation-value"
+				>
 					{confirmText}
 				</span>{" "}
 				to confirm
@@ -87,8 +97,9 @@ function TypeToConfirm() {
 				autoCapitalize="off"
 				autoComplete="off"
 				autoCorrect="off"
-				className="field w-full type-body-sm read-only:text-text-2"
+				className="field w-full"
 				data-autofocus
+				data-layout-role="destructive-confirmation-input"
 				id={id}
 				onChange={(event) => setTyped(event.target.value)}
 				readOnly={pending}

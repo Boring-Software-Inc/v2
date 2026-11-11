@@ -126,9 +126,9 @@ export function SettingsNav({
 	return (
 		<SidebarNav
 			aria-label="Settings"
-			className={collapsed ? undefined : "px-1"}
+			data-layout-role={collapsed ? undefined : "settings-sidebar-nav"}
 		>
-			<SidebarNavGroup className="mb-3">
+			<SidebarNavGroup data-layout-role="settings-sidebar-back-group">
 				<SettingsBack collapsed={collapsed} org={org} />
 			</SidebarNavGroup>
 			<SidebarNavGroup>
@@ -143,7 +143,7 @@ export function SettingsNav({
 					/>
 				))}
 			</SidebarNavGroup>
-			<SidebarNavGroup className="mt-3">
+			<SidebarNavGroup data-layout-role="settings-sidebar-account-group">
 				{ACCOUNT_SECTIONS.map((section) => (
 					<AccountSettingsLink
 						active={current === section}

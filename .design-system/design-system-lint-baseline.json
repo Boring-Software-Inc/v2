@@ -2,7 +2,7 @@
 	"no-arbitrary-tailwind-values": 42,
 	"no-direct-implementation-imports": 0,
 	"no-inline-visual-styles": 34,
-	"no-raw-color": 275,
-	"no-raw-spacing": 375,
-	"no-raw-typography": 205
+	"no-raw-color": 271,
+	"no-raw-spacing": 371,
+	"no-raw-typography": 203
 }

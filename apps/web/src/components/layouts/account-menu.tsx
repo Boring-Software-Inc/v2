@@ -112,9 +112,10 @@ export function AccountMenu({
 					aria-label={`Account menu for ${moderator.name}`}
 					className={
 						collapsed
-							? "data-popup-open:bg-pressed"
-							: "w-full min-w-0 justify-start rounded-tag px-2 data-popup-open:bg-pressed"
+							? undefined
+							: "w-full min-w-0 justify-start rounded-tag px-2"
 					}
+					data-account-menu-trigger
 					size={collapsed ? "icon" : "default"}
 					variant="ghost"
 				/>
@@ -154,10 +155,16 @@ export function AccountMenu({
 					{org ? (
 						<>
 							<DropdownMenuGroup>
-								<DropdownMenuLabel className="min-h-7 type-body-sm">
+								<DropdownMenuLabel
+									className="min-h-7"
+									data-layout-role="account-menu-section-label"
+								>
 									Active workspace
 								</DropdownMenuLabel>
-								<div className="mx-0.5 my-1.5 flex min-h-(--menu-item-h) items-center gap-2 rounded-tag bg-pressed px-1.5 type-label text-text-1">
+								<div
+									className="mx-0.5 my-1.5 flex min-h-(--menu-item-h) items-center gap-2 rounded-tag px-1.5"
+									data-layout-role="account-menu-active-workspace"
+								>
 									<OrgAvatar hue={org.avatarHue} name={org.name} size="sm" />
 									<span className="min-w-0 flex-1 truncate">{org.name}</span>
 									<Icon className="ms-auto" icon={Check} />
@@ -167,7 +174,10 @@ export function AccountMenu({
 						</>
 					) : null}
 					<DropdownMenuGroup>
-						<DropdownMenuLabel className="min-h-7 type-body-sm">
+						<DropdownMenuLabel
+							className="min-h-7"
+							data-layout-role="account-menu-section-label"
+						>
 							Other workspaces
 						</DropdownMenuLabel>
 						{visible.organizations.length ? (
@@ -228,7 +238,10 @@ export function AccountMenu({
 						<span className="min-w-0 flex-1">
 							<span className="block truncate">{moderator.name}</span>
 							{identity ? (
-								<span className="block truncate type-caption text-text-2">
+								<span
+									className="block truncate"
+									data-layout-role="account-menu-identity"
+								>
 									{identity}
 								</span>
 							) : null}
