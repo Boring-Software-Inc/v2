@@ -508,7 +508,7 @@ function PreferencesSection() {
 function ThemePreview({ value }: { value: (typeof THEMES)[number]["value"] }) {
 	if (value === "system") {
 		return (
-			<span className="flex h-28 gap-1 overflow-hidden rounded-tag border border-[#525252] bg-[#171717] p-1.5">
+			<span data-layout-role="theme-preview-system">
 				<AppShellPreview compact tone="light" />
 				<AppShellPreview compact tone="dark" />
 			</span>
@@ -524,42 +524,38 @@ function AppShellPreview({
 	tone: "light" | "dark";
 	compact?: boolean;
 }) {
-	const dark = tone === "dark";
 	return (
 		<span
 			aria-hidden
-			className={`flex h-28 min-w-0 overflow-hidden rounded-overlay ${compact ? "flex-1" : "w-full"} ${dark ? "bg-[#090909]" : "bg-[#f5f5f5]"}`}
+			data-compact={compact || undefined}
+			data-layout-role="theme-preview-shell"
+			data-tone={tone}
 		>
-			<span
-				className={`flex w-[24%] shrink-0 flex-col gap-2 p-2 ${dark ? "bg-[#090909]" : "bg-[#f5f5f5]"}`}
-			>
+			<span data-layout-role="theme-preview-sidebar">
+				<span data-layout-role="theme-preview-logo" />
+				<span data-layout-role="theme-preview-sidebar-line" data-line="first" />
 				<span
-					className={`size-2 rounded-sm ${dark ? "bg-[#e5e5e5]" : "bg-[#262626]"}`}
+					data-layout-role="theme-preview-sidebar-line"
+					data-line="second"
 				/>
-				<span
-					className={`mt-1 h-1 rounded-pill ${dark ? "bg-[#404040]" : "bg-[#d4d4d4]"}`}
-				/>
-				<span
-					className={`h-1 w-3/4 rounded-pill ${dark ? "bg-[#333333]" : "bg-[#e5e5e5]"}`}
-				/>
-				<span
-					className={`mt-auto h-1 w-2/3 rounded-pill ${dark ? "bg-[#333333]" : "bg-[#e5e5e5]"}`}
-				/>
+				<span data-layout-role="theme-preview-sidebar-line" data-line="last" />
 			</span>
-			<span
-				className={`my-1.5 me-1.5 ms-0.5 flex min-w-0 flex-1 flex-col gap-2 rounded-overlay p-2 shadow-xs ${dark ? "bg-[#1c1c1c]" : "bg-white"}`}
-			>
+			<span data-layout-role="theme-preview-content">
 				<span
-					className={`h-1.5 w-2/5 rounded-pill ${dark ? "bg-[#737373]" : "bg-[#a3a3a3]"}`}
+					data-layout-role="theme-preview-content-line"
+					data-line="heading"
 				/>
 				<span
-					className={`h-3 w-full rounded-sm ${dark ? "bg-[#292929]" : "bg-[#f0f0f0]"}`}
+					data-layout-role="theme-preview-content-line"
+					data-line="primary"
 				/>
 				<span
-					className={`h-3 w-4/5 rounded-sm ${dark ? "bg-[#242424]" : "bg-[#f5f5f5]"}`}
+					data-layout-role="theme-preview-content-line"
+					data-line="secondary"
 				/>
 				<span
-					className={`mt-auto h-1 w-1/2 rounded-pill ${dark ? "bg-[#404040]" : "bg-[#d4d4d4]"}`}
+					data-layout-role="theme-preview-content-line"
+					data-line="footer"
 				/>
 			</span>
 		</span>
