@@ -54,10 +54,14 @@ describe("AiFindings", () => {
 			html.indexOf("Second file"),
 		);
 		expect(html).toContain(
-			'class="type-label-sm text-fail-text">Critical</span>',
+			'data-type-role="label" data-layout-role="ai-finding-severity" data-severity="critical">Critical</span>',
 		);
-		expect(html).toContain('class="type-label-sm text-text-1">Warning</span>');
-		expect(html).toContain('class="type-label-sm text-text-2">Note</span>');
+		expect(html).toContain(
+			'data-type-role="label" data-layout-role="ai-finding-severity" data-severity="warn">Warning</span>',
+		);
+		expect(html).toContain(
+			'data-type-role="label" data-layout-role="ai-finding-severity" data-severity="info">Note</span>',
+		);
 	});
 
 	test("file and present-line links use the supplied commit and safe native external-link attributes", () => {

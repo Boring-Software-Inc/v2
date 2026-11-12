@@ -3088,6 +3088,7 @@
 	gap: var(--space-1-5);
 	padding-inline: var(--space-2);
 	padding-block: var(--space-1-5);
+	font: var(--type-code-sm);
 }
 
 [data-layout-role="ai-findings-file-link"] {
@@ -3111,6 +3112,18 @@
 	display: flex;
 	align-items: baseline;
 	gap: var(--space-2);
+}
+
+[data-layout-role="ai-finding-severity"] {
+	font: var(--type-label-sm);
+}
+
+[data-layout-role="ai-finding-severity"][data-severity="critical"] {
+	color: var(--tw-danger-text);
+}
+
+[data-layout-role="ai-finding-severity"][data-severity="info"] {
+	color: var(--tw-content-secondary);
 }
 
 [data-layout-role="ai-finding-line"] {
