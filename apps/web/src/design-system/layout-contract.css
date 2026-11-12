@@ -3266,3 +3266,108 @@
 [data-appeal-form][data-layout-role="form-section"] > [data-slot="field"] {
 	inline-size: 100%;
 }
+
+[data-layout-role="page-skeleton-shell"] {
+	padding-block: var(--space-6);
+	padding-inline: var(--space-4);
+}
+
+[data-layout-role="page-skeleton-body"] {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-6);
+	inline-size: 100%;
+	max-inline-size: 48rem;
+	margin-inline: auto;
+}
+
+[data-layout-role="page-skeleton-heading"],
+[data-layout-role="page-skeleton-section"],
+[data-layout-role="analytics-skeleton-body"],
+[data-layout-role="analytics-skeleton-events"] {
+	display: flex;
+	flex-direction: column;
+}
+
+[data-layout-role="page-skeleton-heading"] {
+	gap: var(--space-1);
+}
+
+[data-layout-role="page-skeleton-section"],
+[data-layout-role="rules-skeleton-grid"] {
+	gap: var(--space-3);
+}
+
+[data-layout-role="page-skeleton-toolbar"] {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-3);
+}
+
+[data-layout-role="rules-skeleton-toggle"] {
+	margin-inline-start: auto;
+}
+
+[data-layout-role="analytics-skeleton-body"] {
+	gap: var(--space-6);
+}
+
+[data-layout-role="analytics-skeleton-events"] {
+	gap: var(--space-2);
+}
+
+[data-layout-role="analytics-skeleton-event"] {
+	padding-block: var(--space-2);
+}
+
+[data-layout-role="responses-skeleton-builder"] {
+	gap: var(--space-4);
+	padding-inline: var(--space-4);
+	padding-block-end: var(--space-6);
+}
+
+[data-layout-role="responses-skeleton-header"] {
+	display: flex;
+	align-items: center;
+	padding-block: var(--space-4) var(--space-3);
+	padding-inline: var(--space-4);
+}
+
+[data-layout-role="responses-skeleton-filter"] {
+	padding-inline: var(--space-4);
+	padding-block-end: var(--space-4);
+}
+
+[data-layout-role="setup-step-actions"] {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--space-2);
+}
+
+@media (min-width: 768px) {
+	[data-layout-role="page-skeleton-shell"] {
+		padding-block: var(--space-10);
+		padding-inline: var(--space-8);
+	}
+
+	[data-layout-role="responses-skeleton-builder"],
+	[data-layout-role="responses-skeleton-header"],
+	[data-layout-role="responses-skeleton-filter"] {
+		padding-inline: var(--space-6);
+	}
+}
+
+@media (min-width: 1024px) {
+	[data-layout-role="responses-skeleton-builder"],
+	[data-layout-role="responses-skeleton-header"],
+	[data-layout-role="responses-skeleton-filter"] {
+		padding-inline: var(--space-8);
+	}
+
+	[data-layout-role="responses-skeleton-header"] {
+		min-block-size: calc(var(--space-6) * 3);
+		padding-block: var(--space-3);
+	}
+}
