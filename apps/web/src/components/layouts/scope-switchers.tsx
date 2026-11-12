@@ -32,13 +32,14 @@ import {
 } from "#/design-system/ui/popover";
 import { useActiveScope } from "#/hooks/use-active-scope";
 import { useFeaturePath } from "#/hooks/use-feature-path";
+import { useOrgSwitchPath } from "#/hooks/use-org-switch-path";
 import { myOrgsQueryOptions, orgHomeQueryOptions } from "#/lib/org.query";
 
 type Appearance = "bar" | "rail";
 
 const TRIGGER = {
 	bar: "min-w-0 max-w-64 shrink max-sm:min-w-fit",
-	rail: "w-full min-w-0 justify-start",
+	rail: "w-full min-w-0 justify-start rounded-tag",
 } satisfies Record<Appearance, string>;
 
 export function OrgSwitcher({
@@ -48,6 +49,7 @@ export function OrgSwitcher({
 }) {
 	const { org } = useActiveScope();
 	const navigate = useNavigate();
+	const orgSwitchPath = useOrgSwitchPath();
 	const [creating, setCreating] = useState(false);
 	const { data: orgs } = useQuery(myOrgsQueryOptions());
 
@@ -90,9 +92,7 @@ export function OrgSwitcher({
 					{orgs?.map((candidate) => (
 						<DropdownMenuItem
 							key={candidate.id}
-							onClick={() =>
-								navigate({ to: "/$org/home", params: { org: candidate.slug } })
-							}
+							onClick={() => navigate({ to: orgSwitchPath(candidate.slug) })}
 						>
 							<OrgAvatar
 								hue={candidate.avatarHue}

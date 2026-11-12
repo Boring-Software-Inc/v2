@@ -18,6 +18,7 @@ import {
 	SignOut,
 } from "#/design-system/icon";
 import { Avatar } from "#/design-system/ui/avatar";
+import { Badge } from "#/design-system/ui/badge";
 import { Button } from "#/design-system/ui/button";
 import {
 	Command,
@@ -55,6 +56,7 @@ import {
 } from "#/design-system/ui/tooltip";
 import { useActiveScope } from "#/hooks/use-active-scope";
 import { useHasMounted } from "#/hooks/use-has-mounted";
+import { useOrgSwitchPath } from "#/hooks/use-org-switch-path";
 import { useSignOut } from "#/hooks/use-sign-out";
 import type { CurrentUser } from "#/lib/auth.functions";
 import { accountIdentity, PLACEHOLDER_USER } from "#/lib/current-user";
@@ -86,6 +88,7 @@ export function AccountMenu({
 	collapsed?: boolean;
 }) {
 	const navigate = useNavigate();
+	const orgSwitchPath = useOrgSwitchPath();
 	const { org } = useActiveScope();
 	const { data: organizations = [] } = useQuery(myOrgsQueryOptions());
 	const { start: openFeedback } = useFeedback();
@@ -102,7 +105,7 @@ export function AccountMenu({
 
 	function selectOrganization(slug: string) {
 		setAllOpen(false);
-		navigate({ to: "/$org/home", params: { org: slug } });
+		navigate({ to: orgSwitchPath(slug) });
 	}
 
 	const trigger = (
@@ -167,6 +170,11 @@ export function AccountMenu({
 								>
 									<OrgAvatar hue={org.avatarHue} name={org.name} size="sm" />
 									<span className="min-w-0 flex-1 truncate">{org.name}</span>
+									{org.isPersonal ? (
+										<Badge size="sm" variant="outline">
+											Personal
+										</Badge>
+									) : null}
 									<Icon className="ms-auto" icon={Check} />
 								</div>
 							</DropdownMenuGroup>
@@ -196,6 +204,11 @@ export function AccountMenu({
 										<span className="min-w-0 flex-1 truncate">
 											{candidate.name}
 										</span>
+										{candidate.isPersonal ? (
+											<Badge size="sm" variant="outline">
+												Personal
+											</Badge>
+										) : null}
 									</DropdownMenuItem>
 								))}
 								{visible.hasMore ? (
@@ -366,6 +379,11 @@ function OrganizationDialog({
 												size="default"
 											/>
 											<CommandLabel>{candidate.name}</CommandLabel>
+											{candidate.isPersonal ? (
+												<Badge size="sm" variant="outline">
+													Personal
+												</Badge>
+											) : null}
 											{candidate.id === selectedId ? (
 												<Icon className="ms-auto" icon={Check} />
 											) : null}

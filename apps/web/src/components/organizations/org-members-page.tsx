@@ -165,55 +165,65 @@ export function OrgMembersPage({ org }: { org: string }) {
 
 	return (
 		<>
-			<SettingsHeader title="Members">
-				{canInvite ? (
-					<Dialog onOpenChange={setInviting} open={inviting}>
-						<DialogTrigger render={<Button />}>Invite</DialogTrigger>
-						<DialogContent size="sm">
-							<DialogHeader>
-								<DialogTitle>Create an invite link</DialogTitle>
-								<DialogDescription>
-									Choose who can use the link and when it expires.
-								</DialogDescription>
-							</DialogHeader>
-							<InviteForm
-								onCreated={(token) => {
-									setCreatedToken(token);
-									setInviting(false);
-								}}
-								org={org}
-							/>
-						</DialogContent>
-					</Dialog>
-				) : null}
-			</SettingsHeader>
+			<SettingsHeader
+				description="Manage who can access this workspace and what they can do."
+				title="Members"
+			/>
 			{createdToken ? <FreshInviteLink token={createdToken} /> : null}
-			<Collection
-				collection={members}
-				empty={null}
-				error={membersQuery.isError}
-				onRetry={async () => {
-					await membersQuery.refetch({ throwOnError: true });
-				}}
-				skeleton={<MemberRowsSkeleton />}
-			>
-				{(rows) => (
-					<SettingsCard>
-						<ItemGroup aria-label="Members">
-							{rows.map((member) => (
-								<MemberRow
-									callerUserId={callerUserId}
-									isAdmin={isAdmin}
-									key={member.memberId}
-									member={member}
+			<SettingsSection
+				action={
+					canInvite ? (
+						<Dialog onOpenChange={setInviting} open={inviting}>
+							<DialogTrigger render={<Button />}>Invite</DialogTrigger>
+							<DialogContent size="sm">
+								<DialogHeader>
+									<DialogTitle>Create an invite link</DialogTitle>
+									<DialogDescription>
+										Choose who can use the link and when it expires.
+									</DialogDescription>
+								</DialogHeader>
+								<InviteForm
+									onCreated={(token) => {
+										setCreatedToken(token);
+										setInviting(false);
+									}}
 									org={org}
-									roleItems={roleItems}
 								/>
-							))}
-						</ItemGroup>
-					</SettingsCard>
-				)}
-			</Collection>
+							</DialogContent>
+						</Dialog>
+					) : null
+				}
+				description="People with access to this workspace."
+				id="members-list"
+				title={`Members${membersQuery.data ? ` ${membersQuery.data.length}` : ""}`}
+			>
+				<Collection
+					collection={members}
+					empty={null}
+					error={membersQuery.isError}
+					onRetry={async () => {
+						await membersQuery.refetch({ throwOnError: true });
+					}}
+					skeleton={<MemberRowsSkeleton />}
+				>
+					{(rows) => (
+						<SettingsCard>
+							<ItemGroup aria-label="Members">
+								{rows.map((member) => (
+									<MemberRow
+										callerUserId={callerUserId}
+										isAdmin={isAdmin}
+										key={member.memberId}
+										member={member}
+										org={org}
+										roleItems={roleItems}
+									/>
+								))}
+							</ItemGroup>
+						</SettingsCard>
+					)}
+				</Collection>
+			</SettingsSection>
 
 			{canInvite ? <InviteLinksSection org={org} /> : null}
 

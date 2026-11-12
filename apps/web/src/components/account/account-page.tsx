@@ -14,8 +14,16 @@ import {
 } from "#/components/settings/settings-frame";
 import { TimezonePicker } from "#/components/timezones/timezone-picker";
 import { ZonedTime } from "#/components/timezones/zoned-time";
-import { ArrowRight, Icon } from "#/design-system/icon";
+import {
+	ArrowRight,
+	Check,
+	Dark,
+	Icon,
+	Light,
+	Monitor,
+} from "#/design-system/icon";
 import { Avatar } from "#/design-system/ui/avatar";
+import { Badge } from "#/design-system/ui/badge";
 import { Button } from "#/design-system/ui/button";
 import {
 	Dialog,
@@ -30,6 +38,12 @@ import {
 	DialogTrigger,
 } from "#/design-system/ui/dialog";
 import {
+	Empty,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyTitle,
+} from "#/design-system/ui/empty-state";
+import {
 	Item,
 	ItemActions,
 	ItemContent,
@@ -38,16 +52,13 @@ import {
 	ItemMedia,
 	ItemTitle,
 } from "#/design-system/ui/item";
-import {
-	SegmentedControl,
-	SegmentedControlItem,
-} from "#/design-system/ui/segmented-control";
 import { SkeletonSwap, SkeletonText } from "#/design-system/ui/skeleton";
 import { Status } from "#/design-system/ui/status";
 import { Switch } from "#/design-system/ui/switch";
 import { toast } from "#/design-system/ui/toast";
 import { SupportingText } from "#/design-system/ui/typography";
 import { useHasMounted } from "#/hooks/use-has-mounted";
+import { useOrgSwitchPath } from "#/hooks/use-org-switch-path";
 import { useSignOut } from "#/hooks/use-sign-out";
 import { useDeviceTimezone } from "#/hooks/use-timezones";
 import {
@@ -69,9 +80,9 @@ import { setAccountTimezone } from "#/lib/timezone.functions";
 import { describeUserAgent } from "#/lib/user-agent";
 
 const THEMES = [
-	{ value: "light", label: "Light" },
-	{ value: "dark", label: "Dark" },
-	{ value: "system", label: "Match system" },
+	{ value: "light", label: "Light", icon: Light },
+	{ value: "dark", label: "Dark", icon: Dark },
+	{ value: "system", label: "System", icon: Monitor },
 ] as const;
 
 const ROLE_LABEL = new Map([
@@ -98,12 +109,15 @@ export function AccountPage({ org, user }: { org: string; user: CurrentUser }) {
 		connectionsQueryOptions(),
 	);
 	const forges = new Set((connections ?? []).map((entry) => entry.forge));
-	const source = forges.size === 1 ? forgeLabel([...forges][0] ?? "") : null;
+	const sourceForge = forges.size === 1 ? ([...forges][0] ?? null) : null;
 
 	return (
 		<>
-			<SettingsHeader title="Your account" />
-			<ProfileSection source={source} user={user} />
+			<SettingsHeader
+				description="Manage your profile, sign-in, preferences, and workspaces."
+				title="Your account"
+			/>
+			<ProfileSection sourceForge={sourceForge} user={user} />
 			<SignInSection
 				connections={connections ?? []}
 				loading={connectionsLoading}
@@ -112,7 +126,7 @@ export function AccountPage({ org, user }: { org: string; user: CurrentUser }) {
 			/>
 			<SessionsSection />
 			<PreferencesSection />
-			<OrgsSection />
+			<OrgsSection activeOrg={org} />
 			<AccountFooter />
 		</>
 	);
@@ -120,10 +134,10 @@ export function AccountPage({ org, user }: { org: string; user: CurrentUser }) {
 
 function ProfileSection({
 	user,
-	source,
+	sourceForge,
 }: {
 	user: CurrentUser;
-	source: string | null;
+	sourceForge: ForgeConnection["forge"] | null;
 }) {
 	return (
 		<SettingsSection id="profile" title="Profile">
@@ -142,10 +156,11 @@ function ProfileSection({
 							{user.email ?? `@${user.login}`}
 						</p>
 					</div>
-					{source ? (
-						<span className="shrink-0 type-body-sm text-text-2">
-							From {source}
-						</span>
+					{sourceForge ? (
+						<div className="flex shrink-0 items-center gap-2 type-body-sm text-text-2">
+							<ForgeMark className="size-(--icon)" forge={sourceForge} />
+							<span>{forgeLabel(sourceForge)} profile</span>
+						</div>
 					) : null}
 				</div>
 			</div>
@@ -228,20 +243,22 @@ function SignInRow({
 				<Status size="sm" status={expired ? "warn" : "ok"}>
 					{expired ? "Access expired" : "Connected"}
 				</Status>
-				<Button
-					aria-label={`Sign in to ${label} again`}
-					onClick={() => {
-						void reconnectForge(connection.forge).then((message) => {
-							if (message) {
-								toast.fail(message);
-							}
-						});
-					}}
-					size="sm"
-					variant="secondary"
-				>
-					Sign in again
-				</Button>
+				{expired ? (
+					<Button
+						aria-label={`Reconnect ${label}`}
+						onClick={() => {
+							void reconnectForge(connection.forge).then((message) => {
+								if (message) {
+									toast.fail(message);
+								}
+							});
+						}}
+						size="sm"
+						variant="secondary"
+					>
+						Reconnect
+					</Button>
+				) : null}
 			</ItemActions>
 		</Item>
 	);
@@ -355,11 +372,22 @@ function SessionsSection() {
 				loading={isLoading}
 			>
 				<div className="shell">
-					<ItemGroup aria-label="Sessions">
-						{(sessions ?? []).map((session) => (
-							<SessionRow key={session.id} session={session} />
-						))}
-					</ItemGroup>
+					{sessions?.length ? (
+						<ItemGroup aria-label="Sessions">
+							{sessions.map((session) => (
+								<SessionRow key={session.id} session={session} />
+							))}
+						</ItemGroup>
+					) : (
+						<Empty size="sm" variant="plain">
+							<EmptyHeader>
+								<EmptyTitle>No active sessions</EmptyTitle>
+								<EmptyDescription>
+									Sessions appear here after you sign in on a device.
+								</EmptyDescription>
+							</EmptyHeader>
+						</Empty>
+					)}
 				</div>
 			</SkeletonSwap>
 		</SettingsSection>
@@ -395,69 +423,158 @@ function PreferencesSection() {
 		: reduce;
 	return (
 		<SettingsSection id="preferences" title="Preferences">
-			<div className="shell">
-				<ItemGroup aria-label="Preferences">
-					<Item className="flex-wrap">
-						<ItemContent>
-							<ItemTitle id="theme-label">Theme</ItemTitle>
-						</ItemContent>
-						<ItemActions>
-							<SegmentedControl
-								aria-labelledby="theme-label"
-								onValueChange={setTheme}
-								size="sm"
-								value={hasMounted ? (theme ?? "system") : "system"}
-							>
-								{THEMES.map((item) => (
-									<SegmentedControlItem key={item.value} value={item.value}>
-										{item.label}
-									</SegmentedControlItem>
-								))}
-							</SegmentedControl>
-						</ItemActions>
-					</Item>
-					<Item>
-						<ItemContent>
-							<ItemTitle id="agent-motion-label">
-								Reduce agent animations
-							</ItemTitle>
-						</ItemContent>
-						<ItemActions>
-							<Switch
-								aria-labelledby="agent-motion-label"
-								checked={checked}
-								disabled={!signedIn}
-								onCheckedChange={(next) => saveMotion.mutate(next)}
-								pending={saveMotion.isPending}
-							/>
-						</ItemActions>
-					</Item>
-					<Item className="flex-wrap py-2">
-						<ItemContent>
-							<ItemTitle id="timezone-label">Timezone</ItemTitle>
-						</ItemContent>
-						<ItemActions className="w-full max-w-80 @max-sm/item:me-0 @max-sm/item:max-w-none">
-							<div className="w-full">
-								<TimezonePicker
-									disabled={!signedIn || saveTimezone.isPending}
-									labelledBy="timezone-label"
-									onChange={(next) => saveTimezone.mutate(next)}
-									unsetLabel={`Organization timezone · ${device}`}
-									value={session?.user?.timezone ?? null}
+			<div className="flex flex-col gap-3">
+				<div>
+					<p className="type-label" id="theme-label">
+						Theme
+					</p>
+					<p className="mt-0.5 type-body-sm text-text-2">
+						Choose how Tripwire looks on this device.
+					</p>
+				</div>
+				<div
+					aria-labelledby="theme-label"
+					className="grid grid-cols-1 gap-2 sm:grid-cols-3"
+					role="radiogroup"
+				>
+					{THEMES.map((item) => {
+						const selected =
+							(hasMounted ? (theme ?? "system") : "system") === item.value;
+						return (
+							<label className="group relative min-w-0" key={item.value}>
+								<input
+									checked={selected}
+									className="peer sr-only"
+									name="theme"
+									onChange={() => setTheme(item.value)}
+									type="radio"
+									value={item.value}
 								/>
-							</div>
-						</ItemActions>
-					</Item>
-				</ItemGroup>
+								<span className="flex min-w-0 cursor-pointer flex-col rounded-overlay border border-line bg-paper p-2 text-start transition-colors duration-(--dur-state) ease-out hover:bg-hover-row peer-checked:border-line-focus peer-checked:bg-pressed peer-focus-visible:focus-ring">
+									<ThemePreview value={item.value} />
+									<span className="mt-2 flex items-center gap-2 px-1 type-label">
+										<Icon icon={item.icon} />
+										<span>{item.label}</span>
+										{selected ? (
+											<span className="ms-auto flex">
+												<Icon icon={Check} label="Selected" />
+											</span>
+										) : null}
+									</span>
+								</span>
+							</label>
+						);
+					})}
+				</div>
+				<div className="shell">
+					<ItemGroup aria-label="Preferences">
+						<Item>
+							<ItemContent>
+								<ItemTitle id="agent-motion-label">Reduce motion</ItemTitle>
+							</ItemContent>
+							<ItemActions>
+								<Switch
+									aria-labelledby="agent-motion-label"
+									checked={checked}
+									disabled={!signedIn}
+									onCheckedChange={(next) => saveMotion.mutate(next)}
+									pending={saveMotion.isPending}
+								/>
+							</ItemActions>
+						</Item>
+						<Item className="flex-wrap py-2">
+							<ItemContent>
+								<ItemTitle id="timezone-label">Timezone</ItemTitle>
+							</ItemContent>
+							<ItemActions className="w-full max-w-80 @max-sm/item:me-0 @max-sm/item:max-w-none">
+								<div className="w-full">
+									<TimezonePicker
+										disabled={!signedIn || saveTimezone.isPending}
+										labelledBy="timezone-label"
+										onChange={(next) => saveTimezone.mutate(next)}
+										unsetLabel={`Organization timezone · ${device}`}
+										value={session?.user?.timezone ?? null}
+									/>
+								</div>
+							</ItemActions>
+						</Item>
+					</ItemGroup>
+				</div>
 			</div>
 		</SettingsSection>
 	);
 }
 
-function OrgsSection() {
-	const { data: orgs, isLoading } = useQuery(myOrgsQueryOptions());
+function ThemePreview({ value }: { value: (typeof THEMES)[number]["value"] }) {
+	if (value === "system") {
+		return (
+			<span className="flex h-28 gap-1 overflow-hidden rounded-tag border border-[#525252] bg-[#171717] p-1.5">
+				<AppShellPreview compact tone="light" />
+				<AppShellPreview compact tone="dark" />
+			</span>
+		);
+	}
+	return <AppShellPreview tone={value} />;
+}
+
+function AppShellPreview({
+	tone,
+	compact = false,
+}: {
+	tone: "light" | "dark";
+	compact?: boolean;
+}) {
+	const dark = tone === "dark";
 	return (
-		<SettingsSection id="orgs" title="Orgs">
+		<span
+			aria-hidden
+			className={`flex h-28 min-w-0 overflow-hidden rounded-overlay ${compact ? "flex-1" : "w-full"} ${dark ? "bg-[#090909]" : "bg-[#f5f5f5]"}`}
+		>
+			<span
+				className={`flex w-[24%] shrink-0 flex-col gap-2 p-2 ${dark ? "bg-[#090909]" : "bg-[#f5f5f5]"}`}
+			>
+				<span
+					className={`size-2 rounded-sm ${dark ? "bg-[#e5e5e5]" : "bg-[#262626]"}`}
+				/>
+				<span
+					className={`mt-1 h-1 rounded-pill ${dark ? "bg-[#404040]" : "bg-[#d4d4d4]"}`}
+				/>
+				<span
+					className={`h-1 w-3/4 rounded-pill ${dark ? "bg-[#333333]" : "bg-[#e5e5e5]"}`}
+				/>
+				<span
+					className={`mt-auto h-1 w-2/3 rounded-pill ${dark ? "bg-[#333333]" : "bg-[#e5e5e5]"}`}
+				/>
+			</span>
+			<span
+				className={`my-1.5 me-1.5 ms-0.5 flex min-w-0 flex-1 flex-col gap-2 rounded-overlay p-2 shadow-xs ${dark ? "bg-[#1c1c1c]" : "bg-white"}`}
+			>
+				<span
+					className={`h-1.5 w-2/5 rounded-pill ${dark ? "bg-[#737373]" : "bg-[#a3a3a3]"}`}
+				/>
+				<span
+					className={`h-3 w-full rounded-sm ${dark ? "bg-[#292929]" : "bg-[#f0f0f0]"}`}
+				/>
+				<span
+					className={`h-3 w-4/5 rounded-sm ${dark ? "bg-[#242424]" : "bg-[#f5f5f5]"}`}
+				/>
+				<span
+					className={`mt-auto h-1 w-1/2 rounded-pill ${dark ? "bg-[#404040]" : "bg-[#d4d4d4]"}`}
+				/>
+			</span>
+		</span>
+	);
+}
+
+function OrgsSection({ activeOrg }: { activeOrg: string }) {
+	const { data: orgs, isLoading } = useQuery(myOrgsQueryOptions());
+	const orgSwitchPath = useOrgSwitchPath();
+	return (
+		<SettingsSection
+			description="Choose the workspace shown in the dashboard."
+			id="orgs"
+			title="Workspaces"
+		>
 			<SkeletonSwap
 				fallback={<RowsSkeleton />}
 				label="Loading orgs"
@@ -465,30 +582,37 @@ function OrgsSection() {
 			>
 				<div className="shell">
 					<ItemGroup aria-label="Orgs">
-						{(orgs ?? []).map((entry) => (
-							<Item key={entry.id}>
-								<ItemMedia>
-									<OrgAvatar hue={entry.avatarHue} name={entry.name} />
-								</ItemMedia>
-								<ItemContent>
-									<ItemTitle>
-										<ItemRouterLink
-											params={{ org: entry.slug }}
-											to="/$org/home"
-										>
-											{entry.name}
-										</ItemRouterLink>
-									</ItemTitle>
-								</ItemContent>
-								<ItemActions>
-									<span className="type-body-sm text-text-2">
-										{entry.isPersonal
-											? "Personal"
-											: (ROLE_LABEL.get(entry.role) ?? entry.role)}
-									</span>
-								</ItemActions>
-							</Item>
-						))}
+						{(orgs ?? []).map((entry) => {
+							const active = entry.slug === activeOrg;
+							return (
+								<Item key={entry.id} selected={active}>
+									<ItemMedia>
+										<OrgAvatar hue={entry.avatarHue} name={entry.name} />
+									</ItemMedia>
+									<ItemContent>
+										<ItemTitle className="flex items-center gap-2">
+											<ItemRouterLink to={orgSwitchPath(entry.slug)}>
+												{entry.name}
+											</ItemRouterLink>
+											{entry.isPersonal ? (
+												<Badge size="sm" variant="outline">
+													Personal
+												</Badge>
+											) : (
+												<span className="type-body-sm text-text-2">
+													{ROLE_LABEL.get(entry.role) ?? entry.role}
+												</span>
+											)}
+										</ItemTitle>
+									</ItemContent>
+									<ItemActions>
+										{active ? (
+											<Icon icon={Check} label="Current workspace" />
+										) : null}
+									</ItemActions>
+								</Item>
+							);
+						})}
 					</ItemGroup>
 				</div>
 			</SkeletonSwap>

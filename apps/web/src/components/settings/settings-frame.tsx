@@ -32,15 +32,18 @@ export function SettingsFrame({
 
 export function SettingsHeader({
 	title,
+	description,
 	children,
 }: {
 	title: string;
+	description?: string;
 	children?: ReactNode;
 }) {
 	const canGoBack = useCanGoBack();
 	return (
 		<PageHeader
 			actions={children}
+			description={description}
 			navigation={
 				canGoBack ? (
 					<div className="md:hidden">
@@ -56,17 +59,19 @@ export function SettingsHeader({
 export function SettingsSection({
 	id,
 	title,
+	description,
 	action,
 	children,
 }: {
 	id: string;
 	title: string;
+	description?: string;
 	action?: ReactNode;
 	children: ReactNode;
 }) {
 	return (
 		<Section id={id}>
-			<SectionHeader actions={action} title={title} />
+			<SectionHeader actions={action} description={description} title={title} />
 			<SectionBody>{children}</SectionBody>
 		</Section>
 	);
