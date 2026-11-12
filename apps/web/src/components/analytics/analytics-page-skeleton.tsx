@@ -12,7 +12,7 @@ const EVENT_SLOTS = ["a", "b", "c", "d", "e"] as const;
 
 export function AnalyticsBodySkeleton() {
 	return (
-		<div aria-hidden className="flex flex-col gap-6">
+		<div aria-hidden data-layout-role="analytics-skeleton-body">
 			<Skeleton className="h-(--control-sm) w-80 max-w-full rounded-pill" />
 			<Chart
 				config={{ hour: { label: "Hour" }, value: { label: "Value" } }}
@@ -22,11 +22,11 @@ export function AnalyticsBodySkeleton() {
 				type="line"
 				xKey="hour"
 			/>
-			<div className="flex flex-col gap-2">
+			<div data-layout-role="analytics-skeleton-events">
 				<SkeletonText className="w-24" type="heading-sm" />
 				<ItemGroup>
 					{EVENT_SLOTS.map((slot) => (
-						<Item className="py-2" key={slot}>
+						<Item data-layout-role="analytics-skeleton-event" key={slot}>
 							<ItemMedia variant="icon">
 								<Skeleton className="size-(--icon)" />
 							</ItemMedia>
@@ -45,8 +45,8 @@ export function AnalyticsBodySkeleton() {
 export function AnalyticsPageSkeleton() {
 	return (
 		<DashboardLayout counts={{}}>
-			<div className="px-4 py-6 md:px-8 md:py-10">
-				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+			<div data-layout-role="page-skeleton-shell">
+				<div data-layout-role="page-skeleton-body">
 					<SkeletonText className="w-32" type="heading" />
 					<AnalyticsBodySkeleton />
 				</div>

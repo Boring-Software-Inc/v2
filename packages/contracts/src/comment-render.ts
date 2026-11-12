@@ -641,7 +641,16 @@ function blockBody(
 		case "run-link":
 			return runButton(input.runUrl);
 		case "help":
-			return howDoIFix(input.reasons, level, block.content);
+			return howDoIFix(
+				input.reasons,
+				level,
+				block.content ??
+					(input.subjectKind === "issue"
+						? input.appealUrl
+							? "Use **Request a review** to ask a maintainer to reconsider."
+							: "Contact a repository maintainer if you think this decision was incorrect."
+						: undefined),
+			);
 		case "gif":
 			return gifMarkdown(block.gif) ?? "";
 	}

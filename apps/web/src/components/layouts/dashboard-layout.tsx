@@ -1,15 +1,23 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
-import { type ReactNode, useEffect, useMemo, useRef } from "react";
+import {
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useSyncExternalStore,
+} from "react";
 import { DevScenarioSwitcher } from "#/components/dev/dev-scenario-switcher";
 import {
 	FeedbackPanel,
 	FeedbackPicker,
 	FeedbackProvider,
 } from "#/components/feedback";
-import { ShellNav } from "#/components/layouts/shell-nav";
+import { type NestedNavItem, ShellNav } from "#/components/layouts/shell-nav";
 import { cn } from "#/design-system/lib/utils";
 import { useMediaQuery } from "#/hooks/use-media-query";
+import type { RouteScope } from "#/lib/active-scope";
 import { currentUserQueryOptions } from "#/lib/auth.query";
 import { CommandPaletteLauncher } from "./command-palette-launcher";
 import { DashboardRail } from "./dashboard-rail";
@@ -25,7 +33,50 @@ import { RouteProgress } from "./route-progress";
 interface DashboardLayoutProps {
 	counts: { queue?: number };
 	nav?: boolean;
+	nestedNavItem?: NestedNavItem;
+	scope?: RouteScope;
+	settingsNav?: (collapsed: boolean) => ReactNode;
 	children: ReactNode;
+}
+
+const SIDEBAR_COLLAPSED_COOKIE = "tripwire-sidebar-collapsed";
+const sidebarListeners = new Set<() => void>();
+let sidebarCollapsedOverride: boolean | null = null;
+
+function subscribeToSidebarState(listener: () => void): () => void {
+	sidebarListeners.add(listener);
+	return () => sidebarListeners.delete(listener);
+}
+
+function readSidebarState(): boolean {
+	if (sidebarCollapsedOverride !== null) {
+		return sidebarCollapsedOverride;
+	}
+	return document.cookie
+		.split("; ")
+		.some((entry) => entry === `${SIDEBAR_COLLAPSED_COOKIE}=1`);
+}
+
+function useSidebarCollapsed(): [boolean, (collapsed: boolean) => void] {
+	const collapsed = useSyncExternalStore(
+		subscribeToSidebarState,
+		readSidebarState,
+		() => false,
+	);
+	const setCollapsed = useCallback((next: boolean) => {
+		sidebarCollapsedOverride = next;
+		void window.cookieStore.set({
+			name: SIDEBAR_COLLAPSED_COOKIE,
+			value: next ? "1" : "0",
+			path: "/",
+			expires: Date.now() + 31_536_000_000,
+			sameSite: "lax",
+		});
+		for (const listener of sidebarListeners) {
+			listener();
+		}
+	}, []);
+	return [collapsed, setCollapsed];
 }
 
 export function DashboardLayout(props: DashboardLayoutProps) {
@@ -43,15 +94,19 @@ function prefersReducedMotion(): boolean {
 function DashboardShell({
 	counts,
 	nav = true,
+	nestedNavItem,
+	scope,
+	settingsNav,
 	children,
 }: DashboardLayoutProps) {
 	const { data: user } = useQuery(currentUserQueryOptions());
+	const [sidebarCollapsed, setSidebarCollapsed] = useSidebarCollapsed();
 	const { content, collapsed } = useSidePanel();
 	const isDesktop = useMediaQuery("(min-width: 768px)");
 	const showPanel = isDesktop && Boolean(content) && !collapsed;
 	const rail = isDesktop;
 	const params = useParams({ strict: false });
-	const inset = Boolean(params.repo);
+	const inset = Boolean(params.repo || scope);
 
 	const pageRef = useRef<HTMLElement>(null);
 	const restoreTop = useRef(0);
@@ -84,7 +139,7 @@ function DashboardShell({
 			<div
 				className={cn(
 					"isolate flex h-[calc(100dvh-var(--impersonation-bar,0rem))] origin-top flex-col transition-[background-color,scale,translate] duration-(--dur-overlay) ease-out inert:translate-y-3 inert:scale-(--scale-overlay)",
-					inset ? "bg-page" : "bg-paper",
+					inset || rail ? "bg-page" : "bg-paper",
 				)}
 				data-shell=""
 			>
@@ -94,16 +149,30 @@ function DashboardShell({
 				>
 					Skip to content
 				</a>
-				{rail ? null : (
-					<>
-						<DashboardTopbar user={user ?? null} />
-						{nav ? <ShellNav counts={counts} /> : null}
-					</>
-				)}
+				<div className="md:hidden">
+					<DashboardTopbar user={user ?? null} />
+					{nav ? (
+						<ShellNav
+							counts={counts}
+							nestedItem={nestedNavItem}
+							scope={scope}
+						/>
+					) : null}
+				</div>
 				<RouteProgress />
 
 				<div className={cn("flex min-h-0 flex-1", rail && "py-2 pe-2")}>
-					{rail ? <DashboardRail counts={counts} user={user ?? null} /> : null}
+					{rail ? (
+						<DashboardRail
+							collapsed={sidebarCollapsed}
+							counts={counts}
+							nestedNavItem={nestedNavItem}
+							onCollapsedChange={setSidebarCollapsed}
+							scope={scope}
+							settingsNav={settingsNav}
+							user={user ?? null}
+						/>
+					) : null}
 					<div
 						className={cn(
 							"grid min-h-0 flex-1 transition-[padding] duration-(--dur-overlay) ease-out",

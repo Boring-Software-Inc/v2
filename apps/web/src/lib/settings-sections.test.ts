@@ -28,9 +28,9 @@ describe("settings sections", () => {
 		expect(sectionForSettingsTab("members")).toBe("members");
 	});
 
-	test("an admin sees every section, members first", () => {
+	test("an admin sees every section, general first", () => {
 		expect(visibleSettingsSections(ADMIN)).toEqual([...ORG_SETTINGS_SECTIONS]);
-		expect(firstSettingsSection(ADMIN)).toBe("members");
+		expect(firstSettingsSection(ADMIN)).toBe("general");
 	});
 
 	test("a role without member access starts on the first section it can read", () => {

@@ -196,9 +196,10 @@ function CustomRoleRow({
 					</Button>
 					<Button
 						aria-label={`Delete the ${role.name} role`}
+						confirmation={false}
 						onClick={() => setConfirmDelete(true)}
 						size="sm"
-						variant="secondary"
+						variant="destructive"
 					>
 						Delete
 					</Button>

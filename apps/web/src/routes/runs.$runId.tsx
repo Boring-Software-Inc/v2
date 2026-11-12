@@ -7,6 +7,8 @@ import { runQueryOptions } from "#/lib/runs.query";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 
 export const Route = createFileRoute("/runs/$runId")({
+	validateSearch: (search): { from?: "review" } =>
+		search.from === "review" ? { from: "review" } : {},
 	loader: async ({ context, params }) => {
 		const run = await context.queryClient
 			.ensureQueryData(runQueryOptions(params.runId))

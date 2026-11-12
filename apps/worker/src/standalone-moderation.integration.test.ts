@@ -261,7 +261,9 @@ for (const subject of ["issue", "change-request"] as const) {
 				);
 				expect(comments).toHaveLength(1);
 				if (comments[0]?.kind === "comment") {
-					expect(comments[0].body).toContain(`/appeals/${data?.run.id}`);
+					expect(comments[0].body.includes(`/appeals/${data?.run.id}`)).toBe(
+						outcome === "block" || outcome === "close",
+					);
 					if (subject === "issue")
 						expect(comments[0].body).not.toContain("change request");
 				}

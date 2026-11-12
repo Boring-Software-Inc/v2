@@ -22,14 +22,23 @@ export function ParamEditor({
 	value,
 	onSave,
 	onCancel,
+	autoFocus = true,
 }: {
 	param: RuleParam;
 	value: JsonValue | undefined;
 	onSave: (value: JsonValue) => void;
 	onCancel: () => void;
+	autoFocus?: boolean;
 }) {
 	if (param.kind === "string-list") {
-		return <StringListEditor onSave={onSave} param={param} value={value} />;
+		return (
+			<StringListEditor
+				autoFocus={autoFocus}
+				onSave={onSave}
+				param={param}
+				value={value}
+			/>
+		);
 	}
 	if (param.kind === "boolean") {
 		return (
@@ -47,7 +56,6 @@ export function ParamEditor({
 				aria-label={param.label}
 				className="inline-block w-auto align-middle"
 				defaultValue={TEXT_VALUE_SCHEMA.safeParse(value).data ?? param.default}
-				onBlur={onCancel}
 				onChange={(e) => onSave(e.target.value)}
 				size="sm"
 			>
@@ -61,6 +69,7 @@ export function ParamEditor({
 	}
 	return (
 		<ScalarEditor
+			autoFocus={autoFocus}
 			onCancel={onCancel}
 			onSave={onSave}
 			param={param}
@@ -74,11 +83,13 @@ function ScalarEditor({
 	value,
 	onSave,
 	onCancel,
+	autoFocus,
 }: {
 	param: Extract<RuleParam, { kind: "number" | "string" }>;
 	value: JsonValue | undefined;
 	onSave: (value: JsonValue) => void;
 	onCancel: () => void;
+	autoFocus: boolean;
 }) {
 	let initial: string;
 	if (param.kind === "number") {
@@ -94,6 +105,7 @@ function ScalarEditor({
 	const [error, setError] = useState<string | null>(null);
 
 	const commit = () => {
+		if (raw === initial) return;
 		const result = coerceParamInput(param, raw);
 		if (result.ok) {
 			onSave(result.value);
@@ -114,7 +126,7 @@ function ScalarEditor({
 			<Input
 				aria-invalid={error !== null}
 				aria-label={param.label}
-				autoFocus
+				autoFocus={autoFocus}
 				className={param.kind === "number" ? "w-28" : "w-40"}
 				max={
 					param.kind === "number" && param.max !== undefined
@@ -137,8 +149,11 @@ function ScalarEditor({
 				}}
 				onKeyDown={(e) => {
 					if (e.key === "Enter") {
+						e.preventDefault();
 						commit();
 					} else if (e.key === "Escape") {
+						setRaw(initial);
+						setError(null);
 						onCancel();
 					}
 				}}
@@ -160,10 +175,12 @@ function ScalarEditor({
 function StringListEditor({
 	param,
 	value,
+	autoFocus,
 	onSave,
 }: {
 	param: Extract<RuleParam, { kind: "string-list" }>;
 	value: JsonValue | undefined;
+	autoFocus: boolean;
 	onSave: (value: JsonValue) => void;
 }) {
 	const items = Array.isArray(value) ? (value as string[]) : [...param.default];
@@ -192,6 +209,7 @@ function StringListEditor({
 				))}
 			</ChipGroup>
 			<Input
+				autoFocus={autoFocus}
 				aria-label={`Add ${param.label}`}
 				className="w-40"
 				mono

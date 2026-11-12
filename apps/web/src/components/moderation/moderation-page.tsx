@@ -167,7 +167,7 @@ export function ModerationPage() {
 								<Link params={{ org, repo: repoName }} to="/$org/$repo/rules" />
 							}
 							size="sm"
-							variant="ghost"
+							variant="primary"
 						>
 							Review rules
 						</Button>

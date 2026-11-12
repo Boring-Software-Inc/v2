@@ -96,7 +96,7 @@ export function TripwireCodeDiff({
 	return (
 		<div
 			className={cn(
-				"min-w-0 rounded-lg border border-line-faint bg-code-surface",
+				"code-surface min-w-0 rounded-lg",
 				review ? "overflow-clip rounded-shell" : "overflow-hidden",
 				className,
 			)}

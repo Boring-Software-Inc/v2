@@ -2,6 +2,11 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { Icon, Search } from "#/design-system/icon";
 import { Button } from "#/design-system/ui/button";
 import { Kbd } from "#/design-system/ui/kbd";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/design-system/ui/tooltip";
 
 const CommandPalette = lazy(() =>
 	import("#/components/layouts/command-palette").then((m) => ({
@@ -81,19 +86,54 @@ function isTypingTarget(target: EventTarget | null): boolean {
 	);
 }
 
-export function CommandPaletteButton({ wide = false }: { wide?: boolean }) {
+export function CommandPaletteButton({
+	wide = false,
+	collapsed = false,
+}: {
+	wide?: boolean;
+	collapsed?: boolean;
+}) {
+	if (collapsed) {
+		return (
+			<Tooltip>
+				<TooltipTrigger
+					render={
+						<Button
+							aria-keyshortcuts="Meta+K Control+K"
+							aria-label="Search"
+							className="gap-0"
+							onClick={openCommandPalette}
+							size="icon"
+							variant="ghost"
+						>
+							<span className="flex h-[22px] w-[26px] items-center justify-center">
+								<Icon className="size-[18px]!" icon={Search} size={16} />
+							</span>
+						</Button>
+					}
+				/>
+				<TooltipContent side="right" sideOffset={16} variant="sidebar">
+					Search
+				</TooltipContent>
+			</Tooltip>
+		);
+	}
 	if (wide) {
 		return (
 			<Button
 				aria-keyshortcuts="Meta+K Control+K"
-				className="w-full justify-start"
+				className="w-auto justify-start"
+				data-layout-role="command-palette-wide-trigger"
 				onClick={openCommandPalette}
-				size="sm"
 				variant="ghost"
 			>
-				<Icon icon={Search} />
+				<span className="flex size-[18px] items-center justify-center">
+					<Icon className="size-3.5!" icon={Search} size={14} />
+				</span>
 				Search
-				<Kbd className="ms-auto" keys="mod+k" />
+				<span aria-hidden className="ms-auto me-1">
+					Ctrl K
+				</span>
 			</Button>
 		);
 	}

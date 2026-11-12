@@ -1,13 +1,62 @@
 import { z } from "zod";
 
+import { orgSlugSchema } from "./org.ts";
+
 export const contributionAppealRunSchema = z.object({
 	runId: z.uuid(),
 });
+
+export const contributionAppealOrgSchema = z.object({
+	org: orgSlugSchema,
+});
+
+export const appealPortalSettingsSchema = z.object({
+	title: z.string().trim().min(1).max(80),
+	description: z.string().trim().min(1).max(500),
+});
+export type AppealPortalSettings = z.infer<typeof appealPortalSettingsSchema>;
+
+export const DEFAULT_APPEAL_PORTAL_SETTINGS = {
+	title: "Appeals",
+	description:
+		"Ask the organization to review a moderation decision or report a moderation problem.",
+} as const satisfies AppealPortalSettings;
+
+export const updateAppealPortalSettingsSchema =
+	contributionAppealOrgSchema.extend({
+		settings: appealPortalSettingsSchema,
+	});
 
 export const submitContributionAppealSchema =
 	contributionAppealRunSchema.extend({
 		reason: z.string().trim().min(1).max(2_000),
 	});
+
+export const organizationAppealTypeSchema = z.enum([
+	"issue",
+	"pull-request",
+	"other",
+]);
+export type OrganizationAppealType = z.infer<
+	typeof organizationAppealTypeSchema
+>;
+
+export const submitOrganizationAppealSchema =
+	contributionAppealOrgSchema.extend({
+		type: organizationAppealTypeSchema,
+		reason: submitContributionAppealSchema.shape.reason,
+	});
+export type SubmitOrganizationAppeal = z.infer<
+	typeof submitOrganizationAppealSchema
+>;
+
+export const resolveOrganizationAppealSchema =
+	contributionAppealOrgSchema.extend({
+		appealId: z.uuid(),
+	});
+export type ResolveOrganizationAppeal = z.infer<
+	typeof resolveOrganizationAppealSchema
+>;
 
 export const contributionAppealDecisionSchema = z.enum([
 	"approve-once",
@@ -19,7 +68,7 @@ export type ContributionAppealDecision = z.infer<
 >;
 
 export const listContributionAppealsSchema = z.object({
-	org: z.string().min(1).max(100),
+	org: orgSlugSchema,
 	repo: z.string().min(1).max(100),
 });
 

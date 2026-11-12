@@ -328,7 +328,7 @@ export async function emitPrSurface(
 					subjectKind: "issue",
 					standaloneWarning,
 					appealUrl:
-						verdict !== "pass" || standaloneWarning
+						verdict === "block" || verdict === "close"
 							? `${deps.appUrl}/appeals/${runId}`
 							: undefined,
 					reasons,
@@ -422,7 +422,7 @@ export async function emitPrSurface(
 			verdict,
 			standaloneWarning,
 			appealUrl:
-				standaloneOutcome && (verdict !== "pass" || standaloneWarning)
+				standaloneOutcome && (verdict === "block" || verdict === "close")
 					? `${deps.appUrl}/appeals/${runId}`
 					: undefined,
 			contributorLogin: event.actor.login,

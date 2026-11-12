@@ -214,7 +214,12 @@ export function WorkflowEditorPage() {
 	}
 
 	return (
-		<DashboardLayout counts={{}}>
+		<DashboardLayout
+			counts={{}}
+			nestedNavItem={
+				workflow ? { parent: "workflows", label: workflow.name } : undefined
+			}
+		>
 			<div data-layout-role="workflow-editor-frame">
 				<SkeletonSwap
 					fallback={<EditorFrameSkeleton />}

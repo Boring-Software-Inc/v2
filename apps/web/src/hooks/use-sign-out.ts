@@ -24,6 +24,7 @@ const BROWSER_EFFECTS: SignOutEffects = {
 export function signOutMutationOptions(
 	queryClient: QueryClient,
 	effects: SignOutEffects = BROWSER_EFFECTS,
+	returnTo = "/login",
 ) {
 	return mutationOptions({
 		mutationFn: async () => {
@@ -36,12 +37,14 @@ export function signOutMutationOptions(
 		retry: false,
 		onSuccess: () => {
 			queryClient.clear();
-			effects.go("/login");
+			effects.go(returnTo);
 		},
 		onError: () => effects.fail(SIGN_OUT_FAILED),
 	});
 }
 
-export function useSignOut() {
-	return useMutation(signOutMutationOptions(useQueryClient()));
+export function useSignOut(returnTo?: string) {
+	return useMutation(
+		signOutMutationOptions(useQueryClient(), BROWSER_EFFECTS, returnTo),
+	);
 }

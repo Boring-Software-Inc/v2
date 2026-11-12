@@ -70,7 +70,7 @@ export function FirstCheckAction({
 	const run = useRunFirstCheck(org, repo);
 	const number = state.facts.nextChangeRequest;
 	return (
-		<div className="flex flex-wrap items-center gap-2">
+		<div data-layout-role="setup-step-actions">
 			{number !== null ? (
 				<Button
 					disabled={!canRun}
@@ -102,7 +102,7 @@ export function ResponsesAction({ org, repo, state }: StepActionProps) {
 	const canManage = useOrgPermission(org, "responses:manage");
 	const keep = useKeepResponseDefaults(org, repo, state.repoId);
 	return (
-		<div className="flex flex-wrap items-center gap-2">
+		<div data-layout-role="setup-step-actions">
 			<Button
 				disabled={!canManage}
 				onClick={() => keep.mutate()}

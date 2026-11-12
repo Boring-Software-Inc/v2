@@ -876,5 +876,26 @@ Contributor access to the form grants no repository membership or private run
 visibility. Approved appeals restore only actions attributable to Tripwire's
 standalone decision. Restoration is recorded and retried through the worker.
 
+The organization portal at /appeals/[org-slug] accepts an appeal category and
+reason from the verified GitHub account that received a moderation decision in
+that organization. The request belongs to the organization and has no
+repository, issue, pull request, or run target. Organization moderators can
+resolve it in Human review. Resolving it applies no forge action or allowlist
+change. A contributor may have only one open appeal across both paths.
+
 The first rollout targets staging. A pull request to main follows staging
 validation and remains available for Grim's review.
+
+## 2026-11-11 | Open appeal intake and dedicated appeal permissions
+
+An organization appeal no longer requires Tripwire to find an earlier
+moderation run. A signed-in contributor may submit a general appeal when their
+Tripwire account has a linked GitHub identity, including when the original
+moderation event is missing or incorrect. Run-linked appeals retain their
+stronger author and contribution checks. The one-open-appeal invariant remains.
+
+Appeals are their own organization permission region with read and manage
+levels. Read grants access to the organization appeal inbox. Manage grants the
+ability to resolve appeals and edit the public portal title and introduction.
+Opening an organization portal as a member with appeal access shows this admin
+view; non-members see the contributor portal.

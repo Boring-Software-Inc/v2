@@ -65,6 +65,20 @@ describe("RuleCard management states", () => {
 		expect(html).not.toContain("Add exception");
 	});
 
+	test("custom rule actions use one menu after Uninstall", () => {
+		const html = render(
+			<RuleCard
+				{...base}
+				onDelete={async () => undefined}
+				rule={rule({ source: "custom" })}
+			/>,
+		);
+		expect(html.match(/aria-label="Actions for account age"/g)).toHaveLength(1);
+		expect(html.indexOf('aria-label="Uninstall account age"')).toBeLessThan(
+			html.indexOf('aria-label="Actions for account age"'),
+		);
+	});
+
 	test("managed: no toggle, no tag, and shows the NODE's config (not the stale row)", () => {
 		const html = render(
 			<RuleCard
@@ -123,6 +137,7 @@ describe("RuleCard management states", () => {
 		);
 		expect(html).toContain(">Install<");
 		expect(html).toContain("flags slop");
+		expect(html).not.toContain('aria-label="Actions for ai review"');
 	});
 });
 

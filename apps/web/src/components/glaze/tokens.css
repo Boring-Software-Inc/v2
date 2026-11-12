@@ -49,6 +49,9 @@
   --hover-row: rgb(5 5 5 / 0.035); /* ink at 3.5%: a list row under the pointer, lighter than the selected row's --pressed | item, table row, data grid row */
   --pressed: rgb(5 5 5 / 0.10); /* ink at 10%: a plain button held, a selected row | ghost button active, selected row */
   --scrim: rgb(5 5 5 / 0.24); /* the dim behind a dialog: ink at 24% | dialog, sheet */
+  --sidebar-tooltip: #0c0c0c; /* the fixed dark sidebar label, unchanged by theme | collapsed sidebar tooltip */
+  --sidebar-tooltip-text: #f4f4f3; /* the fixed light label on a sidebar tooltip | collapsed sidebar tooltip */
+  --sidebar-tooltip-hover: rgb(244 244 243 / 0.10); /* the light wash inside a hovered sidebar tooltip | collapsed sidebar tooltip */
 
   /* == Ink == */
   --ink: #050505; /* solid ink, a neutral near-black: every text and line is this at an alpha | chart mark, tooltip */
@@ -243,7 +246,7 @@
   --menu-min: 192px; /* the narrowest a menu opens | dropdown menu, select */
   --menu-row: 32px; /* one row of a menu or a command list, a step under --row | menu item, command item */
   --menu-row-sm: 28px; /* one row of a small menu, opened from a small control | menu item sm */
-  --popup-max: 320px; /* the tallest a list popup grows before it scrolls | select, combobox, menu */
+  --popup-max: 370px; /* the tallest a list popup grows before it scrolls | select, combobox, menu */
   --tooltip-max: 256px; /* a tooltip's line length before it wraps | tooltip */
   --label-col: 160px; /* the widest a label column grows before its labels wrap | data list, horizontal field */
   --progress-bar-sm: 4px; /* a small progress bar or meter, in a row or a card footer | progress sm */

@@ -114,6 +114,7 @@ describe("custom roles", () => {
 
 const GRANTABLE = {
 	moderation: [undefined, "read", "manage"],
+	appeals: [undefined, "read", "manage"],
 	activity: [undefined, "read", "manage"],
 	rules: [undefined, "read", "manage"],
 	workflows: [undefined, "read", "manage"],
@@ -170,7 +171,7 @@ describe("every grantable scope set round-trips exactly", () => {
 			expect(resolveOrgPermissions("r", [row])).toEqual(expected(scopes));
 			checked++;
 		}
-		expect(checked).toBe(3 ** 7 * 2 ** 2 - 1);
+		expect(checked).toBe(3 ** 8 * 2 ** 2 - 1);
 	});
 
 	test("manage on members and settings is never grantable", () => {

@@ -9,6 +9,7 @@ import {
 	SectionBody,
 	SectionHeader,
 } from "#/components/layouts/section";
+import { SidebarNav, sidebarNavItemClass } from "#/design-system/ui/sidebar";
 import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 import { Label } from "#/design-system/ui/typography";
 
@@ -22,7 +23,7 @@ export function SettingsFrame({
 	return (
 		<div data-layout-role="settings-frame">
 			<div data-layout-role="settings-grid">
-				{nav}
+				<div className="md:hidden">{nav}</div>
 				<div data-layout-role="settings-page">{children}</div>
 			</div>
 		</div>
@@ -31,16 +32,25 @@ export function SettingsFrame({
 
 export function SettingsHeader({
 	title,
+	description,
 	children,
 }: {
 	title: string;
+	description?: string;
 	children?: ReactNode;
 }) {
 	const canGoBack = useCanGoBack();
 	return (
 		<PageHeader
 			actions={children}
-			navigation={canGoBack ? <HistoryBackControl /> : undefined}
+			description={description}
+			navigation={
+				canGoBack ? (
+					<div className="md:hidden">
+						<HistoryBackControl />
+					</div>
+				) : undefined
+			}
 			title={title}
 		/>
 	);
@@ -49,17 +59,19 @@ export function SettingsHeader({
 export function SettingsSection({
 	id,
 	title,
+	description,
 	action,
 	children,
 }: {
 	id: string;
 	title: string;
+	description?: string;
 	action?: ReactNode;
 	children: ReactNode;
 }) {
 	return (
 		<Section id={id}>
-			<SectionHeader actions={action} title={title} />
+			<SectionHeader actions={action} description={description} title={title} />
 			<SectionBody>{children}</SectionBody>
 		</Section>
 	);
@@ -71,7 +83,27 @@ export function SettingsCard({ children }: { children: ReactNode }) {
 
 const SETTINGS_NAV_SLOTS = ["a", "b", "c", "d", "e", "f"] as const;
 
-export function SettingsNavSkeleton() {
+export function SettingsNavSkeleton({
+	variant = "mobile",
+	collapsed = false,
+}: {
+	variant?: "mobile" | "rail";
+	collapsed?: boolean;
+}) {
+	if (variant === "rail") {
+		return (
+			<SidebarNav aria-hidden>
+				{SETTINGS_NAV_SLOTS.map((slot) => (
+					<div className={sidebarNavItemClass({ collapsed })} key={slot}>
+						<Skeleton className="size-4 rounded-tag" />
+						{collapsed ? null : (
+							<SkeletonText data-layout-size="medium" type="label" />
+						)}
+					</div>
+				))}
+			</SidebarNav>
+		);
+	}
 	return (
 		<div aria-hidden data-layout-role="settings-nav-skeleton">
 			{SETTINGS_NAV_SLOTS.map((slot) => (

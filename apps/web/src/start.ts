@@ -115,7 +115,9 @@ const securityHeadersMiddleware = createMiddleware({ type: "request" }).server(
 		h.set("X-Content-Type-Options", "nosniff");
 		h.set("X-Frame-Options", "DENY");
 		h.set("Content-Security-Policy", "frame-ancestors 'none'");
-		const setup = new URL(request.url).pathname === "/onboarding/setup";
+		const pathname = new URL(request.url).pathname;
+		const setup = pathname === "/onboarding/setup";
+		const appeal = pathname.startsWith("/appeals/");
 		if (!h.has("Referrer-Policy"))
 			h.set("Referrer-Policy", "strict-origin-when-cross-origin");
 		if (setup) {
@@ -129,7 +131,9 @@ const securityHeadersMiddleware = createMiddleware({ type: "request" }).server(
 				"max-age=63072000; includeSubDomains; preload",
 			);
 		}
-		if (!setup && (h.get("content-type") ?? "").includes("text/html")) {
+		if (appeal) {
+			h.set("Cache-Control", "private, no-store");
+		} else if (!setup && (h.get("content-type") ?? "").includes("text/html")) {
 			h.set("Cache-Control", "no-cache");
 		}
 		return {
