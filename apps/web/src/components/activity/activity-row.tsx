@@ -95,13 +95,15 @@ export function ActivityRow({
 	const text =
 		event.kind === "schedule.matched" ? (
 			<>
-				<span className="text-text-2">Schedule matched</span>{" "}
+				<span data-layout-role="activity-subject-action">Schedule matched</span>{" "}
 				{subjectLine(event)}
 			</>
 		) : (
 			<>
 				{event.actor.login}{" "}
-				<span className="text-text-2">{KIND_LABEL[event.kind]}</span>{" "}
+				<span data-layout-role="activity-subject-action">
+					{KIND_LABEL[event.kind]}
+				</span>{" "}
 				{subjectLine(event)}
 			</>
 		);

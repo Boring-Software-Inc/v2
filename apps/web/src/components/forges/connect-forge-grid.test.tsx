@@ -273,7 +273,7 @@ describe("Connect uses the login availability decision", () => {
 			expect(button(connect, label)).not.toContain('aria-disabled="true"');
 			expect(button(connect, label)).not.toContain('aria-busy="true"');
 		}
-		expect(connect).toContain("var(--brand-gitcafe)");
+		expect(connect).toContain('data-layout-role="gitcafe-mark"');
 		expect(
 			readFileSync(
 				new URL("../../styles.css", import.meta.url),

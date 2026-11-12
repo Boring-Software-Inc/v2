@@ -76,10 +76,11 @@ export function MascotFigure({
 			aria-hidden="true"
 			className={cn(
 				"block shrink-0 overflow-visible",
-				sage ? "text-(--mascot-sage)" : "text-ink",
 				tone === "muted" && "opacity-45",
 				className,
 			)}
+			data-layout-role="mascot-figure"
+			data-sage={sage || undefined}
 			height={size}
 			style={SAGE_VAR}
 			viewBox={VIEW_BOX}

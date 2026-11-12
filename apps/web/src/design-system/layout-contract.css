@@ -178,7 +178,8 @@
 }
 
 [data-layout-role="approve-glyph"] {
-	background-color: var(--ok);
+	color: var(--tw-content-inverse);
+	background-color: var(--tw-success-mark);
 }
 
 [data-layout-role="block-glyph"] {
@@ -599,6 +600,43 @@
 .agent-client-logo-large {
 	inline-size: calc(var(--space-1) * 9);
 	block-size: calc(var(--space-1) * 9);
+}
+
+[data-layout-role="agent-client-logo"] {
+	color: var(--tw-content-primary);
+}
+
+svg[data-layout-role="agent-client-logo"] {
+	fill: currentColor;
+}
+
+span[data-layout-role="agent-client-logo"] {
+	border-color: var(--tw-boundary-default);
+	background-color: var(--tw-surface-inset);
+}
+
+[data-layout-role="agent-client-logo"][data-logo="antigravity"] {
+	color: var(--brand-antigravity);
+}
+
+[data-layout-role="agent-client-logo"][data-logo="claude"] {
+	color: var(--brand-claude);
+}
+
+[data-layout-role="agent-client-logo"][data-logo="gemini"] {
+	color: var(--brand-gemini);
+}
+
+[data-layout-role="agent-client-logo"][data-logo="kiro"] {
+	color: var(--brand-kiro);
+}
+
+[data-layout-role="agent-client-logo"][data-logo="muse"] {
+	color: var(--brand-muse);
+}
+
+[data-layout-role="agent-client-logo"][data-logo="vscode"] {
+	color: var(--brand-vscode);
 }
 
 .agent-request-success {
@@ -3213,6 +3251,38 @@
 	gap: var(--space-2);
 	padding-inline: calc(var(--space-3) + var(--space-1) / 2) var(--space-1-5);
 	border-block-end: var(--line-width) solid var(--line-faint);
+}
+
+[data-layout-role="code-wrap-toggle"] {
+	color: var(--tw-content-secondary);
+}
+
+[data-layout-role="code-wrap-toggle"][aria-pressed="true"] {
+	color: var(--tw-content-primary);
+}
+
+[data-layout-role="activity-subject-action"] {
+	color: var(--tw-content-secondary);
+}
+
+[data-layout-role="step-done-mark"] circle {
+	fill: var(--tw-success-mark);
+}
+
+[data-layout-role="step-done-mark"] path {
+	stroke: var(--tw-content-inverse);
+}
+
+[data-layout-role="gitcafe-mark"] rect {
+	fill: var(--brand-gitcafe);
+}
+
+[data-layout-role="mascot-figure"] {
+	color: var(--tw-content-primary);
+}
+
+[data-layout-role="mascot-figure"][data-sage="true"] {
+	color: var(--mascot-sage);
 }
 
 [data-review-diff] > [data-layout-role="code-header"] {

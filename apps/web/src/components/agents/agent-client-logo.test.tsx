@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
 	AgentClientLogo,
@@ -73,23 +74,23 @@ describe("clientLogoKind", () => {
 });
 
 describe("AgentClientLogo", () => {
-	test("Claude keeps its brand fill", () => {
-		const html = renderToStaticMarkup(
-			<AgentClientLogo clientName="Claude Code" />,
-		);
-		expect(html).toContain('data-logo="claude"');
-		expect(html).toContain('fill="#D97757"');
-	});
+	const styles = readFileSync(
+		new URL("../../styles.css", import.meta.url),
+		"utf8",
+	);
 
-	test.each<[string, string]>([
-		["Gemini CLI", 'fill="#8E75B2"'],
-		["Google Antigravity", 'fill="#3186FF"'],
-		["Kiro", 'fill="#9046FF"'],
-		["Muse Code", 'fill="#0467DF"'],
-	])("%s keeps its brand fill", (name, fill) => {
-		expect(
-			renderToStaticMarkup(<AgentClientLogo clientName={name} />),
-		).toContain(fill);
+	test.each<[string, ClientLogoKind, string]>([
+		["Claude Code", "claude", "#d97757"],
+		["VS Code", "vscode", "#007acc"],
+		["Gemini CLI", "gemini", "#8e75b2"],
+		["Google Antigravity", "antigravity", "#3186ff"],
+		["Kiro", "kiro", "#9046ff"],
+		["Muse Code", "muse", "#0467df"],
+	])("%s keeps its brand color token", (name, kind, color) => {
+		const html = renderToStaticMarkup(<AgentClientLogo clientName={name} />);
+		expect(html).toContain(`data-logo="${kind}"`);
+		expect(html).toContain('data-layout-role="agent-client-logo"');
+		expect(styles).toContain(`--brand-${kind}: ${color}`);
 	});
 
 	test.each([
@@ -102,9 +103,9 @@ describe("AgentClientLogo", () => {
 		"Zed",
 		"Goose",
 		"Grok",
-	])("%s uses currentColor so it reads in both themes", (name) => {
+	])("%s uses the theme-aware logo role", (name) => {
 		const html = renderToStaticMarkup(<AgentClientLogo clientName={name} />);
-		expect(html).toContain('fill="currentColor"');
+		expect(html).toContain('data-layout-role="agent-client-logo"');
 		expect(html).toContain("<path");
 	});
 
