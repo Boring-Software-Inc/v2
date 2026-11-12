@@ -403,14 +403,12 @@ function OrganizationDialog({
 									{scrollCueVisible ? (
 										<div
 											aria-hidden
-											className="pointer-events-none absolute inset-x-0 bottom-0 h-[calc(var(--menu-row)*2)] select-none [-webkit-backdrop-filter:blur(var(--scroll-cue-blur))] [backdrop-filter:blur(var(--scroll-cue-blur))]"
+											className="pointer-events-none absolute inset-x-0 bottom-0 h-[calc(var(--menu-row)*0.75)] select-none [-webkit-backdrop-filter:blur(var(--scroll-cue-blur))] [backdrop-filter:blur(var(--scroll-cue-blur))]"
 											style={{
-												background:
-													"linear-gradient(to bottom, transparent, var(--paper))",
 												maskImage:
-													"linear-gradient(to bottom, transparent, var(--ink))",
+													"linear-gradient(to bottom, transparent, var(--ink) 80%)",
 												WebkitMaskImage:
-													"linear-gradient(to bottom, transparent, var(--ink))",
+													"linear-gradient(to bottom, transparent, var(--ink) 80%)",
 											}}
 										/>
 									) : null}
