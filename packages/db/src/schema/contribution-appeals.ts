@@ -1,10 +1,12 @@
 import type {
+	AppealPortalSettings,
 	ContributionAppealStatus,
 	OrganizationAppealType,
 } from "@tripwire/contracts";
 import {
 	index,
 	integer,
+	jsonb,
 	pgTable,
 	text,
 	timestamp,
@@ -87,4 +89,17 @@ export const organizationAppeals = pgTable(
 			table.resolvedAt,
 		),
 	],
+);
+
+export const organizationAppealPortalSettings = pgTable(
+	"organization_appeal_portal_settings",
+	{
+		organizationId: text("organization_id")
+			.primaryKey()
+			.references(() => organization.id, { onDelete: "cascade" }),
+		settings: jsonb("settings").$type<AppealPortalSettings>().notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
 );

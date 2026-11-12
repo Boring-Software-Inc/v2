@@ -1,5 +1,8 @@
 import {
+	type AppealPortalSettings,
+	appealPortalSettingsSchema,
 	type ContributionAppealDecision,
+	DEFAULT_APPEAL_PORTAL_SETTINGS,
 	normalizedEventSchema,
 	STANDALONE_MODERATION_NODE_ID,
 	type SubmitOrganizationAppeal,
@@ -18,6 +21,7 @@ import {
 	contributionAppeals,
 	events,
 	organization,
+	organizationAppealPortalSettings,
 	organizationAppeals,
 	repos,
 	runSteps,
@@ -178,6 +182,88 @@ async function listOwnOrganizationAppeals(
 		.limit(50);
 }
 
+export async function getAppealPortal(
+	db: DbLike,
+	org: string,
+): Promise<{
+	orgId: string;
+	orgName: string;
+	avatarHue: number | null;
+	settings: AppealPortalSettings;
+} | null> {
+	const [row] = await db
+		.select({
+			orgId: organization.id,
+			orgName: organization.name,
+			avatarHue: organization.avatarHue,
+			settings: organizationAppealPortalSettings.settings,
+		})
+		.from(organization)
+		.leftJoin(
+			organizationAppealPortalSettings,
+			eq(organizationAppealPortalSettings.organizationId, organization.id),
+		)
+		.where(eq(organization.slug, org))
+		.limit(1);
+	if (!row) return null;
+	const parsed = appealPortalSettingsSchema.safeParse(row.settings);
+	return {
+		orgId: row.orgId,
+		orgName: row.orgName,
+		avatarHue: row.avatarHue,
+		settings: parsed.success ? parsed.data : DEFAULT_APPEAL_PORTAL_SETTINGS,
+	};
+}
+
+export async function updateAppealPortalSettings(
+	db: DbLike,
+	input: { orgId: string; settings: AppealPortalSettings },
+): Promise<void> {
+	const settings = appealPortalSettingsSchema.parse(input.settings);
+	await db
+		.insert(organizationAppealPortalSettings)
+		.values({ organizationId: input.orgId, settings })
+		.onConflictDoUpdate({
+			target: organizationAppealPortalSettings.organizationId,
+			set: { settings, updatedAt: new Date() },
+		});
+}
+
+export async function listOrganizationAppealInbox(db: DbLike, orgId: string) {
+	const [contributions, organizationRequests] = await Promise.all([
+		db
+			.select({
+				id: contributionAppeals.id,
+				runId: contributionAppeals.runId,
+				repo: repos.name,
+				repoName: repos.fullName,
+				subjectKind: contributionAppeals.subjectKind,
+				subjectNumber: contributionAppeals.subjectNumber,
+				login: contributionAppeals.login,
+				reason: contributionAppeals.reason,
+				createdAt: contributionAppeals.createdAt,
+			})
+			.from(contributionAppeals)
+			.innerJoin(repos, eq(repos.id, contributionAppeals.repoId))
+			.where(
+				and(eq(repos.orgId, orgId), eq(contributionAppeals.status, "pending")),
+			)
+			.orderBy(asc(contributionAppeals.createdAt))
+			.limit(100),
+		listPendingOrganizationAppeals(db, orgId),
+	]);
+	return { contributions, organizationAppeals: organizationRequests };
+}
+
+async function linkedGitHubIdentity(db: DbLike, userId: string) {
+	const [row] = await db
+		.select({ accountId: account.accountId })
+		.from(account)
+		.where(and(eq(account.userId, userId), eq(account.providerId, "github")))
+		.limit(1);
+	return row ?? null;
+}
+
 export async function submitOrganizationAppeal(
 	db: Db,
 	input: SubmitOrganizationAppeal & { userId: string },
@@ -185,19 +271,21 @@ export async function submitOrganizationAppeal(
 	const { org, type, reason } = submitOrganizationAppealSchema.parse(input);
 	const { userId } = input;
 	return db.transaction(async (tx) => {
-		const [priorDecision] = await appealCandidates(tx)
-			.innerJoin(organization, eq(organization.id, repos.orgId))
-			.where(and(eq(organization.slug, org), appealEligibility(userId)))
-			.orderBy(desc(runs.createdAt), desc(runs.id))
-			.limit(1);
-		const subject = priorDecision && appealSubject(priorDecision);
-		if (!subject || !priorDecision?.orgId)
-			return { status: "unavailable" } as const;
-		const identity = {
-			orgId: priorDecision.orgId,
-			accountId: subject.accountId,
+		const [orgRow, githubIdentity] = await Promise.all([
+			tx
+				.select({ id: organization.id })
+				.from(organization)
+				.where(eq(organization.slug, org))
+				.limit(1)
+				.then((rows) => rows[0] ?? null),
+			linkedGitHubIdentity(tx, userId),
+		]);
+		if (!orgRow || !githubIdentity) return { status: "unavailable" } as const;
+		const appealIdentity = {
+			orgId: orgRow.id,
+			accountId: githubIdentity.accountId,
 		};
-		await lockAppealSubmission(tx, userId, identity.accountId);
+		await lockAppealSubmission(tx, userId, appealIdentity.accountId);
 		if (
 			(await pendingAppeal(tx, userId)) ||
 			(await pendingOrganizationAppeal(tx, userId))
@@ -206,7 +294,7 @@ export async function submitOrganizationAppeal(
 		const id = generateId();
 		await tx
 			.insert(organizationAppeals)
-			.values({ ...identity, id, type, reason });
+			.values({ ...appealIdentity, id, type, reason });
 		return { status: "submitted", id } as const;
 	});
 }

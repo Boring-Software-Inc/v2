@@ -16,6 +16,7 @@ const READ_MANAGE = ["read", "manage"] as const;
 
 const productStatement = {
 	moderation: READ_MANAGE,
+	appeals: READ_MANAGE,
 	activity: READ_MANAGE,
 	rules: READ_MANAGE,
 	workflows: READ_MANAGE,
@@ -36,6 +37,7 @@ export const orgAdminRole = orgAc.newRole({
 	invitation: ["create", "cancel"],
 	ac: ["create", "read", "update", "delete"],
 	moderation: ["read", "manage"],
+	appeals: ["read", "manage"],
 	activity: ["read", "manage"],
 	rules: ["read", "manage"],
 	workflows: ["read", "manage"],
@@ -48,6 +50,7 @@ export const orgAdminRole = orgAc.newRole({
 
 export const orgMemberRole = orgAc.newRole({
 	moderation: ["read"],
+	appeals: ["read"],
 	activity: ["read"],
 	rules: ["read"],
 	workflows: ["read"],

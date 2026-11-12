@@ -28,9 +28,11 @@ mock.module("#/lib/server/staff-guard", () => ({ sameOriginMiddleware: {} }));
 mock.module("#/lib/server/gated-server-fn", () => ({ accessGuardMiddleware: {} }));
 mock.module("#/lib/server/org-guard", () => ({ orgPermissionMiddleware: () => ({}), resolveOrgRepo: async () => ({ id: "repo" }) }));
 mock.module("#/lib/server/db", () => ({ getDb: () => ({ db: {} }) }));
+mock.module("@tripwire/auth/org-gate", () => ({ resolveOrgAccess: async () => ({ ok: false, denial: { code: "NOT_FOUND", message: "not found" } }) }));
 mock.module("@tripwire/db", () => ({
 	contributionAppealServices: {
 		getOwnAppeal: async () => { reads++; return { status: null }; },
+		getAppealPortal: async () => ({ orgId: "org-id", orgName: "Team", settings: { title: "Appeals", description: "Ask for a review." } }),
 		listOwnAppealCases: async (_db, org, userId) => { portalReads++; expect({ org, userId }).toEqual({ org: "team", userId: "contributor" }); return { cases: [], pendingRunId: null }; },
 		submitAppeal: async () => { writes++; return { status: "pending" }; },
 	},
@@ -41,21 +43,22 @@ expect(await getContributionAppeal({ data: { runId } })).toEqual({ state: "eligi
 expect(await submitContributionAppeal({ data: { runId, reason: "Review this decision" } })).toEqual({ status: "pending" });
 expect(reads).toBe(1);
 expect(writes).toBe(1);
-expect(await getContributionAppealPortal({ data: { org: "team" } })).toEqual({ state: "signed-in", cases: [], pendingRunId: null });
+const portal = { orgId: "org-id", orgName: "Team", settings: { title: "Appeals", description: "Ask for a review." } };
+expect(await getContributionAppealPortal({ data: { org: "team" } })).toEqual({ state: "signed-in", ...portal, cases: [], pendingRunId: null });
 for (const next of [
 	{ live: true, banned: true, impersonatedBy: null },
 	{ live: false, banned: false, impersonatedBy: null },
 	{ live: true, banned: false, impersonatedBy: "admin" },
 ]) {
 	fence = next;
-	expect(await getContributionAppealPortal({ data: { org: "team" } })).toEqual({ state: "signed-out" });
+	expect(await getContributionAppealPortal({ data: { org: "team" } })).toEqual({ state: "signed-out", ...portal });
 	expect(await getContributionAppeal({ data: { runId } })).toEqual({ state: "signed-out" });
 	expect(await submitContributionAppeal({ data: { runId, reason: "Review this decision" } })).toBeNull();
 }
 expect(reads).toBe(1);
 expect(writes).toBe(1);
 current = null;
-expect(await getContributionAppealPortal({ data: { org: "team" } })).toEqual({ state: "signed-out" });
+expect(await getContributionAppealPortal({ data: { org: "team" } })).toEqual({ state: "signed-out", ...portal });
 expect(portalReads).toBe(1);
 process.stdout.write("appeal-session-fence-pass");
 `;
