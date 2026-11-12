@@ -3,11 +3,7 @@ import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 
 export function BuilderSkeleton() {
 	return (
-		<div
-			aria-hidden
-			className="grid flex-1 grid-cols-1 lg:grid-cols-[--spacing(66)_minmax(0,1fr)] xl:grid-cols-[--spacing(66)_minmax(0,1fr)_--spacing(96)]"
-			data-layout-role="responses-skeleton-builder"
-		>
+		<div aria-hidden data-layout-role="responses-skeleton-builder">
 			<Skeleton className="h-96 rounded-shell max-lg:hidden" />
 			<Skeleton className="h-96 rounded-shell" />
 			<div className="max-xl:hidden" data-layout-role="page-skeleton-section">
