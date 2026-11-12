@@ -61,7 +61,7 @@ import { accountIdentity, PLACEHOLDER_USER } from "#/lib/current-user";
 import type { OrgWithRole } from "#/lib/org.functions";
 import { myOrgsQueryOptions } from "#/lib/org.query";
 
-const VISIBLE_OTHER_ORGS = 4;
+const VISIBLE_OTHER_ORGS = 3;
 const WORKSPACE_DIALOG_BATCH_SIZE = 5;
 const KEEP_ABOVE_TRIGGER = { side: "none", align: "shift" } as const;
 
