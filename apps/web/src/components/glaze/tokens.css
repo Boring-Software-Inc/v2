@@ -247,7 +247,6 @@
   --menu-row: 32px; /* one row of a menu or a command list, a step under --row | menu item, command item */
   --menu-row-sm: 28px; /* one row of a small menu, opened from a small control | menu item sm */
   --popup-max: 370px; /* the tallest a list popup grows before it scrolls | select, combobox, menu */
-  --scroll-cue-blur: 6px; /* the blur at the trailing edge of a scroll viewport when more rows follow | workspace picker */
   --tooltip-max: 256px; /* a tooltip's line length before it wraps | tooltip */
   --label-col: 160px; /* the widest a label column grows before its labels wrap | data list, horizontal field */
   --progress-bar-sm: 4px; /* a small progress bar or meter, in a row or a card footer | progress sm */
