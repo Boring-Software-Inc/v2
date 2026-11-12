@@ -130,6 +130,10 @@ exists is the same scope creep that killed v1, typing faster.
 GitCafe integration is approved as an exception to the second-forge deferral
 (2026-10-27, DECISIONS.md); other deferred forges remain out of scope.
 
+Organization-level appeals and standalone moderation settings are approved as
+exceptions to the org-level deferral (2026-11-10, DECISIONS.md); other org-level
+features remain out of scope.
+
 ## Governance map
 - Scoped `agents.md` files inject rules when a session touches their area.
 - `.claude/rules/*.md` are the full path-scoped rule docs they point to.
