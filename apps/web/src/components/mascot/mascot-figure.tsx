@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import type { MascotEngine } from "#/components/mascot/engine";
 import {
 	BOLT_PATH,
@@ -6,7 +6,6 @@ import {
 	bubblePath,
 	CLOUD_PATHS,
 	PROP_RECT,
-	SAGE,
 	VIEW_BOX,
 	ZZ_PATH,
 } from "#/components/mascot/geometry";
@@ -20,8 +19,6 @@ export type MascotFigureProps = {
 	path: string;
 	className?: string;
 };
-
-const SAGE_VAR = { "--mascot-sage": SAGE } as CSSProperties;
 
 export function MascotFigure({
 	engine,
@@ -76,12 +73,12 @@ export function MascotFigure({
 			aria-hidden="true"
 			className={cn(
 				"block shrink-0 overflow-visible",
-				sage ? "text-(--mascot-sage)" : "text-ink",
 				tone === "muted" && "opacity-45",
 				className,
 			)}
+			data-layout-role="mascot-figure"
+			data-sage={sage || undefined}
 			height={size}
-			style={SAGE_VAR}
 			viewBox={VIEW_BOX}
 			width={size}
 		>

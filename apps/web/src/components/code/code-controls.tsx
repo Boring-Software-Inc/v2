@@ -13,7 +13,7 @@ export function WrapToggle({ wrap, onWrapChange }: WrapToggleProps) {
 		<Button
 			aria-label="Wrap lines"
 			aria-pressed={wrap}
-			className="text-text-2 aria-pressed:text-text-1"
+			data-layout-role="code-wrap-toggle"
 			onClick={() => onWrapChange(!wrap)}
 			size="icon-sm"
 			variant="ghost"

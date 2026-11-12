@@ -21,7 +21,11 @@ const RULE_SLOTS = [
 
 export function RuleGridSkeleton() {
 	return (
-		<div aria-hidden className="grid items-stretch gap-3 sm:grid-cols-2">
+		<div
+			aria-hidden
+			className="grid items-stretch sm:grid-cols-2"
+			data-layout-role="rules-skeleton-grid"
+		>
 			{RULE_SLOTS.map((slot) => (
 				<Card className={RULE_CARD_CLASS} key={slot.key}>
 					<Panel className={RULE_PANEL_CLASS}>
@@ -30,7 +34,10 @@ export function RuleGridSkeleton() {
 								className={cn(slot.name, "type-label-lg")}
 								type="label"
 							/>
-							<Skeleton className="ms-auto h-4 w-7 shrink-0 rounded-pill" />
+							<Skeleton
+								className="h-4 w-7 shrink-0 rounded-pill"
+								data-layout-role="rules-skeleton-toggle"
+							/>
 						</div>
 						<SkeletonText lines={2} type="body-sm" />
 					</Panel>
@@ -47,18 +54,18 @@ export function RuleGridSkeleton() {
 export function RulesPageSkeleton() {
 	return (
 		<DashboardLayout counts={{}}>
-			<div className="px-4 py-6 md:px-8 md:py-10">
-				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-					<header className="flex flex-col gap-1">
+			<div data-layout-role="page-skeleton-shell">
+				<div data-layout-role="page-skeleton-body">
+					<header data-layout-role="page-skeleton-heading">
 						<SkeletonText className="w-24" type="heading" />
 						<SkeletonText className="w-96 max-w-full" type="body" />
 					</header>
-					<div aria-hidden className="flex flex-col gap-3">
+					<div aria-hidden data-layout-role="page-skeleton-section">
 						<SkeletonText className="w-80 max-w-full" type="body" />
 						<Skeleton className="h-48 w-full rounded-shell" />
 					</div>
-					<div className="flex flex-col gap-3">
-						<div className="flex items-center justify-between gap-3">
+					<div data-layout-role="page-skeleton-section">
+						<div data-layout-role="page-skeleton-toolbar">
 							<Skeleton className="h-(--control-sm) w-56 rounded-pill" />
 							<Skeleton className="h-(--control-sm) w-36 rounded-pill" />
 						</div>

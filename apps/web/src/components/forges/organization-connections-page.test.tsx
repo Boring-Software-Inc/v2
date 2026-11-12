@@ -89,7 +89,7 @@ test("organization managers see installation repositories without an OAuth accou
 		'aria-label="Disconnect boring/scratch from GitCafe"',
 	);
 	expect(markup).toContain('aria-expanded="false"');
-	expect(markup).toContain("var(--brand-gitcafe)");
+	expect(markup).toContain('data-layout-role="gitcafe-mark"');
 	expect(markup).not.toContain("Access expired");
 	expect(markup).not.toContain("Reconnect GitCafe");
 });

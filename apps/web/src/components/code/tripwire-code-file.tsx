@@ -54,7 +54,7 @@ export function TripwireCodeFile({
 	return (
 		<div
 			className={cn(
-				"min-w-0 overflow-hidden rounded-lg border border-line-faint bg-code-surface",
+				"code-surface min-w-0 overflow-hidden rounded-lg",
 				className,
 			)}
 			data-slot="tripwire-code-file"

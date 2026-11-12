@@ -10,13 +10,18 @@ import {
 	renderBackticks,
 } from "#/components/runs/evidence-parts";
 import { External, Icon } from "#/design-system/icon";
-import { cn } from "#/lib/utils";
+import {
+	Caption,
+	CodeText,
+	Label,
+	SupportingText,
+} from "#/design-system/ui/typography";
 
 const SEVERITY = {
-	critical: { label: "Critical", tone: "text-fail-text" },
-	warn: { label: "Warning", tone: "text-text-1" },
-	info: { label: "Note", tone: "text-text-2" },
-} satisfies Record<FindingSeverity, { label: string; tone: string }>;
+	critical: "Critical",
+	warn: "Warning",
+	info: "Note",
+} satisfies Record<FindingSeverity, string>;
 
 function FindingRow({
 	finding,
@@ -27,37 +32,40 @@ function FindingRow({
 	repo: string;
 	sha: string | null;
 }) {
-	const severity = SEVERITY[finding.severity];
 	const url = finding.line
 		? blobUrl(repo, sha, finding.file, finding.line)
 		: null;
 	return (
 		<li className="rounded-tag" data-layout-role="ai-finding">
 			<div data-layout-role="ai-finding-heading">
-				<span className={cn("type-label-sm", severity.tone)}>
-					{severity.label}
-				</span>
+				<Label
+					data-layout-role="ai-finding-severity"
+					data-severity={finding.severity}
+				>
+					{SEVERITY[finding.severity]}
+				</Label>
 				{finding.line ? (
 					url ? (
-						<a
-							className="type-caption hover:underline"
-							data-layout-role="ai-finding-line"
-							href={url}
-							rel="noreferrer"
-							target="_blank"
-						>
-							Line {finding.line}
-						</a>
+						<Caption>
+							<a
+								data-layout-role="ai-finding-line"
+								href={url}
+								rel="noreferrer"
+								target="_blank"
+							>
+								Line {finding.line}
+							</a>
+						</Caption>
 					) : (
-						<span className="type-caption" data-layout-role="ai-finding-line">
+						<Caption data-layout-role="ai-finding-line">
 							Line {finding.line}
-						</span>
+						</Caption>
 					)
 				) : null}
 			</div>
-			<p className="type-body-sm" data-layout-role="ai-finding-note">
+			<SupportingText data-layout-role="ai-finding-note">
 				{renderBackticks(finding.note)}
-			</p>
+			</SupportingText>
 		</li>
 	);
 }
@@ -88,10 +96,7 @@ export function AiFindings({
 						data-layout-role="ai-findings-file"
 						key={file}
 					>
-						<div
-							className="type-code-sm"
-							data-layout-role="ai-findings-file-heading"
-						>
+						<CodeText as="span" data-layout-role="ai-findings-file-heading">
 							<FileIcon />
 							{fileUrl ? (
 								<a
@@ -111,7 +116,7 @@ export function AiFindings({
 							) : (
 								<FilePath file={file} />
 							)}
-						</div>
+						</CodeText>
 						<ul data-layout-role="ai-findings-list">
 							{findings.map((finding, i) => (
 								<FindingRow

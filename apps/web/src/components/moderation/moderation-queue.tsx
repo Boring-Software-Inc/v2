@@ -216,13 +216,10 @@ export function ModerationQueue({
 										variant="secondary"
 									>
 										<span
-											className="flex size-4 items-center justify-center rounded-full text-text-inverse"
+											className="flex size-4 items-center justify-center rounded-full"
 											data-layout-role="approve-glyph"
 										>
-											<Icon
-												className="size-3! text-text-inverse!"
-												icon={Check}
-											/>
+											<Icon className="size-3!" icon={Check} />
 										</span>
 										Approve
 									</Button>
