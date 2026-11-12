@@ -253,16 +253,27 @@ function DeleteOrgRow({
 	const [open, setOpen] = useState(false);
 
 	return (
-		<div className="flex items-center justify-between gap-3 border-line-faint border-t pt-4">
-			<p className="type-label">Delete org</p>
-			<Button
-				confirmation={false}
-				onClick={() => setOpen(true)}
-				size="sm"
-				variant="destructive"
-			>
-				Delete org
-			</Button>
+		<div className="rounded-shell border border-fail/40 bg-fail-tint p-(--shell-inset)">
+			<div className="flex min-h-10 items-center px-3">
+				<p className="type-label text-fail-text">Delete organization</p>
+			</div>
+			<div className="flex flex-col gap-4 rounded-panel border border-line-faint bg-paper p-4 sm:flex-row sm:items-end sm:justify-between">
+				<div className="flex min-w-0 flex-col gap-1">
+					<p className="type-body-sm text-text-1">
+						Permanently delete {orgContext.name} and all of its data.
+					</p>
+					<p className="type-caption text-text-2">This cannot be undone.</p>
+				</div>
+				<Button
+					confirmation={false}
+					className="self-end"
+					onClick={() => setOpen(true)}
+					size="sm"
+					variant="destructive"
+				>
+					Delete organization
+				</Button>
+			</div>
 			<DeleteOrgDialog
 				onOpenChange={setOpen}
 				open={open}

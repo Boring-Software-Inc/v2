@@ -13,7 +13,6 @@ import {
 	MemberRowsSkeleton,
 } from "#/components/layouts/collection-row";
 import { MascotArt } from "#/components/mascot/mascot-art";
-import { DeleteOrgDialog } from "#/components/organizations/delete-org-dialog";
 import {
 	INVITES_COLLECTION,
 	MEMBERS_COLLECTION,
@@ -22,7 +21,6 @@ import {
 	SettingsCard,
 	SettingsDangerRow,
 	SettingsHeader,
-	SettingsSection,
 } from "#/components/settings/settings-frame";
 import { Icon, More } from "#/design-system/icon";
 import { Avatar } from "#/design-system/ui/avatar";
@@ -45,7 +43,12 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/design-system/ui/dropdown-menu";
-import { Empty, EmptyHeader, EmptyTitle } from "#/design-system/ui/empty-state";
+import {
+	Empty,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyTitle,
+} from "#/design-system/ui/empty-state";
 import { Field, FieldError, FieldLabel } from "#/design-system/ui/field";
 import { Input } from "#/design-system/ui/input";
 import {
@@ -63,16 +66,19 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/design-system/ui/select";
+import {
+	Tabs,
+	TabsContent,
+	TabsCount,
+	TabsList,
+	TabsTrigger,
+} from "#/design-system/ui/tabs";
 import { toast } from "#/design-system/ui/toast";
 import { Caption, SupportingText } from "#/design-system/ui/typography";
 import { useCollection } from "#/hooks/use-collection";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
-import type {
-	InviteLinkView,
-	OrgMemberView,
-	OrgWithRole,
-} from "#/lib/org.functions";
+import type { InviteLinkView, OrgMemberView } from "#/lib/org.functions";
 import {
 	createOrgInvite,
 	leaveOrg,
@@ -162,6 +168,7 @@ export function OrgMembersPage({ org }: { org: string }) {
 		!currentRoleIsAdmin || membersQuery.data !== undefined;
 	const [inviting, setInviting] = useState(false);
 	const [createdToken, setCreatedToken] = useState<string | null>(null);
+	const [activeTab, setActiveTab] = useState<"members" | "pending">("members");
 
 	return (
 		<>
@@ -169,12 +176,31 @@ export function OrgMembersPage({ org }: { org: string }) {
 				description="Manage who can access this workspace and what they can do."
 				title="Members"
 			/>
-			{createdToken ? <FreshInviteLink token={createdToken} /> : null}
-			<SettingsSection
-				action={
-					canInvite ? (
+			<Tabs
+				onValueChange={(value) => {
+					if (value === "members" || value === "pending") {
+						setActiveTab(value);
+					}
+				}}
+				value={activeTab}
+			>
+				<div className="flex flex-wrap items-center justify-between gap-3">
+					<TabsList aria-label="Workspace access" size="sm">
+						<TabsTrigger value="members">
+							Members
+							{membersQuery.data ? (
+								<TabsCount>{membersQuery.data.length}</TabsCount>
+							) : null}
+						</TabsTrigger>
+						{canInvite ? (
+							<TabsTrigger value="pending">Pending</TabsTrigger>
+						) : null}
+					</TabsList>
+					{canInvite ? (
 						<Dialog onOpenChange={setInviting} open={inviting}>
-							<DialogTrigger render={<Button />}>Invite</DialogTrigger>
+							<DialogTrigger render={<Button size="sm" />}>
+								Invite member
+							</DialogTrigger>
 							<DialogContent size="sm">
 								<DialogHeader>
 									<DialogTitle>Create an invite link</DialogTitle>
@@ -185,51 +211,51 @@ export function OrgMembersPage({ org }: { org: string }) {
 								<InviteForm
 									onCreated={(token) => {
 										setCreatedToken(token);
+										setActiveTab("pending");
 										setInviting(false);
 									}}
 									org={org}
 								/>
 							</DialogContent>
 						</Dialog>
-					) : null
-				}
-				description="People with access to this workspace."
-				id="members-list"
-				title={`Members${membersQuery.data ? ` ${membersQuery.data.length}` : ""}`}
-			>
-				<Collection
-					collection={members}
-					empty={null}
-					error={membersQuery.isError}
-					onRetry={async () => {
-						await membersQuery.refetch({ throwOnError: true });
-					}}
-					skeleton={<MemberRowsSkeleton />}
-				>
-					{(rows) => (
-						<SettingsCard>
-							<ItemGroup aria-label="Members">
-								{rows.map((member) => (
-									<MemberRow
-										callerUserId={callerUserId}
-										isAdmin={isAdmin}
-										key={member.memberId}
-										member={member}
-										org={org}
-										roleItems={roleItems}
-									/>
-								))}
-							</ItemGroup>
-						</SettingsCard>
-					)}
-				</Collection>
-			</SettingsSection>
+					) : null}
+				</div>
+				<TabsContent value="members">
+					<Collection
+						collection={members}
+						empty={null}
+						error={membersQuery.isError}
+						onRetry={async () => {
+							await membersQuery.refetch({ throwOnError: true });
+						}}
+						skeleton={<MemberRowsSkeleton />}
+					>
+						{(rows) => (
+							<SettingsCard>
+								<ItemGroup aria-label="Members">
+									{rows.map((member) => (
+										<MemberRow
+											callerUserId={callerUserId}
+											isAdmin={isAdmin}
+											key={member.memberId}
+											member={member}
+											org={org}
+											roleItems={roleItems}
+										/>
+									))}
+								</ItemGroup>
+							</SettingsCard>
+						)}
+					</Collection>
+				</TabsContent>
+				{canInvite ? (
+					<TabsContent value="pending">
+						<PendingInvitesPanel createdToken={createdToken} org={org} />
+					</TabsContent>
+				) : null}
+			</Tabs>
 
-			{canInvite ? <InviteLinksSection org={org} /> : null}
-
-			{isPersonal || !orgContext || !canResolveAdminExit ? null : onlyAdmin ? (
-				<DeleteOrgMembershipRow org={org} orgContext={orgContext} />
-			) : (
+			{isPersonal || !orgContext || !canResolveAdminExit || onlyAdmin ? null : (
 				<LeaveOrgRow
 					isAdmin={currentRoleIsAdmin}
 					name={orgContext.name}
@@ -450,72 +476,55 @@ function LeaveOrgRow({
 	);
 }
 
-function DeleteOrgMembershipRow({
+function PendingInvitesPanel({
 	org,
-	orgContext,
+	createdToken,
 }: {
 	org: string;
-	orgContext: OrgWithRole;
+	createdToken: string | null;
 }) {
-	const [open, setOpen] = useState(false);
-	return (
-		<SettingsDangerRow
-			action={
-				<Button
-					confirmation={false}
-					onClick={() => setOpen(true)}
-					size="sm"
-					variant="destructive"
-				>
-					Delete org
-				</Button>
-			}
-			label={`Delete ${orgContext.name}`}
-		>
-			<DeleteOrgDialog
-				onOpenChange={setOpen}
-				open={open}
-				org={org}
-				orgContext={orgContext}
-			/>
-		</SettingsDangerRow>
-	);
-}
-
-function InviteLinksSection({ org }: { org: string }) {
 	const invitesQuery = useQuery(orgInvitesQueryOptions(org));
 	const invites = useCollection(INVITES_COLLECTION, invitesQuery.data, {
 		params: { status: "invites" },
 	});
 
 	return (
-		<SettingsSection id="invite-links" title="Invite links">
+		<div className="flex flex-col gap-4">
+			{createdToken ? <FreshInviteLink token={createdToken} /> : null}
 			<Collection
 				collection={invites}
 				empty={
-					<Empty
-						art={<MascotArt mood="invites-empty" size="compact" />}
-						size="sm"
-						variant="plain"
-					>
-						<EmptyHeader>
-							<EmptyTitle>No invite links yet</EmptyTitle>
-						</EmptyHeader>
-					</Empty>
-				}
-				error={invitesQuery.isError}
-				noResults={
-					invites.filtered ? undefined : (
+					<SettingsCard>
 						<Empty
 							art={<MascotArt mood="invites-empty" size="compact" />}
-							reason="no-results"
 							size="sm"
 							variant="plain"
 						>
 							<EmptyHeader>
-								<EmptyTitle>No active invite links</EmptyTitle>
+								<EmptyTitle>No pending invitations</EmptyTitle>
+								<EmptyDescription>
+									Invite links appear here until they're used, expire, or are
+									revoked.
+								</EmptyDescription>
 							</EmptyHeader>
 						</Empty>
+					</SettingsCard>
+				}
+				error={invitesQuery.isError}
+				noResults={
+					invites.filtered ? undefined : (
+						<SettingsCard>
+							<Empty
+								art={<MascotArt mood="invites-empty" size="compact" />}
+								reason="no-results"
+								size="sm"
+								variant="plain"
+							>
+								<EmptyHeader>
+									<EmptyTitle>No matching invitations</EmptyTitle>
+								</EmptyHeader>
+							</Empty>
+						</SettingsCard>
 					)
 				}
 				onRetry={async () => {
@@ -533,7 +542,7 @@ function InviteLinksSection({ org }: { org: string }) {
 					</SettingsCard>
 				)}
 			</Collection>
-		</SettingsSection>
+		</div>
 	);
 }
 

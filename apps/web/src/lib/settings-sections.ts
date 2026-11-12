@@ -2,9 +2,9 @@ import type { OrgRegion } from "@tripwire/contracts";
 import type { OrgSettingsTab } from "#/lib/org-search";
 
 export const ORG_SETTINGS_SECTIONS = [
+	"general",
 	"members",
 	"roles",
-	"general",
 	"redaction",
 	"connections",
 	"agents",

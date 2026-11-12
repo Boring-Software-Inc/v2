@@ -104,6 +104,21 @@ export function SidebarNavGroup({
 	return <div className={cn("flex flex-col gap-px", className)} {...props} />;
 }
 
+export function SidebarNavSectionLabel({
+	children,
+	collapsed = false,
+}: {
+	children: ReactNode;
+	collapsed?: boolean;
+}) {
+	if (collapsed) return null;
+	return (
+		<div className="px-2 pt-1 pb-1 type-label-sm text-text-3 uppercase">
+			{children}
+		</div>
+	);
+}
+
 export function sidebarNavItemClass({
 	collapsed = false,
 	nested = false,

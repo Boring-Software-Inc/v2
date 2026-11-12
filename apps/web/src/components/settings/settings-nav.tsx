@@ -28,6 +28,7 @@ import {
 	SidebarNav,
 	SidebarNavGroup,
 	SidebarNavItemContent,
+	SidebarNavSectionLabel,
 	SidebarNavTooltip,
 	sidebarNavItemClass,
 } from "#/design-system/ui/sidebar";
@@ -82,6 +83,10 @@ export function SettingsNav({
 		? activeAccountSection(hash)
 		: null;
 	const sections = visibleSettingsSections(permissions);
+	const organizationSections = sections.filter(
+		(section) => section !== "billing",
+	);
+	const billingSections = sections.filter((section) => section === "billing");
 
 	if (variant === "mobile") {
 		return (
@@ -132,7 +137,10 @@ export function SettingsNav({
 				<SettingsBack collapsed={collapsed} org={org} />
 			</SidebarNavGroup>
 			<SidebarNavGroup>
-				{sections.map((section) => (
+				<SidebarNavSectionLabel collapsed={collapsed}>
+					Organization
+				</SidebarNavSectionLabel>
+				{organizationSections.map((section) => (
 					<OrgSettingsLink
 						collapsed={collapsed}
 						icon={ORG_SETTINGS_ICONS[section]}
@@ -143,7 +151,27 @@ export function SettingsNav({
 					/>
 				))}
 			</SidebarNavGroup>
+			{billingSections.length > 0 ? (
+				<SidebarNavGroup>
+					<SidebarNavSectionLabel collapsed={collapsed}>
+						Billing
+					</SidebarNavSectionLabel>
+					{billingSections.map((section) => (
+						<OrgSettingsLink
+							collapsed={collapsed}
+							icon={ORG_SETTINGS_ICONS[section]}
+							key={section}
+							label={ORG_SETTINGS_SECTION_LABELS[section]}
+							org={org}
+							section={section}
+						/>
+					))}
+				</SidebarNavGroup>
+			) : null}
 			<SidebarNavGroup data-layout-role="settings-sidebar-account-group">
+				<SidebarNavSectionLabel collapsed={collapsed}>
+					Account
+				</SidebarNavSectionLabel>
 				{ACCOUNT_SECTIONS.map((section) => (
 					<AccountSettingsLink
 						active={current === section}
