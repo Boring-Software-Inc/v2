@@ -299,6 +299,7 @@ const menuItemClass = cn(
   'in-data-[size=sm]:type-label-sm',
   '[&_svg]:size-(--icon) [&_svg]:shrink-0 [&_svg]:text-text-3',
   'data-highlighted:bg-hover data-disabled:cursor-not-allowed data-disabled:text-text-disabled data-disabled:[&_svg]:text-text-disabled',
+	'data-[status=fail]:text-fail-text data-[status=fail]:[&_svg]:text-fail-text',
   'data-[variant=destructive]:text-fail-text data-[variant=destructive]:[&_svg]:text-fail-text data-[variant=destructive]:data-highlighted:bg-fail-tint',
   'forced-colors:data-highlighted:outline-solid forced-colors:data-highlighted:outline-2 forced-colors:data-highlighted:-outline-offset-2',
 );

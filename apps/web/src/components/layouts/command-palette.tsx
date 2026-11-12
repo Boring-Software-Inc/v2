@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import type { Forge } from "@tripwire/contracts";
 import { FORGE_CATALOG } from "@tripwire/contracts";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { ConfirmDestructiveDialog } from "#/components/common/confirm-destructive-dialog";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { ConnectForgeDialog } from "#/components/forges/connect-forge-dialog";
 import { CreateOrgDialog } from "#/components/organizations/create-org-dialog";
@@ -11,6 +12,7 @@ import {
 	Activity,
 	Add,
 	Analytics,
+	Check,
 	Connection,
 	Customize,
 	type GlazeIcon,
@@ -53,8 +55,10 @@ interface PaletteItem {
 	/** Alternate names so nothing needs to be typed verbatim. */
 	searchTags: string[];
 	icon: ReactNode;
+	labelMeta?: ReactNode;
 	hint?: React.ReactNode;
 	onSelect: () => void;
+	variant?: "default" | "destructive";
 }
 
 /** Repo rows bucketed by forge THEN owner — the same owner name can exist on
@@ -121,11 +125,13 @@ export function CommandPalette({
 	// the list with your query intact.
 	const [connectOpen, setConnectOpen] = useState(false);
 	const [createOrgOpen, setCreateOrgOpen] = useState(false);
+	const [signOutOpen, setSignOutOpen] = useState(false);
 	const [query, setQuery] = useState("");
 	const close = () => {
 		setQuery("");
 		setConnectOpen(false);
 		setCreateOrgOpen(false);
+		setSignOutOpen(false);
 		onClose();
 	};
 	const deferred = useDebouncedValue(query, 200);
@@ -189,17 +195,16 @@ export function CommandPalette({
 					org.slug === currentOrg ? "current active" : "",
 				],
 				icon: <OrgAvatar hue={org.avatarHue} name={org.name} size="xs" />,
+				labelMeta: org.isPersonal ? (
+					<Badge size="sm" variant="outline">
+						Personal
+					</Badge>
+				) : null,
 				onSelect: () => go(`/${org.slug}/home`),
-				hint: (
-					<>
-						{org.isPersonal ? (
-							<span className="type-caption text-text-2">Personal</span>
-						) : null}
-						{org.slug === currentOrg ? (
-							<span className="type-caption text-text-2">Current</span>
-						) : null}
-					</>
-				),
+				hint:
+					org.slug === currentOrg ? (
+						<Icon icon={Check} label="Current workspace" />
+					) : null,
 			});
 		}
 		items.push({
@@ -347,7 +352,8 @@ export function CommandPalette({
 		label: "Sign out",
 		searchTags: ["sign out", "log out", "logout", "leave"],
 		icon: glyph(SignOut),
-		onSelect: () => signOut.mutate(),
+		onSelect: () => setSignOutOpen(true),
+		variant: "destructive",
 	});
 
 	// ── NAVIGATION: org-scoped always; repo-scoped only with a repo in context ──
@@ -569,15 +575,31 @@ export function CommandPalette({
 				onOpenChange={setCreateOrgOpen}
 				open={createOrgOpen}
 			/>
+			<ConfirmDestructiveDialog
+				actionLabel="Sign out"
+				description="Your session on this device ends. You'll need to sign in again to use Tripwire."
+				onConfirm={() => signOut.mutateAsync()}
+				onOpenChange={setSignOutOpen}
+				open={signOutOpen}
+				pendingLabel="Signing out"
+				title="Sign out of Tripwire?"
+			/>
 		</CommandDialog>
 	);
 }
 
 function PaletteRow({ item }: { item: PaletteItem }) {
 	return (
-		<CommandItem onSelect={item.onSelect} value={item.id}>
+		<CommandItem
+			data-status={item.variant === "destructive" ? "fail" : undefined}
+			onSelect={item.onSelect}
+			value={item.id}
+		>
 			{item.icon}
-			<CommandLabel className="flex-1">{item.label}</CommandLabel>
+			<span className="flex min-w-0 flex-1 items-center gap-1.5">
+				<CommandLabel>{item.label}</CommandLabel>
+				{item.labelMeta}
+			</span>
 			{item.hint ? (
 				<span className="ms-auto flex shrink-0 items-center gap-2">
 					{item.hint}
