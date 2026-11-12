@@ -10,6 +10,23 @@ export const contributionAppealOrgSchema = z.object({
 	org: orgSlugSchema,
 });
 
+export const appealPortalSettingsSchema = z.object({
+	title: z.string().trim().min(1).max(80),
+	description: z.string().trim().min(1).max(500),
+});
+export type AppealPortalSettings = z.infer<typeof appealPortalSettingsSchema>;
+
+export const DEFAULT_APPEAL_PORTAL_SETTINGS = {
+	title: "Appeals",
+	description:
+		"Ask the organization to review a moderation decision or report a moderation problem.",
+} as const satisfies AppealPortalSettings;
+
+export const updateAppealPortalSettingsSchema =
+	contributionAppealOrgSchema.extend({
+		settings: appealPortalSettingsSchema,
+	});
+
 export const submitContributionAppealSchema =
 	contributionAppealRunSchema.extend({
 		reason: z.string().trim().min(1).max(2_000),

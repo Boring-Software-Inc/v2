@@ -1,5 +1,9 @@
 import { afterAll, beforeAll, beforeEach, expect, test } from "bun:test";
-import { DEFAULT_WORKFLOW, normalizedEventSchema } from "@tripwire/contracts";
+import {
+	DEFAULT_APPEAL_PORTAL_SETTINGS,
+	DEFAULT_WORKFLOW,
+	normalizedEventSchema,
+} from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
 import { eq } from "drizzle-orm";
 import { createDb, type Db } from "../client.ts";
@@ -18,6 +22,7 @@ import {
 import { createTestDatabase, type TestDatabase } from "../testing.ts";
 import {
 	decideAppeal,
+	getAppealPortal,
 	getApprovedAppealId,
 	getOwnAppeal,
 	listOwnAppealCases,
@@ -26,6 +31,7 @@ import {
 	resolveOrganizationAppeal,
 	submitAppeal,
 	submitOrganizationAppeal,
+	updateAppealPortalSettings,
 } from "./contribution-appeals.ts";
 import { addAllowlistEntry, isAuthorAllowlisted } from "./moderation-policy.ts";
 
@@ -45,7 +51,7 @@ beforeAll(async () => {
 	await applyMigrations(db);
 	await db
 		.insert(organization)
-		.values({ id: orgId, name: "Appeals", slug: "appeals" });
+		.values({ id: orgId, name: "Appeals", slug: "appeals", avatarHue: 142 });
 	await db.insert(user).values([
 		{ id: authorId, name: "Contributor", email: `${authorId}@example.test` },
 		{
@@ -407,6 +413,53 @@ test("empty reasons are rejected before persisting", async () => {
 		submitAppeal(db, { runId: subject.runId, userId: authorId, reason: "  " }),
 	).rejects.toThrow();
 	expect(await listPendingAppeals(db, subject.repoId)).toHaveLength(0);
+});
+
+test("a linked GitHub account can appeal without a prior moderation run", async () => {
+	const userId = generateId();
+	const accountId = generateId();
+	await db.insert(user).values({
+		id: userId,
+		name: "Unlinked case",
+		email: `${userId}@example.test`,
+	});
+	await db.insert(account).values({
+		id: generateId(),
+		userId,
+		providerId: "github",
+		accountId,
+	});
+	const result = await submitOrganizationAppeal(db, {
+		org: "appeals",
+		type: "other",
+		reason: "The moderation event is missing from my history.",
+		userId,
+	});
+	expect(result.status).toBe("submitted");
+	expect(await listPendingOrganizationAppeals(db, orgId)).toContainEqual(
+		expect.objectContaining({ accountId }),
+	);
+});
+
+test("appeal portal settings default and validate before write", async () => {
+	expect(await getAppealPortal(db, "appeals")).toMatchObject({
+		orgId,
+		orgName: "Appeals",
+		avatarHue: 142,
+		settings: DEFAULT_APPEAL_PORTAL_SETTINGS,
+	});
+	const settings = {
+		title: "Ask for another look",
+		description: "Explain what happened and the team will review it.",
+	};
+	await updateAppealPortalSettings(db, { orgId, settings });
+	expect((await getAppealPortal(db, "appeals"))?.settings).toEqual(settings);
+	await expect(
+		updateAppealPortalSettings(db, {
+			orgId,
+			settings: { title: "", description: "No title" },
+		}),
+	).rejects.toThrow();
 });
 
 test("an organization appeal has no contribution target and is private to its author and organization", async () => {

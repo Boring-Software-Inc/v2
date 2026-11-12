@@ -12,6 +12,8 @@ import {
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 
 export const Route = createFileRoute("/appeals/$target")({
+	validateSearch: (search): { preview?: "public" } =>
+		search.preview === "public" ? { preview: "public" } : {},
 	loader: async ({ context, params: { target } }) => {
 		const run = contributionAppealRunSchema.safeParse({ runId: target });
 		if (run.success) {

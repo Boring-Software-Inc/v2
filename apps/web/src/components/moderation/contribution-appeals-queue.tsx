@@ -41,8 +41,9 @@ export function ContributionAppealsQueue({
 }) {
 	const client = useQueryClient();
 	const options = contributionAppealsOptions(org, repo);
-	const query = useQuery(options);
-	const canDecide = useOrgPermission(org, "moderation:manage");
+	const canRead = useOrgPermission(org, "appeals:read");
+	const query = useQuery({ ...options, enabled: canRead });
+	const canDecide = useOrgPermission(org, "appeals:manage");
 	const canManageRules = useOrgPermission(org, "rules:manage");
 	const decide = useMutation({
 		mutationFn: ({
@@ -77,7 +78,7 @@ export function ContributionAppealsQueue({
 			toast.fail("Tripwire couldn't resolve the appeal. Try again."),
 	});
 
-	if (query.isPending) return null;
+	if (!canRead || query.isPending) return null;
 
 	return (
 		<section

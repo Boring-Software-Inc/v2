@@ -3350,6 +3350,14 @@ span[data-layout-role="agent-client-logo"] {
 	inline-size: 100%;
 }
 
+[data-layout-role="appeal-header-actions"] {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	flex-wrap: wrap;
+	gap: var(--space-2);
+}
+
 [data-layout-role="page-skeleton-shell"] {
 	padding-block: var(--space-6);
 	padding-inline: var(--space-4);
@@ -3432,6 +3440,79 @@ span[data-layout-role="agent-client-logo"] {
 	gap: var(--space-2);
 }
 
+[data-layout-role="appeal-admin-heading"],
+[data-layout-role="appeal-portal-identity"] {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--space-3);
+	min-inline-size: 0;
+}
+
+[data-layout-role="appeal-admin-heading-copy"],
+[data-layout-role="appeal-portal-identity-copy"] {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+	min-inline-size: 0;
+}
+
+[data-layout-role="appeal-admin-grid"] {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: var(--space-6);
+}
+
+[data-layout-role="appeal-admin-section"],
+[data-layout-role="appeal-card-list"] {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-3);
+	min-inline-size: 0;
+}
+
+[data-layout-role="appeal-section-header"] {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-3);
+	min-inline-size: 0;
+}
+
+[data-layout-role="appeal-settings-fields"] {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-4);
+	padding: var(--space-4);
+}
+
+[data-layout-role="appeal-reason"] {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+[data-layout-role="appeal-portal-hero"] {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-4);
+	padding: var(--space-5);
+	background-color: var(--paper);
+	border: var(--line-width) solid var(--line-faint);
+	border-radius: var(--radius-shell);
+}
+
+[data-layout-role="appeal-portal-hero-row"] {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: var(--space-4);
+}
+
+@media (min-width: 640px) {
+	[data-layout-role="appeal-portal-hero"] {
+		padding: var(--space-6);
+	}
+}
+
 @media (min-width: 768px) {
 	[data-layout-role="page-skeleton-shell"] {
 		padding-block: var(--space-10);
@@ -3446,6 +3527,10 @@ span[data-layout-role="agent-client-logo"] {
 }
 
 @media (min-width: 1024px) {
+	[data-layout-role="appeal-admin-grid"] {
+		grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.42fr);
+	}
+
 	[data-layout-role="responses-skeleton-builder"] {
 		grid-template-columns: calc(var(--space-1) * 66) minmax(0, 1fr);
 	}
@@ -3469,4 +3554,154 @@ span[data-layout-role="agent-client-logo"] {
 				96
 			);
 	}
+}
+
+[data-layout-role="theme-preview-system"] {
+	display: flex;
+	block-size: calc(var(--space-4) * 7);
+	gap: var(--space-1);
+	overflow: hidden;
+	padding: var(--space-1-5);
+	background: #171717;
+	border: var(--line-width) solid #525252;
+	border-radius: var(--radius-tag);
+}
+
+[data-layout-role="theme-preview-shell"] {
+	display: flex;
+	block-size: calc(var(--space-4) * 7);
+	inline-size: 100%;
+	min-inline-size: 0;
+	overflow: hidden;
+	background: #f5f5f5;
+	border-radius: var(--radius-overlay);
+}
+
+[data-layout-role="theme-preview-shell"][data-compact] {
+	flex: 1 1 0;
+	inline-size: auto;
+}
+
+[data-layout-role="theme-preview-shell"][data-tone="dark"],
+[data-layout-role="theme-preview-shell"][data-tone="dark"]
+	[data-layout-role="theme-preview-sidebar"] {
+	background: #090909;
+}
+
+[data-layout-role="theme-preview-sidebar"] {
+	display: flex;
+	flex: 0 0 24%;
+	flex-direction: column;
+	gap: var(--space-2);
+	padding: var(--space-2);
+	background: #f5f5f5;
+}
+
+[data-layout-role="theme-preview-logo"] {
+	inline-size: var(--space-2);
+	block-size: var(--space-2);
+	background: #262626;
+	border-radius: var(--radius-sm);
+}
+
+[data-tone="dark"] [data-layout-role="theme-preview-logo"] {
+	background: #e5e5e5;
+}
+
+[data-layout-role="theme-preview-sidebar-line"],
+[data-layout-role="theme-preview-content-line"] {
+	display: block;
+	border-radius: var(--radius-pill);
+}
+
+[data-layout-role="theme-preview-sidebar-line"] {
+	block-size: var(--space-1);
+	background: #e5e5e5;
+}
+
+[data-tone="dark"] [data-layout-role="theme-preview-sidebar-line"] {
+	background: #333;
+}
+
+[data-layout-role="theme-preview-sidebar-line"][data-line="first"] {
+	inline-size: 100%;
+	margin-block-start: var(--space-1);
+	background: #d4d4d4;
+}
+
+[data-tone="dark"]
+	[data-layout-role="theme-preview-sidebar-line"][data-line="first"] {
+	background: #404040;
+}
+
+[data-layout-role="theme-preview-sidebar-line"][data-line="second"] {
+	inline-size: 75%;
+}
+
+[data-layout-role="theme-preview-sidebar-line"][data-line="last"] {
+	inline-size: 66.6667%;
+	margin-block-start: auto;
+}
+
+[data-layout-role="theme-preview-content"] {
+	display: flex;
+	flex: 1 1 0;
+	flex-direction: column;
+	min-inline-size: 0;
+	gap: var(--space-2);
+	margin-block: var(--space-1-5);
+	margin-inline: var(--space-0-5) var(--space-1-5);
+	padding: var(--space-2);
+	background: white;
+	border-radius: var(--radius-overlay);
+	box-shadow: var(--shadow-xs);
+}
+
+[data-tone="dark"] [data-layout-role="theme-preview-content"] {
+	background: #1c1c1c;
+}
+
+[data-layout-role="theme-preview-content-line"][data-line="heading"] {
+	inline-size: 40%;
+	block-size: var(--space-1-5);
+	background: #a3a3a3;
+}
+
+[data-tone="dark"]
+	[data-layout-role="theme-preview-content-line"][data-line="heading"] {
+	background: #737373;
+}
+
+[data-layout-role="theme-preview-content-line"][data-line="primary"],
+[data-layout-role="theme-preview-content-line"][data-line="secondary"] {
+	block-size: var(--space-3);
+	background: #f0f0f0;
+	border-radius: var(--radius-sm);
+}
+
+[data-tone="dark"]
+	[data-layout-role="theme-preview-content-line"][data-line="primary"] {
+	background: #292929;
+}
+
+[data-layout-role="theme-preview-content-line"][data-line="secondary"] {
+	inline-size: 80%;
+	background: #f5f5f5;
+}
+
+[data-tone="dark"]
+	[data-layout-role="theme-preview-content-line"][data-line="secondary"] {
+	background: #242424;
+}
+
+[data-layout-role="theme-preview-content-line"][data-line="footer"] {
+	inline-size: 50%;
+	block-size: var(--space-1);
+	margin-block-start: auto;
+	background: #d4d4d4;
+}
+
+[data-tone="dark"]
+	[data-layout-role="theme-preview-content-line"][data-line="footer"] {
+	background: #404040;
 }

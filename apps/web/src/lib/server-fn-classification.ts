@@ -93,9 +93,10 @@ export const SERVER_FN_CLASSIFICATION: ServerFnClassification = {
 
 	// ── moderation (human review) ─────────────────────────────────────────
 	listModerationQueue: "permission:moderation:read",
-	listContributionAppeals: "permission:moderation:read",
-	decideContributionAppeal: "permission:moderation:manage",
-	resolveOrganizationAppeal: "permission:moderation:manage",
+	listContributionAppeals: "permission:appeals:read",
+	decideContributionAppeal: "permission:appeals:manage",
+	resolveOrganizationAppeal: "permission:appeals:manage",
+	updateAppealPortalSettings: "permission:appeals:manage",
 	decideModeration: "permission:moderation:manage",
 
 	// ── activity (runs) ───────────────────────────────────────────────────

@@ -6,12 +6,15 @@ import {
 	organizationAppealTypeSchema,
 } from "@tripwire/contracts";
 import { useState } from "react";
+import { AppealAdminPortal } from "#/components/appeals/appeal-admin-portal";
 import { AppealPageSkeleton } from "#/components/appeals/appeal-page-skeleton";
 import { AppealSignIn } from "#/components/appeals/appeal-sign-in";
 import { ConfirmDestructiveDialog } from "#/components/common/confirm-destructive-dialog";
 import { ContributionAppealLayout } from "#/components/layouts/contribution-appeal-layout";
 import { FormActions } from "#/components/layouts/section";
-import { Button } from "#/design-system/ui/button";
+import { OrgAvatar } from "#/components/organizations/org-avatar";
+import { External, Icon } from "#/design-system/icon";
+import { Button, buttonVariants } from "#/design-system/ui/button";
 import { Card, CardContent } from "#/design-system/ui/card";
 import {
 	Dialog,
@@ -33,7 +36,11 @@ import {
 } from "#/design-system/ui/item";
 import { NativeSelect } from "#/design-system/ui/select";
 import { Textarea } from "#/design-system/ui/textarea";
-import { PageTitle, SupportingText } from "#/design-system/ui/typography";
+import {
+	PageTitle,
+	SectionHeading,
+	SupportingText,
+} from "#/design-system/ui/typography";
 import { useSignOut } from "#/hooks/use-sign-out";
 import {
 	type getContributionAppealPortal,
@@ -175,7 +182,7 @@ function NewAppeal({ org, disabled }: { org: string; disabled: boolean }) {
 						{unavailable || submit.isError ? (
 							<SupportingText role="alert">
 								{unavailable
-									? "Sign in with the GitHub account that was blocked by this organization."
+									? "Connect a GitHub account before submitting an appeal."
 									: "Tripwire couldn’t submit the appeal. Try again."}
 							</SupportingText>
 						) : null}
@@ -197,8 +204,15 @@ function NewAppeal({ org, disabled }: { org: string; disabled: boolean }) {
 	);
 }
 
-export function AppealPortalPage({ org }: { org: string }) {
+export function AppealPortalPage({
+	org,
+	preview = false,
+}: {
+	org: string;
+	preview?: boolean;
+}) {
 	const returnTo = `/appeals/${encodeURIComponent(org)}`;
+	const previewUrl = `${returnTo}?preview=public`;
 	const signOut = useSignOut(returnTo);
 	const [signOutOpen, setSignOutOpen] = useState(false);
 	const query = useQuery(contributionAppealPortalOptions(org));
@@ -214,34 +228,106 @@ export function AppealPortalPage({ org }: { org: string }) {
 			? (portal.pendingRunId ?? portal.pendingOrgSlug)
 			: null;
 
+	if (portal?.state === "admin" && !preview) {
+		return (
+			<ContributionAppealLayout
+				wide
+				headerAction={
+					<div data-layout-role="appeal-header-actions">
+						<a
+							className={buttonVariants({ size: "sm", variant: "secondary" })}
+							href={previewUrl}
+							rel="noreferrer"
+							target="_blank"
+						>
+							Preview portal
+							<Icon icon={External} size={12} />
+						</a>
+						<Button
+							nativeButton={false}
+							render={<Link params={{ org }} to="/$org/home" />}
+							size="sm"
+							variant="secondary"
+						>
+							Dashboard
+						</Button>
+						<Button
+							onClick={() => setSignOutOpen(true)}
+							size="sm"
+							variant="ghost"
+						>
+							Sign out of Tripwire
+						</Button>
+					</div>
+				}
+			>
+				<ConfirmDestructiveDialog
+					actionLabel="Sign out of Tripwire"
+					description="This signs you out of Tripwire on this device, including the dashboard and appeal portal."
+					onConfirm={() => signOut.mutateAsync()}
+					onOpenChange={setSignOutOpen}
+					open={signOutOpen}
+					pendingLabel="Signing out"
+					title="Sign out of Tripwire?"
+				/>
+				<AppealAdminPortal
+					avatarHue={portal.avatarHue}
+					canManage={portal.canManage}
+					inbox={portal.inbox}
+					org={org}
+					orgName={portal.orgName}
+					settings={portal.settings}
+				/>
+			</ContributionAppealLayout>
+		);
+	}
+
 	return (
 		<ContributionAppealLayout
 			headerAction={
-				portal?.state === "signed-in" && (
+				portal?.state === "signed-in" &&
+				!preview && (
 					<Button
 						onClick={() => setSignOutOpen(true)}
 						size="sm"
 						variant="ghost"
 					>
-						Sign out
+						Sign out of Tripwire
 					</Button>
 				)
 			}
 		>
 			<ConfirmDestructiveDialog
-				actionLabel="Sign out"
-				description="Your appeal portal session ends. You'll need to sign in again to view or submit appeals."
+				actionLabel="Sign out of Tripwire"
+				description="This signs you out of Tripwire on this device, including the dashboard and appeal portal."
 				onConfirm={() => signOut.mutateAsync()}
 				onOpenChange={setSignOutOpen}
 				open={signOutOpen}
 				pendingLabel="Signing out"
-				title="Sign out of the appeal portal?"
+				title="Sign out of Tripwire?"
 			/>
-			<div className="flex items-center justify-between">
-				<PageTitle>Appeals</PageTitle>
-				{portal?.state === "signed-in" && !query.isError && (
-					<NewAppeal org={org} disabled={Boolean(pending)} />
-				)}
+			<div data-layout-role="appeal-portal-hero">
+				<div data-layout-role="appeal-portal-hero-row">
+					<div data-layout-role="appeal-portal-identity">
+						<OrgAvatar
+							decorative={false}
+							hue={portal?.avatarHue}
+							name={portal?.orgName ?? org}
+							size="lg"
+						/>
+						<div data-layout-role="appeal-portal-identity-copy">
+							<SupportingText>{portal?.orgName ?? org}</SupportingText>
+							<PageTitle>{portal?.settings.title ?? "Appeals"}</PageTitle>
+						</div>
+					</div>
+					{portal?.state === "signed-in" && !preview && !query.isError && (
+						<NewAppeal org={org} disabled={Boolean(pending)} />
+					)}
+				</div>
+				<SupportingText>
+					{portal?.settings.description ??
+						"Ask the organization to review a moderation decision."}
+				</SupportingText>
 			</div>
 			{query.isError ? (
 				<>
@@ -252,8 +338,13 @@ export function AppealPortalPage({ org }: { org: string }) {
 						Try again
 					</Button>
 				</>
-			) : portal?.state === "signed-out" ? (
-				<AppealSignIn organization returnTo={returnTo} />
+			) : portal?.state === "signed-out" || preview ? (
+				<Card>
+					<CardContent>
+						<SectionHeading>Sign in to continue</SectionHeading>
+						<AppealSignIn organization returnTo={returnTo} />
+					</CardContent>
+				</Card>
 			) : portal?.state === "signed-in" ? (
 				<>
 					{pending && (
@@ -303,6 +394,17 @@ export function AppealPortalPage({ org }: { org: string }) {
 							</CardContent>
 						</Card>
 					)}
+					{cases.length === 0 && portal.requests.length === 0 ? (
+						<Card>
+							<CardContent>
+								<SectionHeading>No appeals yet</SectionHeading>
+								<SupportingText>
+									You can submit an appeal even when a moderation event is
+									missing or was recorded incorrectly.
+								</SupportingText>
+							</CardContent>
+						</Card>
+					) : null}
 				</>
 			) : null}
 		</ContributionAppealLayout>

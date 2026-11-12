@@ -885,3 +885,17 @@ change. A contributor may have only one open appeal across both paths.
 
 The first rollout targets staging. A pull request to main follows staging
 validation and remains available for Grim's review.
+
+## 2026-11-11 | Open appeal intake and dedicated appeal permissions
+
+An organization appeal no longer requires Tripwire to find an earlier
+moderation run. A signed-in contributor may submit a general appeal when their
+Tripwire account has a linked GitHub identity, including when the original
+moderation event is missing or incorrect. Run-linked appeals retain their
+stronger author and contribution checks. The one-open-appeal invariant remains.
+
+Appeals are their own organization permission region with read and manage
+levels. Read grants access to the organization appeal inbox. Manage grants the
+ability to resolve appeals and edit the public portal title and introduction.
+Opening an organization portal as a member with appeal access shows this admin
+view; non-members see the contributor portal.

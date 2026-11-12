@@ -3,6 +3,7 @@ import { orgRoleSchema } from "./org.ts";
 
 export const ORG_REGIONS = [
 	"moderation",
+	"appeals",
 	"activity",
 	"rules",
 	"workflows",
@@ -34,6 +35,7 @@ export const ADMIN_ONLY_MANAGE_REGIONS = ["members", "settings"] as const;
 
 export const ORG_REGION_LABELS = {
 	moderation: "Human review",
+	appeals: "Appeals",
 	activity: "Activity",
 	rules: "Rules",
 	workflows: "Workflows",
@@ -47,6 +49,7 @@ export const ORG_REGION_LABELS = {
 export const orgRoleScopesSchema = z
 	.object({
 		moderation: orgAccessLevelSchema.optional(),
+		appeals: orgAccessLevelSchema.optional(),
 		activity: orgAccessLevelSchema.optional(),
 		rules: orgAccessLevelSchema.optional(),
 		workflows: orgAccessLevelSchema.optional(),

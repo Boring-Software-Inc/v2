@@ -12,8 +12,9 @@ export function contributionAppealPortalOptions(org: string) {
 			getContributionAppealPortal({ data: { org }, signal }),
 		staleTime: 10_000,
 		refetchInterval: (query) =>
-			query.state.data?.state === "signed-in" &&
-			(query.state.data.pendingRunId || query.state.data.pendingOrgSlug)
+			query.state.data?.state === "admin" ||
+			(query.state.data?.state === "signed-in" &&
+				(query.state.data.pendingRunId || query.state.data.pendingOrgSlug))
 				? 15_000
 				: false,
 	});

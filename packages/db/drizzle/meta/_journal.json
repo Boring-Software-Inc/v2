@@ -379,6 +379,13 @@
       "when": 1794378910403,
       "tag": "0053_organization_appeals",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1794461544998,
+      "tag": "0054_fast_smasher",
+      "breakpoints": true
     }
   ]
 }

@@ -8,6 +8,7 @@ import {
 	resolveOrganizationAppealSchema,
 	submitContributionAppealSchema,
 	submitOrganizationAppealSchema,
+	updateAppealPortalSettingsSchema,
 } from "@tripwire/contracts";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import {
@@ -53,18 +54,60 @@ export const getContributionAppeal = createServerFn({ method: "GET" })
 export const getContributionAppealPortal = createServerFn({ method: "GET" })
 	.inputValidator(contributionAppealOrgSchema)
 	.handler(async ({ data }) => {
-		const userId = await readAppealSession();
-		if (!userId) return { state: "signed-out" } as const;
 		const { contributionAppealServices } = await import("@tripwire/db");
 		const { getDb } = await import("#/lib/server/db");
+		const db = getDb().db;
+		const portal = await contributionAppealServices.getAppealPortal(
+			db,
+			data.org,
+		);
+		if (!portal) throw notFound();
+		const userId = await readAppealSession();
+		if (!userId) return { state: "signed-out", ...portal } as const;
+		const { resolveOrgAccess } = await import("@tripwire/auth/org-gate");
+		const access = await resolveOrgAccess(db, {
+			userId,
+			orgSlug: data.org,
+			requirement: { kind: "permission", permission: "appeals:read" },
+		});
+		if (access.ok) {
+			return {
+				state: "admin",
+				...portal,
+				canManage: access.org.permissions.includes("appeals:manage"),
+				inbox: await contributionAppealServices.listOrganizationAppealInbox(
+					db,
+					portal.orgId,
+				),
+			} as const;
+		}
 		return {
 			state: "signed-in",
+			...portal,
 			...(await contributionAppealServices.listOwnAppealCases(
-				getDb().db,
+				db,
 				data.org,
 				userId,
 			)),
 		} as const;
+	});
+
+export const updateAppealPortalSettings = createServerFn({ method: "POST" })
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("appeals:manage"),
+		sameOriginMiddleware,
+	])
+	.inputValidator(updateAppealPortalSettingsSchema)
+	.handler(async ({ data, context }) => {
+		const { org } = context as OrgContext;
+		const { contributionAppealServices } = await import("@tripwire/db");
+		const { getDb } = await import("#/lib/server/db");
+		await contributionAppealServices.updateAppealPortalSettings(getDb().db, {
+			orgId: org.id,
+			settings: data.settings,
+		});
+		return data.settings;
 	});
 
 export const submitContributionAppeal = createServerFn({ method: "POST" })
@@ -98,7 +141,7 @@ export const submitOrganizationAppeal = createServerFn({ method: "POST" })
 export const resolveOrganizationAppeal = createServerFn({ method: "POST" })
 	.middleware([
 		accessGuardMiddleware,
-		orgPermissionMiddleware("moderation:manage"),
+		orgPermissionMiddleware("appeals:manage"),
 		sameOriginMiddleware,
 	])
 	.inputValidator(resolveOrganizationAppealSchema)
@@ -116,10 +159,7 @@ export const resolveOrganizationAppeal = createServerFn({ method: "POST" })
 	});
 
 export const listContributionAppeals = createServerFn({ method: "GET" })
-	.middleware([
-		accessGuardMiddleware,
-		orgPermissionMiddleware("moderation:read"),
-	])
+	.middleware([accessGuardMiddleware, orgPermissionMiddleware("appeals:read")])
 	.inputValidator(listContributionAppealsSchema)
 	.handler(async ({ data, context }) => {
 		const { org } = context as OrgContext;
@@ -149,7 +189,7 @@ export const listContributionAppeals = createServerFn({ method: "GET" })
 export const decideContributionAppeal = createServerFn({ method: "POST" })
 	.middleware([
 		accessGuardMiddleware,
-		orgPermissionMiddleware("moderation:manage"),
+		orgPermissionMiddleware("appeals:manage"),
 		sameOriginMiddleware,
 	])
 	.inputValidator(decideContributionAppealSchema)
