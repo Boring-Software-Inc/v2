@@ -76,6 +76,7 @@ shared contract.
 | Perform an action | `Button` with `onAction`. Use primary for the leading action, secondary for a supporting action, and ghost for a quiet action. |
 | Navigate somewhere | `ActionLink` with an `href`. It retains native link semantics and the shared control sizes. |
 | Confirm a destructive action | `Button variant="destructive"` with `confirmation` and `onAction`. Use `DestructiveDialog` when an action requires typed confirmation. |
+| Open a destructive workflow | DestructiveDialogLauncher opens an existing confirmation workflow. The workflow owns the mutation and its confirmation. |
 | Collect a short form or ask for a choice | `Dialog` with a title and a declared action. Rejected actions keep the dialog open and announce the error above the footer. |
 | Group related actions with one keyboard stop | `Toolbar` with a descriptive `ariaLabel`, an orientation, and a list of named actions, links, or separators. |
 

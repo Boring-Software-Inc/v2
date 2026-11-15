@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FORGE_BY_ID, type ForgeConnection } from "@tripwire/contracts";
 import { Avatar } from "@tripwire/ui/avatar";
 import { Badge } from "@tripwire/ui/badge";
-import { Button } from "@tripwire/ui/button";
+import { Button, DestructiveDialogLauncher } from "@tripwire/ui/button";
 import {
 	ArrowRight,
 	Check,
@@ -47,7 +47,6 @@ import { TimezonePicker } from "#/components/timezones/timezone-picker";
 import { ZonedTime } from "#/components/timezones/zoned-time";
 import { useHasMounted } from "#/hooks/use-has-mounted";
 import { useOrgSwitchPath } from "#/hooks/use-org-switch-path";
-import { useSignOut } from "#/hooks/use-sign-out";
 import { useDeviceTimezone } from "#/hooks/use-timezones";
 import {
 	type AccountSession,
@@ -128,7 +127,7 @@ export function AccountPage({ org, user }: { org: string; user: CurrentUser }) {
 			<SessionsSection />
 			<PreferencesSection />
 			<OrgsSection activeOrg={org} />
-			<AccountActions />
+			<AccountDeletion />
 		</>
 	);
 }
@@ -603,54 +602,28 @@ function OrgsSection({ activeOrg }: { activeOrg: string }) {
 	);
 }
 
-function AccountActions() {
-	const signOut = useSignOut();
+function AccountDeletion() {
 	const [deleting, setDeleting] = useState(false);
-	const deleteActionRef = useRef<HTMLDivElement>(null);
+	const deleteActionRef = useRef<HTMLButtonElement>(null);
 	return (
 		<>
-			<SettingsPanel id="account-actions" title="Sign out">
-				<SupportingText id="account-sign-out-description">
-					End your Tripwire session on this device.
-				</SupportingText>
-				<div data-layout-role="account-action">
-					<Button
-						confirmation={{
-							confirmLabel: "Sign out",
-							description:
-								"Your session on this device ends. You'll need to sign in again to use Tripwire.",
-							title: "Sign out of Tripwire?",
-						}}
-						describedBy="account-sign-out-description"
-						onAction={() => signOut.mutateAsync()}
-						variant="destructive"
-					>
-						Sign out
-					</Button>
-				</div>
-			</SettingsPanel>
 			<SettingsPanel danger id="delete-account" title="Delete account">
 				<SupportingText id="account-delete-description">
 					Permanently delete your Tripwire account and its personal data. This
 					cannot be undone.
 				</SupportingText>
-				<div data-layout-role="account-action" ref={deleteActionRef}>
-					<Button
+				<div data-layout-role="account-action">
+					<DestructiveDialogLauncher
 						describedBy="account-delete-description"
-						name="delete-account"
-						onAction={() => setDeleting(true)}
-						variant="secondary"
+						onOpenChange={setDeleting}
+						ref={deleteActionRef}
 					>
 						Delete account
-					</Button>
+					</DestructiveDialogLauncher>
 				</div>
 			</SettingsPanel>
 			<DeleteAccountDialog
-				finalFocus={() =>
-					deleteActionRef.current?.querySelector<HTMLButtonElement>(
-						'button[name="delete-account"]',
-					) ?? null
-				}
+				finalFocus={() => deleteActionRef.current}
 				onLeave={() => setDeleting(false)}
 				onOpenChange={setDeleting}
 				open={deleting}

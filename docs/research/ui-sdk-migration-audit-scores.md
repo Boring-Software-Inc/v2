@@ -81,6 +81,8 @@ counts do not appear as audit scores.
 
 | Notra Account action panels | 97/100 | Eight Chromium renders at four widths in both themes. Both dismissal paths restored focus, and no write was attempted. The Delete account launch button is neutral, with destructive treatment on the final confirmation. Evidence in account-actions-notra-independent. |
 
+| Account deletion launcher follow-up | 100/100 scoped | Sign out card removed, destructive launcher opens the existing wizard, and Escape restores focus. Eight Chromium renders at four widths in both themes. No mutation attempts from opening or dismissing the wizard. Evidence in account-actions-followup-audit. |
+
 | Workflow Review terminal notices | 100/100 scoped | Accepted, Declined, and Expired matched Glaze geometry, fill, icons, and copy in 12 settled pairs at 390px and 1280px in both themes. One reference capture came from the earlier audit on the same fixture. Keyboard navigation verified for the accepted outcome link. |
 
 The final review should report the latest independent score and evidence for

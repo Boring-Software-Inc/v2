@@ -1066,5 +1066,15 @@ After each step:
   In two paired viewport and theme combinations, each change emitted one
   matching intercepted request per build. Both settings then persisted after
   a real browser save and reload on a separate disposable organization.
+- [x] Remove the standalone Sign out card and use the destructive style for
+  the Account deletion launcher. The independent audit passed all eight
+  viewport and theme cases with keyboard open and focus return.
+  Browser evidence is in account-actions-followup-audit.
+- [x] Complete the frozen browser sweep at four widths in both themes. It
+  recorded 1,008 route cases across both builds with no horizontal overflow
+  in measured cases. Retakes loaded Home, public Appeals, Admin, Workflow
+  Editor, and the Workflow Grid on both builds. The callback and queue
+  redirected to the same destinations. Full OAuth sign-in and the remaining
+  write paths stay open. Evidence is in app-wide-5500.
 - [ ] Reconcile the app-wide matrix and remaining write paths on a frozen
   revision, then record the independent score and CI result.

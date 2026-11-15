@@ -4806,7 +4806,6 @@ span[data-layout-role="agent-client-logo"] {
 	justify-content: flex-end;
 }
 
-#account-actions [data-slot="card-header"] > h2,
 #delete-account [data-slot="card-header"] > h2 {
 	font: var(--type-label);
 	letter-spacing: normal;

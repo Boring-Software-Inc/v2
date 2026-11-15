@@ -383,6 +383,34 @@ export function Button(props: ButtonProps) {
 	);
 }
 
+export function DestructiveDialogLauncher({
+	children,
+	describedBy,
+	onOpenChange,
+	ref,
+}: {
+	children: ReactNode;
+	describedBy?: string;
+	onOpenChange: (open: true) => void;
+	ref?: Ref<HTMLButtonElement>;
+}) {
+	return (
+		<BehaviorButton
+			aria-describedby={describedBy}
+			aria-haspopup="dialog"
+			className={BUTTON_GLASS.destructive}
+			data-size="medium"
+			data-slot="button"
+			data-variant="destructive"
+			onClick={() => onOpenChange(true)}
+			ref={ref}
+			type="button"
+		>
+			<ButtonContent>{children}</ButtonContent>
+		</BehaviorButton>
+	);
+}
+
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
 	? Omit<T, K>
 	: never;
