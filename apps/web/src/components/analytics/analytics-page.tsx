@@ -1,5 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { getRouteApi, Link } from "@tanstack/react-router";
+import { getRouteApi } from "@tanstack/react-router";
+import { Button } from "@tripwire/ui/button";
+import { Icon, TrendDown, TrendUp } from "@tripwire/ui/icon";
+import { SegmentedControl } from "@tripwire/ui/radio-group";
+import { SkeletonSwap } from "@tripwire/ui/skeleton";
 import { useMemo, useState } from "react";
 import { AnalyticsChart } from "#/components/analytics/analytics-chart";
 import { AnalyticsEvents } from "#/components/analytics/analytics-events";
@@ -9,14 +13,6 @@ import {
 	hourlyZeroRows,
 } from "#/components/analytics/chart-at-rest";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { Icon, TrendDown, TrendUp } from "#/design-system/icon";
-import { cn } from "#/design-system/lib/utils";
-import { Button } from "#/design-system/ui/button";
-import {
-	SegmentedControl,
-	SegmentedControlItem,
-} from "#/design-system/ui/segmented-control";
-import { SkeletonSwap } from "#/design-system/ui/skeleton";
 import {
 	type AnalyticsMetric,
 	hoursAgo,
@@ -28,6 +24,7 @@ import type { DateRange } from "#/lib/date-range";
 import { moderationStatsQueryOptions } from "#/lib/moderation.query";
 import { pickValue } from "#/lib/pick-value";
 import { ANALYTICS_METRICS } from "#/lib/repo-search";
+import { cn } from "#/lib/utils";
 
 const routeApi = getRouteApi("/$org/$repo/analytics");
 
@@ -98,17 +95,17 @@ export function AnalyticsPage() {
 					>
 						{hasData && focusedMetric ? (
 							<div className="flex flex-col gap-6">
-								<SegmentedControl
-									aria-label="Metric"
-									onValueChange={setFocused}
-									value={focusedMetric.key}
-								>
-									{metrics.map((m) => (
-										<SegmentedControlItem key={m.key} value={m.key}>
-											{sentenceCase(m.label)}
-										</SegmentedControlItem>
-									))}
-								</SegmentedControl>
+								<div data-layout-role="analytics-metric-selector">
+									<SegmentedControl
+										ariaLabel="Metric"
+										onValueChange={(value) => value && setFocused(value)}
+										options={metrics.map((metric) => ({
+											label: sentenceCase(metric.label),
+											value: metric.key,
+										}))}
+										value={focusedMetric.key}
+									/>
+								</div>
 
 								<AnalyticsChart
 									description={
@@ -135,11 +132,8 @@ export function AnalyticsPage() {
 							<ChartAtRest
 								action={
 									<Button
-										nativeButton={false}
-										render={
-											<Link params={{ org, repo }} to="/$org/$repo/rules" />
-										}
-										size="sm"
+										href={`/${org}/${repo}/rules`}
+										size="small"
 										variant="ghost"
 									>
 										Open rules

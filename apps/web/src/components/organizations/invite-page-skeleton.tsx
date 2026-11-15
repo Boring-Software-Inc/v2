@@ -1,5 +1,5 @@
+import { Skeleton, SkeletonText } from "@tripwire/ui/skeleton";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
-import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 
 export function InvitePageSkeleton() {
 	return (
@@ -10,10 +10,20 @@ export function InvitePageSkeleton() {
 			>
 				<TripwireLogo className="text-text-1" size={28} />
 				<div className="flex w-full flex-col items-center gap-2">
-					<SkeletonText className="w-64" type="heading" />
-					<SkeletonText className="w-72" lines={2} type="body" />
+					<span data-skeleton-line="" aria-hidden className="w-64">
+						<SkeletonText type="heading" />
+					</span>
+					<span data-skeleton-line="" aria-hidden className="w-72">
+						<SkeletonText lines={2} type="body" />
+					</span>
 				</div>
-				<Skeleton className="h-(--control) w-24 rounded-pill" />
+				<span
+					data-skeleton-box=""
+					aria-hidden
+					className="h-(--control) w-24 rounded-pill"
+				>
+					<Skeleton fill />
+				</span>
 			</div>
 		</div>
 	);

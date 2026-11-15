@@ -1,12 +1,16 @@
-import { lazy, Suspense, useEffect, useState } from "react";
-import { Icon, Search } from "#/design-system/icon";
-import { Button } from "#/design-system/ui/button";
-import { Kbd } from "#/design-system/ui/kbd";
+import { Button, IconButton } from "@tripwire/ui/button";
+import { Icon, Search } from "@tripwire/ui/icon";
+import { Kbd } from "@tripwire/ui/kbd";
+import { UI_MOTION } from "@tripwire/ui/motion";
+import { Tooltip } from "@tripwire/ui/tooltip";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/design-system/ui/tooltip";
+	type ComponentPropsWithRef,
+	lazy,
+	Suspense,
+	useEffect,
+	useState,
+} from "react";
 
 const CommandPalette = lazy(() =>
 	import("#/components/layouts/command-palette").then((m) => ({
@@ -86,6 +90,81 @@ function isTypingTarget(target: EventTarget | null): boolean {
 	);
 }
 
+interface SidebarSearchTriggerProps
+	extends Omit<ComponentPropsWithRef<"button">, "children" | "className"> {}
+
+interface RailSearchTriggerProps extends SidebarSearchTriggerProps {
+	collapsed: boolean;
+}
+
+function SidebarSearchIcon() {
+	return (
+		<span data-layout-role="sidebar-search-icon">
+			<Icon icon={Search} size={16} />
+		</span>
+	);
+}
+
+function SidebarSearchTrigger({
+	collapsed,
+	ref,
+	type = "button",
+	...buttonProps
+}: RailSearchTriggerProps) {
+	const reduceMotion = useReducedMotion();
+	const transition = reduceMotion ? { duration: 0 } : UI_MOTION.state;
+	return (
+		<button
+			{...buttonProps}
+			data-collapsed={collapsed || undefined}
+			data-layout-role="sidebar-search-trigger"
+			ref={ref}
+			type={type}
+		>
+			<SidebarSearchIcon />
+			<AnimatePresence initial={false} mode="popLayout">
+				{collapsed ? null : (
+					<motion.span
+						animate={{ opacity: 1, transform: "translateX(0px)" }}
+						data-layout-role="sidebar-search-label"
+						exit={{
+							opacity: 0,
+							transform: "translateX(calc(var(--space-1) * -1))",
+						}}
+						initial={{
+							opacity: 0,
+							transform: "translateX(calc(var(--space-1) * -1))",
+						}}
+						transition={transition}
+					>
+						Search
+					</motion.span>
+				)}
+			</AnimatePresence>
+			<AnimatePresence initial={false} mode="popLayout">
+				{collapsed ? null : (
+					<motion.span
+						animate={{ opacity: 1, transform: "translateX(0px)" }}
+						aria-hidden
+						data-layout-role="sidebar-search-shortcut"
+						exit={{
+							opacity: 0,
+							transform: "translateX(calc(var(--space-1) * -1))",
+						}}
+						initial={{
+							opacity: 0,
+							transform: "translateX(calc(var(--space-1) * -1))",
+						}}
+						transition={transition}
+					>
+						Ctrl K
+					</motion.span>
+				)}
+			</AnimatePresence>
+		</button>
+	);
+}
+
 export function CommandPaletteButton({
 	wide = false,
 	collapsed = false,
@@ -93,73 +172,51 @@ export function CommandPaletteButton({
 	wide?: boolean;
 	collapsed?: boolean;
 }) {
-	if (collapsed) {
-		return (
-			<Tooltip>
-				<TooltipTrigger
-					render={
-						<Button
-							aria-keyshortcuts="Meta+K Control+K"
-							aria-label="Search"
-							className="gap-0"
-							onClick={openCommandPalette}
-							size="icon"
-							variant="ghost"
-						>
-							<span className="flex h-[22px] w-[26px] items-center justify-center">
-								<Icon className="size-[18px]!" icon={Search} size={16} />
-							</span>
-						</Button>
-					}
-				/>
-				<TooltipContent side="right" sideOffset={16} variant="sidebar">
-					Search
-				</TooltipContent>
-			</Tooltip>
-		);
-	}
-	if (wide) {
-		return (
-			<Button
+	if (wide || collapsed) {
+		const trigger = (
+			<SidebarSearchTrigger
 				aria-keyshortcuts="Meta+K Control+K"
-				className="w-auto justify-start"
-				data-layout-role="command-palette-wide-trigger"
+				aria-label="Search"
+				collapsed={collapsed}
 				onClick={openCommandPalette}
-				variant="ghost"
-			>
-				<span className="flex size-[18px] items-center justify-center">
-					<Icon className="size-3.5!" icon={Search} size={14} />
-				</span>
-				Search
-				<span aria-hidden className="ms-auto me-1">
-					Ctrl K
-				</span>
-			</Button>
+			/>
+		);
+		return (
+			<div data-layout-role={wide ? "command-palette-wide-trigger" : undefined}>
+				<Tooltip
+					offset="spacious"
+					open={collapsed ? undefined : false}
+					trigger={trigger}
+					variant="sidebar"
+				>
+					Search
+				</Tooltip>
+			</div>
 		);
 	}
 	return (
 		<>
-			<Button
-				aria-keyshortcuts="Meta+K Control+K"
-				className="max-sm:hidden"
-				onClick={openCommandPalette}
-				size="sm"
-				variant="ghost"
-			>
-				<Icon icon={Search} />
-				Search
-				<Kbd keys="mod+k" />
-			</Button>
-			<Button
-				aria-keyshortcuts="Meta+K Control+K"
-				aria-label="Search"
-				className="sm:hidden"
-				onClick={openCommandPalette}
-				size="icon-sm"
-				variant="ghost"
-			>
-				<Icon icon={Search} />
-			</Button>
+			<div className="max-sm:hidden">
+				<Button
+					ariaKeyShortcuts="Meta+K Control+K"
+					onAction={openCommandPalette}
+					size="small"
+					variant="ghost"
+				>
+					<Icon icon={Search} />
+					Search
+					<Kbd>⌘ K</Kbd>
+				</Button>
+			</div>
+			<div className="sm:hidden">
+				<IconButton
+					icon={<Icon icon={Search} />}
+					label="Search"
+					onAction={openCommandPalette}
+					size="small"
+					variant="ghost"
+				/>
+			</div>
 		</>
 	);
 }

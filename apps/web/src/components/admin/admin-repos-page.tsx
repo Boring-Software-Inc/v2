@@ -1,19 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { useState } from "react";
-import { AdminPagination } from "#/components/admin/admin-pagination";
-import { formatAdminDate } from "#/components/admin/format-admin-date";
-import { ForgeMark } from "#/components/common/forge-marks";
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { Page, PageBody, PageHeader } from "#/components/layouts/page";
-import { MascotArt } from "#/components/mascot/mascot-art";
-import { Button } from "#/design-system/ui/button";
-import { FilterBar, FilterBarSearch } from "#/design-system/ui/filter-bar";
-import {
-	SegmentedControl,
-	SegmentedControlItem,
-} from "#/design-system/ui/segmented-control";
-import { Status } from "#/design-system/ui/status";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { Button } from "@tripwire/ui/button";
+import { SegmentedControl } from "@tripwire/ui/radio-group";
+import { Status } from "@tripwire/ui/status";
 import {
 	Table,
 	TableBody,
@@ -23,8 +12,16 @@ import {
 	TableHeader,
 	TableLoading,
 	TableRow,
-} from "#/design-system/ui/table";
-import { CodeText } from "#/design-system/ui/typography";
+} from "@tripwire/ui/table";
+import { CodeText } from "@tripwire/ui/typography";
+import { useState } from "react";
+import { AdminPagination } from "#/components/admin/admin-pagination";
+import { formatAdminDate } from "#/components/admin/format-admin-date";
+import { FilterBar, FilterBarSearch } from "#/components/common/filter-bar";
+import { ForgeMark } from "#/components/common/forge-marks";
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Page, PageBody, PageHeader } from "#/components/layouts/page";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import { useDebouncedValue } from "#/hooks/use-debounced-value";
 import { adminReposQueryOptions } from "#/lib/admin.query";
 import { ADMIN_REPO_STATUSES, type AdminReposSearch } from "#/lib/admin-search";
@@ -100,17 +97,14 @@ export function AdminReposPage() {
 						toolbar={
 							<FilterBar aria-label="Filter repos">
 								<SegmentedControl
-									aria-label="Protection"
-									onValueChange={setStatus}
-									size="sm"
+									ariaLabel="Protection"
+									onValueChange={(value) => value && setStatus(value)}
+									options={STATUS_FILTERS.map((filter) => ({
+										label: filter.label,
+										value: filter.key,
+									}))}
 									value={status}
-								>
-									{STATUS_FILTERS.map((filter) => (
-										<SegmentedControlItem key={filter.key} value={filter.key}>
-											{filter.label}
-										</SegmentedControlItem>
-									))}
-								</SegmentedControl>
+								/>
 								<FilterBarSearch
 									aria-label="Search repos"
 									onValueChange={(value) => {
@@ -138,8 +132,8 @@ export function AdminReposPage() {
 								<TableEmpty
 									action={
 										<Button
-											onClick={() => void refetch()}
-											size="sm"
+											onAction={() => void refetch()}
+											size="small"
 											variant="secondary"
 										>
 											Load repos again
@@ -155,17 +149,16 @@ export function AdminReposPage() {
 									action={
 										filtered ? (
 											<Button
-												onClick={clearFilters}
-												size="sm"
+												onAction={clearFilters}
+												size="small"
 												variant="secondary"
 											>
 												Clear filters
 											</Button>
 										) : (
 											<Button
-												nativeButton={false}
-												render={<Link to="/admin/installations" />}
-												size="sm"
+												href="/admin/installations"
+												size="small"
 												variant="secondary"
 											>
 												View installations
@@ -200,7 +193,10 @@ export function AdminReposPage() {
 											{repo.orgSlug ?? "Not claimed"}
 										</TableCell>
 										<TableCell>
-											<Status size="sm" status={repo.protected ? "ok" : "idle"}>
+											<Status
+												size="small"
+												status={repo.protected ? "ok" : "idle"}
+											>
 												{repo.protected ? "Protected" : "Not protected"}
 											</Status>
 										</TableCell>

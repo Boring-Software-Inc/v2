@@ -1,17 +1,11 @@
-import { Link } from "@tanstack/react-router";
 import {
 	type JsonValue,
 	ruleUiSchema,
 	WORKFLOW_STATE_LABELS,
 } from "@tripwire/contracts";
-import { useId, useState } from "react";
-import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
-import { ConfirmDestructiveDialog } from "#/components/common/confirm-destructive-dialog";
+import { useId } from "react";
 import {
-	RULE_CARD_CLASS,
-	RULE_FOOTER_CLASS,
 	RULE_HEADER_CLASS,
-	RULE_PANEL_CLASS,
 	RULE_SENTENCE_CLASS,
 } from "#/components/rules/rule-card-frame";
 import { RuleSettingsMenu } from "#/components/rules/rule-settings-menu";
@@ -21,20 +15,14 @@ import { useSaveQueue, useSaveQueueField } from "#/components/save-queue";
 
 type RuleConfigValues = Record<string, JsonValue>;
 
-import { cn } from "#/design-system/lib/utils";
-import { Badge } from "#/design-system/ui/badge";
-import { Button } from "#/design-system/ui/button";
-import { Card, CardFooter } from "#/design-system/ui/card";
-import { Sparkline } from "#/design-system/ui/chart";
-import {
-	DropdownMenuGroup,
-	DropdownMenuItem,
-	DropdownMenuLabel,
-	DropdownMenuLinkItem,
-	DropdownMenuSeparator,
-} from "#/design-system/ui/dropdown-menu";
-import { Panel } from "#/design-system/ui/panel";
+import { Badge } from "@tripwire/ui/badge";
+import { Button } from "@tripwire/ui/button";
+import { Card, CardFooter } from "@tripwire/ui/card";
+import type { MenuEntry } from "@tripwire/ui/menu";
+import { Panel } from "@tripwire/ui/panel";
+import { Sparkline } from "#/components/common/chart";
 import type { RuleConfigView } from "#/lib/rules.functions";
+import { cn } from "#/lib/utils";
 
 export function RuleCard({
 	org,
@@ -49,8 +37,6 @@ export function RuleCard({
 	canEdit: boolean;
 	onDelete?: (ruleId: string) => Promise<void>;
 }) {
-	const [confirmingDelete, setConfirmingDelete] = useState(false);
-	const [confirmingDisable, setConfirmingDisable] = useState(false);
 	const { valueFor, setField, pending } = useSaveQueue();
 	const queuedId = useId();
 	const queued = Object.keys(pending).some((key) =>
@@ -93,44 +79,87 @@ export function RuleCard({
 	const showSettings =
 		Boolean(org && repo) && (rule.enabled || !standalone) && !forgeBlocked;
 	const deleteBlocked = deletable && rule.blockingWorkflows.length > 0;
+	const settingsItems: MenuEntry[] = deletable
+		? [
+				...(deleteBlocked
+					? [
+							{
+								items: rule.blockingWorkflows.map((workflow) => ({
+									href: `/${org}/${repo}/workflows/${workflow.id}`,
+									label: workflow.name,
+									type: "link" as const,
+									value: `workflow:${workflow.id}`,
+								})),
+								label: "In use by",
+								type: "group" as const,
+								value: "blocking-workflows",
+							},
+							{ type: "separator" as const, value: "delete-rule-separator" },
+						]
+					: []),
+				{
+					confirmation: {
+						confirmLabel: "Delete rule",
+						description: `${rule.name} and its configuration will be permanently deleted.`,
+						title: `Delete ${rule.name}?`,
+					},
+					disabled: Boolean(deleteBlocked),
+					label: "Delete rule",
+					onAction: () => onDelete?.(rule.ruleId),
+					tone: "destructive",
+					value: "delete-rule",
+				},
+			]
+		: [];
 
 	const verb = off ? "Install" : "Uninstall";
-	const control = standalone ? (
-		<Button
-			aria-describedby={queuedId}
-			aria-label={`${verb} ${rule.name}`}
-			disabled={!canEdit || forgeBlocked || (unavailable && off)}
-			onClick={() => {
-				if (enabled) {
-					setConfirmingDisable(true);
-					return;
-				}
-				setEnabled(true);
-			}}
-			size="sm"
-			variant={enabled ? "destructive" : "secondary"}
-		>
-			{verb}
-		</Button>
-	) : rule.usedIn.length > 0 ? (
-		<RuleUsedIn
-			org={org}
-			repo={repo}
-			ruleName={rule.name}
-			workflows={rule.usedIn}
-		/>
-	) : null;
+	const control =
+		standalone && enabled ? (
+			<Button
+				aria-describedby={queuedId}
+				ariaLabel={`Uninstall ${rule.name}`}
+				confirmation={{
+					confirmLabel: "Uninstall rule",
+					description: `${rule.name} will stop evaluating new change requests after you save this change.`,
+					title: `Uninstall ${rule.name}?`,
+				}}
+				disabled={!canEdit || forgeBlocked}
+				onAction={() => setEnabled(false)}
+				size="small"
+				variant="destructive"
+			>
+				Uninstall
+			</Button>
+		) : standalone ? (
+			<Button
+				aria-describedby={queuedId}
+				ariaLabel={`${verb} ${rule.name}`}
+				disabled={!canEdit || forgeBlocked || (unavailable && off)}
+				onAction={() => setEnabled(true)}
+				size="small"
+				variant="secondary"
+			>
+				{verb}
+			</Button>
+		) : rule.usedIn.length > 0 ? (
+			<RuleUsedIn
+				org={org}
+				repo={repo}
+				ruleName={rule.name}
+				workflows={rule.usedIn}
+			/>
+		) : null;
 
 	const activity = forgeBlocked ? (
 		<Badge
 			title="This forge does not expose what this rule needs"
-			variant="warn"
+			tone="warning"
 		>
 			{rule.forgeBlockReason}
 		</Badge>
 	) : unavailable ? (
 		<span className="flex items-center gap-2">
-			<Badge variant="warn">
+			<Badge tone="warning">
 				{off ? "Can't install" : WORKFLOW_STATE_LABELS["cant-run"]}
 			</Badge>
 			<span>{rule.unavailableReason}</span>
@@ -141,7 +170,7 @@ export function RuleCard({
 		<span className="flex items-center gap-2">
 			{hasTrend ? (
 				<Sparkline
-					className="w-16 text-text-3"
+					data-layout-role="rule-activity-trend"
 					data={rule.trend}
 					end={false}
 					label={`${rule.name} matches per hour, last 24 hours`}
@@ -161,14 +190,14 @@ export function RuleCard({
 
 	return (
 		<Card
-			className={RULE_CARD_CLASS}
+			data-layout-role="rule-card-frame"
 			data-off={off ? "" : undefined}
 			data-queued={queued ? "" : undefined}
 		>
 			<span aria-live="polite" className="sr-only" id={queuedId}>
 				{queued ? "Change queued. Save to apply it." : ""}
 			</span>
-			<Panel className={RULE_PANEL_CLASS}>
+			<Panel data-layout-role="rule-card-panel">
 				<div className={RULE_HEADER_CLASS}>
 					<h2
 						className={cn(
@@ -188,50 +217,13 @@ export function RuleCard({
 						{control}
 						{(showSettings || deletable) && (
 							<RuleSettingsMenu
+								items={settingsItems}
 								name={rule.name}
 								org={org}
 								repo={repo}
 								ruleId={rule.ruleId}
 								showSettings={showSettings}
-							>
-								{deletable ? (
-									<>
-										{deleteBlocked ? (
-											<>
-												<DropdownMenuGroup>
-													<DropdownMenuLabel>In use by</DropdownMenuLabel>
-													{rule.blockingWorkflows.map((wf) => (
-														<DropdownMenuLinkItem
-															key={wf.id}
-															render={
-																<Link
-																	params={{ org, repo, workflowId: wf.id }}
-																	to="/$org/$repo/workflows/$workflowId"
-																/>
-															}
-														>
-															{wf.name}
-														</DropdownMenuLinkItem>
-													))}
-												</DropdownMenuGroup>
-												<DropdownMenuSeparator />
-											</>
-										) : null}
-										<DropdownMenuItem
-											disabled={Boolean(deleteBlocked)}
-											onClick={() => setConfirmingDelete(true)}
-											title={
-												deleteBlocked
-													? "Remove this rule from its workflows before you delete it"
-													: undefined
-											}
-											variant="destructive"
-										>
-											Delete rule
-										</DropdownMenuItem>
-									</>
-								) : null}
-							</RuleSettingsMenu>
+							/>
 						)}
 					</span>
 				</div>
@@ -255,7 +247,7 @@ export function RuleCard({
 
 				{rule.held && standalone ? (
 					<div className="flex flex-wrap items-center gap-2 pt-1.5">
-						<Badge variant="warn">New version waiting</Badge>
+						<Badge tone="warning">New version waiting</Badge>
 						<span className="type-body-sm text-text-2">
 							{rule.changeNote ? `${rule.changeNote}. ` : ""}Your saved settings
 							do not carry over to it, so this rule keeps running the old
@@ -264,8 +256,8 @@ export function RuleCard({
 						<Button
 							aria-pressed={upgradeQueued === true}
 							disabled={!canEdit}
-							onClick={() => setUpgradeQueued(upgradeQueued !== true)}
-							size="sm"
+							onAction={() => setUpgradeQueued(upgradeQueued !== true)}
+							size="small"
 							variant="secondary"
 						>
 							{upgradeQueued === true
@@ -275,26 +267,7 @@ export function RuleCard({
 					</div>
 				) : null}
 			</Panel>
-			<CardFooter className={RULE_FOOTER_CLASS}>{activity}</CardFooter>
-			<ConfirmDeleteDialog
-				actionLabel="Delete rule"
-				onConfirm={() => onDelete?.(rule.ruleId)}
-				onOpenChange={setConfirmingDelete}
-				open={Boolean(deletable) && confirmingDelete}
-				title={`Delete ${rule.name}?`}
-			/>
-			<ConfirmDestructiveDialog
-				actionLabel="Uninstall rule"
-				description={`${rule.name} will stop evaluating new change requests after you save this change.`}
-				onConfirm={() => {
-					setEnabled(false);
-					return undefined;
-				}}
-				onOpenChange={setConfirmingDisable}
-				open={confirmingDisable}
-				pendingLabel="Uninstalling"
-				title={`Uninstall ${rule.name}?`}
-			/>
+			<CardFooter data-layout-role="rule-card-footer">{activity}</CardFooter>
 		</Card>
 	);
 }

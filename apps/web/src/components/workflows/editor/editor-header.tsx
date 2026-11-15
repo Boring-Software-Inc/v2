@@ -4,26 +4,18 @@ import {
 	forgeEvaluates,
 	type WorkflowDefinition,
 } from "@tripwire/contracts";
+import { Badge } from "@tripwire/ui/badge";
+import { Button, IconButton } from "@tripwire/ui/button";
+import { Input } from "@tripwire/ui/field";
+import { Edit, Icon, More } from "@tripwire/ui/icon";
+import { Menu, type MenuEntry } from "@tripwire/ui/menu";
+import { SegmentedControl } from "@tripwire/ui/radio-group";
+import { notify } from "@tripwire/ui/toast";
 import { type ReactNode, useId, useState } from "react";
 import { ConfirmDestructiveDialog } from "#/components/common/confirm-destructive-dialog";
 import { HistoryBackControl } from "#/components/common/history-back-control";
 import { CopyWorkflowButton } from "#/components/workflows/editor/copy-workflow-button";
 import type { Problem } from "#/components/workflows/editor/node-issues";
-import { Edit, Icon, More } from "#/design-system/icon";
-import { Badge } from "#/design-system/ui/badge";
-import { Button } from "#/design-system/ui/button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "#/design-system/ui/dropdown-menu";
-import { Input } from "#/design-system/ui/input";
-import {
-	SegmentedControl,
-	SegmentedControlItem,
-} from "#/design-system/ui/segmented-control";
-import { toast } from "#/design-system/ui/toast";
 import {
 	WORKFLOW_EDITOR_VIEWS,
 	type WorkflowEditorView,
@@ -32,6 +24,7 @@ import {
 	type CustomRuleDisplay,
 	workflowToMarkdown,
 } from "#/lib/workflow-markdown";
+import "./editor-header.css";
 
 /**
  * Slim editor header — back link, inline-editable name, enabled badge +
@@ -105,8 +98,13 @@ export function EditorHeader({
 				"Tripwire could not reach the server, so the name did not change. Try again.",
 		}));
 		if (!result.ok) {
-			toast.fail(
-				result.error ?? "Tripwire could not rename the workflow. Try again.",
+			notify.show(
+				{
+					title:
+						result.error ??
+						"Tripwire could not rename the workflow. Try again.",
+				},
+				"error",
 			);
 		}
 	};
@@ -129,35 +127,39 @@ export function EditorHeader({
 			await navigator.clipboard.writeText(
 				workflowToMarkdown(definition, customRules),
 			);
-			toast.success("Copied the workflow as Markdown");
+			notify.show({ title: "Copied the workflow as Markdown" }, "success");
 		} catch {
-			toast.fail("Tripwire could not copy the workflow. Try again.");
+			notify.show(
+				{ title: "Tripwire could not copy the workflow. Try again." },
+				"error",
+			);
 		}
 	};
 
-	const menuItems = [
-		readOnly ? null : (
-			<DropdownMenuItem
-				aria-describedby={enableUnavailable ? protectionReasonId : undefined}
-				disabled={enableUnavailable}
-				key="toggle"
-				onClick={handleToggle}
-				variant={enabled ? "destructive" : undefined}
-			>
-				{enabled ? "Turn off workflow" : "Turn on workflow"}
-			</DropdownMenuItem>
-		),
-		readOnly || view !== "canvas" ? null : (
-			<DropdownMenuItem disabled={zeroNodes} key="arrange" onClick={onArrange}>
-				Auto-arrange
-			</DropdownMenuItem>
-		),
-		view === "canvas" ? (
-			<DropdownMenuItem key="markdown" onClick={copyMarkdown}>
-				Copy as Markdown
-			</DropdownMenuItem>
-		) : null,
-	].filter((item) => item !== null);
+	const menuItems: MenuEntry[] = [];
+	if (!readOnly) {
+		menuItems.push({
+			disabled: enableUnavailable,
+			label: enabled ? "Turn off workflow" : "Turn on workflow",
+			onAction: handleToggle,
+			value: "toggle",
+		});
+	}
+	if (!(readOnly || view !== "canvas")) {
+		menuItems.push({
+			disabled: zeroNodes,
+			label: "Auto-arrange",
+			onAction: onArrange,
+			value: "arrange",
+		});
+	}
+	if (view === "canvas") {
+		menuItems.push({
+			label: "Copy as Markdown",
+			onAction: copyMarkdown,
+			value: "markdown",
+		});
+	}
 
 	return (
 		<>
@@ -170,58 +172,60 @@ export function EditorHeader({
 					{readOnly ? (
 						<span data-layout-role="workflow-editor-name">{name}</span>
 					) : renaming ? (
-						<Input
-							aria-label="Workflow name"
-							autoComplete="off"
-							autoFocus
-							data-layout-role="workflow-editor-name-input"
-							defaultValue={name}
-							key={name}
-							onBlur={(event) => {
-								setRenaming(false);
-								commitName(event.target.value);
-							}}
-							onFocus={(event) => event.currentTarget.select()}
-							onKeyDown={(event) => {
-								if (event.key === "Enter") {
-									event.currentTarget.blur();
-								}
-								if (event.key === "Escape") {
-									event.currentTarget.value = name;
-									event.currentTarget.blur();
-								}
-							}}
-							size="sm"
-						/>
+						<span data-layout-role="workflow-editor-name-input">
+							<Input
+								ariaLabel="Workflow name"
+								autoComplete="off"
+								autoFocus
+								defaultValue={name}
+								key={name}
+								onBlur={(event) => {
+									setRenaming(false);
+									commitName(event.target.value);
+								}}
+								onFocus={(event) => event.currentTarget.select()}
+								onKeyDown={(event) => {
+									if (event.key === "Enter") {
+										event.currentTarget.blur();
+									}
+									if (event.key === "Escape") {
+										event.currentTarget.value = name;
+										event.currentTarget.blur();
+									}
+								}}
+							/>
+						</span>
 					) : (
-						<Button
-							aria-label={`Rename ${name}`}
-							data-layout-role="workflow-editor-rename"
-							onClick={() => setRenaming(true)}
-							size="sm"
-							variant="ghost"
-						>
-							<span data-layout-role="workflow-editor-name">{name}</span>
-							<Icon icon={Edit} />
-						</Button>
+						<span data-layout-role="workflow-editor-rename">
+							<Button
+								ariaLabel={`Rename ${name}`}
+								onAction={() => setRenaming(true)}
+								size="small"
+								variant="ghost"
+							>
+								<span data-layout-role="workflow-editor-name">{name}</span>
+								<Icon icon={Edit} />
+							</Button>
+						</span>
 					)}
 					{enabled ? <Badge>On</Badge> : null}
 					{leading}
 				</div>
 				<div data-layout-role="workflow-editor-controls">
 					<SegmentedControl
-						aria-label="Workflow view"
+						ariaLabel="Workflow view"
 						onValueChange={(next) => {
 							const picked = WORKFLOW_EDITOR_VIEWS.find((v) => v === next);
 							if (picked) {
 								onViewChange(picked);
 							}
 						}}
+						options={[
+							{ label: "Canvas", value: "canvas" },
+							{ label: "Code", value: "code" },
+						]}
 						value={view}
-					>
-						<SegmentedControlItem value="canvas">Canvas</SegmentedControlItem>
-						<SegmentedControlItem value="code">Code</SegmentedControlItem>
-					</SegmentedControl>
+					/>
 					{view === "canvas" ? (
 						<span data-layout-role="workflow-editor-copy">
 							<CopyWorkflowButton
@@ -231,23 +235,21 @@ export function EditorHeader({
 						</span>
 					) : null}
 					{menuItems.length > 0 ? (
-						<DropdownMenu>
-							<DropdownMenuTrigger
-								data-layout-role="workflow-editor-mobile-menu"
-								render={
-									<Button
-										aria-label="More workflow actions"
-										size="icon-sm"
+						<span data-layout-role="workflow-editor-mobile-menu">
+							<Menu
+								align="end"
+								ariaLabel="More workflow actions"
+								items={menuItems}
+								trigger={
+									<IconButton
+										label="More workflow actions"
+										icon={<Icon icon={More} />}
+										size="small"
 										variant="ghost"
 									/>
 								}
-							>
-								<Icon icon={More} />
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end" size="sm">
-								{menuItems}
-							</DropdownMenuContent>
-						</DropdownMenu>
+							/>
+						</span>
 					) : null}
 					{actions ? (
 						actions
@@ -256,29 +258,48 @@ export function EditorHeader({
 					) : (
 						<>
 							{view === "canvas" ? (
-								<Button
-									data-layout-role="workflow-editor-desktop-action"
-									disabled={zeroNodes}
-									onClick={onArrange}
-									size="sm"
-									variant="ghost"
-								>
-									Auto-arrange
-								</Button>
+								<span data-layout-role="workflow-editor-desktop-action">
+									<Button
+										disabled={zeroNodes}
+										onAction={onArrange}
+										size="small"
+										variant="ghost"
+									>
+										Auto-arrange
+									</Button>
+								</span>
 							) : null}
-							<Button
-								aria-describedby={
-									enableUnavailable ? protectionReasonId : undefined
-								}
-								data-layout-role="workflow-editor-desktop-action"
-								disabled={enableUnavailable}
-								onClick={handleToggle}
-								pending={toggling}
-								size="sm"
-								variant={enabled ? "destructive" : "secondary"}
-							>
-								{enabled ? "Turn off workflow" : "Turn on workflow"}
-							</Button>
+							<span data-layout-role="workflow-editor-desktop-action">
+								{enabled ? (
+									<Button
+										confirmation={{
+											confirmLabel: "Turn off workflow",
+											description:
+												"Tripwire will stop evaluating this workflow until it is turned on again.",
+											title: "Turn off this workflow?",
+										}}
+										disabled={enableUnavailable}
+										onAction={handleToggle}
+										pending={toggling}
+										reservePendingWidth
+										size="small"
+										variant="destructive"
+									>
+										Turn off workflow
+									</Button>
+								) : (
+									<Button
+										disabled={enableUnavailable}
+										onAction={handleToggle}
+										pending={toggling}
+										reservePendingWidth
+										size="small"
+										variant="secondary"
+									>
+										Turn on workflow
+									</Button>
+								)}
+							</span>
 							{zeroNodes ? (
 								<span
 									data-layout-role="workflow-editor-save-hint"
@@ -290,10 +311,12 @@ export function EditorHeader({
 							<Button
 								aria-describedby={zeroNodes ? "save-hint" : undefined}
 								disabled={!dirty || zeroNodes}
-								onClick={onSave}
+								onAction={onSave}
 								pending={saving}
 								pendingLabel="Saving"
-								size="sm"
+								reservePendingWidth
+								size="small"
+								variant="primary"
 							>
 								Save workflow
 							</Button>
@@ -312,7 +335,7 @@ export function EditorHeader({
 				)}
 			</header>
 			<ConfirmDestructiveDialog
-				actionLabel="Turn off workflow"
+				confirmLabel="Turn off workflow"
 				description={`${name} will stop evaluating new change requests until it is turned on again.`}
 				onConfirm={() => {
 					onSetEnabled(false);

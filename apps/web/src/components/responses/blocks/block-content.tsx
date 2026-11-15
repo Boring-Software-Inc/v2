@@ -1,8 +1,8 @@
 import type { BlockOutput } from "@tripwire/contracts";
+import { Hide } from "@tripwire/ui/icon";
 import { BLOCK_META } from "#/components/responses/blocks/block-catalog";
 import { CollapsedBlockRow } from "#/components/responses/blocks/collapsed-block-row";
 import { CommentMarkdown } from "#/components/responses/github-comment-mock";
-import { Hide } from "#/design-system/icon";
 
 export interface BlockContentProps {
 	output: BlockOutput;

@@ -1,7 +1,16 @@
 import { Link } from "@tanstack/react-router";
+import { Avatar } from "@tripwire/ui/avatar";
+import { Button } from "@tripwire/ui/button";
+import {
+	Comment,
+	Dark,
+	Icon,
+	Light,
+	Settings,
+	SignOut,
+} from "@tripwire/ui/icon";
+import { Menu, type MenuEntry } from "@tripwire/ui/menu";
 import { useTheme } from "next-themes";
-import { useState } from "react";
-import { ConfirmDestructiveDialog } from "#/components/common/confirm-destructive-dialog";
 import { TripwireWordmark } from "#/components/common/tripwire-wordmark";
 import { useFeedback } from "#/components/feedback";
 import { CommandPaletteButton } from "#/components/layouts/command-palette-launcher";
@@ -11,26 +20,6 @@ import {
 	RepoSwitcher,
 } from "#/components/layouts/scope-switchers";
 import { SetupPill } from "#/components/setup/setup-pill";
-import {
-	Comment,
-	Dark,
-	Icon,
-	Light,
-	Settings,
-	SignOut,
-} from "#/design-system/icon";
-import { Avatar } from "#/design-system/ui/avatar";
-import { Button } from "#/design-system/ui/button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuGroup,
-	DropdownMenuItem,
-	DropdownMenuLabel,
-	DropdownMenuLinkItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "#/design-system/ui/dropdown-menu";
 import { useActiveScope } from "#/hooks/use-active-scope";
 import { useHasMounted } from "#/hooks/use-has-mounted";
 import { useSignOut } from "#/hooks/use-sign-out";
@@ -49,7 +38,7 @@ export function DashboardTopbar({ user }: DashboardTopbarProps) {
 		<nav
 			aria-label="Primary"
 			data-feedback-name="DashboardTopbar"
-			className="flex h-12 min-w-0 shrink-0 items-center gap-1 px-2 sm:px-3"
+			className="flex h-12 min-w-0 shrink-0 items-center composition-gap-small px-2 sm:composition-inline-inset"
 		>
 			<Brand org={org} />
 			<Slash />
@@ -61,7 +50,7 @@ export function DashboardTopbar({ user }: DashboardTopbarProps) {
 					{scope.repo ? <SetupPill /> : null}
 				</>
 			) : null}
-			<div className="ms-auto flex min-w-0 items-center gap-1 sm:gap-2">
+			<div className="composition-push-end flex min-w-0 items-center composition-gap-small sm:composition-gap-standard">
 				<CommandPaletteButton />
 				<HeaderFeedbackControl />
 				<UserMenu user={user} />
@@ -72,7 +61,7 @@ export function DashboardTopbar({ user }: DashboardTopbarProps) {
 
 function Slash() {
 	return (
-		<span aria-hidden className="type-body text-text-3">
+		<span aria-hidden className="content-body tone-content-tertiary">
 			/
 		</span>
 	);
@@ -82,7 +71,7 @@ export function Brand({ org }: { org: string | undefined }) {
 	return (
 		<Link
 			aria-label={org ? "Tripwire, go to org home" : "Tripwire, go to home"}
-			className="flex h-(--control) shrink-0 items-center rounded-pill px-2 text-text-1 hover:bg-hover"
+			className="flex h-(--control) shrink-0 items-center rounded-pill px-2 tone-content-primary interactive-hover"
 			params={org ? { org } : {}}
 			to={org ? "/$org/home" : "/"}
 		>
@@ -106,19 +95,58 @@ export function UserMenu({
 	const hasMounted = useHasMounted();
 	const isDark = hasMounted && resolvedTheme === "dark";
 	const org = useActiveScope().org?.slug;
-	const [signOutOpen, setSignOutOpen] = useState(false);
+	const items: MenuEntry[] = [
+		{
+			description: identity ?? undefined,
+			label: moderator.name,
+			type: "summary",
+			value: "identity",
+		},
+		{ type: "separator", value: "identity-separator" },
+		{
+			href: org ? `/${org}/settings/account` : "/account",
+			icon: <Icon icon={Settings} />,
+			label: "Account settings",
+			type: "link",
+			value: "account-settings",
+		},
+		{
+			icon: <Icon icon={Comment} />,
+			label: "Send feedback",
+			onAction: openFeedback,
+			value: "send-feedback",
+		},
+		{
+			icon: <Icon icon={isDark ? Light : Dark} />,
+			label: isDark ? "Light theme" : "Dark theme",
+			onAction: () => setTheme(isDark ? "light" : "dark"),
+			value: "toggle-theme",
+		},
+		{ type: "separator", value: "sign-out-separator" },
+		{
+			confirmation: {
+				confirmLabel: "Sign out",
+				description:
+					"Your session on this device ends. You'll need to sign in again to use Tripwire.",
+				title: "Sign out of Tripwire?",
+			},
+			icon: <Icon icon={SignOut} />,
+			label: "Sign out",
+			onAction: () => signOut.mutateAsync(),
+			tone: "destructive",
+			value: "sign-out",
+		},
+	];
 	return (
-		<>
-			<DropdownMenu>
-				<DropdownMenuTrigger
-					render={
-						<Button
-							aria-label={`Account menu for ${moderator.name}`}
-							className={showName ? "w-full min-w-0 justify-start" : undefined}
-							size={showName ? "default" : "icon"}
-							variant="ghost"
-						/>
-					}
+		<Menu
+			align="end"
+			ariaLabel={`Account menu for ${moderator.name}`}
+			items={items}
+			trigger={
+				<Button
+					ariaLabel={`Account menu for ${moderator.name}`}
+					size={showName ? "medium" : "small"}
+					variant="ghost"
 				>
 					<Avatar
 						decorative
@@ -129,63 +157,8 @@ export function UserMenu({
 					{showName ? (
 						<span className="min-w-0 truncate">{moderator.name}</span>
 					) : null}
-				</DropdownMenuTrigger>
-				<DropdownMenuContent
-					align="end"
-					className="min-w-(--menu-min) max-w-popover"
-				>
-					<DropdownMenuGroup>
-						<DropdownMenuLabel className="flex-col items-start justify-center gap-0.5 py-1.5">
-							<span className="max-w-full truncate type-label text-text-1">
-								{moderator.name}
-							</span>
-							{identity ? (
-								<span className="max-w-full truncate type-caption text-text-2">
-									{identity}
-								</span>
-							) : null}
-						</DropdownMenuLabel>
-					</DropdownMenuGroup>
-					<DropdownMenuSeparator />
-					<DropdownMenuLinkItem
-						render={
-							org ? (
-								<Link params={{ org }} to="/$org/settings/account" />
-							) : (
-								<Link to="/account" />
-							)
-						}
-					>
-						<Icon icon={Settings} />
-						Account settings
-					</DropdownMenuLinkItem>
-					<DropdownMenuItem onClick={openFeedback}>
-						<Icon icon={Comment} />
-						Send feedback
-					</DropdownMenuItem>
-					<DropdownMenuItem onClick={() => setTheme(isDark ? "light" : "dark")}>
-						<Icon icon={isDark ? Light : Dark} />
-						{isDark ? "Light theme" : "Dark theme"}
-					</DropdownMenuItem>
-					<DropdownMenuSeparator />
-					<DropdownMenuItem
-						onClick={() => setSignOutOpen(true)}
-						variant="destructive"
-					>
-						<Icon icon={SignOut} />
-						Sign out
-					</DropdownMenuItem>
-				</DropdownMenuContent>
-			</DropdownMenu>
-			<ConfirmDestructiveDialog
-				actionLabel="Sign out"
-				description="Your session on this device ends. You'll need to sign in again to use Tripwire."
-				onConfirm={() => signOut.mutateAsync()}
-				onOpenChange={setSignOutOpen}
-				open={signOutOpen}
-				pendingLabel="Signing out"
-				title="Sign out of Tripwire?"
-			/>
-		</>
+				</Button>
+			}
+		/>
 	);
 }

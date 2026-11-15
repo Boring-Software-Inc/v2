@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { notify } from "@tripwire/ui/toast";
 import { useState } from "react";
-import { toast } from "#/design-system/ui/toast";
 import { homeDigestQueryKeys } from "#/lib/home-digest.query";
 import { setRulesEnabled } from "#/lib/rules.functions";
 import { rulesQueryKeys } from "#/lib/rules.query";
@@ -49,28 +49,32 @@ export function useInstallRules(
 		setPending(null);
 		options.onDone?.();
 		if (error) {
-			toast.fail(error);
+			notify.show({ title: error }, "error");
 			return;
 		}
 		for (const rule of ruleIds) {
 			trackEvent("rule_toggled", { rule, enabled: true });
 		}
-		toast.success(`${label} installed`, {
-			action: {
-				label: "Undo",
-				onClick: async () => {
-					const undoError = await write(ruleIds, false);
-					if (undoError) {
-						toast.fail(undoError);
-						return;
-					}
-					for (const rule of ruleIds) {
-						trackEvent("rule_toggled", { rule, enabled: false });
-					}
-					toast.success(`${label} uninstalled`);
+		notify.show(
+			{
+				title: `${label} installed`,
+				action: {
+					label: "Undo",
+					onAction: async () => {
+						const undoError = await write(ruleIds, false);
+						if (undoError) {
+							notify.show({ title: undoError }, "error");
+							return;
+						}
+						for (const rule of ruleIds) {
+							trackEvent("rule_toggled", { rule, enabled: false });
+						}
+						notify.show({ title: `${label} uninstalled` }, "success");
+					},
 				},
 			},
-		});
+			"success",
+		);
 	};
 
 	return { install, pending };

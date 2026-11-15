@@ -1,4 +1,7 @@
 import { Link } from "@tanstack/react-router";
+import { ChevronRight, Icon } from "@tripwire/ui/icon";
+import { RelativeTime } from "@tripwire/ui/relative-time";
+import { Body, CodeText, Label, SupportingText } from "@tripwire/ui/typography";
 import {
 	ListRow,
 	ListRows,
@@ -6,14 +9,6 @@ import {
 	SheetSectionBlock,
 	SubHeading,
 } from "#/components/admin/user-sheet/sheet-parts";
-import { ChevronRight, Icon } from "#/design-system/icon";
-import { RelativeTime } from "#/design-system/ui/relative-time";
-import {
-	Body,
-	CodeText,
-	Label,
-	SupportingText,
-} from "#/design-system/ui/typography";
 import {
 	changeRequestLabel,
 	contributorVerdictLabel,

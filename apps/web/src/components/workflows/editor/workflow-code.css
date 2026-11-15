@@ -1,0 +1,4 @@
+[data-layout-role="workflow-code-refusal-card"] {
+	border: var(--line-width) solid var(--line-faint);
+	background: var(--shell);
+}

@@ -1,17 +1,11 @@
-import { Link } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import type {
 	DigestHistoryInput,
 	DigestHistoryWindow,
 	HomeDigest,
 } from "@tripwire/contracts";
-import type { ReactNode } from "react";
-import { Button } from "#/design-system/ui/button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuLinkItem,
-	DropdownMenuTrigger,
-} from "#/design-system/ui/dropdown-menu";
+import { Button } from "@tripwire/ui/button";
+import { Menu, type MenuProps } from "@tripwire/ui/menu";
 
 interface DigestActivityButtonProps {
 	org: string;
@@ -24,6 +18,7 @@ export function DigestActivityButton({
 	repos,
 	period,
 }: DigestActivityButtonProps) {
+	const navigate = useNavigate();
 	const repo = repos[0];
 	if (!repo) {
 		return null;
@@ -31,15 +26,15 @@ export function DigestActivityButton({
 	if (repos.length === 1) {
 		return (
 			<Button
-				nativeButton={false}
-				render={
-					<Link
-						params={{ org, repo: repo.name }}
-						search={{ verdict: "all", ...period }}
-						to="/$org/$repo/activity"
-					/>
+				href={`/${encodeURIComponent(org)}/${encodeURIComponent(repo.name)}/activity`}
+				onNavigate={() =>
+					void navigate({
+						params: { org, repo: repo.name },
+						search: { verdict: "all", ...period },
+						to: "/$org/$repo/activity",
+					})
 				}
-				size="sm"
+				size="small"
 				variant="secondary"
 			>
 				Open run history
@@ -48,15 +43,15 @@ export function DigestActivityButton({
 	}
 	return (
 		<DigestActivityMenu org={org} period={period} repos={repos}>
-			<DropdownMenuTrigger render={<Button size="sm" variant="secondary" />}>
+			<Button size="small" variant="secondary">
 				Open run history
-			</DropdownMenuTrigger>
+			</Button>
 		</DigestActivityMenu>
 	);
 }
 
 interface DigestActivityMenuProps extends DigestActivityButtonProps {
-	children: ReactNode;
+	children: MenuProps["trigger"];
 	verdict?: DigestHistoryInput["verdict"];
 }
 
@@ -67,25 +62,23 @@ export function DigestActivityMenu({
 	verdict = "all",
 	period,
 }: DigestActivityMenuProps) {
+	const navigate = useNavigate();
 	return (
-		<DropdownMenu>
-			{children}
-			<DropdownMenuContent align="end">
-				{repos.map((repo) => (
-					<DropdownMenuLinkItem
-						key={repo.id}
-						render={
-							<Link
-								params={{ org, repo: repo.name }}
-								search={{ verdict, ...period }}
-								to="/$org/$repo/activity"
-							/>
-						}
-					>
-						Open {repo.name} run history
-					</DropdownMenuLinkItem>
-				))}
-			</DropdownMenuContent>
-		</DropdownMenu>
+		<Menu
+			align="end"
+			ariaLabel="Open run history"
+			items={repos.map((repo) => ({
+				label: `Open ${repo.name} run history`,
+				onAction: () =>
+					void navigate({
+						params: { org, repo: repo.name },
+						search: { verdict, ...period },
+						to: "/$org/$repo/activity",
+					}),
+				type: "action" as const,
+				value: repo.id,
+			}))}
+			trigger={children}
+		/>
 	);
 }

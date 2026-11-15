@@ -6,11 +6,11 @@ import {
 	type SetupStages,
 	setupPrompt,
 } from "@tripwire/contracts";
+import { Button } from "@tripwire/ui/button";
+import { Card, CardContent } from "@tripwire/ui/card";
+import { Bot, Close, Icon } from "@tripwire/ui/icon";
+import { Status, type StatusValue } from "@tripwire/ui/status";
 import { useEffect, useRef, useState } from "react";
-import { Bot, Close, Icon } from "#/design-system/icon";
-import { Button } from "#/design-system/ui/button";
-import { Card, CardContent } from "#/design-system/ui/card";
-import { Status, type StatusValue } from "#/design-system/ui/status";
 import {
 	type AgentSetupPromptState,
 	dismissAgentSetupPrompt,
@@ -54,14 +54,14 @@ function CopyPromptButton({
 	const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 	return (
 		<Button
-			onClick={async () => {
+			onAction={async () => {
 				await navigator.clipboard.writeText(prompt);
 				trackEvent("setup_prompt_copied", { has_run_code: hasRunCode });
 				setCopied(true);
 				clearTimeout(timer.current);
 				timer.current = setTimeout(() => setCopied(false), COPIED_MS);
 			}}
-			size="sm"
+			size="small"
 			type="button"
 		>
 			{copied ? "Copied" : "Copy setup prompt"}
@@ -80,7 +80,7 @@ function SetupChecklist({ stages }: { stages: SetupStages }) {
 						<div className="flex items-baseline justify-between gap-3">
 							<span className="type-body">{STAGE_LABELS[stage]}</span>
 							{view ? (
-								<Status size="sm" status={view.status}>
+								<Status size="small" status={view.status}>
 									{view.word}
 								</Status>
 							) : null}
@@ -173,7 +173,7 @@ export function AgentSetupCard({
 			aria-labelledby="agent-setup-heading"
 			data-feedback-name="AgentSetupCard"
 		>
-			<CardContent className="flex flex-col gap-4">
+			<CardContent data-layout-role="agent-setup-content">
 				<div className="flex items-center justify-between gap-3">
 					<h2
 						className="flex items-center gap-2 type-heading-sm"
@@ -185,14 +185,14 @@ export function AgentSetupCard({
 					<div className="flex items-center gap-1">
 						<CopyPromptButton hasRunCode={Boolean(run)} prompt={prompt} />
 						<Button
-							aria-label="Dismiss"
-							onClick={() => {
+							ariaLabel="Dismiss"
+							onAction={() => {
 								trackEvent("agent_setup_prompt_dismissed", {
 									count: reminder ? 2 : 1,
 								});
 								dismiss.mutate();
 							}}
-							size="icon-sm"
+							size="small"
 							type="button"
 							variant="ghost"
 						>

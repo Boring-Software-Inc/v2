@@ -1,8 +1,8 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { Button } from "@tripwire/ui/button";
+import { Icon, UserAvatar } from "@tripwire/ui/icon";
+import { notify } from "@tripwire/ui/toast";
 import { useEffect, useState } from "react";
-import { Icon, UserAvatar } from "#/design-system/icon";
-import { Button } from "#/design-system/ui/button";
-import { toast } from "#/design-system/ui/toast";
 import { minutesLeft } from "#/lib/admin-user-sheet";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
 import { stopImpersonating } from "#/lib/staff-users.functions";
@@ -40,10 +40,14 @@ export function ImpersonationBanner() {
 				`/admin/users?user=${encodeURIComponent(result.userId)}`,
 			),
 		onError: (error) =>
-			toast.fail(
-				error instanceof Error
-					? error.message
-					: "Tripwire couldn't stop impersonating. Sign out instead.",
+			notify.show(
+				{
+					title:
+						error instanceof Error
+							? error.message
+							: "Tripwire couldn't stop impersonating. Sign out instead.",
+				},
+				"error",
 			),
 	});
 
@@ -81,10 +85,10 @@ export function ImpersonationBanner() {
 					{minutes > 0 ? `Ends in ${minutes} min` : "Ending now"}
 				</span>
 				<Button
-					onClick={() => stop.mutate()}
+					onAction={() => stop.mutate()}
 					pending={stop.isPending}
 					pendingLabel="Stopping"
-					size="sm"
+					size="small"
 				>
 					Stop impersonating
 				</Button>

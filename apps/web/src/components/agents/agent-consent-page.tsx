@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { notify } from "@tripwire/ui/toast";
 import { AgentAccountRow } from "#/components/agents/agent-account-row";
 import { AgentClientLogo } from "#/components/agents/agent-client-logo";
 import { AgentRequestCard } from "#/components/agents/agent-request-card";
@@ -7,7 +8,6 @@ import {
 	AgentRequestShell,
 } from "#/components/agents/agent-request-shell";
 import { AgentRequestSkeleton } from "#/components/agents/agent-request-skeleton";
-import { toast } from "#/design-system/ui/toast";
 import { answerConsent } from "#/lib/agent-auth-endpoints";
 import { grantConsentOrgs } from "#/lib/agents.functions";
 import { consentRequestQueryOptions, rawOAuthQuery } from "#/lib/agents.query";
@@ -60,10 +60,14 @@ export function AgentConsentPage() {
 					}
 					window.location.assign(await answerConsent(oauthQuery, accept));
 				} catch (error) {
-					toast.fail(
-						error instanceof Error
-							? error.message
-							: "Tripwire could not save your answer. Try again.",
+					notify.show(
+						{
+							title:
+								error instanceof Error
+									? error.message
+									: "Tripwire could not save your answer. Try again.",
+						},
+						"error",
 					);
 				}
 			}}

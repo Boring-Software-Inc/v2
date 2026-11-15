@@ -1,4 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
+import { Button } from "@tripwire/ui/button";
+import { SkeletonText } from "@tripwire/ui/skeleton";
+import { Body, SupportingText } from "@tripwire/ui/typography";
 import { formatStaffDateTime } from "#/components/admin/user-sheet/format";
 import {
 	FieldRow,
@@ -9,9 +12,6 @@ import {
 	SheetSectionBlock,
 	SubHeading,
 } from "#/components/admin/user-sheet/sheet-parts";
-import { Button } from "#/design-system/ui/button";
-import { SkeletonText } from "#/design-system/ui/skeleton";
-import { Body, SupportingText } from "#/design-system/ui/typography";
 import { formatWait } from "#/lib/admin-user-sheet";
 import { adminUserActivityQueryOptions } from "#/lib/staff-users.query";
 
@@ -36,8 +36,8 @@ export function ActivitySection({ userId }: { userId: string }) {
 					<QuietLine>Tripwire couldn't load Databuddy activity.</QuietLine>
 					<Button
 						disabled={isFetching}
-						onClick={() => void refetch()}
-						size="sm"
+						onAction={() => void refetch()}
+						size="small"
 						variant="secondary"
 					>
 						Load activity again
@@ -50,8 +50,8 @@ export function ActivitySection({ userId }: { userId: string }) {
 					<QuietLine>Databuddy did not answer: {data.error}</QuietLine>
 					<Button
 						disabled={isFetching}
-						onClick={() => void refetch()}
-						size="sm"
+						onAction={() => void refetch()}
+						size="small"
 						variant="secondary"
 					>
 						Load activity again

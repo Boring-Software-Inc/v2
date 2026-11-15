@@ -1,10 +1,9 @@
 import { useDraggable } from "@dnd-kit/core";
 import type { ResponseBlockType } from "@tripwire/contracts";
+import { Add } from "@tripwire/ui/icon";
 import { PickerRow, PickerRowAction } from "#/components/common/grouped-picker";
 import type { BlockMeta } from "#/components/responses/blocks/block-catalog";
 import type { BlockDragData } from "#/components/responses/blocks/use-block-dnd";
-import { Add } from "#/design-system/icon";
-import { cn } from "#/design-system/lib/utils";
 
 export interface BlockPaletteItemProps {
 	meta: BlockMeta;
@@ -32,17 +31,15 @@ export function BlockPaletteItem({
 			aria-label={`Add ${meta.label}`}
 			action={
 				<PickerRowAction
-					aria-label={`Add ${meta.label}`}
+					ariaLabel={`Add ${meta.label}`}
 					disabled={disabled}
 					glyph={Add}
 					reveal="hover"
 				/>
 			}
-			className={cn(
-				!disabled &&
-					"cursor-grab hover:bg-hover-row focus-visible:focus-ring-row",
-				isDragging && "opacity-40",
-			)}
+			data-layout-role="response-block-palette-row"
+			data-draggable={!disabled || undefined}
+			data-dragging={isDragging || undefined}
 			description={meta.description}
 			disabled={disabled}
 			icon={meta.icon}

@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import type { RedactionPolicy } from "@tripwire/contracts";
 import { OPEN_REDACTION, resolveRedaction } from "@tripwire/contracts";
+import { SegmentedControl } from "@tripwire/ui/radio-group";
+import { SkeletonSwap } from "@tripwire/ui/skeleton";
 import { useMemo, useState } from "react";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { Page, PageBody, PageHeader } from "#/components/layouts/page";
@@ -22,11 +24,6 @@ import {
 	SaveQueueProvider,
 	useSaveQueue,
 } from "#/components/save-queue";
-import {
-	SegmentedControl,
-	SegmentedControlItem,
-} from "#/design-system/ui/segmented-control";
-import { SkeletonSwap } from "#/design-system/ui/skeleton";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { orgRepoQueryOptions } from "#/lib/org.query";
 import { pickValue } from "#/lib/pick-value";
@@ -159,21 +156,16 @@ function ResponsesView({
 					<PageBody>
 						<div data-layout-role="response-scopes">
 							<SegmentedControl
-								aria-label="Outcome"
-								onValueChange={setScope}
+								ariaLabel="Outcome"
+								onValueChange={(value) => value && setScope(value)}
+								options={OUTCOMES}
 								value={scope}
-							>
-								{OUTCOMES.map((option) => (
-									<SegmentedControlItem key={option.value} value={option.value}>
-										{option.label}
-									</SegmentedControlItem>
-								))}
-							</SegmentedControl>
+							/>
 						</div>
 						<SkeletonSwap
-							className="min-h-0 flex-1"
 							fallback={<BuilderSkeleton />}
 							label="Loading response settings"
+							layout="fill"
 							loading={!(config && policy)}
 						>
 							{config && policy ? (

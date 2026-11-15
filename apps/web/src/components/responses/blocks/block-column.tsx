@@ -1,18 +1,12 @@
 import type { BlockOutcome } from "@tripwire/contracts";
-import { type ComponentProps, useState } from "react";
-import { ConfirmDestructiveDialog } from "#/components/common/confirm-destructive-dialog";
+import { Button, IconButton } from "@tripwire/ui/button";
+import { Close, Icon, TrashCan } from "@tripwire/ui/icon";
+import { Tabs } from "@tripwire/ui/tabs";
+import { Subheading } from "@tripwire/ui/typography";
+import { useState } from "react";
 import { BlockPalette } from "#/components/responses/blocks/block-palette";
 import { BlockSettings } from "#/components/responses/blocks/block-settings";
 import type { BlockBuilder } from "#/components/responses/blocks/use-block-builder";
-import { Icon, TrashCan } from "#/design-system/icon";
-import {
-	SheetAction,
-	SheetBody,
-	SheetFooter,
-	SheetHeader,
-	SheetTitle,
-} from "#/design-system/ui/sheet";
-import { Tabs, TabsList, TabsTrigger } from "#/design-system/ui/tabs";
 
 export interface BlockColumnProps {
 	builder: BlockBuilder;
@@ -32,35 +26,37 @@ export function BlockColumn({
 	helpDefaultContent,
 }: BlockColumnProps) {
 	const { selected } = builder;
-	const [confirmingRemove, setConfirmingRemove] = useState(false);
-	const showTab: NonNullable<ComponentProps<typeof Tabs>["onValueChange"]> = (
-		tab,
-	) => {
-		if (tab === "blocks") {
-			builder.browse();
-		}
-	};
+	const [tab, setTab] = useState(selected ? "settings" : "blocks");
+	const settings = tab === "settings";
 
 	return (
-		<>
-			<SheetHeader>
-				<SheetTitle>{selected ? "Block settings" : "Add block"}</SheetTitle>
-				<div className="flex items-center">
-					<Tabs
-						onValueChange={showTab}
-						value={selected ? "settings" : "blocks"}
-					>
-						<TabsList aria-label="Blocks" size="sm">
-							<TabsTrigger value="blocks">Blocks</TabsTrigger>
-							<TabsTrigger disabled={!selected} value="settings">
-								Settings
-							</TabsTrigger>
-						</TabsList>
-					</Tabs>
+		<div data-layout-role="response-block-column">
+			<header data-layout-role="response-block-heading">
+				<Subheading>{settings ? "Block settings" : "Add block"}</Subheading>
+				<Tabs
+					ariaLabel="Blocks"
+					items={[
+						{ label: "Blocks", value: "blocks" },
+						{ disabled: !selected, label: "Settings", value: "settings" },
+					]}
+					onValueChange={(next) => {
+						if (next === "blocks" || next === "settings") setTab(next);
+					}}
+					panelMode="external"
+					value={tab}
+				/>
+				<div data-layout-role="response-block-close">
+					<IconButton
+						icon={<Icon icon={Close} />}
+						label="Close block editor"
+						onAction={() => builder.showPalette(false)}
+						size="small"
+						variant="ghost"
+					/>
 				</div>
-			</SheetHeader>
-			<SheetBody>
-				{selected ? (
+			</header>
+			<div data-layout-role="response-block-body">
+				{settings && selected ? (
 					<BlockSettings
 						block={selected}
 						helpDefaultContent={helpDefaultContent}
@@ -70,6 +66,11 @@ export function BlockColumn({
 						readOnly={readOnly}
 						rulesHidden={rulesHidden}
 					/>
+				) : settings ? (
+					<p className="content-body-small tone-content-secondary">
+						Select a block in the preview, or add one from Blocks, to edit its
+						settings.
+					</p>
 				) : (
 					<BlockPalette
 						disabled={readOnly || builder.full}
@@ -77,30 +78,24 @@ export function BlockColumn({
 						outcome={outcome}
 					/>
 				)}
-			</SheetBody>
-			{selected && !readOnly ? (
-				<SheetFooter>
-					<SheetAction
-						onAction={() => setConfirmingRemove(true)}
+			</div>
+			{settings && selected && !readOnly ? (
+				<footer data-layout-role="response-block-footer">
+					<Button
+						confirmation={{
+							confirmLabel: "Remove block",
+							description:
+								"This response block will be removed after you save the response.",
+							title: "Remove this block?",
+						}}
+						onAction={() => builder.remove(selected.id)}
 						variant="destructive"
 					>
 						<Icon icon={TrashCan} />
 						Remove block
-					</SheetAction>
-				</SheetFooter>
+					</Button>
+				</footer>
 			) : null}
-			<ConfirmDestructiveDialog
-				actionLabel="Remove block"
-				description="This response block will be removed after you save the response."
-				onConfirm={() => {
-					if (selected) builder.remove(selected.id);
-					return undefined;
-				}}
-				onOpenChange={setConfirmingRemove}
-				open={confirmingRemove && selected !== null}
-				pendingLabel="Removing"
-				title="Remove this block?"
-			/>
-		</>
+		</div>
 	);
 }

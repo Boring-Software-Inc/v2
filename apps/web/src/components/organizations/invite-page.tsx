@@ -1,10 +1,11 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
+import { getRouteApi, useNavigate } from "@tanstack/react-router";
+import { Alert, AlertTitle } from "@tripwire/ui/alert";
+import { Button } from "@tripwire/ui/button";
+import { notify } from "@tripwire/ui/toast";
+import { PageTitle } from "@tripwire/ui/typography";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
 import { InvitePageSkeleton } from "#/components/organizations/invite-page-skeleton";
-import { Alert, AlertTitle } from "#/design-system/ui/alert";
-import { Button } from "#/design-system/ui/button";
-import { toast } from "#/design-system/ui/toast";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
 import { redeemOrgInvite } from "#/lib/org.functions";
 
@@ -29,12 +30,12 @@ export function InvitePage() {
 		mutationFn: () => redeemOrgInvite({ data: { token } }),
 		onSuccess: (result) => {
 			if (result.status === "joined") {
-				toast.success("Joined the org");
+				notify.show({ title: "Joined the org" }, "success");
 				navigate({ to: `/${result.orgSlug}/home` });
 				return;
 			}
 			if (result.status === "already-member") {
-				toast("You are already a member of this org");
+				notify.show({ title: "You are already a member of this org" });
 				navigate({ to: `/${result.orgSlug}/home` });
 			}
 		},
@@ -53,10 +54,8 @@ export function InvitePage() {
 					title="Sign in to accept this invite"
 				/>
 				<Button
-					nativeButton={false}
-					render={
-						<Link search={{ redirect: `/invite/${token}` }} to="/login" />
-					}
+					href={`/login?redirect=${encodeURIComponent(`/invite/${token}`)}`}
+					variant="primary"
 				>
 					Sign in
 				</Button>
@@ -71,11 +70,7 @@ export function InvitePage() {
 					body="Ask the person who sent it for a new invite link."
 					title={INVALID_COPY[redeem.data.reason]}
 				/>
-				<Button
-					nativeButton={false}
-					render={<Link to="/" />}
-					variant="secondary"
-				>
+				<Button href="/" variant="secondary">
 					Back home
 				</Button>
 			</InviteShell>
@@ -90,15 +85,17 @@ export function InvitePage() {
 			/>
 			<Button
 				disabled={redeem.isSuccess}
-				onClick={() => redeem.mutate()}
+				onAction={() => redeem.mutate()}
 				pending={redeem.isPending}
 				pendingLabel="Joining"
+				reservePendingWidth
 				type="button"
+				variant="primary"
 			>
 				Join org
 			</Button>
 			{redeem.isError ? (
-				<Alert className="text-start" status="fail">
+				<Alert data-layout-role="invite-error" role="alert" status="danger">
 					<AlertTitle>
 						Couldn't join the org. Check your connection and try again.
 					</AlertTitle>
@@ -117,18 +114,24 @@ const INVALID_COPY = {
 
 function InviteCopy({ title, body }: { title: string; body: string }) {
 	return (
-		<div className="flex flex-col items-center gap-2">
-			<h1 className="type-title">{title}</h1>
-			<p className="type-body text-text-2">{body}</p>
+		<div className="flex flex-col items-center composition-gap-standard">
+			<PageTitle>{title}</PageTitle>
+			<p className="content-body tone-content-secondary">{body}</p>
 		</div>
 	);
 }
 
 function InviteShell({ children }: { children: React.ReactNode }) {
 	return (
-		<div className="flex min-h-dvh w-full items-center justify-center bg-page px-4 py-10">
-			<div className="flex w-full max-w-sm flex-col items-center gap-6 text-center">
-				<TripwireLogo className="text-text-1" size={28} />
+		<div
+			className="flex min-h-dvh w-full items-center justify-center tone-surface-page"
+			data-layout-role="invite-page"
+		>
+			<div
+				className="flex w-full max-w-sm flex-col items-center text-center"
+				data-layout-role="invite-content"
+			>
+				<TripwireLogo className="tone-content-primary" size={28} />
 				{children}
 			</div>
 		</div>

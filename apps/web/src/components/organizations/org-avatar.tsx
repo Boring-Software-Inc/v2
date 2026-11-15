@@ -1,6 +1,5 @@
 import { DitherAvatar } from "#/components/dither/dither-avatar";
-import { cn } from "#/design-system/lib/utils";
-import { avatarVariants } from "#/design-system/ui/avatar";
+import { cn } from "#/lib/utils";
 
 type OrgAvatarSize = "xs" | "sm" | "default" | "lg" | "xl";
 
@@ -26,12 +25,12 @@ export function OrgAvatar({
 		<DitherAvatar
 			animate={animate}
 			className={cn(
-				size === "xl"
-					? cn(
-							avatarVariants({ size: "lg", type: "source" }),
-							"size-12 rounded-panel",
-						)
-					: avatarVariants({ size, type: "source" }),
+				"rounded-pill",
+				size === "xs" && "size-5",
+				size === "sm" && "size-6",
+				size === "default" && "size-8",
+				size === "lg" && "size-10",
+				size === "xl" && "size-12 rounded-panel",
 				"overflow-hidden bg-field",
 				className,
 			)}

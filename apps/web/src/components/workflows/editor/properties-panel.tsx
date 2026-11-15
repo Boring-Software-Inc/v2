@@ -7,6 +7,20 @@ import {
 	MAX_COMMENT_MESSAGE,
 	MAX_OUTCOME_MESSAGE,
 } from "@tripwire/contracts";
+import { Alert, AlertDescription } from "@tripwire/ui/alert";
+import { Button } from "@tripwire/ui/button";
+import { Checkbox } from "@tripwire/ui/checkbox";
+import {
+	Field,
+	FieldDescription,
+	FieldLabel,
+	Input,
+	Textarea,
+} from "@tripwire/ui/field";
+import { NumberInput } from "@tripwire/ui/number-input";
+import { Select, type SelectOption } from "@tripwire/ui/select";
+import { Status } from "@tripwire/ui/status";
+import { SupportingText } from "@tripwire/ui/typography";
 import { useState } from "react";
 import { z } from "zod";
 import { LabelPicker } from "#/components/workflows/editor/label-picker";
@@ -18,21 +32,6 @@ import {
 } from "#/components/workflows/editor/node-fields";
 import { ReviewerPicker } from "#/components/workflows/editor/reviewer-picker";
 import { TriggerFlow } from "#/components/workflows/editor/schedule-flow";
-import { Alert, AlertDescription } from "#/design-system/ui/alert";
-import { Button } from "#/design-system/ui/button";
-import { Checkbox } from "#/design-system/ui/checkbox";
-import {
-	Field,
-	FieldDescription,
-	FieldLabel,
-	Label,
-} from "#/design-system/ui/field";
-import { Input } from "#/design-system/ui/input";
-import { NumberInput } from "#/design-system/ui/number-input";
-import { Select } from "#/design-system/ui/select";
-import { Status } from "#/design-system/ui/status";
-import { Textarea } from "#/design-system/ui/textarea";
-import { SupportingText } from "#/design-system/ui/typography";
 
 const numberOrNull = z.number().nullable().catch(null);
 const labelList = z.array(z.string().optional().catch(undefined)).catch([]);
@@ -113,13 +112,14 @@ function TriggerFields({
 	return <TriggerFlow node={node} onUpdate={onUpdate} readOnly={readOnly} />;
 }
 
-const LOCK_REASON_OPTIONS: { value: string; label: string }[] = [
-	{ value: "", label: "None" },
+const LOCK_REASON_OPTIONS = [
 	{ value: "resolved", label: "Resolved" },
 	{ value: "off-topic", label: "Off-topic" },
 	{ value: "too heated", label: "Too heated" },
 	{ value: "spam", label: "Spam" },
-];
+] as const satisfies readonly SelectOption<
+	"resolved" | "off-topic" | "too heated" | "spam"
+>[];
 
 function LockFields({
 	node,
@@ -131,14 +131,15 @@ function LockFields({
 	onUpdate: (next: WorkflowNode) => void;
 }) {
 	const parsed = lockParamsSchema.safeParse(node.params ?? {});
-	const reason = parsed.success ? (parsed.data.reason ?? "") : "";
+	const reason = parsed.success ? (parsed.data.reason ?? null) : null;
 	return (
 		<Field data-field="reason" data-layout-role="workflow-action-property">
 			<FieldLabel>Reason</FieldLabel>
 			<Select
+				ariaLabel="Reason"
 				disabled={readOnly}
-				items={LOCK_REASON_OPTIONS}
-				native
+				options={LOCK_REASON_OPTIONS}
+				mode="native"
 				onValueChange={(next) => {
 					const { reason: _, ...rest } = node.params ?? {};
 					onUpdate({
@@ -146,6 +147,7 @@ function LockFields({
 						params: next ? { ...rest, reason: next } : rest,
 					});
 				}}
+				placeholder="None"
 				value={reason}
 			/>
 		</Field>
@@ -214,6 +216,7 @@ export function ConfigField({
 				<Field>
 					<FieldLabel>{field.label}</FieldLabel>
 					<NumberInput
+						ariaLabel={field.label}
 						disabled={readOnly}
 						max={field.max}
 						min={field.min}
@@ -224,28 +227,30 @@ export function ConfigField({
 			);
 		case "boolean":
 			return (
-				<Label data-layout-role="workflow-boolean-property">
+				<div data-layout-role="workflow-boolean-property">
 					<Checkbox
 						checked={value === true}
 						disabled={readOnly}
+						label={field.label}
 						onCheckedChange={(checked) => onChange(checked)}
 					/>
-					{field.label}
-				</Label>
+				</div>
 			);
 		case "enum":
 			return (
 				<Field>
 					<FieldLabel>{field.label}</FieldLabel>
 					<Select
+						ariaLabel={field.label}
 						disabled={readOnly}
-						items={field.options.map((option) => ({
-							value: String(option),
-							label: option,
-						}))}
-						native
+						options={field.options
+							.map(String)
+							.filter((option) => option.length > 0)
+							.map((option) => ({ value: option, label: option }))}
+						mode="native"
 						onValueChange={(next) => onChange(next ?? "")}
-						value={textParam.parse(value)}
+						placeholder={`Select ${field.label}`}
+						value={textParam.parse(value) || null}
 					/>
 				</Field>
 			);
@@ -260,6 +265,7 @@ export function ConfigField({
 							.filter((item) => item !== undefined)
 							.join("\n")}
 						disabled={readOnly}
+						labelledByField
 						onChange={(event) =>
 							onChange(
 								event.target.value
@@ -279,7 +285,8 @@ export function ConfigField({
 					<Input
 						autoComplete="off"
 						disabled={readOnly}
-						onChange={(event) => onChange(event.target.value)}
+						labelledByField
+						onValueChange={onChange}
 						value={textParam.parse(value)}
 					/>
 				</Field>
@@ -291,6 +298,7 @@ export function ConfigField({
 					<Textarea
 						defaultValue={JSON.stringify(value ?? null, null, 2)}
 						disabled={readOnly}
+						labelledByField
 						onBlur={(event) => {
 							try {
 								onChange(jsonValueSchema.parse(JSON.parse(event.target.value)));
@@ -320,12 +328,13 @@ function GateFields({
 		<Field>
 			<FieldLabel>Mode</FieldLabel>
 			<Select
+				ariaLabel="Mode"
 				disabled={readOnly}
-				items={GATE_CATALOG.map((entry) => ({
+				options={GATE_CATALOG.map((entry) => ({
 					value: entry.mode,
 					label: entry.name,
 				}))}
-				native
+				mode="native"
 				onValueChange={(next) => {
 					if (next) {
 						onUpdate({ ...node, mode: next as GateMode });
@@ -430,6 +439,7 @@ function CommentFields({
 			<FieldLabel>{label}</FieldLabel>
 			<Textarea
 				disabled={readOnly}
+				labelledByField
 				maxLength={maxLength}
 				onChange={(event) =>
 					onUpdate({
@@ -525,8 +535,9 @@ function DeliveryFields({
 				<Input
 					autoComplete="off"
 					disabled={readOnly}
-					onChange={(event) => {
-						setParam("url", event.target.value);
+					labelledByField
+					onValueChange={(value) => {
+						setParam("url", value);
 						setTestResult(null);
 					}}
 					placeholder={
@@ -542,7 +553,7 @@ function DeliveryFields({
 				</FieldDescription>
 			</Field>
 			{node.action === "webhook" && looksLikeDiscordUrl(url) ? (
-				<Alert announce={false} status="warn">
+				<Alert status="warning">
 					<AlertDescription>
 						This looks like a Discord URL. Use a Discord step instead. A webhook
 						step sends raw JSON, and Discord does not accept it.
@@ -552,16 +563,16 @@ function DeliveryFields({
 			<div data-layout-role="workflow-delivery-test">
 				<Button
 					disabled={readOnly || url === ""}
-					onClick={runTest}
+					onAction={runTest}
 					pending={testing}
 					pendingLabel="Testing"
-					size="sm"
+					size="small"
 					variant="secondary"
 				>
 					Test connection
 				</Button>
 				{testResult ? (
-					<Status size="sm" status={testResult.ok ? "ok" : "fail"}>
+					<Status size="small" status={testResult.ok ? "ok" : "fail"}>
 						{testResult.ok
 							? "Reached the address"
 							: `Could not reach it: ${testResult.failure ?? "no reason given"}`}
@@ -570,15 +581,16 @@ function DeliveryFields({
 			</div>
 			{node.action === "webhook" ? (
 				<Field>
-					<FieldLabel optional>Signing secret</FieldLabel>
+					<FieldLabel>Signing secret (optional)</FieldLabel>
 					<Input
 						autoComplete="off"
 						disabled={readOnly}
-						mode="password"
-						onChange={(event) => setParam("signingSecret", event.target.value)}
+						labelledByField
+						onValueChange={(value) => setParam("signingSecret", value)}
 						placeholder={
 							secretSet ? "Saved. Leave blank to keep it" : undefined
 						}
+						type="password"
 						value={textParam.parse(params.signingSecret)}
 					/>
 					<FieldDescription>

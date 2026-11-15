@@ -1,5 +1,7 @@
 import { useBlocker } from "@tanstack/react-router";
 import type { JsonValue } from "@tripwire/contracts";
+import { Button } from "@tripwire/ui/button";
+import { DestructiveDialog } from "@tripwire/ui/dialog";
 import {
 	createContext,
 	type ReactNode,
@@ -9,17 +11,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { Button } from "#/design-system/ui/button";
-import {
-	Dialog,
-	DialogAction,
-	DialogClose,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/design-system/ui/dialog";
 
 /**
  * The batched save queue: pending changes collect here instead of hitting the
@@ -224,38 +215,23 @@ export function SaveQueueNavGuard() {
 		withResolver: true,
 	});
 	return (
-		<Dialog
+		<DestructiveDialog
+			confirmLabel="Leave without saving"
+			description={`You have ${count} unsaved ${count === 1 ? "change" : "changes"}. If you leave this page, ${count === 1 ? "it is" : "they are"} lost.`}
 			onOpenChange={(next) => {
 				if (!next && !leaving.current) {
 					blocker.reset?.();
 				}
 				leaving.current = false;
 			}}
+			onConfirm={() => {
+				leaving.current = true;
+				blocker.proceed?.();
+			}}
 			open={blocker.status === "blocked"}
-			role="alertdialog"
-		>
-			<DialogContent size="sm">
-				<DialogHeader>
-					<DialogTitle>Leave without saving?</DialogTitle>
-					<DialogDescription>
-						You have {count} unsaved {count === 1 ? "change" : "changes"}. If
-						you leave this page, {count === 1 ? "it is" : "they are"} lost.
-					</DialogDescription>
-				</DialogHeader>
-				<DialogFooter>
-					<DialogClose>Stay on page</DialogClose>
-					<DialogAction
-						onAction={() => {
-							leaving.current = true;
-							blocker.proceed?.();
-						}}
-						variant="destructive"
-					>
-						Leave without saving
-					</DialogAction>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
+			pendingLabel="Leaving"
+			title="Leave without saving?"
+		/>
 	);
 }
 
@@ -272,30 +248,21 @@ export function DiscardChangesButton({
 		<>
 			<Button
 				disabled={disabled}
-				onClick={() => setOpen(true)}
-				size="sm"
+				onAction={() => setOpen(true)}
+				size="small"
 				variant="secondary"
 			>
 				Discard
 			</Button>
-			<Dialog onOpenChange={setOpen} open={open} role="alertdialog">
-				<DialogContent size="sm">
-					<DialogHeader>
-						<DialogTitle>
-							Discard {count} unsaved {count === 1 ? "change" : "changes"}?
-						</DialogTitle>
-						<DialogDescription>
-							Every setting goes back to its last saved value.
-						</DialogDescription>
-					</DialogHeader>
-					<DialogFooter>
-						<DialogClose>Keep editing</DialogClose>
-						<DialogAction onAction={onDiscard} variant="destructive">
-							Discard changes
-						</DialogAction>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+			<DestructiveDialog
+				confirmLabel="Discard changes"
+				description="Every setting goes back to its last saved value."
+				onConfirm={onDiscard}
+				onOpenChange={setOpen}
+				open={open}
+				pendingLabel="Discarding"
+				title={`Discard ${count} unsaved ${count === 1 ? "change" : "changes"}?`}
+			/>
 		</>
 	);
 }

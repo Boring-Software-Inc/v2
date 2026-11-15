@@ -1,8 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
-import { getRouteApi, Link } from "@tanstack/react-router";
+import { getRouteApi } from "@tanstack/react-router";
+import { Button } from "@tripwire/ui/button";
+import {
+	DataValue,
+	PageTitle,
+	SectionHeading,
+	SupportingText,
+} from "@tripwire/ui/typography";
 import { ChartAtRest } from "#/components/analytics/chart-at-rest";
 import { BackfillProgress } from "#/components/arming/backfill-progress";
 import { Collection } from "#/components/collection/collection";
+import { Chart } from "#/components/common/chart";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { ContributionAppealsQueue } from "#/components/moderation/contribution-appeals-queue";
 import { MODERATION_COLLECTION } from "#/components/moderation/moderation-collection";
@@ -20,14 +28,6 @@ import { RegionGate } from "#/components/organizations/region-gate";
 import { RepoSetupChecklist } from "#/components/setup/repo-setup-checklist";
 import { SetupDoneStrip } from "#/components/setup/setup-done-strip";
 import { useRepoSetup } from "#/components/setup/use-repo-setup";
-import { Button } from "#/design-system/ui/button";
-import { Chart } from "#/design-system/ui/chart";
-import {
-	DataValue,
-	PageTitle,
-	SectionHeading,
-	SupportingText,
-} from "#/design-system/ui/typography";
 import { useCollection } from "#/hooks/use-collection";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { moderationStatsQueryOptions } from "#/lib/moderation.query";
@@ -162,11 +162,8 @@ export function ModerationPage() {
 				<ChartAtRest
 					action={
 						<Button
-							nativeButton={false}
-							render={
-								<Link params={{ org, repo: repoName }} to="/$org/$repo/rules" />
-							}
-							size="sm"
+							href={`/${org}/${repoName}/rules`}
+							size="small"
 							variant="primary"
 						>
 							Review rules
@@ -185,15 +182,8 @@ export function ModerationPage() {
 				<Chart
 					actions={
 						<Button
-							nativeButton={false}
-							render={
-								<Link
-									params={{ org, repo: repoName }}
-									search={{ metric: "blocked" }}
-									to="/$org/$repo/analytics"
-								/>
-							}
-							size="sm"
+							href={`/${encodeURIComponent(org)}/${encodeURIComponent(repoName)}/analytics?metric=blocked`}
+							size="small"
 							variant="ghost"
 						>
 							Open analytics

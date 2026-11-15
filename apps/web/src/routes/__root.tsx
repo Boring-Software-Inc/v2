@@ -15,6 +15,7 @@ import { AccountFlagsProvider } from "#/components/common/account-flags-provider
 import { AnalyticsIdentity } from "#/components/common/analytics-identity";
 import { DatabuddyAnalytics } from "#/components/common/databuddy-analytics";
 import { ImpersonationBanner } from "#/components/common/impersonation-banner";
+import { useSlowWait } from "#/components/common/slow-notice";
 import { SettingsReturnHistory } from "#/components/settings/settings-return-history";
 import { RepoTabsProvider } from "#/components/tabs/repo-tabs-provider";
 import {
@@ -23,8 +24,6 @@ import {
 	designSystemSkulletTheme,
 	designSystemStyles,
 } from "#/design-system/root";
-import { useSlowWait } from "#/design-system/ui/slow-notice";
-import { Toaster } from "#/design-system/ui/toast";
 import {
 	currentUserQueryOptions,
 	sessionInfoQueryOptions,
@@ -177,7 +176,6 @@ function RootComponent() {
 						<Outlet />
 					</RepoTabsProvider>
 				</AccountFlagsProvider>
-				<Toaster />
 				{/* Global product analytics — one mount covers every route (pageviews,
 			    interactions, outgoing links, hash changes, web vitals). */}
 				<DatabuddyAnalytics websiteId={databuddyWebsiteId} />

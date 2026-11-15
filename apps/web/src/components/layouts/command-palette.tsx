@@ -2,44 +2,34 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import type { Forge } from "@tripwire/contracts";
 import { FORGE_CATALOG } from "@tripwire/contracts";
-import { type ReactNode, useEffect, useRef, useState } from "react";
-import { ConfirmDestructiveDialog } from "#/components/common/confirm-destructive-dialog";
-import { ForgeMark } from "#/components/common/forge-marks";
-import { ConnectForgeDialog } from "#/components/forges/connect-forge-dialog";
-import { CreateOrgDialog } from "#/components/organizations/create-org-dialog";
-import { OrgAvatar } from "#/components/organizations/org-avatar";
+import {
+	type CommandBadgeData,
+	CommandDialog,
+	type CommandEntry,
+	type CommandLeafItem,
+} from "@tripwire/ui/command";
 import {
 	Activity,
 	Add,
 	Analytics,
-	Check,
 	Connection,
 	Customize,
-	type GlazeIcon,
 	Home,
 	Icon,
+	type IconGlyph,
 	Moderation,
 	Rules,
 	Search,
 	Settings,
 	SignOut,
 	Workflow,
-} from "#/design-system/icon";
-import { Badge } from "#/design-system/ui/badge";
-import {
-	Command,
-	CommandDialog,
-	CommandEmpty,
-	CommandFooter,
-	CommandGroup,
-	CommandHint,
-	CommandInput,
-	CommandItem,
-	CommandLabel,
-	CommandList,
-	CommandLoading,
-} from "#/design-system/ui/command";
-import { toast } from "#/design-system/ui/toast";
+} from "@tripwire/ui/icon";
+import { notify } from "@tripwire/ui/toast";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { ForgeMark } from "#/components/common/forge-marks";
+import { ConnectForgeDialog } from "#/components/forges/connect-forge-dialog";
+import { CreateOrgDialog } from "#/components/organizations/create-org-dialog";
+import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { useActiveScope } from "#/hooks/use-active-scope";
 import { useFeaturePath } from "#/hooks/use-feature-path";
 import { useOrgPermission } from "#/hooks/use-org-permission";
@@ -49,17 +39,33 @@ import type { SwitcherRepo } from "#/lib/onboarding.functions";
 import { myOrgsQueryOptions, orgHomeQueryOptions } from "#/lib/org.query";
 import { getLatestRunId } from "#/lib/runs.functions";
 
-interface PaletteItem {
+interface PaletteItemBase {
 	id: string;
 	label: string;
 	/** Alternate names so nothing needs to be typed verbatim. */
 	searchTags: string[];
 	icon: ReactNode;
-	labelMeta?: ReactNode;
-	hint?: React.ReactNode;
-	onSelect: () => void;
-	variant?: "default" | "destructive";
+	current?: boolean;
+	labelBadge?: CommandBadgeData;
+	onSelect: () => unknown;
+	statusBadges?: readonly CommandBadgeData[];
 }
+
+interface NeutralPaletteItem extends PaletteItemBase {
+	confirmation?: never;
+	variant?: "default";
+}
+
+interface DestructivePaletteItem extends PaletteItemBase {
+	confirmation: {
+		confirmLabel?: string;
+		description?: string;
+		title: string;
+	};
+	variant: "destructive";
+}
+
+export type PaletteItem = DestructivePaletteItem | NeutralPaletteItem;
 
 /** Repo rows bucketed by forge THEN owner — the same owner name can exist on
  * two forges, and they are not the same repo. */
@@ -70,7 +76,7 @@ interface RepoGroup {
 	items: PaletteItem[];
 }
 
-function glyph(icon: GlazeIcon): ReactNode {
+function glyph(icon: IconGlyph): ReactNode {
 	return <Icon icon={icon} />;
 }
 
@@ -78,6 +84,34 @@ function glyph(icon: GlazeIcon): ReactNode {
  * actions) — never a blanket octocat, or a gitlab repo reads as a github one. */
 function repoIcon(forge: Forge): ReactNode {
 	return <ForgeMark className="size-(--icon) shrink-0" forge={forge} />;
+}
+
+export function mapPaletteItemToCommandItem(
+	item: PaletteItem,
+): CommandLeafItem {
+	return item.variant === "destructive"
+		? {
+				confirmation: item.confirmation,
+				current: item.current,
+				icon: item.icon,
+				keywords: item.searchTags,
+				label: item.label,
+				labelBadge: item.labelBadge,
+				onAction: item.onSelect,
+				statusBadges: item.statusBadges,
+				tone: "destructive",
+				value: item.id,
+			}
+		: {
+				current: item.current,
+				icon: item.icon,
+				keywords: item.searchTags,
+				label: item.label,
+				labelBadge: item.labelBadge,
+				onAction: item.onSelect,
+				statusBadges: item.statusBadges,
+				value: item.id,
+			};
 }
 
 export function CommandPalette({
@@ -125,13 +159,11 @@ export function CommandPalette({
 	// the list with your query intact.
 	const [connectOpen, setConnectOpen] = useState(false);
 	const [createOrgOpen, setCreateOrgOpen] = useState(false);
-	const [signOutOpen, setSignOutOpen] = useState(false);
 	const [query, setQuery] = useState("");
 	const close = () => {
 		setQuery("");
 		setConnectOpen(false);
 		setCreateOrgOpen(false);
-		setSignOutOpen(false);
 		onClose();
 	};
 	const deferred = useDebouncedValue(query, 200);
@@ -145,20 +177,32 @@ export function CommandPalette({
 		onSettled: invalidate,
 		onSuccess: (result) => {
 			if (result.armed) {
-				toast.success(
-					"Tripwire is on for this repo. It is loading past change requests.",
+				notify.show(
+					{
+						title:
+							"Tripwire is on for this repo. It is loading past change requests.",
+					},
+					"success",
 				);
 				return;
 			}
-			toast.fail(
-				!result.ok && result.reason === "queue-unavailable"
-					? "Tripwire did not turn on. Try again in a moment."
-					: "Tripwire did not turn on for this repo. Reload the page and try again.",
+			notify.show(
+				{
+					title:
+						!result.ok && result.reason === "queue-unavailable"
+							? "Tripwire did not turn on. Try again in a moment."
+							: "Tripwire did not turn on for this repo. Reload the page and try again.",
+				},
+				"error",
 			);
 		},
 		onError: () =>
-			toast.fail(
-				"Tripwire did not turn on for this repo. Check your connection and try again.",
+			notify.show(
+				{
+					title:
+						"Tripwire did not turn on for this repo. Check your connection and try again.",
+				},
+				"error",
 			),
 	});
 	const disarm = useMutation({
@@ -166,11 +210,18 @@ export function CommandPalette({
 			disarmRepo({ data: input }),
 		onSettled: invalidate,
 		onSuccess: () =>
-			toast.success(
-				"Tripwire is off for this repo. It still records events but no longer checks change requests.",
+			notify.show(
+				{
+					title:
+						"Tripwire is off for this repo. It still records events but no longer checks change requests.",
+				},
+				"success",
 			),
 		onError: () =>
-			toast.fail("Could not turn off Tripwire for this repo. Try again."),
+			notify.show(
+				{ title: "Could not turn off Tripwire for this repo. Try again." },
+				"error",
+			),
 	});
 	function go(path: string) {
 		navigate({ to: path });
@@ -195,16 +246,11 @@ export function CommandPalette({
 					org.slug === currentOrg ? "current active" : "",
 				],
 				icon: <OrgAvatar hue={org.avatarHue} name={org.name} size="xs" />,
-				labelMeta: org.isPersonal ? (
-					<Badge size="sm" variant="outline">
-						Personal
-					</Badge>
-				) : null,
+				current: org.slug === currentOrg,
+				labelBadge: org.isPersonal
+					? { label: "Personal", variant: "outline" }
+					: undefined,
 				onSelect: () => go(`/${org.slug}/home`),
-				hint:
-					org.slug === currentOrg ? (
-						<Icon icon={Check} label="Current workspace" />
-					) : null,
 			});
 		}
 		items.push({
@@ -348,11 +394,20 @@ export function CommandPalette({
 		});
 	}
 	actionItems.push({
+		confirmation: {
+			confirmLabel: "Sign out",
+			description:
+				"Your session on this device ends. You'll need to sign in again to use Tripwire.",
+			title: "Sign out of Tripwire?",
+		},
 		id: "action:sign-out",
 		label: "Sign out",
 		searchTags: ["sign out", "log out", "logout", "leave"],
 		icon: glyph(SignOut),
-		onSelect: () => setSignOutOpen(true),
+		onSelect: async () => {
+			close();
+			await signOut.mutateAsync();
+		},
 		variant: "destructive",
 	});
 
@@ -471,97 +526,74 @@ export function CommandPalette({
 		repoGroups.reduce((sum, group) => sum + group.items.length, 0) +
 		visibleActions.length +
 		visibleNav.length;
+	const commandItems: CommandEntry[] = [];
+	if (orgItems.length > 0) {
+		commandItems.push({
+			items: orgItems.map(mapPaletteItemToCommandItem),
+			label: "Orgs",
+			type: "group",
+		});
+	}
+	for (const group of repoGroups) {
+		commandItems.push({
+			items: group.items.map(mapPaletteItemToCommandItem),
+			label: `${group.forge} / ${group.owner}`,
+			type: "group",
+		});
+	}
+	if (hiddenRepoCount > 0) {
+		commandItems.push({
+			icon: glyph(Search),
+			label: `${hiddenRepoCount} more repos. Type a name to find one.`,
+			onAction: () => inputRef.current?.focus(),
+			value: "repos:more",
+		});
+	}
+	if (visibleActions.length > 0) {
+		commandItems.push({
+			items: visibleActions.map(mapPaletteItemToCommandItem),
+			label: "Actions",
+			type: "group",
+		});
+	}
+	if (visibleNav.length > 0) {
+		commandItems.push({
+			items: visibleNav.map(mapPaletteItemToCommandItem),
+			label: "Pages",
+			type: "group",
+		});
+	}
 
 	return (
-		<CommandDialog
-			onOpenChange={(next) => {
-				if (!next) {
-					close();
-				}
-			}}
-			open={open}
-			title="Search orgs, repos, actions and pages"
-		>
-			<Command label="Command palette" loop shouldFilter={false}>
-				<CommandInput
-					onValueChange={setQuery}
+		<>
+			{open ? (
+				<CommandDialog
+					ariaLabel="Command palette"
+					autoFocus
+					emptyLabel="No results"
+					filter={() => true}
+					footerHints={[
+						{ key: "↑ ↓", label: "Move" },
+						{ key: "Enter", label: "Open" },
+						{ key: "Esc", label: "Close" },
+						{
+							key: String(resultCount),
+							label: resultCount === 1 ? "result" : "results",
+						},
+					]}
+					inputRef={inputRef}
+					items={loading ? [] : commandItems}
+					loading={loading}
+					loadingContent="Loading orgs and repos"
+					onOpenChange={(next) => {
+						if (!next) close();
+					}}
+					onQueryChange={setQuery}
+					open={open}
 					placeholder="Search orgs, repos, actions and pages"
-					ref={inputRef}
-					value={query}
+					title="Search orgs, repos, actions and pages"
 				/>
-
-				<CommandList>
-					<CommandEmpty />
-					{loading ? (
-						<CommandLoading>Loading orgs and repos</CommandLoading>
-					) : null}
-
-					{!loading && orgItems.length > 0 ? (
-						<CommandGroup heading="Orgs">
-							{orgItems.map((item) => (
-								<PaletteRow item={item} key={item.id} />
-							))}
-						</CommandGroup>
-					) : null}
-
-					{(loading ? [] : repoGroups).map((group) => (
-						<CommandGroup
-							heading={
-								<span className="flex items-center gap-1">
-									<ForgeMark
-										className="size-(--icon-sm) shrink-0"
-										forge={group.forge}
-									/>
-									{group.owner}
-								</span>
-							}
-							key={group.key}
-						>
-							{group.items.map((item) => (
-								<PaletteRow item={item} key={item.id} />
-							))}
-						</CommandGroup>
-					))}
-
-					{!loading && hiddenRepoCount > 0 ? (
-						<CommandGroup>
-							<CommandItem
-								onSelect={() => inputRef.current?.focus()}
-								value="repos:more"
-							>
-								<Icon icon={Search} />
-								<CommandLabel className="text-text-2">
-									{`${hiddenRepoCount} more repos. Type a name to find one.`}
-								</CommandLabel>
-							</CommandItem>
-						</CommandGroup>
-					) : null}
-
-					{!loading && visibleActions.length > 0 ? (
-						<CommandGroup heading="Actions">
-							{visibleActions.map((item) => (
-								<PaletteRow item={item} key={item.id} />
-							))}
-						</CommandGroup>
-					) : null}
-
-					{!loading && visibleNav.length > 0 ? (
-						<CommandGroup heading="Pages">
-							{visibleNav.map((item) => (
-								<PaletteRow item={item} key={item.id} />
-							))}
-						</CommandGroup>
-					) : null}
-				</CommandList>
-			</Command>
-			<CommandFooter>
-				<CommandHint keys={["↑", "↓"]}>Move</CommandHint>
-				<CommandHint keys={["Enter"]}>Open</CommandHint>
-				<CommandHint keys={["Esc"]}>Close</CommandHint>
-				<span className="ms-auto tabular-nums">
-					{resultCount === 1 ? "1 result" : `${resultCount} results`}
-				</span>
-			</CommandFooter>
+			) : null}
 			<ConnectForgeDialog
 				onOpenChange={setConnectOpen}
 				open={connectOpen}
@@ -575,37 +607,7 @@ export function CommandPalette({
 				onOpenChange={setCreateOrgOpen}
 				open={createOrgOpen}
 			/>
-			<ConfirmDestructiveDialog
-				actionLabel="Sign out"
-				description="Your session on this device ends. You'll need to sign in again to use Tripwire."
-				onConfirm={() => signOut.mutateAsync()}
-				onOpenChange={setSignOutOpen}
-				open={signOutOpen}
-				pendingLabel="Signing out"
-				title="Sign out of Tripwire?"
-			/>
-		</CommandDialog>
-	);
-}
-
-function PaletteRow({ item }: { item: PaletteItem }) {
-	return (
-		<CommandItem
-			data-status={item.variant === "destructive" ? "fail" : undefined}
-			onSelect={item.onSelect}
-			value={item.id}
-		>
-			{item.icon}
-			<span className="flex min-w-0 flex-1 items-center gap-1.5">
-				<CommandLabel>{item.label}</CommandLabel>
-				{item.labelMeta}
-			</span>
-			{item.hint ? (
-				<span className="ms-auto flex shrink-0 items-center gap-2">
-					{item.hint}
-				</span>
-			) : null}
-		</CommandItem>
+		</>
 	);
 }
 
@@ -615,7 +617,21 @@ function repoItem(
 	onSelect: () => void,
 ): PaletteItem {
 	const isCurrent = repo.name === currentRepoName;
+	const statusBadges: CommandBadgeData[] = [];
+	if (!repo.armed) {
+		statusBadges.push({ label: "Tripwire off", variant: "outline" });
+	}
+	if (repo.pendingModeration > 0) {
+		statusBadges.push({ label: `${repo.pendingModeration} to review` });
+	}
+	if (repo.blocked24h > 0) {
+		statusBadges.push({
+			label: `${repo.blocked24h} blocked`,
+			tone: "danger",
+		});
+	}
 	return {
+		current: isCurrent,
 		id: `repo:${repo.id}`,
 		label: repo.name,
 		searchTags: [
@@ -627,26 +643,7 @@ function repoItem(
 		],
 		icon: repoIcon(repo.forge),
 		onSelect,
-		hint: (
-			<>
-				{repo.armed ? null : (
-					<Badge size="sm" variant="outline">
-						Tripwire off
-					</Badge>
-				)}
-				{repo.pendingModeration > 0 ? (
-					<Badge size="sm">{repo.pendingModeration} to review</Badge>
-				) : null}
-				{repo.blocked24h > 0 ? (
-					<Badge size="sm" variant="fail">
-						{repo.blocked24h} blocked
-					</Badge>
-				) : null}
-				{isCurrent ? (
-					<span className="type-caption text-text-2">Current</span>
-				) : null}
-			</>
-		),
+		statusBadges,
 	};
 }
 

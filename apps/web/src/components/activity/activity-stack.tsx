@@ -1,5 +1,15 @@
-import { Link } from "@tanstack/react-router";
 import type { NormalizedEvent } from "@tripwire/contracts";
+import { Badge } from "@tripwire/ui/badge";
+import { Button } from "@tripwire/ui/button";
+import {
+	Item,
+	ItemActions,
+	ItemContent,
+	ItemGroup,
+	ItemMeta,
+	ItemTitle,
+} from "@tripwire/ui/item";
+import { Status, StatusMark, type StatusValue } from "@tripwire/ui/status";
 import { useState } from "react";
 import {
 	groupOutcome,
@@ -11,23 +21,6 @@ import { ForgeLinkButton } from "#/components/common/forge-link-button";
 import { MetaRow } from "#/components/common/meta-row";
 import { ItemRouterLink } from "#/components/common/router-links";
 import { ZonedTime } from "#/components/timezones/zoned-time";
-import { Badge } from "#/design-system/ui/badge";
-import { Button } from "#/design-system/ui/button";
-import {
-	Item,
-	ItemActions,
-	ItemContent,
-	ItemGroup,
-	ItemMeta,
-	ItemTitle,
-} from "#/design-system/ui/item";
-import {
-	Status,
-	StatusMark,
-	type StatusValue,
-	statusVariants,
-} from "#/design-system/ui/status";
-import { Truncate } from "#/design-system/ui/truncate";
 import type { ActivityGroup, ActivityItem } from "#/lib/activity.functions";
 import { changeRequestForgeLink, eventForgeLink } from "#/lib/activity-links";
 
@@ -69,8 +62,8 @@ export function ActivityStack({ group }: { group: ActivityGroup }) {
 			footerActions={
 				canTruncate ? (
 					<Button
-						onClick={() => setShowAll((v) => !v)}
-						size="sm"
+						onAction={() => setShowAll((v) => !v)}
+						size="small"
 						variant="secondary"
 					>
 						{showAll ? "Show fewer events" : `Show ${hidden} more events`}
@@ -89,10 +82,16 @@ export function ActivityStack({ group }: { group: ActivityGroup }) {
 		>
 			<ItemGroup
 				aria-label={`Timeline of #${group.subjectNumber}`}
+				data-layout-role="activity-timeline"
 				variant="plain"
 			>
 				{visible.map((entry) => (
-					<EntryRow entry={entry} groupUrl={group.url} key={entry.eventId} />
+					<EntryRow
+						entry={entry}
+						groupRunId={group.currentRunId}
+						groupUrl={group.url}
+						key={entry.eventId}
+					/>
 				))}
 			</ItemGroup>
 		</EntityCard>
@@ -103,25 +102,12 @@ function StackTitle({ group }: { group: ActivityGroup }) {
 	const title = `#${group.subjectNumber} ${group.title}`;
 	if (group.currentRunId) {
 		return (
-			<Truncate
-				className="-my-1 grid min-h-(--control-sm) items-center hover:underline"
-				render={
-					<Link params={{ runId: group.currentRunId }} to="/runs/$runId" />
-				}
-				treatment="fade"
-			>
+			<ItemRouterLink params={{ runId: group.currentRunId }} to="/runs/$runId">
 				{title}
-			</Truncate>
+			</ItemRouterLink>
 		);
 	}
-	return (
-		<Truncate
-			className="-my-1 grid min-h-(--control-sm) items-center"
-			treatment="fade"
-		>
-			{title}
-		</Truncate>
-	);
+	return title;
 }
 
 function StackDescription({ group }: { group: ActivityGroup }) {
@@ -143,7 +129,7 @@ function StackStatus({ group }: { group: ActivityGroup }) {
 	return (
 		<>
 			{evaluating ? (
-				<Status size="sm" status="running">
+				<Status size="small" status="running">
 					Checking again
 				</Status>
 			) : (
@@ -158,15 +144,17 @@ function StackStatus({ group }: { group: ActivityGroup }) {
 
 function EntryRow({
 	entry,
+	groupRunId,
 	groupUrl,
 }: {
 	entry: ActivityItem;
+	groupRunId: string | null;
 	groupUrl: string | null;
 }) {
 	const { event, run, pending } = entry;
 	if (!event) {
 		return (
-			<Item size="sm">
+			<Item density="compact">
 				<ItemContent>
 					<ItemTitle>
 						{entry.unavailableReason ?? "Historical event data is unavailable"}
@@ -176,28 +164,28 @@ function EntryRow({
 		);
 	}
 	const ours = isTripwireComment(event);
-	const runId = run?.runId ?? null;
-	const eventLink = runId ? null : eventForgeLink(event);
+	const runId = run?.runId ?? groupRunId;
+	const eventLink = eventForgeLink(event);
 	const forgeLink = eventLink?.href === groupUrl ? null : eventLink;
 	const reevaluating = run?.status === "queued" || run?.status === "running";
 	const note = reevaluating ? "Checking again" : (run?.reason ?? null);
 	const text = (
-		<MetaRow>
+		<MetaRow className="@max-lg/activity-timeline:flex-wrap @max-lg/activity-timeline:*:min-w-0 @max-lg/activity-timeline:*:max-w-full @max-lg/activity-timeline:*:shrink @max-lg/activity-timeline:*:overflow-visible @max-lg/activity-timeline:*:whitespace-normal @max-lg/activity-timeline:*:wrap-anywhere">
 			{event.kind === "schedule.matched" ? (
 				<span>Matched by schedule</span>
 			) : (
 				<span>
 					{ours ? "Tripwire" : event.actor.login}{" "}
-					<span className="text-text-2">{entryLabel(event)}</span>
+					<span className="tone-content-secondary">{entryLabel(event)}</span>
 				</span>
 			)}
-			{note ? <span className="text-text-2">{note}</span> : null}
+			{note ? <span className="tone-content-secondary">{note}</span> : null}
 		</MetaRow>
 	);
 
 	return (
-		<Item size="sm">
-			<ItemContent>
+		<Item data-layout-role="activity-timeline-row" density="compact">
+			<ItemContent data-layout-role="activity-timeline-main">
 				<ItemTitle>
 					{runId ? (
 						<ItemRouterLink params={{ runId }} to="/runs/$runId">
@@ -206,23 +194,25 @@ function EntryRow({
 					) : (
 						<span>{text}</span>
 					)}
-					{ours ? <Badge size="sm">Bot</Badge> : null}
+					{ours ? <Badge size="small">Bot</Badge> : null}
 				</ItemTitle>
 			</ItemContent>
-			<EntryOutcome
-				outcome={
-					runOutcome(event.kind, run) ??
-					(pending ? { status: "running", label: "Checking" } : undefined)
-				}
-			/>
-			<ItemMeta className="w-36 whitespace-nowrap text-end">
-				<ZonedTime at={event.occurredAt} format="short" />
-			</ItemMeta>
-			<ItemActions className="w-14 justify-end">
-				{forgeLink ? (
-					<ForgeLinkButton forge={event.forge} link={forgeLink} />
-				) : null}
-			</ItemActions>
+			<div data-layout-role="activity-timeline-meta-cluster">
+				<EntryOutcome
+					outcome={
+						runOutcome(event.kind, run) ??
+						(pending ? { status: "running", label: "Checking" } : undefined)
+					}
+				/>
+				<ItemMeta data-layout-role="activity-timeline-time">
+					<ZonedTime at={event.occurredAt} format="short" />
+				</ItemMeta>
+				<ItemActions data-layout-role="activity-timeline-actions">
+					{forgeLink ? (
+						<ForgeLinkButton forge={event.forge} link={forgeLink} />
+					) : null}
+				</ItemActions>
+			</div>
 		</Item>
 	);
 }
@@ -233,10 +223,7 @@ function EntryOutcome({
 	outcome: { status: StatusValue; label: string } | undefined;
 }) {
 	return (
-		<span
-			className={statusVariants({ size: "sm", status: outcome?.status })}
-			title={outcome?.label}
-		>
+		<span title={outcome?.label}>
 			{outcome ? (
 				<StatusMark label={outcome.label} status={outcome.status} />
 			) : null}

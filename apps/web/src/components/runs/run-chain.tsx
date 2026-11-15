@@ -1,4 +1,18 @@
 import { Link } from "@tanstack/react-router";
+import { Badge } from "@tripwire/ui/badge";
+import {
+	ArrowUpRight,
+	Comment,
+	Document,
+	FailedMark,
+	Icon,
+	type IconGlyph,
+	Pending,
+	Send,
+	Success,
+	Workflow,
+} from "@tripwire/ui/icon";
+import { RelativeTime } from "@tripwire/ui/relative-time";
 import { useState } from "react";
 import {
 	BranchCard,
@@ -14,20 +28,6 @@ import {
 	TONE_WORD,
 } from "#/components/runs/chain-mark";
 import { SupersededRunChain } from "#/components/runs/superseded-run-chain";
-import {
-	ArrowUpRight,
-	Comment,
-	Document,
-	FailedMark,
-	type GlazeIcon,
-	Icon,
-	Pending,
-	Send,
-	Success,
-	Workflow,
-} from "#/design-system/icon";
-import { Badge } from "#/design-system/ui/badge";
-import { RelativeTime } from "#/design-system/ui/relative-time";
 import {
 	type ChainBranch,
 	type ChainChecks,
@@ -124,22 +124,15 @@ function BranchItem({
 	branch,
 	context,
 	showOutcome,
-	className,
 }: {
 	branch: ChainBranch;
 	context: BranchContext;
 	showOutcome: boolean;
-	className?: string;
 }) {
 	return branch.form === "row" ? (
 		<BranchRow branch={branch} context={context} />
 	) : (
-		<BranchCard
-			branch={branch}
-			className={className}
-			context={context}
-			showOutcome={showOutcome}
-		/>
+		<BranchCard branch={branch} context={context} showOutcome={showOutcome} />
 	);
 }
 
@@ -198,10 +191,13 @@ function SideBySide({
 				ref={setGrid}
 			>
 				{branches.map((branch) => (
-					<div className="min-w-0" key={branch.id}>
+					<div
+						className="min-w-0"
+						data-layout-role="run-parallel-branch"
+						key={branch.id}
+					>
 						<BranchItem
 							branch={branch}
-							className="w-full"
 							context={context}
 							showOutcome={showOutcome}
 						/>
@@ -220,36 +216,25 @@ const CHIP_GLYPH = {
 	comment: Comment,
 	send: Send,
 	action: Workflow,
-} satisfies Record<ChainChip["glyph"], GlazeIcon>;
+} satisfies Record<ChainChip["glyph"], IconGlyph>;
 
 const CHIP_TONE = {
-	ok: "text-ok",
-	fail: "text-fail",
-	neutral: "text-text-2",
-} satisfies Record<ChainChip["tone"], string>;
+	ok: "success",
+	fail: "danger",
+	neutral: "secondary",
+} as const satisfies Record<
+	ChainChip["tone"],
+	"success" | "danger" | "secondary"
+>;
 
 function OutcomeChip({ chip }: { chip: ChainChip }) {
 	const href = chip.href;
-
-	return (
-		<Badge
-			data-layout-role="run-outcome-chip"
-			render={
-				href
-					? (props) =>
-							chip.internal ? (
-								<Link {...props} params={{ runId: href }} to="/runs/$runId" />
-							) : (
-								<a {...props} href={href} rel="noreferrer" target="_blank" />
-							)
-					: undefined
-			}
-			variant="outline"
-		>
+	const badge = (
+		<Badge variant="outline">
 			<Icon
-				className={CHIP_TONE[chip.tone]}
 				icon={CHIP_GLYPH[chip.glyph]}
 				size={12}
+				tone={CHIP_TONE[chip.tone]}
 			/>
 			<span className="min-w-0 truncate" title={chip.label}>
 				{chip.label}
@@ -262,6 +247,22 @@ function OutcomeChip({ chip }: { chip: ChainChip }) {
 				/>
 			) : null}
 		</Badge>
+	);
+	if (!href) {
+		return <span data-layout-role="run-outcome-chip">{badge}</span>;
+	}
+	return (
+		<span data-layout-role="run-outcome-chip">
+			{chip.internal ? (
+				<Link params={{ runId: href }} to="/runs/$runId">
+					{badge}
+				</Link>
+			) : (
+				<a href={href} rel="noreferrer" target="_blank">
+					{badge}
+				</a>
+			)}
+		</span>
 	);
 }
 

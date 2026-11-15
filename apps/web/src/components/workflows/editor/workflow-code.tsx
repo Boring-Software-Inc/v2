@@ -1,7 +1,8 @@
+import { Card } from "@tripwire/ui/card";
+import { Label, SupportingText } from "@tripwire/ui/typography";
 import { TripwireCodeDiff, TripwireCodeFile } from "#/components/code";
-import { Card } from "#/design-system/ui/card";
-import { Label, SupportingText } from "#/design-system/ui/typography";
 import type { WorkflowCodeView } from "#/lib/workflow-code-view";
+import "./workflow-code.css";
 
 const FILE_NAME = "tripwire.ts";
 
@@ -34,7 +35,7 @@ export function WorkflowCode({ view, unsaved }: WorkflowCodeProps) {
 						)}
 					</>
 				) : (
-					<Card>
+					<Card data-layout-role="workflow-code-refusal-card">
 						<div data-layout-role="workflow-code-refusal">
 							<Label as="div">This workflow cannot be written as code</Label>
 							<SupportingText>{view.reason}</SupportingText>

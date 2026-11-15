@@ -6,7 +6,7 @@ export interface ConfirmDeleteDialogProps {
 	onOpenChange: (open: boolean) => void;
 	title: string;
 	description?: ReactNode;
-	actionLabel?: string;
+	confirmLabel?: string;
 	pendingLabel?: string;
 	confirmText?: string;
 	media?: ReactNode;
@@ -18,7 +18,7 @@ export function ConfirmDeleteDialog({
 	onOpenChange,
 	title,
 	description,
-	actionLabel = "Delete",
+	confirmLabel = "Delete",
 	pendingLabel = "Deleting",
 	confirmText,
 	media,
@@ -26,7 +26,7 @@ export function ConfirmDeleteDialog({
 }: ConfirmDeleteDialogProps) {
 	return (
 		<ConfirmDestructiveDialog
-			actionLabel={actionLabel}
+			confirmLabel={confirmLabel}
 			confirmText={confirmText}
 			description={description ?? "This action can't be undone."}
 			media={media}

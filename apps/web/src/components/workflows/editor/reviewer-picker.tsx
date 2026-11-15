@@ -9,25 +9,14 @@ import {
 	reviewerJson,
 	sameReviewer,
 } from "@tripwire/contracts";
+import { Avatar } from "@tripwire/ui/avatar";
+import { Button } from "@tripwire/ui/button";
+import { Combobox } from "@tripwire/ui/combobox";
+import { Field, FieldLabel } from "@tripwire/ui/field";
+import { Icon, Retry } from "@tripwire/ui/icon";
+import { Status } from "@tripwire/ui/status";
+import { SupportingText } from "@tripwire/ui/typography";
 import { createContext, useContext } from "react";
-import { Icon, Retry, Warning } from "#/design-system/icon";
-import { Avatar } from "#/design-system/ui/avatar";
-import { Button } from "#/design-system/ui/button";
-import {
-	Combobox,
-	ComboboxChip,
-	ComboboxChips,
-	ComboboxChipsInput,
-	ComboboxContent,
-	ComboboxEmpty,
-	ComboboxItem,
-	ComboboxList,
-	ComboboxValue,
-	useComboboxAnchor,
-} from "#/design-system/ui/combobox";
-import { Field, FieldLabel } from "#/design-system/ui/field";
-import { Status } from "#/design-system/ui/status";
-import { SupportingText } from "#/design-system/ui/typography";
 import { useSyncedList } from "#/hooks/use-synced-list";
 import { refreshRepoReviewers } from "#/lib/reviewers.functions";
 import { repoReviewersQueryOptions } from "#/lib/reviewers.query";
@@ -65,7 +54,6 @@ export function ReviewerPicker({
 	const org = scope?.org ?? "";
 	const repoId = scope?.repoId ?? "";
 	const gitCafe = scope?.forge === "gitcafe";
-	const anchor = useComboboxAnchor();
 	const { data, loading, syncing, refresh } = useSyncedList(
 		repoReviewersQueryOptions(org, repoId),
 		() => refreshRepoReviewers({ data: { org, repoId } }),
@@ -95,10 +83,10 @@ export function ReviewerPicker({
 		<Button
 			data-layout-role="workflow-reviewers-refresh"
 			disabled={readOnly || repoId === ""}
-			onClick={refresh}
+			onAction={refresh}
 			pending={syncing}
 			pendingLabel="Refreshing"
-			size="sm"
+			size="small"
 			variant="ghost"
 		>
 			<Icon icon={Retry} />
@@ -110,7 +98,7 @@ export function ReviewerPicker({
 		if (loading) {
 			return (
 				<div data-field="reviewers">
-					<Status size="sm" status="running">
+					<Status size="small" status="running">
 						Loading reviewers
 					</Status>
 				</div>
@@ -138,65 +126,37 @@ export function ReviewerPicker({
 			)}
 			<Field data-field="reviewers">
 				<FieldLabel>Reviewers</FieldLabel>
-				<Combobox<PickedReviewer, true>
+				<Combobox<PickedReviewer>
+					ariaLabel="Reviewers"
 					disabled={readOnly}
+					emptyLabel={
+						synced.length > 0 ? "No one matches" : "No reviewers found"
+					}
 					isItemEqualToValue={sameReviewer}
-					itemToStringLabel={(reviewer) => reviewer.login}
-					items={synced}
+					itemToLabel={(reviewer) =>
+						reviewer.stale
+							? `${reviewer.login}, can no longer review this repo`
+							: reviewer.login
+					}
+					itemToValue={(reviewer) => String(reviewer.id ?? reviewer.login)}
 					multiple
 					onValueChange={choose}
+					options={synced.map((reviewer) => ({
+						icon: (
+							<Avatar
+								decorative
+								name={reviewer.login}
+								size="sm"
+								src={reviewer.avatarUrl}
+							/>
+						),
+						label: reviewer.login,
+						value: reviewer,
+					}))}
+					placeholder="Search people"
 					value={chosen}
-				>
-					<ComboboxChips ref={anchor}>
-						<ComboboxValue>
-							{(selected: PickedReviewer[]) => (
-								<>
-									{selected.map((reviewer) => (
-										<ComboboxChip key={reviewer.id ?? reviewer.login}>
-											{reviewer.stale ? (
-												<span data-layout-role="workflow-reviewer-stale">
-													<Icon icon={Warning} />
-													{reviewer.login}
-													<span className="sr-only">
-														, can no longer review this repo
-													</span>
-												</span>
-											) : (
-												reviewer.login
-											)}
-										</ComboboxChip>
-									))}
-									<ComboboxChipsInput
-										placeholder={selected.length > 0 ? "" : "Search people"}
-									/>
-								</>
-							)}
-						</ComboboxValue>
-					</ComboboxChips>
-					<ComboboxContent anchor={anchor}>
-						<ComboboxEmpty>
-							{synced.length > 0 ? "No one matches" : "No reviewers found"}
-						</ComboboxEmpty>
-						<ComboboxList>
-							{(reviewer: PickedReviewer) => (
-								<ComboboxItem
-									key={reviewer.id ?? reviewer.login}
-									value={reviewer}
-								>
-									<span data-layout-role="workflow-reviewer-option">
-										<Avatar
-											decorative
-											name={reviewer.login}
-											size="sm"
-											src={reviewer.avatarUrl}
-										/>
-										<span className="truncate">{reviewer.login}</span>
-									</span>
-								</ComboboxItem>
-							)}
-						</ComboboxList>
-					</ComboboxContent>
-				</Combobox>
+					valueTone={(reviewer) => (reviewer.stale ? "warning" : "default")}
+				/>
 			</Field>
 			{refreshButton}
 		</div>

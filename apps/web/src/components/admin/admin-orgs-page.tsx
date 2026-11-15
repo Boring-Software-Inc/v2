@@ -1,17 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getRouteApi, Link } from "@tanstack/react-router";
+import { getRouteApi } from "@tanstack/react-router";
 import type { OrgRole } from "@tripwire/contracts";
-import { useId, useState } from "react";
-import { AdminPagination } from "#/components/admin/admin-pagination";
-import { formatAdminDate } from "#/components/admin/format-admin-date";
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { Page, PageBody, PageHeader } from "#/components/layouts/page";
-import { MascotArt } from "#/components/mascot/mascot-art";
-import { OrgAvatar } from "#/components/organizations/org-avatar";
-import { ChevronDown, ChevronRight, Icon } from "#/design-system/icon";
-import { Avatar } from "#/design-system/ui/avatar";
-import { Button } from "#/design-system/ui/button";
-import { FilterBar, FilterBarSearch } from "#/design-system/ui/filter-bar";
+import { Avatar } from "@tripwire/ui/avatar";
+import { Button } from "@tripwire/ui/button";
+import { ChevronDown, ChevronRight, Icon } from "@tripwire/ui/icon";
 import {
 	Item,
 	ItemActions,
@@ -21,19 +13,10 @@ import {
 	ItemMedia,
 	ItemMeta,
 	ItemTitle,
-} from "#/design-system/ui/item";
-import {
-	SegmentedControl,
-	SegmentedControlItem,
-} from "#/design-system/ui/segmented-control";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/design-system/ui/select";
-import { SkeletonText } from "#/design-system/ui/skeleton";
+} from "@tripwire/ui/item";
+import { SegmentedControl } from "@tripwire/ui/radio-group";
+import { Select } from "@tripwire/ui/select";
+import { SkeletonText } from "@tripwire/ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -43,9 +26,17 @@ import {
 	TableHeader,
 	TableLoading,
 	TableRow,
-} from "#/design-system/ui/table";
-import { toast } from "#/design-system/ui/toast";
-import { CodeText, Label, SupportingText } from "#/design-system/ui/typography";
+} from "@tripwire/ui/table";
+import { notify } from "@tripwire/ui/toast";
+import { CodeText, Label, SupportingText } from "@tripwire/ui/typography";
+import { useId, useState } from "react";
+import { AdminPagination } from "#/components/admin/admin-pagination";
+import { formatAdminDate } from "#/components/admin/format-admin-date";
+import { FilterBar, FilterBarSearch } from "#/components/common/filter-bar";
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Page, PageBody, PageHeader } from "#/components/layouts/page";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { useDebouncedValue } from "#/hooks/use-debounced-value";
 import { adminUpdateOrgMemberRole } from "#/lib/admin.functions";
 import {
@@ -137,17 +128,14 @@ export function AdminOrgsPage() {
 						toolbar={
 							<FilterBar aria-label="Filter orgs">
 								<SegmentedControl
-									aria-label="Org kind"
-									onValueChange={setKind}
-									size="sm"
+									ariaLabel="Org kind"
+									onValueChange={(value) => value && setKind(value)}
+									options={KIND_FILTERS.map((filter) => ({
+										label: filter.label,
+										value: filter.key,
+									}))}
 									value={kind}
-								>
-									{KIND_FILTERS.map((filter) => (
-										<SegmentedControlItem key={filter.key} value={filter.key}>
-											{filter.label}
-										</SegmentedControlItem>
-									))}
-								</SegmentedControl>
+								/>
 								<FilterBarSearch
 									aria-label="Search orgs"
 									onValueChange={(value) => {
@@ -181,8 +169,8 @@ export function AdminOrgsPage() {
 								<TableEmpty
 									action={
 										<Button
-											onClick={() => void refetch()}
-											size="sm"
+											onAction={() => void refetch()}
+											size="small"
 											variant="secondary"
 										>
 											Load orgs again
@@ -198,17 +186,16 @@ export function AdminOrgsPage() {
 									action={
 										filtered ? (
 											<Button
-												onClick={clearFilters}
-												size="sm"
+												onAction={clearFilters}
+												size="small"
 												variant="secondary"
 											>
 												Clear filters
 											</Button>
 										) : (
 											<Button
-												nativeButton={false}
-												render={<Link to="/admin/users" />}
-												size="sm"
+												href="/admin/users"
+												size="small"
 												variant="secondary"
 											>
 												View users
@@ -236,11 +223,11 @@ export function AdminOrgsPage() {
 													<Button
 														aria-controls={expanded ? panelId : undefined}
 														aria-expanded={expanded}
-														aria-label={`${expanded ? "Hide" : "Show"} members of ${org.name}`}
-														onClick={() =>
+														ariaLabel={`${expanded ? "Hide" : "Show"} members of ${org.name}`}
+														onAction={() =>
 															setExpandedOrgId(expanded ? null : org.id)
 														}
-														size="icon-sm"
+														size="small"
 														variant="ghost"
 													>
 														<Icon
@@ -326,7 +313,9 @@ function OrgMembersPanel({
 		return (
 			<div aria-busy data-layout-role="admin-org-members-state">
 				<span className="sr-only">Loading members of {orgName}</span>
-				<SkeletonText data-layout-size="member-row" type="body-sm" />
+				<span data-skeleton-line="" aria-hidden data-layout-size="member-row">
+					<SkeletonText type="body-sm" />
+				</span>
 			</div>
 		);
 	}
@@ -336,7 +325,11 @@ function OrgMembersPanel({
 				<SupportingText>
 					Tripwire couldn't load members of {orgName}.
 				</SupportingText>
-				<Button onClick={() => void refetch()} size="sm" variant="secondary">
+				<Button
+					onAction={() => void refetch()}
+					size="small"
+					variant="secondary"
+				>
 					Load members again
 				</Button>
 			</div>
@@ -353,7 +346,7 @@ function OrgMembersPanel({
 	return (
 		<ItemGroup aria-label={`Members of ${orgName}`} variant="plain">
 			{members.map((member) => (
-				<Item key={member.memberId} size="sm">
+				<Item key={member.memberId} density="compact">
 					<ItemMedia>
 						<Avatar
 							decorative
@@ -374,8 +367,8 @@ function OrgMembersPanel({
 							</SupportingText>
 						) : (
 							<Select
+								ariaLabel={`Role for ${member.name}`}
 								disabled={changeRole.isPending}
-								items={ROLE_ITEMS}
 								onValueChange={(value) => {
 									if (!value) {
 										return;
@@ -390,36 +383,36 @@ function OrgMembersPanel({
 										{
 											onSuccess: (result) => {
 												if (result.ok) {
-													toast.success(
-														`${member.name} is now ${value === "admin" ? "admin" : "member"}`,
+													notify.show(
+														{
+															title: `${member.name} is now ${value === "admin" ? "admin" : "member"}`,
+														},
+														"success",
 													);
 													return;
 												}
-												toast.fail(
-													result.error ??
-														`Tripwire couldn't change the role for ${member.name}. Try again.`,
+												notify.show(
+													{
+														title:
+															result.error ??
+															`Tripwire couldn't change the role for ${member.name}. Try again.`,
+													},
+													"error",
 												);
 											},
 											onError: () =>
-												toast.fail(
-													`Tripwire couldn't change the role for ${member.name}. Try again.`,
+												notify.show(
+													{
+														title: `Tripwire couldn't change the role for ${member.name}. Try again.`,
+													},
+													"error",
 												),
 										},
 									);
 								}}
+								options={ROLE_ITEMS}
 								value={member.role}
-							>
-								<SelectTrigger aria-label={`Role for ${member.name}`} size="sm">
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent size="sm">
-									{ROLE_ITEMS.map((item) => (
-										<SelectItem key={item.value} value={item.value}>
-											{item.label}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
+							/>
 						)}
 					</ItemActions>
 				</Item>

@@ -1,6 +1,6 @@
+import { DocumentBlank, Icon } from "@tripwire/ui/icon";
+import { Caption } from "@tripwire/ui/typography";
 import type { ReactNode } from "react";
-import { DocumentBlank, Icon } from "#/design-system/icon";
-import { Caption } from "#/design-system/ui/typography";
 
 export function renderBackticks(text: string): ReactNode {
 	return text.split(/(`[^`]+`)/g).map((part, i) => {
@@ -21,12 +21,9 @@ export function renderBackticks(text: string): ReactNode {
 
 export function FileIcon() {
 	return (
-		<Icon
-			className="shrink-0"
-			data-layout-role="evidence-file-icon"
-			icon={DocumentBlank}
-			size={14}
-		/>
+		<span data-layout-role="evidence-file-icon">
+			<Icon icon={DocumentBlank} size={14} />
+		</span>
 	);
 }
 

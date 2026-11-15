@@ -1,12 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
-import { useState } from "react";
-import { AdminPagination } from "#/components/admin/admin-pagination";
-import { ForgeMark } from "#/components/common/forge-marks";
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { Page, PageBody, PageHeader } from "#/components/layouts/page";
-import { MascotArt } from "#/components/mascot/mascot-art";
-import { Button } from "#/design-system/ui/button";
+import { Button } from "@tripwire/ui/button";
 import {
 	Table,
 	TableBody,
@@ -16,8 +9,14 @@ import {
 	TableHeader,
 	TableLoading,
 	TableRow,
-} from "#/design-system/ui/table";
-import { CodeText, Label, SupportingText } from "#/design-system/ui/typography";
+} from "@tripwire/ui/table";
+import { CodeText, Label, SupportingText } from "@tripwire/ui/typography";
+import { useState } from "react";
+import { AdminPagination } from "#/components/admin/admin-pagination";
+import { ForgeMark } from "#/components/common/forge-marks";
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Page, PageBody, PageHeader } from "#/components/layouts/page";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import { adminInstallationsQueryOptions } from "#/lib/admin.query";
 
 const COLUMN_COUNT = 4;
@@ -73,8 +72,8 @@ export function AdminInstallationsPage() {
 								<TableEmpty
 									action={
 										<Button
-											onClick={() => void refetch()}
-											size="sm"
+											onAction={() => void refetch()}
+											size="small"
 											variant="secondary"
 										>
 											Load installations again
@@ -88,12 +87,7 @@ export function AdminInstallationsPage() {
 							) : installations.length === 0 ? (
 								<TableEmpty
 									action={
-										<Button
-											nativeButton={false}
-											render={<Link to="/admin/orgs" />}
-											size="sm"
-											variant="secondary"
-										>
+										<Button href="/admin/orgs" size="small" variant="secondary">
 											View orgs
 										</Button>
 									}

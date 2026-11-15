@@ -1,0 +1,14 @@
+[data-layout-role="auth-page-status"] {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-block-size: 100dvh;
+	inline-size: 100%;
+	background: var(--page);
+}
+
+[data-layout-role="auth-page-status"][data-auth-status-brand] {
+	flex-direction: column;
+	gap: var(--space-6);
+	padding-inline: var(--space-4);
+}

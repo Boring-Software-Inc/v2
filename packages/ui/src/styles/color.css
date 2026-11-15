@@ -1,5 +1,5 @@
-.glaze,
-[data-system="glaze"] {
+.tripwire,
+[data-system="tripwire"] {
 	--tw-surface-canvas: var(--page);
 	--tw-surface-page: var(--page);
 	--tw-surface-container: var(--paper);
@@ -17,6 +17,7 @@
 	--tw-boundary-subtle: var(--line-faint);
 	--tw-boundary-default: var(--line);
 	--tw-boundary-control: var(--line-control);
+	--tw-boundary-control-focus: var(--line-focus);
 	--tw-boundary-strong: var(--line-strong);
 	--tw-boundary-focus: var(--focus);
 	--tw-boundary-feedback-inner: var(--feedback-outline-inner);
@@ -40,6 +41,9 @@
 	--tw-danger-text: var(--fail-text);
 	--tw-danger-wash: var(--fail-tint);
 	--tw-danger-border: var(--fail);
+	--tw-danger-solid: var(--glass-coral-base);
+	--tw-danger-on-solid: var(--glass-coral-text);
+	--tw-danger-solid-border: var(--glass-coral-ring);
 	--tw-info-mark: var(--ink-45);
 	--tw-info-text: var(--text-1);
 	--tw-info-wash: var(--field);

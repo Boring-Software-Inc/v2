@@ -1,20 +1,17 @@
+import { Collapsible } from "@tripwire/ui/collapsible";
 import { DevScenarioPanel } from "#/components/dev/dev-scenario-panel";
-import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from "#/design-system/ui/collapsible";
 
 export function DevScenarioDisclosure() {
 	if (!import.meta.env.DEV) {
 		return null;
 	}
 	return (
-		<Collapsible className="flex w-full flex-col items-center gap-2">
-			<CollapsibleTrigger size="sm">Dev scenarios</CollapsibleTrigger>
-			<CollapsibleContent className="w-88 max-w-full">
-				<DevScenarioPanel />
-			</CollapsibleContent>
-		</Collapsible>
+		<div className="flex w-full flex-col items-center composition-gap-standard">
+			<Collapsible trigger="Dev scenarios">
+				<div className="w-88 max-w-full">
+					<DevScenarioPanel />
+				</div>
+			</Collapsible>
+		</div>
 	);
 }

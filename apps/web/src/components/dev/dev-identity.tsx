@@ -1,12 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { type KeyboardEvent, useState } from "react";
+import { Button } from "@tripwire/ui/button";
+import { useState } from "react";
 import { ConfirmDestructiveDialog } from "#/components/common/confirm-destructive-dialog";
-import { Button } from "#/design-system/ui/button";
 import { devWhoamiQueryOptions } from "#/lib/dev/dev.query";
-
-function stopCommandKeys(event: KeyboardEvent<HTMLButtonElement>): void {
-	event.stopPropagation();
-}
 
 interface DevIdentityProps {
 	busy: string | null;
@@ -27,10 +23,9 @@ export function DevIdentity({ busy, onLogout, onReset }: DevIdentityProps) {
 				{whoami?.signedIn ? (
 					<Button
 						disabled={busy !== null && busy !== "logout"}
-						onClick={() => setSignOutOpen(true)}
-						onKeyDown={stopCommandKeys}
+						onAction={() => setSignOutOpen(true)}
 						pending={busy === "logout"}
-						size="sm"
+						size="small"
 						variant="ghost"
 					>
 						Sign out
@@ -38,17 +33,16 @@ export function DevIdentity({ busy, onLogout, onReset }: DevIdentityProps) {
 				) : null}
 				<Button
 					disabled={busy !== null && busy !== "reset"}
-					onClick={() => setResetOpen(true)}
-					onKeyDown={stopCommandKeys}
+					onAction={() => setResetOpen(true)}
 					pending={busy === "reset"}
-					size="sm"
+					size="small"
 					variant="ghost"
 				>
 					Reset
 				</Button>
 			</div>
 			<ConfirmDestructiveDialog
-				actionLabel="Sign out"
+				confirmLabel="Sign out"
 				description="This ends the current development session."
 				onConfirm={async () => onLogout()}
 				onOpenChange={setSignOutOpen}
@@ -57,7 +51,7 @@ export function DevIdentity({ busy, onLogout, onReset }: DevIdentityProps) {
 				title="Sign out of the development session?"
 			/>
 			<ConfirmDestructiveDialog
-				actionLabel="Reset development data"
+				confirmLabel="Reset development data"
 				description="This clears the current development identity and scenario state."
 				onConfirm={async () => onReset()}
 				onOpenChange={setResetOpen}

@@ -7,6 +7,9 @@ import {
 
 const DIRECT_IMPLEMENTATION =
 	/^(?:(?:#|@)\/(?:components|lib)\/(?:glaze|quartz)|(?:\.\.?\/)+(?:.*\/)?(?:glaze|quartz))(?:\/|$)/;
+const PRIVATE_PRIMITIVE = /^@ui-sdk\//;
+const BASE_UI = /^@base-ui\/react(?:\/|$)/;
+const LEGACY_FACADE = /^#\/design-system\/(?:icon|ui|lib)(?:\/|$)/;
 
 function staticModuleSource(source: ESTree.Expression) {
 	if (source.type === "Literal" && typeof source.value === "string") {
@@ -32,7 +35,7 @@ export const noDirectImplementationImportsRule = defineRule({
 		},
 		messages: {
 			useFacade:
-				'Reference the implementation through "#/design-system/*" instead of "{{source}}".',
+				'Reference the primitive through "@tripwire/ui" instead of "{{source}}".',
 		},
 	},
 	create(context) {
@@ -43,7 +46,13 @@ export const noDirectImplementationImportsRule = defineRule({
 			return {};
 		}
 		const check = (node: ESTree.Node, source: string | null) => {
-			if (source && DIRECT_IMPLEMENTATION.test(source)) {
+			if (
+				source &&
+				(PRIVATE_PRIMITIVE.test(source) ||
+					DIRECT_IMPLEMENTATION.test(source) ||
+					BASE_UI.test(source) ||
+					LEGACY_FACADE.test(source))
+			) {
 				context.report({
 					node,
 					messageId: "useFacade",

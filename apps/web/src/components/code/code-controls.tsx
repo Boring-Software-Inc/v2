@@ -1,6 +1,6 @@
+import { IconToggle } from "@tripwire/ui/button";
+import { Icon, Wrap } from "@tripwire/ui/icon";
 import { useTheme } from "next-themes";
-import { Icon, Wrap } from "#/design-system/icon";
-import { Button } from "#/design-system/ui/button";
 import { useHasMounted } from "#/hooks/use-has-mounted";
 
 export interface WrapToggleProps {
@@ -10,16 +10,15 @@ export interface WrapToggleProps {
 
 export function WrapToggle({ wrap, onWrapChange }: WrapToggleProps) {
 	return (
-		<Button
-			aria-label="Wrap lines"
-			aria-pressed={wrap}
-			data-layout-role="code-wrap-toggle"
-			onClick={() => onWrapChange(!wrap)}
-			size="icon-sm"
-			variant="ghost"
-		>
-			<Icon icon={Wrap} weight={wrap ? "fill" : "regular"} />
-		</Button>
+		<span data-layout-role="code-wrap-toggle">
+			<IconToggle
+				icon={<Icon icon={Wrap} weight={wrap ? "fill" : "regular"} />}
+				label="Wrap lines"
+				onPressedChange={onWrapChange}
+				pressed={wrap}
+				size="small"
+			/>
+		</span>
 	);
 }
 

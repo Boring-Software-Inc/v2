@@ -1,10 +1,11 @@
 import type { JsonValue, RuleParam } from "@tripwire/contracts";
+import { Checkbox } from "@tripwire/ui/checkbox";
+import { ChipGroup, RemovableChip } from "@tripwire/ui/chip";
+import { Input } from "@tripwire/ui/field";
+import { Select } from "@tripwire/ui/select";
 import { useRef, useState } from "react";
 import { z } from "zod";
-import { Checkbox } from "#/design-system/ui/checkbox";
-import { Chip, ChipGroup } from "#/design-system/ui/chip";
-import { Input } from "#/design-system/ui/input";
-import { NativeSelect } from "#/design-system/ui/select";
+
 import { coerceParamInput } from "./coerce";
 
 const TEXT_VALUE_SCHEMA = z.string();
@@ -43,28 +44,33 @@ export function ParamEditor({
 	if (param.kind === "boolean") {
 		return (
 			<Checkbox
-				aria-label={param.label}
 				checked={value === true}
-				className="align-middle"
+				label={param.label}
 				onCheckedChange={(checked) => onSave(checked)}
 			/>
 		);
 	}
 	if (param.kind === "enum") {
+		const initialValue =
+			TEXT_VALUE_SCHEMA.safeParse(value).data ?? param.default;
 		return (
-			<NativeSelect
-				aria-label={param.label}
-				className="inline-block w-auto align-middle"
-				defaultValue={TEXT_VALUE_SCHEMA.safeParse(value).data ?? param.default}
-				onChange={(e) => onSave(e.target.value)}
-				size="sm"
-			>
-				{param.options.map((opt) => (
-					<option key={opt} value={opt}>
-						{opt}
-					</option>
-				))}
-			</NativeSelect>
+			<span className="inline-block w-auto align-middle">
+				<Select
+					ariaLabel={param.label}
+					defaultValue={initialValue || null}
+					mode="native"
+					onValueChange={(next) => {
+						if (next !== null) onSave(next);
+					}}
+					options={param.options
+						.filter((option) => option.length > 0)
+						.map((option) => ({
+							label: option,
+							value: option,
+						}))}
+					placeholder={`Select ${param.label}`}
+				/>
+			</span>
 		);
 	}
 	return (
@@ -122,53 +128,52 @@ function ScalarEditor({
 				: undefined;
 
 	return (
-		<span className="inline-flex flex-wrap items-center gap-1 align-middle">
-			<Input
-				aria-invalid={error !== null}
-				aria-label={param.label}
-				autoFocus={autoFocus}
-				className={param.kind === "number" ? "w-28" : "w-40"}
-				max={
-					param.kind === "number" && param.max !== undefined
-						? param.percent
-							? param.max * 100
-							: param.max
-						: undefined
-				}
-				min={
-					param.kind === "number" && param.min !== undefined
-						? param.percent
-							? param.min * 100
-							: param.min
-						: undefined
-				}
-				onBlur={commit}
-				onChange={(e) => {
-					setRaw(e.target.value);
-					setError(null);
-				}}
-				onKeyDown={(e) => {
-					if (e.key === "Enter") {
-						e.preventDefault();
-						commit();
-					} else if (e.key === "Escape") {
-						setRaw(initial);
-						setError(null);
-						onCancel();
+		<div className="inline-flex flex-wrap items-center composition-gap-small align-middle">
+			<span className={param.kind === "number" ? "w-28" : "w-40"}>
+				<Input
+					invalid={error !== null}
+					ariaLabel={param.label}
+					autoFocus={autoFocus}
+					max={
+						param.kind === "number" && param.max !== undefined
+							? param.percent
+								? param.max * 100
+								: param.max
+							: undefined
 					}
-				}}
-				size="sm"
-				step={param.kind === "number" && param.int ? 1 : "any"}
-				trailing={suffix}
-				type={param.kind === "number" ? "number" : "text"}
-				value={raw}
-			/>
+					min={
+						param.kind === "number" && param.min !== undefined
+							? param.percent
+								? param.min * 100
+								: param.min
+							: undefined
+					}
+					onBlur={commit}
+					onChange={(e) => {
+						setRaw(e.target.value);
+						setError(null);
+					}}
+					onKeyDown={(e) => {
+						if (e.key === "Enter") {
+							e.preventDefault();
+							commit();
+						} else if (e.key === "Escape") {
+							setRaw(initial);
+							setError(null);
+							onCancel();
+						}
+					}}
+					type={param.kind === "number" ? "number" : "text"}
+					value={raw}
+				/>
+			</span>
+			{suffix ? <span className="content-caption">{suffix}</span> : null}
 			{error ? (
-				<span className="type-caption text-fail-text" role="alert">
+				<span className="content-caption tone-danger" role="alert">
 					{error}
 				</span>
 			) : null}
-		</span>
+		</div>
 	);
 }
 
@@ -195,37 +200,35 @@ function StringListEditor({
 		setDraft("");
 	};
 	return (
-		<span className="inline-flex flex-wrap items-center gap-1 align-middle">
-			<ChipGroup aria-label={param.label}>
+		<span className="inline-flex flex-wrap items-center composition-gap-small align-middle">
+			<ChipGroup label={param.label}>
 				{items.map((item) => (
-					<Chip
+					<RemovableChip
 						focusAfterEmpty={inputRef}
 						key={item}
+						label={item}
 						onRemove={() => remove(item)}
 						removeLabel={`Remove ${item}`}
-					>
-						{item}
-					</Chip>
+					/>
 				))}
 			</ChipGroup>
-			<Input
-				autoFocus={autoFocus}
-				aria-label={`Add ${param.label}`}
-				className="w-40"
-				mono
-				onBlur={add}
-				onChange={(e) => setDraft(e.target.value)}
-				onKeyDown={(e) => {
-					if (e.key === "Enter") {
-						e.preventDefault();
-						add();
-					}
-				}}
-				placeholder="Add path"
-				ref={inputRef}
-				size="sm"
-				value={draft}
-			/>
+			<span className="w-40 content-mono">
+				<Input
+					autoFocus={autoFocus}
+					ariaLabel={`Add ${param.label}`}
+					onBlur={add}
+					onChange={(e) => setDraft(e.target.value)}
+					onKeyDown={(e) => {
+						if (e.key === "Enter") {
+							e.preventDefault();
+							add();
+						}
+					}}
+					placeholder="Add path"
+					ref={inputRef}
+					value={draft}
+				/>
+			</span>
 		</span>
 	);
 }

@@ -1,4 +1,5 @@
 import { REDACTION_ITEMS } from "@tripwire/contracts";
+import { Hide, Icon } from "@tripwire/ui/icon";
 import {
 	AnimatePresence,
 	MotionConfig,
@@ -7,7 +8,6 @@ import {
 } from "motion/react";
 import { PREVIEW_TRANSITION } from "#/components/responses/preview-motion";
 import { REDACTION_ITEM_LABELS } from "#/components/responses/redaction-model";
-import { Hide, Icon } from "#/design-system/icon";
 import { usePreviousValue } from "#/hooks/use-previous-value";
 
 const STAGGER_S = 0.04;
@@ -72,10 +72,7 @@ export function RedactionTally({
 							variants={ROW_VARIANTS[index]}
 						>
 							<div className="flex min-h-8 items-center gap-2.5 px-3">
-								<Icon
-									className={disabled ? "text-text-disabled" : "text-text-2"}
-									icon={Hide}
-								/>
+								<Icon icon={Hide} tone={disabled ? "disabled" : "secondary"} />
 								<span
 									className={
 										disabled

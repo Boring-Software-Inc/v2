@@ -1,23 +1,14 @@
+import { Button } from "@tripwire/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@tripwire/ui/card";
+import { ChipGroup, ChoiceChip } from "@tripwire/ui/chip";
+import { Field, FieldDescription, FieldLabel } from "@tripwire/ui/field";
+import { Slider } from "@tripwire/ui/slider";
+import { Switch } from "@tripwire/ui/switch";
 import type { ReactNode } from "react";
+
 import type { MascotSettings } from "#/components/mascot/engine";
 import { EXPRESSIONS, type Expression } from "#/components/mascot/geometry";
 import type { MascotEvent } from "#/components/mascot/machine";
-import { Button } from "#/design-system/ui/button";
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from "#/design-system/ui/card";
-import { Chip, ChipGroup } from "#/design-system/ui/chip";
-import {
-	Field,
-	FieldContent,
-	FieldDescription,
-	FieldLabel,
-} from "#/design-system/ui/field";
-import { Slider } from "#/design-system/ui/slider";
-import { Switch } from "#/design-system/ui/switch";
 
 export type MascotControlsProps = {
 	settings: MascotSettings;
@@ -57,10 +48,6 @@ const EXPRESSION_LABELS = {
 const percent = { style: "percent" } as const;
 const times = { maximumFractionDigits: 2, minimumFractionDigits: 2 } as const;
 
-function first(value: number | readonly number[]) {
-	return Array.isArray(value) ? (value[0] ?? 0) : value;
-}
-
 function SliderField({
 	label,
 	description,
@@ -84,13 +71,13 @@ function SliderField({
 		<Field>
 			<FieldLabel>{label}</FieldLabel>
 			<Slider
-				format={format}
+				ariaLabel={label}
+				formatOptions={format}
 				max={max}
 				min={min}
-				onValueChange={(v) => onChange(first(v))}
+				onValueChange={onChange}
 				showValue
 				step={step}
-				thumbLabels={[label]}
 				value={value}
 			/>
 			{description ? <FieldDescription>{description}</FieldDescription> : null}
@@ -113,13 +100,14 @@ function SwitchField({
 }) {
 	return (
 		<Field orientation="horizontal">
-			<FieldContent>
+			<div>
 				<FieldLabel>{label}</FieldLabel>
 				{description ? (
 					<FieldDescription>{description}</FieldDescription>
 				) : null}
-			</FieldContent>
+			</div>
 			<Switch
+				ariaLabel={label}
 				checked={checked}
 				disabled={disabled}
 				onCheckedChange={onChange}
@@ -145,27 +133,30 @@ export function MascotControls({
 			onSettings((prev) => ({ ...prev, [key]: value }));
 
 	return (
-		<aside className="flex w-full flex-col gap-4 lg:w-96 lg:shrink-0">
+		<aside
+			className="flex w-full flex-col gap-4 lg:w-96 lg:shrink-0"
+			data-layout-role="mascot-controls"
+		>
 			<Card>
 				<CardHeader>
 					<CardTitle>Events</CardTitle>
 				</CardHeader>
 				<CardContent>
 					<div className="flex flex-wrap gap-2">
-						<Button onClick={() => onSend("HOP")} size="sm">
+						<Button onAction={() => onSend("HOP")} size="small">
 							Hop
 						</Button>
 						{EVENT_BUTTONS.map(({ event, label }) => (
 							<Button
 								key={event}
-								onClick={() => onSend(event)}
-								size="sm"
+								onAction={() => onSend(event)}
+								size="small"
 								variant="secondary"
 							>
 								{label}
 							</Button>
 						))}
-						<Button onClick={onMad} size="sm" variant="secondary">
+						<Button onAction={onMad} size="small" variant="secondary">
 							Make it mad
 						</Button>
 					</div>
@@ -180,15 +171,16 @@ export function MascotControls({
 					<CardTitle>Resting face</CardTitle>
 				</CardHeader>
 				<CardContent>
-					<ChipGroup aria-label="Resting face" role="group">
+					<ChipGroup label="Resting face">
 						{EXPRESSIONS.map((expr) => (
-							<Chip
+							<ChoiceChip
 								key={expr}
-								onPressedChange={() => set("resting")(expr)}
+								label={EXPRESSION_LABELS[expr]}
+								onPressedChange={(pressed) => {
+									if (pressed) set("resting")(expr);
+								}}
 								pressed={settings.resting === expr}
-							>
-								{EXPRESSION_LABELS[expr]}
-							</Chip>
+							/>
 						))}
 					</ChipGroup>
 				</CardContent>

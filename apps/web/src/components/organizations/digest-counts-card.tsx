@@ -1,13 +1,8 @@
 import type { HomeDigest } from "@tripwire/contracts";
+import { Card, CardContent, CardFooter, CardMeta } from "@tripwire/ui/card";
+import { ItemGroup } from "@tripwire/ui/item";
 import { DigestActivityButton } from "#/components/organizations/digest-activity-button";
 import { DigestVerdictRow } from "#/components/organizations/digest-verdict-row";
-import {
-	Card,
-	CardContent,
-	CardFooter,
-	CardMeta,
-} from "#/design-system/ui/card";
-import { ItemGroup } from "#/design-system/ui/item";
 
 interface DigestCountsCardProps {
 	org: string;
@@ -21,10 +16,10 @@ export function DigestCountsCard({ org, digest }: DigestCountsCardProps) {
 			: `${digest.total} runs across ${digest.repos.length} repos`;
 	return (
 		<Card>
-			<CardContent className="p-1" flush>
+			<CardContent data-layout-role="digest-counts-content" flush>
 				<ItemGroup
 					aria-label="This week's run verdicts"
-					className="gap-1"
+					data-layout-role="digest-counts-list"
 					variant="plain"
 				>
 					{digest.counts.map((row) => (

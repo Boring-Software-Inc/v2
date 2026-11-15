@@ -1,0 +1,26 @@
+[data-layout-role="workflow-editor-controls"] {
+	flex-wrap: wrap;
+}
+
+[data-layout-role="workflow-editor-controls"] > * {
+	max-inline-size: 100%;
+	flex-shrink: 0;
+}
+
+@media (min-width: 48rem) {
+	[data-layout-role="workflow-editor-identity"] {
+		flex-basis: auto;
+	}
+}
+
+@media (48rem <= width < 64rem) {
+	[data-layout-role="workflow-editor-controls"] {
+		column-gap: var(--space-1);
+	}
+
+	[data-layout-role="workflow-editor-controls"]
+		> [data-layout-role="workflow-editor-desktop-action"]
+		> [data-slot="button"][data-variant="ghost"] {
+		padding-inline: var(--space-1);
+	}
+}

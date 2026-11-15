@@ -13,6 +13,7 @@ import {
 	type PortLook,
 	WORKFLOW_PORT_TONE,
 } from "@tripwire/contracts";
+import { StatusMark } from "@tripwire/ui/status";
 import {
 	BaseEdge,
 	type ConnectionLineComponentProps,
@@ -37,8 +38,6 @@ import {
 	ProblemPeek,
 	severityStatus,
 } from "#/components/workflows/editor/problems-list";
-import { StatusMark } from "#/design-system/ui/status";
-import { tooltipPopupClass } from "#/design-system/ui/tooltip";
 
 export const DragPlanContext = createContext<DragPlan | null>(null);
 
@@ -107,7 +106,7 @@ export function TypedEdge({
 			{status ? (
 				<EdgeLabelRenderer>
 					<div
-						className="nodrag nopan pointer-events-auto absolute flex rounded-pill bg-paper"
+						className="nodrag nopan pointer-events-auto absolute flex rounded-pill tone-surface-paper"
 						data-edge-problem-peek=""
 						style={place}
 					>
@@ -209,7 +208,7 @@ export function DropHint() {
 			data-drop-hint=""
 			style={position}
 		>
-			<div className={tooltipPopupClass}>
+			<div className="flex items-center composition-gap-small rounded-tag border tone-border-default tone-surface-paper typed-connection-bubble-inset shadow-overlay content-caption">
 				<span className="shrink-0 whitespace-nowrap type-code-xs">
 					{target.reason.rule}
 				</span>

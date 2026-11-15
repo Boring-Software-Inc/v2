@@ -1,15 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FORGE_BY_ID, type ForgeConnection } from "@tripwire/contracts";
-import { useState } from "react";
-import { ForgeMark } from "#/components/common/forge-marks";
-import { MetaRow } from "#/components/common/meta-row";
-import { ConnectForgeDialog } from "#/components/forges/connect-forge-dialog";
-import { OrganizationConnectionsPage } from "#/components/forges/organization-connections-page";
-import { MascotArt } from "#/components/mascot/mascot-art";
-import { SettingsHeader } from "#/components/settings/settings-frame";
-import { Add, Icon } from "#/design-system/icon";
-import { Button } from "#/design-system/ui/button";
-import { Empty, EmptyHeader, EmptyTitle } from "#/design-system/ui/empty-state";
+import { Button } from "@tripwire/ui/button";
+import { Add, Icon } from "@tripwire/ui/icon";
 import {
 	Item,
 	ItemActions,
@@ -18,13 +10,21 @@ import {
 	ItemGroup,
 	ItemMedia,
 	ItemTitle,
-} from "#/design-system/ui/item";
+} from "@tripwire/ui/item";
+import { Skeleton, SkeletonSwap, SkeletonText } from "@tripwire/ui/skeleton";
+import { notify } from "@tripwire/ui/toast";
+import { useState } from "react";
 import {
-	Skeleton,
-	SkeletonSwap,
-	SkeletonText,
-} from "#/design-system/ui/skeleton";
-import { toast } from "#/design-system/ui/toast";
+	EmptyState,
+	EmptyStateHeader,
+	EmptyStateTitle,
+} from "#/components/common/empty-state";
+import { ForgeMark } from "#/components/common/forge-marks";
+import { MetaRow } from "#/components/common/meta-row";
+import { ConnectForgeDialog } from "#/components/forges/connect-forge-dialog";
+import { OrganizationConnectionsPage } from "#/components/forges/organization-connections-page";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import { SettingsHeader } from "#/components/settings/settings-frame";
 import { currentUserQueryOptions } from "#/lib/auth.query";
 import { disconnectForge } from "#/lib/connections.functions";
 import { connectionsQueryOptions } from "#/lib/connections.query";
@@ -56,10 +56,14 @@ function ConnectionRow({
 				data: { forge: connection.forge, accountId: connection.accountId },
 			}),
 		onSuccess: (result) => {
-			toast.success(
-				result.removedRepos === 0
-					? `${label} disconnected`
-					: `${label} disconnected. Tripwire stopped watching ${result.removedRepos} ${result.removedRepos === 1 ? "repo" : "repos"}.`,
+			notify.show(
+				{
+					title:
+						result.removedRepos === 0
+							? `${label} disconnected`
+							: `${label} disconnected. Tripwire stopped watching ${result.removedRepos} ${result.removedRepos === 1 ? "repo" : "repos"}.`,
+				},
+				"success",
 			);
 			void queryClient.invalidateQueries();
 		},
@@ -93,33 +97,33 @@ function ConnectionRow({
 			<ItemActions>
 				{needsReauth ? (
 					<Button
-						onClick={() => {
+						onAction={() => {
 							void reconnectForge(connection.forge).then((message) => {
 								if (message) {
-									toast.fail(message);
+									notify.show({ title: message }, "error");
 								}
 							});
 						}}
-						size="sm"
+						size="small"
 						variant="secondary"
 					>
 						Reconnect {label}
 					</Button>
 				) : null}
 				<Button
-					aria-label={`Disconnect ${label}`}
+					ariaLabel={`Disconnect ${label}`}
 					confirmation={{
-						actionLabel: "Disconnect",
-						confirmText,
+						confirmLabel: "Disconnect",
 						description:
 							connection.repoCount > 0
-								? `Tripwire stops watching ${connection.repoCount} ${connection.repoCount === 1 ? "repo" : "repos"}.`
-								: undefined,
-						pendingLabel: "Disconnecting",
+								? `Disconnect ${confirmText}. Tripwire stops watching ${connection.repoCount} ${connection.repoCount === 1 ? "repo" : "repos"}.`
+								: `Disconnect ${confirmText} from Tripwire.`,
 						title: `Disconnect ${label}?`,
 					}}
 					onAction={() => disconnect.mutateAsync()}
-					size="sm"
+					pending={disconnect.isPending}
+					pendingLabel="Disconnecting"
+					size="small"
 					variant="destructive"
 				>
 					Disconnect
@@ -137,11 +141,17 @@ function ConnectionRowsSkeleton() {
 			{ROW_SLOTS.map((slot) => (
 				<Item key={slot}>
 					<ItemMedia variant="icon">
-						<Skeleton className="size-(--icon)" />
+						<span data-skeleton-box="" aria-hidden className="size-(--icon)">
+							<Skeleton fill />
+						</span>
 					</ItemMedia>
 					<ItemContent>
-						<SkeletonText className="w-20" type="label" />
-						<SkeletonText className="w-32" type="body-sm" />
+						<span data-skeleton-line="" aria-hidden className="w-20">
+							<SkeletonText type="label" />
+						</span>
+						<span data-skeleton-line="" aria-hidden className="w-32">
+							<SkeletonText type="body-sm" />
+						</span>
 					</ItemContent>
 				</Item>
 			))}
@@ -165,7 +175,7 @@ function AccountConnectionsPage() {
 	return (
 		<>
 			<SettingsHeader title="Connections">
-				<Button onClick={() => setConnecting(true)}>
+				<Button onAction={() => setConnecting(true)}>
 					<Icon icon={Add} />
 					Connect repos
 				</Button>
@@ -189,15 +199,15 @@ function AccountConnectionsPage() {
 						</ItemGroup>
 					</div>
 				) : (
-					<Empty
+					<EmptyState
 						art={<MascotArt mood="forges-empty" size="compact" />}
 						size="sm"
 						variant="plain"
 					>
-						<EmptyHeader>
-							<EmptyTitle>No forges connected yet</EmptyTitle>
-						</EmptyHeader>
-					</Empty>
+						<EmptyStateHeader>
+							<EmptyStateTitle>No forges connected yet</EmptyStateTitle>
+						</EmptyStateHeader>
+					</EmptyState>
 				)}
 			</SkeletonSwap>
 

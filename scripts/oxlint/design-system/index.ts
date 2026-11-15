@@ -5,6 +5,7 @@ import { noInlineVisualStylesRule } from "./rules/no-inline-visual-styles.ts";
 import { noRawColorRule } from "./rules/no-raw-color.ts";
 import { noRawSpacingRule } from "./rules/no-raw-spacing.ts";
 import { noRawTypographyRule } from "./rules/no-raw-typography.ts";
+import { noUiChromePropsRule } from "./rules/no-ui-chrome-props.ts";
 
 /** Project-specific enforcement for Tripwire's semantic application UI contract. */
 const designSystemPlugin = definePlugin({
@@ -16,6 +17,7 @@ const designSystemPlugin = definePlugin({
 		"no-raw-color": noRawColorRule,
 		"no-raw-spacing": noRawSpacingRule,
 		"no-raw-typography": noRawTypographyRule,
+		"no-ui-chrome-props": noUiChromePropsRule,
 	},
 });
 

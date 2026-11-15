@@ -1,6 +1,6 @@
+import { Card, CardContent } from "@tripwire/ui/card";
+import { Skeleton, SkeletonText } from "@tripwire/ui/skeleton";
 import { BrandLockup } from "#/components/auth/brand-lockup";
-import { Card, CardContent } from "#/design-system/ui/card";
-import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 
 export function InstallSetupPageSkeleton() {
 	return (
@@ -10,18 +10,38 @@ export function InstallSetupPageSkeleton() {
 					<BrandLockup />
 				</div>
 				<div className="flex flex-col items-center gap-2">
-					<SkeletonText className="w-64" type="heading" />
-					<SkeletonText className="w-80" type="body" />
+					<span data-skeleton-line="" aria-hidden className="w-64">
+						<SkeletonText type="heading" />
+					</span>
+					<span data-skeleton-line="" aria-hidden className="w-80">
+						<SkeletonText type="body" />
+					</span>
 				</div>
 				<Card>
-					<CardContent className="flex flex-col gap-3">
-						<SkeletonText className="w-48" type="label" />
-						<SkeletonText className="w-40" type="label" />
+					<CardContent data-layout-role="install-setup-skeleton-content">
+						<span data-skeleton-line="" aria-hidden className="w-48">
+							<SkeletonText type="label" />
+						</span>
+						<span data-skeleton-line="" aria-hidden className="w-40">
+							<SkeletonText type="label" />
+						</span>
 					</CardContent>
 				</Card>
 				<div className="flex justify-end gap-2">
-					<Skeleton className="h-(--control) w-40 rounded-pill" />
-					<Skeleton className="h-(--control) w-32 rounded-pill" />
+					<span
+						data-skeleton-box=""
+						aria-hidden
+						className="h-(--control) w-40 rounded-pill"
+					>
+						<Skeleton fill />
+					</span>
+					<span
+						data-skeleton-box=""
+						aria-hidden
+						className="h-(--control) w-32 rounded-pill"
+					>
+						<Skeleton fill />
+					</span>
 				</div>
 			</div>
 		</div>

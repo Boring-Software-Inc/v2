@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { ContributionAppealDecision } from "@tripwire/contracts";
-import { Button } from "#/design-system/ui/button";
+import { AgentBoundary } from "@tripwire/ui/agent-policy";
+import { Button } from "@tripwire/ui/button";
 import {
 	Card,
 	CardAction,
@@ -10,15 +11,15 @@ import {
 	CardFooter,
 	CardHeader,
 	CardTitle,
-} from "#/design-system/ui/card";
+} from "@tripwire/ui/card";
+import { notify } from "@tripwire/ui/toast";
+import { SupportingText } from "@tripwire/ui/typography";
 import {
-	Empty,
-	EmptyDescription,
-	EmptyHeader,
-	EmptyTitle,
-} from "#/design-system/ui/empty-state";
-import { toast } from "#/design-system/ui/toast";
-import { SupportingText } from "#/design-system/ui/typography";
+	EmptyState,
+	EmptyStateDescription,
+	EmptyStateHeader,
+	EmptyStateTitle,
+} from "#/components/common/empty-state";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import {
 	decideContributionAppeal,
@@ -55,12 +56,17 @@ export function ContributionAppealsQueue({
 		}) => decideContributionAppeal({ data: { org, repo, appealId, decision } }),
 		onSuccess: async (result) => {
 			await client.invalidateQueries({ queryKey: options.queryKey });
-			toast(
-				result ? "Appeal resolved" : "This appeal has already been resolved",
-			);
+			notify.show({
+				title: result
+					? "Appeal resolved"
+					: "This appeal has already been resolved",
+			});
 		},
 		onError: () =>
-			toast.fail("Tripwire couldn't resolve the appeal. Try again."),
+			notify.show(
+				{ title: "Tripwire couldn't resolve the appeal. Try again." },
+				"error",
+			),
 	});
 
 	const resolve = useMutation({
@@ -70,12 +76,17 @@ export function ContributionAppealsQueue({
 			await client.invalidateQueries({
 				queryKey: ["contribution-appeals", org],
 			});
-			toast(
-				result ? "Appeal resolved" : "This appeal has already been resolved",
-			);
+			notify.show({
+				title: result
+					? "Appeal resolved"
+					: "This appeal has already been resolved",
+			});
 		},
 		onError: () =>
-			toast.fail("Tripwire couldn't resolve the appeal. Try again."),
+			notify.show(
+				{ title: "Tripwire couldn't resolve the appeal. Try again." },
+				"error",
+			),
 	});
 
 	if (!canRead || query.isPending) return null;
@@ -91,12 +102,7 @@ export function ContributionAppealsQueue({
 						<h2 id="contribution-appeals-heading">Appeals</h2>
 					</CardTitle>
 					<CardAction>
-						<Button
-							nativeButton={false}
-							render={<Link params={{ target: org }} to="/appeals/$target" />}
-							size="sm"
-							variant="primary"
-						>
+						<Button href={`/appeals/${org}`} size="small" variant="primary">
 							Appeal portal
 						</Button>
 					</CardAction>
@@ -105,8 +111,8 @@ export function ContributionAppealsQueue({
 					<CardContent>
 						<SupportingText>Tripwire couldn't load appeals.</SupportingText>
 						<Button
-							onClick={() => void query.refetch()}
-							size="sm"
+							onAction={() => void query.refetch()}
+							size="small"
 							variant="ghost"
 						>
 							Try again
@@ -115,14 +121,14 @@ export function ContributionAppealsQueue({
 				) : !query.data?.contributions.length &&
 					!query.data?.organizationAppeals.length ? (
 					<CardContent>
-						<Empty size="sm" variant="plain">
-							<EmptyHeader>
-								<EmptyTitle>No pending appeals</EmptyTitle>
-								<EmptyDescription>
+						<EmptyState size="sm" variant="plain">
+							<EmptyStateHeader>
+								<EmptyStateTitle>No pending appeals</EmptyStateTitle>
+								<EmptyStateDescription>
 									New contributor appeals will appear here for review.
-								</EmptyDescription>
-							</EmptyHeader>
-						</Empty>
+								</EmptyStateDescription>
+							</EmptyStateHeader>
+						</EmptyState>
 					</CardContent>
 				) : (
 					<CardContent>
@@ -150,33 +156,35 @@ export function ContributionAppealsQueue({
 									</p>
 								</CardContent>
 								{canDecide ? (
-									<CardFooter className="flex-wrap">
-										{decisions
-											.filter(
-												({ value }) =>
-													value !== "approve-author" || canManageRules,
-											)
-											.map(({ value, label }) => (
-												<Button
-													disabled={decide.isPending}
-													key={value}
-													onClick={() =>
-														decide.mutate({
-															appealId: appeal.id,
-															decision: value,
-														})
-													}
-													pending={
-														decide.isPending &&
-														decide.variables?.appealId === appeal.id &&
-														decide.variables.decision === value
-													}
-													size="sm"
-													variant="secondary"
-												>
-													{label}
-												</Button>
-											))}
+									<CardFooter wrap>
+										<AgentBoundary visibility="hidden">
+											{decisions
+												.filter(
+													({ value }) =>
+														value !== "approve-author" || canManageRules,
+												)
+												.map(({ value, label }) => (
+													<Button
+														disabled={decide.isPending}
+														key={value}
+														onAction={() =>
+															decide.mutate({
+																appealId: appeal.id,
+																decision: value,
+															})
+														}
+														pending={
+															decide.isPending &&
+															decide.variables?.appealId === appeal.id &&
+															decide.variables.decision === value
+														}
+														size="small"
+														variant="secondary"
+													>
+														{label}
+													</Button>
+												))}
+										</AgentBoundary>
 									</CardFooter>
 								) : null}
 							</Card>
@@ -202,17 +210,19 @@ export function ContributionAppealsQueue({
 								</CardContent>
 								{canDecide && (
 									<CardFooter>
-										<Button
-											disabled={resolve.isPending}
-											onClick={() => resolve.mutate(appeal.id)}
-											pending={
-												resolve.isPending && resolve.variables === appeal.id
-											}
-											size="sm"
-											variant="secondary"
-										>
-											Mark resolved
-										</Button>
+										<AgentBoundary visibility="hidden">
+											<Button
+												disabled={resolve.isPending}
+												onAction={() => resolve.mutate(appeal.id)}
+												pending={
+													resolve.isPending && resolve.variables === appeal.id
+												}
+												size="small"
+												variant="secondary"
+											>
+												Mark resolved
+											</Button>
+										</AgentBoundary>
 									</CardFooter>
 								)}
 							</Card>

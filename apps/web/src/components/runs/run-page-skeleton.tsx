@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
+import { Skeleton, SkeletonText } from "@tripwire/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { Page, PageBody, PageHeader } from "#/components/layouts/page";
-import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 import { currentUserQueryOptions } from "#/lib/auth.query";
 
 const NODE_SLOTS = [
@@ -16,15 +16,30 @@ function RunSkeletonBody() {
 			<PageHeader
 				actions={
 					<>
-						<Skeleton data-layout-role="run-skeleton-action-small" />
-						<Skeleton data-layout-role="run-skeleton-action-wide" />
+						<span
+							data-skeleton-box=""
+							aria-hidden
+							data-layout-role="run-skeleton-action-small"
+						>
+							<Skeleton fill />
+						</span>
+						<span
+							data-skeleton-box=""
+							aria-hidden
+							data-layout-role="run-skeleton-action-wide"
+						>
+							<Skeleton fill />
+						</span>
 					</>
 				}
 				metadata={
-					<SkeletonText
+					<span
+						data-skeleton-line=""
+						aria-hidden
 						data-layout-role="run-skeleton-metadata"
-						type="body-sm"
-					/>
+					>
+						<SkeletonText type="body-sm" />
+					</span>
 				}
 				title="Run"
 			/>
@@ -33,23 +48,35 @@ function RunSkeletonBody() {
 					{NODE_SLOTS.map((slot, index) => (
 						<li data-layout-role="run-skeleton-node" key={slot.key}>
 							<div data-layout-role="run-skeleton-rail">
-								<Skeleton data-layout-role="run-skeleton-mark" />
+								<span
+									data-skeleton-box=""
+									aria-hidden
+									data-layout-role="run-skeleton-mark"
+								>
+									<Skeleton fill />
+								</span>
 								{index < NODE_SLOTS.length - 1 ? (
 									<span data-layout-role="run-skeleton-connector" />
 								) : null}
 							</div>
 							<div data-layout-role="run-skeleton-content">
-								<SkeletonText
+								<span
+									data-skeleton-line=""
+									aria-hidden
 									data-layout-role="run-skeleton-title"
 									data-layout-size={slot.titleSize}
-									type="body"
-								/>
+								>
+									<SkeletonText type="body" />
+								</span>
 								{slot.detailSize ? (
-									<SkeletonText
+									<span
+										data-skeleton-line=""
+										aria-hidden
 										data-layout-role="run-skeleton-detail"
 										data-layout-size={slot.detailSize}
-										type="body-sm"
-									/>
+									>
+										<SkeletonText type="body-sm" />
+									</span>
 								) : null}
 							</div>
 						</li>

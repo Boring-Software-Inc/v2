@@ -1,15 +1,11 @@
 import { useMatch, useParams } from "@tanstack/react-router";
+import { Button } from "@tripwire/ui/button";
+import { Popover } from "@tripwire/ui/popover";
 import { useState } from "react";
 import { compactStepAction } from "#/components/setup/setup-step-actions";
 import { StepDoneMark } from "#/components/setup/step-done-mark";
 import { useRepoSetup } from "#/components/setup/use-repo-setup";
-import { cn } from "#/design-system/lib/utils";
-import { Button } from "#/design-system/ui/button";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "#/design-system/ui/popover";
+import { cn } from "#/lib/utils";
 
 const RING_RADIUS = 6;
 const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
@@ -62,27 +58,27 @@ export function SetupPill({
 		return null;
 	}
 	return (
-		<Popover onOpenChange={setOpen} open={open}>
-			<PopoverTrigger
-				render={
-					<Button
-						aria-label={`Setup, ${progress.done} of ${progress.total} done`}
-						className={cn(
-							"shrink-0 tabular-nums",
-							appearance === "rail" && "w-full justify-start",
-						)}
-						size="sm"
-						variant="secondary"
-					/>
-				}
-			>
-				<ProgressRing done={progress.done} total={progress.total} />
-				{progress.done} of {progress.total}
-			</PopoverTrigger>
-			<PopoverContent
+		<div
+			className={cn("shrink-0 tabular-nums", appearance === "rail" && "w-full")}
+		>
+			<Popover
 				align="start"
-				className="w-(--popover) max-w-popover p-1"
-				side={appearance === "rail" ? "right" : "bottom"}
+				onOpenChange={setOpen}
+				open={open}
+				placement={appearance === "rail" ? "right" : "bottom"}
+				trigger={
+					<Button
+						ariaLabel={`Setup, ${progress.done} of ${progress.total} done`}
+						leadingIcon={
+							<ProgressRing done={progress.done} total={progress.total} />
+						}
+						size="small"
+						variant="secondary"
+					>
+						{progress.done} of {progress.total}
+					</Button>
+				}
+				triggerLabel={`Setup, ${progress.done} of ${progress.total} done`}
 			>
 				<ol aria-label="Setup steps" className="flex flex-col gap-px">
 					{progress.steps.map((step) => {
@@ -117,7 +113,7 @@ export function SetupPill({
 						);
 					})}
 				</ol>
-			</PopoverContent>
-		</Popover>
+			</Popover>
+		</div>
 	);
 }

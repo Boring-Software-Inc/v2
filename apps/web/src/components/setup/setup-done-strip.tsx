@@ -1,11 +1,11 @@
+import { Button } from "@tripwire/ui/button";
+import { Close, Icon } from "@tripwire/ui/icon";
 import { useState, useSyncExternalStore } from "react";
 import {
 	SetupStepList,
 	SetupStepRow,
 } from "#/components/setup/repo-setup-checklist";
 import { StepDoneMark } from "#/components/setup/step-done-mark";
-import { Close, Icon } from "#/design-system/icon";
-import { Button } from "#/design-system/ui/button";
 import type { RepoSetupProgress } from "#/lib/repo-setup";
 
 const DISMISSED_EVENT = "tripwire:setup-done-dismissed";
@@ -62,23 +62,26 @@ export function SetupDoneStrip({
 		return null;
 	}
 	return (
-		<section aria-label="Setup" className="flex flex-col gap-2">
-			<div className="flex items-center gap-2 rounded-shell bg-shell py-1 ps-4 pe-1">
+		<section
+			aria-label="Setup"
+			className="flex flex-col composition-gap-standard"
+		>
+			<div className="flex items-center composition-gap-standard rounded-shell bg-shell setup-done-strip-inset">
 				<StepDoneMark size={16} />
-				<span className="type-label text-text-1">Setup done</span>
+				<span className="content-label tone-content-primary">Setup done</span>
+				<span className="composition-push-end">
+					<Button
+						onAction={() => setOpen((value) => !value)}
+						size="small"
+						variant="ghost"
+					>
+						{open ? "Hide steps" : "Show steps"}
+					</Button>
+				</span>
 				<Button
-					aria-expanded={open}
-					className="ms-auto"
-					onClick={() => setOpen((value) => !value)}
-					size="sm"
-					variant="ghost"
-				>
-					{open ? "Hide steps" : "Show steps"}
-				</Button>
-				<Button
-					aria-label="Dismiss"
-					onClick={dismiss}
-					size="icon-sm"
+					ariaLabel="Dismiss"
+					onAction={dismiss}
+					size="small"
 					variant="ghost"
 				>
 					<Icon icon={Close} />

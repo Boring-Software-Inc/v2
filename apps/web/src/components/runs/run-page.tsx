@@ -1,7 +1,19 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
+import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { BACKFILL_RUN_LABEL, FORGE_BY_ID } from "@tripwire/contracts";
+import { Button } from "@tripwire/ui/button";
+import { CopyButton } from "@tripwire/ui/copy-button";
+import { Dialog } from "@tripwire/ui/dialog";
+import { GithubMark, Icon, Retry, Workflow } from "@tripwire/ui/icon";
+import { notify } from "@tripwire/ui/toast";
+import { PageTitle } from "@tripwire/ui/typography";
 import { useMemo, useState } from "react";
+import {
+	EmptyState,
+	EmptyStateContent,
+	EmptyStateDescription,
+	EmptyStateHeader,
+} from "#/components/common/empty-state";
 import { ForgeMark } from "#/components/common/forge-marks";
 import {
 	HistoryBackControl,
@@ -14,29 +26,6 @@ import { MascotArt } from "#/components/mascot/mascot-art";
 import { RunChainView, RunStatusMark } from "#/components/runs/run-chain";
 import { RunPageSkeleton } from "#/components/runs/run-page-skeleton";
 import { ZoneOrgScope } from "#/components/timezones/zoned-time";
-import { GithubMark, Icon, Retry, Workflow } from "#/design-system/icon";
-import { Button } from "#/design-system/ui/button";
-import { CopyButton } from "#/design-system/ui/copy-button";
-import {
-	Dialog,
-	DialogAction,
-	DialogBody,
-	DialogClose,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-	DialogTrigger,
-} from "#/design-system/ui/dialog";
-import {
-	Empty,
-	EmptyContent,
-	EmptyDescription,
-	EmptyHeader,
-} from "#/design-system/ui/empty-state";
-import { toast } from "#/design-system/ui/toast";
-import { PageTitle } from "#/design-system/ui/typography";
 import { useActiveScope } from "#/hooks/use-active-scope";
 import {
 	getRerunPreview,
@@ -72,29 +61,25 @@ export function RunPage() {
 	if (!run) {
 		return (
 			<main data-layout-role="run-not-found">
-				<Empty
+				<EmptyState
 					art={<MascotArt mood="run-not-found" />}
 					className="max-w-sm"
+					data-layout-role="public-empty-state"
 					reason="no-results"
 				>
-					<EmptyHeader>
+					<EmptyStateHeader>
 						<PageTitle>Run not found</PageTitle>
-						<EmptyDescription>
+						<EmptyStateDescription>
 							The link may be wrong, or the run is in an org you are not a
 							member of.
-						</EmptyDescription>
-					</EmptyHeader>
-					<EmptyContent>
-						<Button
-							nativeButton={false}
-							render={<Link to="/" />}
-							size="sm"
-							variant="secondary"
-						>
+						</EmptyStateDescription>
+					</EmptyStateHeader>
+					<EmptyStateContent>
+						<Button href="/" size="small" variant="secondary">
 							Go to dashboard
 						</Button>
-					</EmptyContent>
-				</Empty>
+					</EmptyStateContent>
+				</EmptyState>
 			</main>
 		);
 	}
@@ -164,7 +149,6 @@ function RunBody({ run }: { run: RunView }) {
 								<CopyButton
 									label="run as Markdown"
 									showLabel
-									title="Copy run as Markdown"
 									value={() =>
 										runToMarkdown(run, formatRelativeTime(run.createdAt))
 									}
@@ -174,21 +158,11 @@ function RunBody({ run }: { run: RunView }) {
 							{run.access === "full" && orgSlug && repoName
 								? run.workflowEditorLinks?.map(({ id, name }) => (
 										<Button
+											href={`/${encodeURIComponent(orgSlug)}/${encodeURIComponent(repoName)}/workflows/${encodeURIComponent(id)}`}
 											key={id}
-											nativeButton={false}
-											render={
-												<Link
-													params={{
-														org: orgSlug,
-														repo: repoName,
-														workflowId: id,
-													}}
-													to="/$org/$repo/workflows/$workflowId"
-												/>
-											}
+											leadingIcon={<Icon icon={Workflow} />}
 											variant="secondary"
 										>
-											<Icon icon={Workflow} />
 											{name}
 										</Button>
 									))
@@ -240,17 +214,17 @@ function ViewOnForgeButton({ run }: { run: RunView }) {
 	const href = run.subjectUrl;
 	return (
 		<Button
-			nativeButton={false}
-			render={(props) => (
-				<a {...props} href={href} rel="noreferrer" target="_blank" />
-			)}
+			href={href}
+			leadingIcon={
+				run.forge === "github" ? (
+					<Icon icon={GithubMark} />
+				) : (
+					<ForgeMark forge={run.forge} />
+				)
+			}
+			openInNewTab
 			variant="secondary"
 		>
-			{run.forge === "github" ? (
-				<Icon icon={GithubMark} />
-			) : (
-				<ForgeMark forge={run.forge} />
-			)}
 			View on {label}
 		</Button>
 	);
@@ -281,7 +255,7 @@ function RerunRunButton({
 		onSuccess: (result) => {
 			if (result.status === "queued") {
 				setOpen(false);
-				toast("Re-run queued. Opening the new run.");
+				notify.show({ title: "Re-run queued. Opening the new run." });
 				void navigate({
 					params: { runId: result.runId },
 					search: true,
@@ -289,9 +263,9 @@ function RerunRunButton({
 				});
 			} else if (result.status === "cooldown") {
 				setOpen(false);
-				toast(
-					`You can re-run this again in about ${Math.max(1, Math.ceil(result.retryInSeconds / 60))} min`,
-				);
+				notify.show({
+					title: `You can re-run this again in about ${Math.max(1, Math.ceil(result.retryInSeconds / 60))} min`,
+				});
 			} else if (result.status === "no-workflow") {
 				setUnavailable(
 					"Install a rule or turn on a workflow before running checks.",
@@ -305,7 +279,10 @@ function RerunRunButton({
 			}
 		},
 		onError: () => {
-			toast.fail("Tripwire could not start the re-run. Try again.");
+			notify.show(
+				{ title: "Tripwire could not start the re-run. Try again." },
+				"error",
+			);
 		},
 	});
 
@@ -317,6 +294,17 @@ function RerunRunButton({
 
 	return (
 		<Dialog
+			action={
+				unavailable || number == null
+					? undefined
+					: {
+							label: "Re-run rules",
+							onAction: () =>
+								mutation.mutateAsync({ data: { org, repo, number } }),
+							pendingLabel: "Queueing",
+						}
+			}
+			description={subtitle}
 			onOpenChange={(next) => {
 				setOpen(next);
 				if (!next) {
@@ -324,35 +312,14 @@ function RerunRunButton({
 				}
 			}}
 			open={open}
+			title={number != null ? `Re-run rules on #${number}?` : "Re-run rules?"}
+			trigger={
+				<Button leadingIcon={<Icon icon={Retry} />} variant="secondary">
+					Re-run rules
+				</Button>
+			}
 		>
-			<DialogTrigger render={<Button variant="secondary" />}>
-				<Icon icon={Retry} />
-				Re-run rules
-			</DialogTrigger>
-			<DialogContent>
-				<DialogHeader>
-					<DialogTitle>
-						{number != null ? `Re-run rules on #${number}?` : "Re-run rules?"}
-					</DialogTitle>
-					<DialogDescription className="truncate">{subtitle}</DialogDescription>
-				</DialogHeader>
-				<DialogBody>
-					<p className="type-body-sm text-text-2">{rulesCopy}</p>
-				</DialogBody>
-				<DialogFooter>
-					<DialogClose>Cancel</DialogClose>
-					{unavailable || number == null ? null : (
-						<DialogAction
-							close={false}
-							onClick={() => mutation.mutate({ data: { org, repo, number } })}
-							pending={mutation.isPending}
-							pendingLabel="Queueing"
-						>
-							Re-run rules
-						</DialogAction>
-					)}
-				</DialogFooter>
-			</DialogContent>
+			<p className="content-body-small tone-content-secondary">{rulesCopy}</p>
 		</Dialog>
 	);
 }

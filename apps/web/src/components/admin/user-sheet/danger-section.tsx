@@ -1,4 +1,13 @@
 import { BAN_REASON_MAX } from "@tripwire/contracts";
+import { Button } from "@tripwire/ui/button";
+import {
+	Field,
+	FieldError,
+	FieldLabel,
+	Input,
+	Textarea,
+} from "@tripwire/ui/field";
+import { Body, Subheading, SupportingText } from "@tripwire/ui/typography";
 import { useState } from "react";
 import { formatStaffDate } from "#/components/admin/user-sheet/format";
 import { SheetSectionBlock } from "#/components/admin/user-sheet/sheet-parts";
@@ -7,15 +16,6 @@ import {
 	useStaffAction,
 } from "#/components/admin/user-sheet/use-staff-action";
 import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
-import { Button } from "#/design-system/ui/button";
-import { Field, FieldError, FieldLabel } from "#/design-system/ui/field";
-import { Input } from "#/design-system/ui/input";
-import { Textarea } from "#/design-system/ui/textarea";
-import {
-	Body,
-	Subheading,
-	SupportingText,
-} from "#/design-system/ui/typography";
 import {
 	type AdminUserView,
 	banAdminUser,
@@ -71,7 +71,8 @@ function BanForm({
 				<Field invalid={error !== null}>
 					<FieldLabel>Reason</FieldLabel>
 					<Textarea
-						limit={BAN_REASON_MAX}
+						labelledByField
+						maxLength={BAN_REASON_MAX}
 						onValueChange={setReason}
 						rows={3}
 						value={reason}
@@ -79,25 +80,37 @@ function BanForm({
 					{error ? <FieldError>{error}</FieldError> : null}
 				</Field>
 				<Field>
-					<FieldLabel optional>Ends</FieldLabel>
-					<Input
-						data-layout-role="user-sheet-date-input"
-						onValueChange={setEndsAt}
-						type="date"
-						value={endsAt}
-					/>
+					<FieldLabel>Ends (optional)</FieldLabel>
+					<div data-layout-role="user-sheet-date-input">
+						<Input
+							labelledByField
+							onValueChange={setEndsAt}
+							type="date"
+							value={endsAt}
+						/>
+					</div>
 				</Field>
 			</div>
 			<div className="shell-foot" data-layout-role="user-sheet-ban-actions">
-				<Button onClick={onClose} size="sm" type="button" variant="secondary">
+				<Button
+					onAction={onClose}
+					size="small"
+					type="button"
+					variant="secondary"
+				>
 					Cancel
 				</Button>
 				<Button
-					confirmation={false}
+					confirmation={{
+						confirmLabel: "Ban and sign out",
+						description: `This bans ${user.name} and ends every active session.`,
+						title: `Ban ${user.name}?`,
+					}}
+					onAction={submit}
 					pending={ban.isPending}
 					pendingLabel="Banning"
-					size="sm"
-					type="submit"
+					size="small"
+					type="button"
 					variant="destructive"
 				>
 					Ban and sign out
@@ -131,7 +144,7 @@ export function DeleteUserDialog({
 	});
 	return (
 		<ConfirmDeleteDialog
-			actionLabel="Delete account"
+			confirmLabel="Delete account"
 			confirmText={confirmText}
 			description="This also deletes their personal org."
 			onConfirm={async () => {
@@ -184,8 +197,8 @@ export function DangerSection({
 						</div>
 						<Button
 							disabled={unban.isPending}
-							onClick={() => unban.mutate()}
-							size="sm"
+							onAction={() => unban.mutate()}
+							size="small"
 							variant="secondary"
 						>
 							Unban
@@ -199,12 +212,11 @@ export function DangerSection({
 					<div data-layout-role="user-sheet-danger-row">
 						<Body as="span">Ban from Tripwire</Body>
 						<Button
-							confirmation={false}
 							data-state-tone="danger"
 							disabled={protectedUser}
-							onClick={() => onBanOpenChange(true)}
-							size="sm"
-							variant="destructive"
+							onAction={() => onBanOpenChange(true)}
+							size="small"
+							variant="secondary"
 						>
 							Ban
 						</Button>
@@ -213,12 +225,11 @@ export function DangerSection({
 				<div data-layout-role="user-sheet-danger-row">
 					<Body as="span">Delete account</Body>
 					<Button
-						confirmation={false}
 						data-state-tone="danger"
 						disabled={protectedUser}
-						onClick={onDelete}
-						size="sm"
-						variant="destructive"
+						onAction={onDelete}
+						size="small"
+						variant="secondary"
 					>
 						Delete account
 					</Button>

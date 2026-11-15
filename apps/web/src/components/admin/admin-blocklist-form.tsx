@@ -1,12 +1,13 @@
 import { useMutation } from "@tanstack/react-query";
 import { SHARED_BLOCKLIST_REPOSITORY } from "@tripwire/contracts";
+import { Button } from "@tripwire/ui/button";
+import { Field, FieldLabel, Textarea } from "@tripwire/ui/field";
+import { Body } from "@tripwire/ui/typography";
 import {
 	Section,
 	SectionBody,
 	SectionHeader,
 } from "#/components/layouts/section";
-import { Button } from "#/design-system/ui/button";
-import { Body } from "#/design-system/ui/typography";
 import { addSharedBlocklistAccount } from "#/lib/admin.functions";
 
 const FAILURES = {
@@ -54,16 +55,16 @@ export function AdminBlocklistForm() {
 							required
 						/>
 					</label>
-					<label data-layout-role="admin-blocklist-field">
-						Public reason
-						<textarea
+					<Field>
+						<FieldLabel>Public reason</FieldLabel>
+						<Textarea
+							labelledByField
 							name="reason"
-							className="field"
 							rows={3}
 							maxLength={300}
 							required
 						/>
-					</label>
+					</Field>
 					<label data-layout-role="admin-blocklist-field">
 						Expiry date (optional, midnight UTC)
 						<input className="field" type="date" name="expiry" />
@@ -84,7 +85,7 @@ export function AdminBlocklistForm() {
 							<Button
 								type="reset"
 								variant="secondary"
-								onClick={() => addition.reset()}
+								onAction={() => addition.reset()}
 							>
 								Add another
 							</Button>

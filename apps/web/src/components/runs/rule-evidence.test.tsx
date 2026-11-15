@@ -87,7 +87,7 @@ describe("RuleEvidence", () => {
 		const triggers: { tag: string; expanded: string | null }[] = [];
 		await new HTMLRewriter()
 			.on(
-				'[data-layout-role="rule-evidence"] > [data-slot="collapsible-content"]',
+				'[data-layout-role="rule-evidence"] > [data-slot="collapsible"] > [data-slot="collapsible-panel"]',
 				{
 					element(element) {
 						panels.push({
@@ -98,7 +98,7 @@ describe("RuleEvidence", () => {
 				},
 			)
 			.on(
-				'[data-layout-role="rule-evidence"] > [data-slot="collapsible-trigger"]',
+				'[data-layout-role="rule-evidence"] > [data-slot="collapsible"] > [data-slot="collapsible-summary"] > [data-slot="collapsible-trigger"]',
 				{
 					element(element) {
 						triggers.push({
@@ -117,7 +117,7 @@ describe("RuleEvidence", () => {
 	test("trace-only evidence is absent publicly, retained for maintainers", () => {
 		expect(renderEvidence("ai-review@2", { output: null, trace })).toBe("");
 		const html = renderEvidence("ai-review@2", { output: null, trace }, true);
-		expect(html).toContain(">Trace</span>");
+		expect(html).toContain(">Trace</button>");
 		expect(html).toContain("PRIVATE_TRACE_CANARY");
 		expect(html).not.toContain("finding</span>");
 	});
@@ -143,7 +143,7 @@ describe("RuleEvidence", () => {
 			{ output: { findings: "bad" }, trace },
 			true,
 		);
-		expect(withTrace).toContain(">Trace</span>");
+		expect(withTrace).toContain(">Trace</button>");
 		expect(withTrace).toContain("PRIVATE_TRACE_CANARY");
 		const withFindings = renderEvidence("ai-review@2", {
 			output,

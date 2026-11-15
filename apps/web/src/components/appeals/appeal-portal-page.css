@@ -1,0 +1,17 @@
+[data-layout-role="appeal-portal-sign-in"] {
+	border: var(--line-width) solid var(--line-faint);
+	background: var(--shell);
+}
+
+[data-layout-role="appeal-portal-identity"] > [role="img"] {
+	border-radius: var(--radius-tag);
+}
+
+[data-layout-role="appeal-portal-identity"] > [role="img"]::after {
+	position: absolute;
+	inset: 0;
+	border: var(--line-width) solid var(--line);
+	border-radius: inherit;
+	pointer-events: none;
+	content: "";
+}

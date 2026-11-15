@@ -157,6 +157,24 @@ describe("ShellNav review count", () => {
 		expect(html).toContain('aria-label="Rules"');
 		expect(html).not.toContain("to review</span>");
 	});
+
+	test("expanded and collapsed links share the same owned icon slot", async () => {
+		const expanded = await renderNav(undefined, ["activity:read"]);
+		const collapsed = await renderNav(
+			undefined,
+			["activity:read"],
+			undefined,
+			true,
+		);
+		expect(expanded).toContain('data-layout-role="sidebar-nav-icon-plate"');
+		expect(expanded).toContain('data-layout-role="sidebar-nav-icon"');
+		expect(expanded).toContain('class="relative flex');
+		expect(collapsed).toContain(
+			'data-collapsed="true" data-layout-role="sidebar-nav-icon-plate"',
+		);
+		expect(collapsed).toContain('data-layout-role="sidebar-nav-icon"');
+		expect(collapsed).toContain("items-center");
+	});
 });
 
 describe("ShellNav run navigation", () => {

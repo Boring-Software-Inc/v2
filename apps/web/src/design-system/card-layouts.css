@@ -1,0 +1,267 @@
+[data-entity-card] {
+	display: flex;
+	block-size: 100%;
+	flex-direction: column;
+}
+
+[data-entity-card] > [data-slot="card-panel"],
+[data-entity-card] > [data-slot="card-panel"] > [data-slot="card-content"],
+[data-entity-card][data-footer-layout="workflow"] [data-slot="card-meta"] {
+	flex: 1;
+}
+
+[data-entity-card] [data-slot="card-action"] {
+	gap: var(--space-3);
+}
+
+[data-layout-role="entity-card-skeleton"] {
+	block-size: 100%;
+}
+
+[data-layout-role="arm-callout-title"] {
+	font: var(--type-heading);
+	letter-spacing: var(--tracking-heading);
+}
+
+[data-layout-role="digest-repo-link"] {
+	display: inline-flex;
+	min-inline-size: 0;
+	align-items: flex-start;
+	gap: var(--space-1-5);
+}
+
+[data-layout-role="digest-counts-content"] {
+	padding: var(--space-1);
+}
+
+[data-layout-role="digest-caught-meta"] {
+	flex-basis: 100%;
+}
+
+[data-layout-role="agent-setup-content"],
+[data-layout-role="no-orgs-skeleton-content"] {
+	gap: var(--space-4);
+}
+
+[data-layout-role="rules-view-control"] {
+	align-self: start;
+	max-inline-size: 100%;
+}
+
+[data-layout-role="rules-view-control"] [data-slot="radio-label"] {
+	border: var(--line-width) solid transparent;
+	font: var(--type-label);
+	letter-spacing: var(--tracking-label);
+}
+
+[data-layout-role="rules-view-control"] [data-slot="segmented-count"] {
+	color: inherit;
+	font: inherit;
+	opacity: 0.7;
+}
+
+[data-layout-role="rule-card-frame"],
+[data-layout-role="rule-stats-frame"],
+[data-layout-role="rule-library-frame"] {
+	border: var(--line-width) solid var(--line-faint);
+	background-color: var(--shell);
+}
+
+[data-layout-role="rule-card-panel"],
+[data-layout-role="rule-stats-frame"] > [data-slot="card-panel"],
+[data-layout-role="rule-library-frame"] > [data-slot="card-panel"] {
+	border: var(--line-width) solid var(--line-faint);
+}
+
+[data-layout-role="rule-stats-footer"],
+[data-layout-role="rule-card-footer"] {
+	font: var(--type-caption);
+	color: var(--text-2);
+}
+
+[data-layout-role="rule-stats-footer"] {
+	min-block-size: calc(
+		var(--control-sm) +
+		2 *
+		var(--shell-foot-inset) -
+		var(--shell-inset)
+	);
+	justify-content: flex-start;
+	padding-block: var(--shell-foot-inset)
+		calc(var(--shell-foot-inset) - var(--shell-inset));
+	padding-inline: calc(var(--space-3) + var(--line-width))
+		calc(var(--shell-foot-inset) - var(--shell-inset));
+}
+
+[data-layout-role="rule-card-footer"] {
+	padding-inline-start: calc(var(--space-3) + var(--line-width));
+}
+
+[data-layout-role="rule-card-frame"] {
+	display: flex;
+	flex-direction: column;
+	block-size: 100%;
+	min-block-size: calc(var(--space-6) * 6);
+	transition:
+		translate var(--dur-state) var(--ease-out),
+		border-color var(--dur-state) var(--ease-out);
+}
+
+[data-layout-role="rule-card-frame"][data-queued] {
+	border-color: var(--line-strong);
+	translate: 0 calc(-1 * var(--space-1));
+}
+
+[data-layout-role="rule-card-panel"] {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: var(--space-1-5);
+	overflow: visible;
+	padding: calc(var(--space-2) + var(--space-0-5)) var(--space-3);
+}
+
+[data-layout-role="rule-card-footer"] {
+	min-block-size: 0;
+	justify-content: space-between;
+	padding-block: var(--space-2) var(--space-1-5);
+	padding-inline-end: calc(var(--space-3) + var(--line-width));
+}
+
+[data-layout-role="rule-header-stats"] {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+[data-slot="sparkline"][data-layout-role="rule-activity-trend"] {
+	flex-shrink: 0;
+	inline-size: calc(2 * var(--space-8));
+	color: var(--text-3);
+}
+
+[data-layout-role="rule-header-stats"]
+	[data-layout-role="rule-activity-trend"] {
+	inline-size: calc(2 * var(--space-10));
+	transition: color var(--dur-state) var(--ease-out);
+}
+
+[data-layout-role="rule-header-stats"]
+	> :is(:hover, :focus-within)
+	> *
+	> [data-layout-role="rule-activity-trend"] {
+	color: var(--text-1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	[data-layout-role="rule-header-stats"]
+		[data-layout-role="rule-activity-trend"] {
+		transition: none;
+	}
+}
+
+[data-layout-role="rule-header-stats"] > :not(:last-child) {
+	border-inline-end: var(--line-width) solid var(--line-faint);
+}
+
+[data-layout-role="run-parallel-branch"]
+	> [data-layout-role="run-branch-card"] {
+	inline-size: 100%;
+}
+
+[data-layout-role="run-branch-title"] {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+[data-layout-role="run-branch-outcome"] {
+	justify-content: flex-start;
+}
+
+@media (width >= 40rem) {
+	[data-layout-role="digest-caught-meta"] {
+		flex-basis: auto;
+	}
+}
+
+@media (width < 40rem) {
+	[data-layout-role="rule-card-frame"] {
+		border-color: var(--line);
+		background-color: var(--paper);
+		padding: 0;
+	}
+
+	[data-layout-role="rule-card-panel"] {
+		border: 0;
+		border-radius: var(--radius-shell);
+		background: transparent;
+		padding: calc(var(--space-3) + var(--space-0-5)) var(--space-4)
+			var(--space-1-5);
+	}
+
+	[data-layout-role="rule-card-footer"] {
+		margin-block-start: var(--space-1-5);
+		margin-inline: var(--space-4);
+		border-block-start: var(--line-width) solid var(--line-faint);
+		padding-block: calc(var(--space-2) + var(--space-0-5)) var(--space-3);
+		padding-inline: 0;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	[data-layout-role="rule-card-frame"][data-queued] {
+		translate: none;
+	}
+}
+
+:is(
+		[data-feedback-name="ModerationQueue"],
+		#contribution-appeals [data-slot="card"]
+	) {
+	border: var(--line-width) solid var(--tw-boundary-subtle);
+	background-color: var(--shell);
+}
+
+:is(
+		[data-feedback-name="ModerationQueue"],
+		#contribution-appeals [data-slot="card"]
+	)
+	> [data-slot="card-panel"] {
+	overflow: clip;
+}
+
+[data-feedback-name="ModerationQueue"] [data-slot="card-content"][data-flush] {
+	border-block-start: var(--line-width) solid var(--tw-boundary-subtle);
+}
+
+#contribution-appeals
+	[data-slot="card-header"]
+	> :is([data-slot="card-title"], [data-slot="card-description"]) {
+	grid-column: 1;
+	min-inline-size: 0;
+	overflow-wrap: anywhere;
+}
+
+#contribution-appeals [data-slot="card-action"] {
+	grid-column: 2;
+	grid-row: 1 / span 2;
+	align-self: start;
+	margin-block: calc(-1 * var(--space-1));
+}
+
+#contribution-appeals [data-slot="card-header"] + [data-slot="card-content"] {
+	padding-block-start: 0;
+}
+
+#contribution-appeals [data-slot="card-footer"] {
+	min-block-size: calc(
+		var(--control-sm) +
+		2 *
+		var(--shell-foot-inset) -
+		var(--shell-inset)
+	);
+	padding-block: var(--shell-foot-inset)
+		calc(var(--shell-foot-inset) - var(--shell-inset));
+	padding-inline: calc(var(--space-3) + var(--line-width))
+		calc(var(--shell-foot-inset) - var(--shell-inset));
+}

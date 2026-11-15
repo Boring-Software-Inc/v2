@@ -1,21 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
-import { type ReactNode, useState } from "react";
-import { OrgAvatar } from "#/components/organizations/org-avatar";
-import { External, Icon } from "#/design-system/icon";
-import { Button, buttonVariants } from "#/design-system/ui/button";
-import {
-	Dialog,
-	DialogAction,
-	DialogBody,
-	DialogClose,
-	DialogConfirmField,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/design-system/ui/dialog";
+import { Button } from "@tripwire/ui/button";
+import { DestructiveDialog, Dialog } from "@tripwire/ui/dialog";
+import { External, Icon } from "@tripwire/ui/icon";
 import {
 	Item,
 	ItemActions,
@@ -24,9 +10,9 @@ import {
 	ItemGroup,
 	ItemMedia,
 	ItemTitle,
-} from "#/design-system/ui/item";
-import { SkeletonSwap, SkeletonText } from "#/design-system/ui/skeleton";
-import { Status, type StatusValue } from "#/design-system/ui/status";
+} from "@tripwire/ui/item";
+import { SkeletonSwap, SkeletonText } from "@tripwire/ui/skeleton";
+import { Status, type StatusValue } from "@tripwire/ui/status";
 import {
 	Step,
 	StepIndicator,
@@ -35,7 +21,9 @@ import {
 	StepText,
 	StepTitle,
 	StepTrigger,
-} from "#/design-system/ui/steps";
+} from "@tripwire/ui/steps";
+import { type ReactNode, useState } from "react";
+import { OrgAvatar } from "#/components/organizations/org-avatar";
 import {
 	type AccountDeletionView,
 	deleteMyAccount,
@@ -77,13 +65,18 @@ async function signOutToLogin() {
 	window.location.assign("/login");
 }
 
+interface DeletionDialogStateProps {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	finalFocus: () => HTMLElement | null;
+}
+
 export function DeleteAccountDialog({
+	finalFocus,
 	open,
 	onOpenChange,
 	onLeave,
-}: {
-	open: boolean;
-	onOpenChange: (open: boolean) => void;
+}: DeletionDialogStateProps & {
 	onLeave: () => void;
 }) {
 	const { data: plan, isFetching } = useQuery({
@@ -98,68 +91,64 @@ export function DeleteAccountDialog({
 			})
 		: [];
 	const [frozenSteps, setFrozenSteps] = useState<DeletionStep[] | null>(null);
-	const flow = frozenSteps ?? steps;
-	const step = flow[Math.min(stepIndex, flow.length - 1)];
-
-	const setOpen = (next: boolean) => {
-		onOpenChange(next);
-		if (!next) {
+	const [previousOpen, setPreviousOpen] = useState(open);
+	if (previousOpen !== open) {
+		setPreviousOpen(open);
+		if (open) {
 			setStepIndex(0);
 			setFrozenSteps(null);
 		}
-	};
+	}
+	const flow = frozenSteps ?? steps;
+	const step = flow[Math.min(stepIndex, flow.length - 1)];
+
 	const next = () => {
 		setFrozenSteps(flow);
 		setStepIndex((index) => Math.min(index + 1, flow.length - 1));
 	};
 	const leave = () => {
-		setOpen(false);
+		onOpenChange(false);
 		onLeave();
 	};
+	const dialog = { finalFocus, open, onOpenChange };
+	if (plan && step === "confirm") {
+		return (
+			<ConfirmStep
+				onBack={() => setStepIndex((index) => Math.max(index - 1, 0))}
+				{...dialog}
+				plan={plan}
+				progress={<DeletionProgress flow={flow} stepIndex={stepIndex} />}
+			/>
+		);
+	}
 
+	if (!plan || !step || (isFetching && !frozenSteps)) {
+		return <DeletionSkeleton {...dialog} />;
+	}
 	return (
-		<Dialog
-			confirmText={step === "confirm" ? plan?.confirmText : undefined}
-			onOpenChange={setOpen}
-			open={open}
-			role="alertdialog"
-		>
-			<DialogContent size="sm">
-				<SkeletonSwap
-					fallback={<DeletionSkeleton />}
-					label="Checking your account"
-					loading={!plan || (isFetching && !frozenSteps)}
-				>
-					{plan && step ? (
-						<DeletionStepView
-							flow={flow}
-							onBack={() => setStepIndex((index) => Math.max(index - 1, 0))}
-							onLeave={leave}
-							onNext={next}
-							plan={plan}
-							step={step}
-							stepIndex={stepIndex}
-						/>
-					) : null}
-				</SkeletonSwap>
-			</DialogContent>
-		</Dialog>
+		<DeletionStepView
+			flow={flow}
+			onLeave={leave}
+			onNext={next}
+			{...dialog}
+			plan={plan}
+			step={step}
+			stepIndex={stepIndex}
+		/>
 	);
 }
 
-function DeletionSkeleton() {
+function DeletionSkeleton(dialog: DeletionDialogStateProps) {
 	return (
-		<>
-			<DialogHeader>
-				<DialogTitle>Delete account</DialogTitle>
-			</DialogHeader>
-			<DialogBody>
-				<SkeletonText lines={3} type="body-sm" />
-			</DialogBody>
-			<DialogFooter>
-				<DialogClose>Cancel</DialogClose>
-			</DialogFooter>
-		</>
+		<Dialog {...dialog} title="Delete account">
+			<SkeletonSwap
+				fallback={<SkeletonText lines={3} type="body-sm" />}
+				label="Checking your account"
+				loading
+			>
+				<span />
+			</SkeletonSwap>
+		</Dialog>
 	);
 }
 
@@ -176,8 +165,8 @@ function DeletionProgress({
 	return (
 		<Steps
 			aria-label="Delete account steps"
-			className="pb-2"
-			size="sm"
+			data-layout-role="account-deletion-progress"
+			size="small"
 			value={stepIndex + 1}
 		>
 			{shown.map((entry, index) => (
@@ -201,86 +190,94 @@ function DeletionStepView({
 	flow,
 	stepIndex,
 	onNext,
-	onBack,
 	onLeave,
-}: {
+	...dialog
+}: DeletionDialogStateProps & {
 	plan: AccountDeletionView;
 	step: DeletionStep;
 	flow: DeletionStep[];
 	stepIndex: number;
 	onNext: () => void;
-	onBack: () => void;
 	onLeave: () => void;
 }) {
 	if (step === "blocked") {
-		return <BlockedStep onLeave={onLeave} plan={plan} />;
+		return <BlockedStep onLeave={onLeave} {...dialog} plan={plan} />;
 	}
 	const progress = <DeletionProgress flow={flow} stepIndex={stepIndex} />;
 	if (step === "repos") {
-		return <ReposStep onNext={onNext} plan={plan} progress={progress} />;
+		return (
+			<ReposStep onNext={onNext} {...dialog} plan={plan} progress={progress} />
+		);
 	}
 	if (step === "checks") {
-		return <ChecksStep onNext={onNext} plan={plan} progress={progress} />;
+		return (
+			<ChecksStep onNext={onNext} {...dialog} plan={plan} progress={progress} />
+		);
 	}
-	return <ConfirmStep onBack={onBack} plan={plan} progress={progress} />;
+	return null;
 }
 
 function BlockedStep({
 	plan,
 	onLeave,
-}: {
+	...dialog
+}: DeletionDialogStateProps & {
 	plan: AccountDeletionView;
 	onLeave: () => void;
 }) {
 	return (
-		<>
-			<DialogHeader>
-				<DialogTitle>You can't delete your account yet</DialogTitle>
-				<DialogDescription>
+		<Dialog
+			cancelLabel="Close"
+			description={
+				<>
 					You are the only admin of{" "}
 					{plan.soleAdminOrgs.length === 1 ? "this org" : "these orgs"}. Add
 					another admin or delete the org first.
-				</DialogDescription>
-			</DialogHeader>
-			<DialogBody>
-				<ItemGroup aria-label="Orgs you are the only admin of" variant="plain">
-					{plan.soleAdminOrgs.map((org) => (
-						<Item key={org.orgId}>
-							<ItemMedia>
-								<OrgAvatar hue={org.avatarHue} name={org.name} />
-							</ItemMedia>
-							<ItemContent>
-								<ItemTitle>{org.name}</ItemTitle>
-								<ItemDescription>
-									{plural(org.members, "member", "members")}
-								</ItemDescription>
-							</ItemContent>
-							<ItemActions>
-								<Link
-									className={buttonVariants({ variant: "ghost", size: "sm" })}
-									onClick={onLeave}
-									params={{ org: org.slug }}
-									to="/$org/settings/members"
-								>
-									Members
-								</Link>
-								<Link
-									className={buttonVariants({ variant: "ghost", size: "sm" })}
-									onClick={onLeave}
-									params={{ org: org.slug }}
-									to="/$org/settings/general"
-								>
-									Delete org
-								</Link>
-							</ItemActions>
-						</Item>
-					))}
-				</ItemGroup>
-			</DialogBody>
-			<DialogFooter>
-				<DialogClose>Close</DialogClose>
-			</DialogFooter>
-		</>
+				</>
+			}
+			{...dialog}
+			title="You can't delete your account yet"
+		>
+			<ItemGroup aria-label="Orgs you are the only admin of" variant="plain">
+				{plan.soleAdminOrgs.map((org) => (
+					<Item key={org.orgId}>
+						<ItemMedia>
+							<OrgAvatar hue={org.avatarHue} name={org.name} />
+						</ItemMedia>
+						<ItemContent>
+							<ItemTitle>{org.name}</ItemTitle>
+							<ItemDescription>
+								{plural(org.members, "member", "members")}
+							</ItemDescription>
+						</ItemContent>
+						<ItemActions>
+							<Button
+								href={`/${org.slug}/settings/members`}
+								onNavigate={(href) => {
+									onLeave();
+									window.location.assign(href);
+								}}
+								size="small"
+								variant="ghost"
+							>
+								Members
+							</Button>
+							<Button
+								href={`/${org.slug}/settings/general`}
+								onNavigate={(href) => {
+									onLeave();
+									window.location.assign(href);
+								}}
+								size="small"
+								variant="ghost"
+							>
+								Delete org
+							</Button>
+						</ItemActions>
+					</Item>
+				))}
+			</ItemGroup>
+		</Dialog>
 	);
 }
 
@@ -288,7 +285,8 @@ function ReposStep({
 	plan,
 	progress,
 	onNext,
-}: {
+	...dialog
+}: DeletionDialogStateProps & {
 	plan: AccountDeletionView;
 	progress: ReactNode;
 	onNext: () => void;
@@ -319,65 +317,61 @@ function ReposStep({
 	};
 
 	return (
-		<>
-			<DialogHeader>
-				{progress}
-				<DialogTitle>Turn off Tripwire</DialogTitle>
-				<DialogDescription>
+		<Dialog
+			action={{
+				disabled: remaining.length > 0 || running,
+				dismissOnSuccess: false,
+				label: "Continue",
+				onAction: onNext,
+			}}
+			description={
+				<>
 					Nobody else can turn Tripwire off on{" "}
 					{plan.onRepos.length === 1 ? "this repo" : "these repos"}.
-				</DialogDescription>
-			</DialogHeader>
-			<DialogBody>
-				<div className="flex flex-col gap-3">
-					<ItemGroup aria-label="Repos with Tripwire on" variant="plain">
-						{plan.onRepos.map((repo) => {
-							const state = REPO_STATUS[stateOf(repo.id)];
-							return (
-								<Item key={repo.id} size="sm">
-									<ItemContent>
-										<ItemTitle className="type-code-sm">
-											{repo.fullName}
-										</ItemTitle>
-										<ItemDescription>{repo.orgName}</ItemDescription>
-									</ItemContent>
-									<Status live size="sm" status={state.status}>
-										{state.label}
-									</Status>
-								</Item>
-							);
-						})}
-					</ItemGroup>
-					{remaining.length > 0 ? (
-						<div>
-							<Button
-								onClick={turnOffAll}
-								pending={running}
-								pendingLabel={`Turning off ${done + 1} of ${plan.onRepos.length}`}
-								size="sm"
-								variant="secondary"
-							>
-								{failed
-									? "Try the rest again"
-									: plan.onRepos.length === 1
-										? "Turn off Tripwire on this repo"
-										: "Turn off Tripwire on all of these"}
-							</Button>
-						</div>
-					) : null}
-				</div>
-			</DialogBody>
-			<DialogFooter>
-				<DialogClose>Cancel</DialogClose>
-				<DialogAction
-					close={false}
-					disabled={remaining.length > 0 || running}
-					onClick={onNext}
-				>
-					Continue
-				</DialogAction>
-			</DialogFooter>
-		</>
+				</>
+			}
+			headerLeading={progress}
+			{...dialog}
+			title="Turn off Tripwire"
+		>
+			<div className="flex flex-col composition-gap-section">
+				<ItemGroup aria-label="Repos with Tripwire on" variant="plain">
+					{plan.onRepos.map((repo) => {
+						const state = REPO_STATUS[stateOf(repo.id)];
+						return (
+							<Item key={repo.id} density="compact">
+								<ItemContent>
+									<ItemTitle data-layout-role="account-deletion-repo">
+										{repo.fullName}
+									</ItemTitle>
+									<ItemDescription>{repo.orgName}</ItemDescription>
+								</ItemContent>
+								<Status live size="small" status={state.status}>
+									{state.label}
+								</Status>
+							</Item>
+						);
+					})}
+				</ItemGroup>
+				{remaining.length > 0 ? (
+					<div>
+						<Button
+							onAction={turnOffAll}
+							pending={running}
+							pendingLabel={`Turning off ${done + 1} of ${plan.onRepos.length}`}
+							size="small"
+							variant="secondary"
+						>
+							{failed
+								? "Try the rest again"
+								: plan.onRepos.length === 1
+									? "Turn off Tripwire on this repo"
+									: "Turn off Tripwire on all of these"}
+						</Button>
+					</div>
+				) : null}
+			</div>
+		</Dialog>
 	);
 }
 
@@ -385,111 +379,105 @@ function ChecksStep({
 	plan,
 	progress,
 	onNext,
-}: {
+	...dialog
+}: DeletionDialogStateProps & {
 	plan: AccountDeletionView;
 	progress: ReactNode;
 	onNext: () => void;
 }) {
 	return (
-		<>
-			<DialogHeader>
-				{progress}
-				<DialogTitle>Before you go</DialogTitle>
-				<DialogDescription>
-					What changes when your account goes.
-				</DialogDescription>
-			</DialogHeader>
-			<DialogBody>
-				<ItemGroup aria-label="Checks" variant="plain">
-					{plan.freshSession ? null : (
-						<Item>
-							<ItemContent>
-								<ItemTitle>Sign in again first</ItemTitle>
-								<ItemDescription>
-									You signed in more than a day ago.
-								</ItemDescription>
-							</ItemContent>
-							<ItemActions>
-								<Button onClick={signOutToLogin} size="sm" variant="secondary">
-									Sign in again
-								</Button>
-							</ItemActions>
-						</Item>
-					)}
-					{plan.installations.map((install) => {
-						const url = installationSettingsUrl(install);
-						return (
-							<Item key={install.installationId}>
-								<ItemContent>
-									<ItemTitle>
-										Tripwire app on {install.accountLogin ?? "your account"}
-									</ItemTitle>
-									<ItemDescription>
-										It stays installed until you uninstall it there.
-									</ItemDescription>
-								</ItemContent>
-								{url ? (
-									<ItemActions>
-										<a
-											className={buttonVariants({
-												variant: "secondary",
-												size: "sm",
-											})}
-											href={url}
-											rel="noreferrer"
-											target="_blank"
-										>
-											Uninstall on GitHub
-											<Icon icon={External} size={12} />
-										</a>
-									</ItemActions>
-								) : null}
-							</Item>
-						);
-					})}
-					{plan.pendingReviews > 0 && plan.personalOrg ? (
-						<Item>
+		<Dialog
+			action={{
+				disabled: !plan.freshSession,
+				dismissOnSuccess: false,
+				label: "Continue",
+				onAction: onNext,
+			}}
+			description="What changes when your account goes."
+			headerLeading={progress}
+			{...dialog}
+			title="Before you go"
+		>
+			<ItemGroup aria-label="Checks" variant="plain">
+				{plan.freshSession ? null : (
+					<Item>
+						<ItemContent>
+							<ItemTitle>Sign in again first</ItemTitle>
+							<ItemDescription>
+								You signed in more than a day ago.
+							</ItemDescription>
+						</ItemContent>
+						<ItemActions>
+							<Button
+								onAction={signOutToLogin}
+								size="small"
+								variant="secondary"
+							>
+								Sign in again
+							</Button>
+						</ItemActions>
+					</Item>
+				)}
+				{plan.installations.map((install) => {
+					const url = installationSettingsUrl(install);
+					return (
+						<Item key={install.installationId}>
 							<ItemContent>
 								<ItemTitle>
-									{plural(plan.pendingReviews, "human review", "human reviews")}{" "}
-									waiting
+									Tripwire app on {install.accountLogin ?? "your account"}
 								</ItemTitle>
 								<ItemDescription>
-									They are in {plan.personalOrg.name}. Nobody can decide them
-									after this.
+									It stays installed until you uninstall it there.
 								</ItemDescription>
 							</ItemContent>
+							{url ? (
+								<ItemActions>
+									<Button
+										href={url}
+										openInNewTab
+										size="small"
+										trailingIcon={<Icon icon={External} size={12} />}
+										variant="secondary"
+									>
+										Uninstall on GitHub
+									</Button>
+								</ItemActions>
+							) : null}
 						</Item>
-					) : null}
-					{plan.agents > 0 ? (
-						<Item>
-							<ItemContent>
-								<ItemTitle>
-									{plural(plan.agents, "agent loses", "agents lose")} access
-								</ItemTitle>
-							</ItemContent>
-						</Item>
-					) : null}
+					);
+				})}
+				{plan.pendingReviews > 0 && plan.personalOrg ? (
 					<Item>
 						<ItemContent>
 							<ItemTitle>
-								Signed out on {plural(plan.sessions, "device", "devices")}
+								{plural(plan.pendingReviews, "human review", "human reviews")}{" "}
+								waiting
+							</ItemTitle>
+							<ItemDescription>
+								They are in {plan.personalOrg.name}. Nobody can decide them
+								after this.
+							</ItemDescription>
+						</ItemContent>
+					</Item>
+				) : null}
+				{plan.agents > 0 ? (
+					<Item>
+						<ItemContent>
+							<ItemTitle>
+								{plural(plan.agents, "agent loses", "agents lose")} access
 							</ItemTitle>
 						</ItemContent>
 					</Item>
-				</ItemGroup>
-			</DialogBody>
-			<DialogFooter>
-				<DialogClose>Cancel</DialogClose>
-				<DialogAction
-					close={false}
-					disabled={!plan.freshSession}
-					onClick={onNext}
-				>
-					Continue
-				</DialogAction>
-			</DialogFooter>
-		</>
+				) : null}
+				<Item>
+					<ItemContent>
+						<ItemTitle>
+							Signed out on {plural(plan.sessions, "device", "devices")}
+						</ItemTitle>
+					</ItemContent>
+				</Item>
+			</ItemGroup>
+		</Dialog>
 	);
 }
 
@@ -497,7 +485,8 @@ function ConfirmStep({
 	plan,
 	progress,
 	onBack,
-}: {
+	...dialog
+}: DeletionDialogStateProps & {
 	plan: AccountDeletionView;
 	progress: ReactNode;
 	onBack: () => void;
@@ -518,45 +507,38 @@ function ConfirmStep({
 		},
 	});
 	return (
-		<>
-			<DialogHeader>
-				{progress}
-				<DialogTitle>Delete your account?</DialogTitle>
-				<DialogDescription>This can't be undone.</DialogDescription>
-			</DialogHeader>
-			<DialogBody>
-				<dl className="flex flex-col gap-3 type-body-sm">
-					<div className="flex flex-col gap-0.5">
-						<dt className="type-label">Deleted</dt>
-						<dd className="text-text-2">
-							Your profile, sessions, forge connections and agents
-							{plan.personalOrg
-								? `, and ${plan.personalOrg.name} with its rules and workflows.`
-								: "."}
-						</dd>
-					</div>
-					<div className="flex flex-col gap-0.5">
-						<dt className="type-label">Kept</dt>
-						<dd className="text-text-2">
-							Runs and history in your other orgs. Your approvals and blocks
-							stay there without your name.
-						</dd>
-					</div>
-				</dl>
-				<DialogConfirmField />
-			</DialogBody>
-			<DialogFooter>
-				<Button onClick={onBack} size="sm" variant="ghost">
-					Back
-				</Button>
-				<DialogAction
-					onAction={() => remove.mutateAsync()}
-					pendingLabel="Deleting"
-					variant="destructive"
-				>
-					Delete account
-				</DialogAction>
-			</DialogFooter>
-		</>
+		<DestructiveDialog
+			confirmLabel="Delete account"
+			confirmText={plan.confirmText}
+			description="This can't be undone."
+			media={
+				<>
+					{progress}
+					<dl className="flex flex-col composition-gap-section content-body-small">
+						<div className="flex flex-col composition-gap-hairline">
+							<dt className="content-label">Deleted</dt>
+							<dd className="tone-content-secondary">
+								Your profile, sessions, forge connections and agents
+								{plan.personalOrg
+									? `, and ${plan.personalOrg.name} with its rules and workflows.`
+									: "."}
+							</dd>
+						</div>
+						<div className="flex flex-col composition-gap-hairline">
+							<dt className="content-label">Kept</dt>
+							<dd className="tone-content-secondary">
+								Runs and history in your other orgs. Your approvals and blocks
+								stay there without your name.
+							</dd>
+						</div>
+					</dl>
+				</>
+			}
+			onConfirm={() => remove.mutateAsync()}
+			{...dialog}
+			pendingLabel="Deleting"
+			secondaryAction={{ label: "Back", onAction: onBack }}
+			title="Delete your account?"
+		/>
 	);
 }

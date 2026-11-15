@@ -1,6 +1,6 @@
+import { Card, CardContent } from "@tripwire/ui/card";
+import { Skeleton, SkeletonText } from "@tripwire/ui/skeleton";
 import { BrandLockup } from "#/components/auth/brand-lockup";
-import { Card, CardContent } from "#/design-system/ui/card";
-import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 
 const CELL_SLOTS = ["a", "b", "c", "d"] as const;
 
@@ -13,8 +13,12 @@ export function LoginPageSkeleton() {
 				<BrandLockup />
 
 				<div data-layout-role="login-skeleton-header">
-					<SkeletonText data-layout-size="wide" type="heading" />
-					<SkeletonText data-layout-size="wider" type="body" />
+					<span data-skeleton-line="" aria-hidden data-layout-size="wide">
+						<SkeletonText type="heading" />
+					</span>
+					<span data-skeleton-line="" aria-hidden data-layout-size="wider">
+						<SkeletonText type="body" />
+					</span>
 				</div>
 
 				<Card data-layout-role="login-card">

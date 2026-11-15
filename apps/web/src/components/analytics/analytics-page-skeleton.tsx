@@ -1,19 +1,20 @@
+import { Item, ItemContent, ItemGroup, ItemMedia } from "@tripwire/ui/item";
+import { Skeleton, SkeletonText } from "@tripwire/ui/skeleton";
+import { Chart } from "#/components/common/chart";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { Chart } from "#/design-system/ui/chart";
-import {
-	Item,
-	ItemContent,
-	ItemGroup,
-	ItemMedia,
-} from "#/design-system/ui/item";
-import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 
 const EVENT_SLOTS = ["a", "b", "c", "d", "e"] as const;
 
 export function AnalyticsBodySkeleton() {
 	return (
 		<div aria-hidden data-layout-role="analytics-skeleton-body">
-			<Skeleton className="h-(--control-sm) w-80 max-w-full rounded-pill" />
+			<span
+				data-skeleton-box=""
+				aria-hidden
+				className="h-(--control-sm) w-80 max-w-full rounded-pill"
+			>
+				<Skeleton fill />
+			</span>
 			<Chart
 				config={{ hour: { label: "Hour" }, value: { label: "Value" } }}
 				data={[]}
@@ -23,12 +24,20 @@ export function AnalyticsBodySkeleton() {
 				xKey="hour"
 			/>
 			<div data-layout-role="analytics-skeleton-events">
-				<SkeletonText className="w-24" type="heading-sm" />
+				<span data-skeleton-line="" aria-hidden className="w-24">
+					<SkeletonText type="heading-sm" />
+				</span>
 				<ItemGroup>
 					{EVENT_SLOTS.map((slot) => (
 						<Item data-layout-role="analytics-skeleton-event" key={slot}>
 							<ItemMedia variant="icon">
-								<Skeleton className="size-(--icon)" />
+								<span
+									data-skeleton-box=""
+									aria-hidden
+									className="size-(--icon)"
+								>
+									<Skeleton fill />
+								</span>
 							</ItemMedia>
 							<ItemContent>
 								<SkeletonText type="label" />
@@ -47,7 +56,9 @@ export function AnalyticsPageSkeleton() {
 		<DashboardLayout counts={{}}>
 			<div data-layout-role="page-skeleton-shell">
 				<div data-layout-role="page-skeleton-body">
-					<SkeletonText className="w-32" type="heading" />
+					<span data-skeleton-line="" aria-hidden className="w-32">
+						<SkeletonText type="heading" />
+					</span>
 					<AnalyticsBodySkeleton />
 				</div>
 			</div>

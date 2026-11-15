@@ -9,27 +9,24 @@ import {
 	zoneOffsetLabel,
 } from "@tripwire/contracts";
 import {
-	type KeyboardEvent,
-	type PointerEvent,
-	type ReactNode,
-	type RefObject,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
-import {
 	Field,
 	FieldDescription,
 	FieldError,
 	FieldLabel,
-} from "#/design-system/ui/field";
+	Input,
+} from "@tripwire/ui/field";
+import { Caption } from "@tripwire/ui/typography";
 import {
-	InputControl,
-	InputRoot,
-	InputTrailing,
-} from "#/design-system/ui/input";
-import { TooltipChip } from "#/design-system/ui/tooltip";
-import { Caption } from "#/design-system/ui/typography";
+	type KeyboardEvent,
+	type PointerEvent,
+	type ReactNode,
+	type RefObject,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
+import { ScheduleTokenHint } from "#/components/layouts/schedule-token-hint";
 import { useMinuteClock } from "#/hooks/use-minute-clock";
 import type { Timezones } from "#/hooks/use-timezones";
 import {
@@ -130,11 +127,16 @@ export function ScheduleTextField({
 	const now = useMinuteClock();
 	const input = useRef<HTMLInputElement>(null);
 	const box = useRef<HTMLDivElement>(null);
+	const mirror = useRef<HTMLSpanElement>(null);
 	const spans = useRef<(HTMLSpanElement | null)[]>([]);
 	const [focused, setFocused] = useState(false);
 	const [caret, setCaret] = useState<number | null>(null);
 	const [hovered, setHovered] = useState<number | null>(null);
 	const [scroll, setScroll] = useState(0);
+
+	useLayoutEffect(() => {
+		if (mirror.current) mirror.current.scrollLeft = scroll;
+	});
 
 	const saved = value.every
 		? scheduleText({ every: value.every, timezone: value.timezone })
@@ -221,20 +223,6 @@ export function ScheduleTextField({
 		setHovered(index >= 0 ? index : null);
 	};
 
-	const chipPlace = (() => {
-		const span = active === null ? null : spans.current[active];
-		const root = box.current;
-		if (!(span && root)) {
-			return { left: 0 };
-		}
-		const field = root.getBoundingClientRect();
-		const word = span.getBoundingClientRect();
-		const left = Math.max(word.left - field.left, 0);
-		return left > field.width / 2
-			? { right: Math.max(field.right - word.right, 0) }
-			: { left };
-	})();
-
 	const next = value.every
 		? editorNextRun(
 				{ every: value.every, timezone: value.timezone },
@@ -247,117 +235,116 @@ export function ScheduleTextField({
 		: "";
 
 	return (
-		<Field className="relative" data-field="every" invalid={problem !== null}>
-			<div data-layout-role="schedule-field-heading">
-				<FieldLabel>When</FieldLabel>
-				{parsed.ok || problem === null ? (
-					<NextRun display={timezones.display.zone} next={next} />
-				) : null}
-			</div>
-			<div className="relative" ref={box}>
-				<InputRoot
-					className="relative"
-					data-layout-role="schedule-input"
-					data-schedule-problem={problem?.reason}
-					disabled={readOnly}
-					onPointerLeave={() => setHovered(null)}
-					onPointerMove={onPointerMove}
-					readOnly={readOnly}
-				>
-					<span className="relative flex h-full min-w-0 flex-1 items-center overflow-hidden">
-						<span
-							aria-hidden
-							className="pointer-events-none absolute inset-y-0 start-0 flex items-center whitespace-pre"
-							style={{ transform: `translateX(${-scroll}px)` }}
-						>
-							<Segments
-								active={active}
-								ghost={ghost}
-								spans={spans}
-								text={text}
-								tokens={tokens}
+		<div className="relative" data-field="every">
+			<Field invalid={problem !== null}>
+				<div data-layout-role="schedule-field-heading">
+					<FieldLabel>When</FieldLabel>
+					{parsed.ok || problem === null ? (
+						<NextRun display={timezones.display.zone} next={next} />
+					) : null}
+				</div>
+				<div className="relative" ref={box}>
+					<div
+						className="relative"
+						data-layout-role="schedule-input"
+						data-schedule-problem={problem?.reason}
+						onPointerLeave={() => setHovered(null)}
+						onPointerMove={onPointerMove}
+						onScrollCapture={(event) => {
+							if (event.target === input.current) track();
+						}}
+						onSelectCapture={track}
+					>
+						<span className="relative flex h-full min-w-0 flex-1 items-center overflow-hidden">
+							<span aria-hidden data-layout-role="schedule-mirror" ref={mirror}>
+								<span data-layout-role="schedule-mirror-text">
+									<Segments
+										active={active}
+										ghost={ghost}
+										spans={spans}
+										text={text}
+										tokens={tokens}
+									/>
+								</span>
+							</span>
+							<Input
+								ariaLabel="Schedule"
+								autoComplete="off"
+								onBlur={() => {
+									setFocused(false);
+									setCaret(null);
+									if (parsed.ok || parsed.reason === "empty") {
+										onDraft(null);
+									}
+								}}
+								onChange={(event) => {
+									commit(event.target.value);
+									setCaret(event.target.selectionStart);
+									setScroll(event.target.scrollLeft);
+								}}
+								onFocus={() => {
+									setFocused(true);
+									requestAnimationFrame(track);
+								}}
+								onKeyDown={onKeyDown}
+								placeholder="every 5 days"
+								readOnly={readOnly}
+								ref={input}
+								value={text}
 							/>
 						</span>
-						<InputControl
-							autoCapitalize="off"
-							autoComplete="off"
-							autoCorrect="off"
-							data-layout-role="schedule-native-input"
-							onBlur={() => {
-								setFocused(false);
-								setCaret(null);
-								if (parsed.ok || parsed.reason === "empty") {
-									onDraft(null);
-								}
-							}}
-							onChange={(event) => {
-								commit(event.target.value);
-								setCaret(event.target.selectionStart);
-								setScroll(event.target.scrollLeft);
-							}}
-							onFocus={() => {
-								setFocused(true);
-								requestAnimationFrame(track);
-							}}
-							onKeyDown={onKeyDown}
-							onKeyUp={track}
-							onScroll={track}
-							onSelect={track}
-							placeholder="every 5 days"
-							readOnly={readOnly}
-							ref={input}
-							spellCheck={false}
-							value={text}
-						/>
-					</span>
-					{showZone ? (
-						<InputTrailing
-							aria-hidden
-							data-layout-role="schedule-timezone"
-							title={zoneLabel}
-						>
-							{scheduleZoneWord(zone)}
-						</InputTrailing>
-					) : null}
-				</InputRoot>
-				{activeToken && activeToken.kind !== "unknown" ? (
-					<TooltipChip
-						data-layout-role="schedule-token-hint"
-						data-has-problem={problem !== null || undefined}
-						style={chipPlace}
-					>
-						{activeToken.label}
-					</TooltipChip>
-				) : null}
-				<output aria-live="polite" className="block">
-					{problem ? (
-						<FieldError
-							data-layout-role="schedule-problem"
-							data-schedule-problem={problem.reason}
-						>
-							{problem.message}
-						</FieldError>
-					) : null}
-				</output>
-				{problem && problem.fixes.length > 0 && !readOnly ? (
-					<div data-layout-role="schedule-fixes">
-						{problem.fixes.map((fix) => (
-							<button
-								className="focus-sm"
-								data-layout-role="schedule-fix"
-								key={fix.label}
-								onClick={() => accept(fix.text)}
-								type="button"
+						{showZone ? (
+							<span
+								aria-hidden
+								data-layout-role="schedule-timezone"
+								title={zoneLabel}
 							>
-								{fix.label}
-							</button>
-						))}
+								{scheduleZoneWord(zone)}
+							</span>
+						) : null}
 					</div>
+					{activeToken && activeToken.kind !== "unknown" ? (
+						<ScheduleTokenHint
+							field={box}
+							hasProblem={problem !== null}
+							label={activeToken.label}
+							tokenIndex={active}
+							tokens={spans}
+							scrollContainer={mirror}
+						/>
+					) : null}
+					<output aria-live="polite" className="block">
+						{problem ? (
+							<FieldError
+								data-layout-role="schedule-problem"
+								data-schedule-problem={problem.reason}
+							>
+								{problem.message}
+							</FieldError>
+						) : null}
+					</output>
+					{problem && problem.fixes.length > 0 && !readOnly ? (
+						<div data-layout-role="schedule-fixes">
+							{problem.fixes.map((fix) => (
+								<button
+									className="focus-sm"
+									data-layout-role="schedule-fix"
+									key={fix.label}
+									onClick={() => accept(fix.text)}
+									type="button"
+								>
+									{fix.label}
+								</button>
+							))}
+						</div>
+					) : null}
+				</div>
+				{described ? (
+					<span className="sr-only">
+						<FieldDescription>{described}</FieldDescription>
+					</span>
 				) : null}
-			</div>
-			{described ? (
-				<FieldDescription className="sr-only">{described}</FieldDescription>
-			) : null}
-		</Field>
+			</Field>
+		</div>
 	);
 }

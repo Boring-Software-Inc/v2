@@ -1,8 +1,26 @@
 import { useQuery } from "@tanstack/react-query";
-import { getRouteApi, Link } from "@tanstack/react-router";
+import { getRouteApi } from "@tanstack/react-router";
 import { FORGE_BY_ID } from "@tripwire/contracts";
+import { Badge } from "@tripwire/ui/badge";
+import { Button } from "@tripwire/ui/button";
+import {
+	Activity,
+	Add,
+	Analytics,
+	Icon,
+	Moderation,
+	Rules,
+	Workflow,
+} from "@tripwire/ui/icon";
 import { useState } from "react";
 import { Collection } from "#/components/collection/collection";
+import {
+	EmptyState,
+	EmptyStateContent,
+	EmptyStateDescription,
+	EmptyStateHeader,
+	EmptyStateTitle,
+} from "#/components/common/empty-state";
 import { EntityCard } from "#/components/common/entity-card";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { MetaRow } from "#/components/common/meta-row";
@@ -22,24 +40,6 @@ import { ORG_REPOS_COLLECTION } from "#/components/organizations/org-home-collec
 import { HomeLoading } from "#/components/organizations/org-home-page-skeleton";
 import { AgentSetupCard } from "#/components/setup/agent-setup-card";
 import { ZonedTime } from "#/components/timezones/zoned-time";
-import {
-	Activity,
-	Add,
-	Analytics,
-	Icon,
-	Moderation,
-	Rules,
-	Workflow,
-} from "#/design-system/icon";
-import { Badge } from "#/design-system/ui/badge";
-import { Button } from "#/design-system/ui/button";
-import {
-	Empty,
-	EmptyContent,
-	EmptyDescription,
-	EmptyHeader,
-	EmptyTitle,
-} from "#/design-system/ui/empty-state";
 import { useCollection } from "#/hooks/use-collection";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { useTimezones } from "#/hooks/use-timezones";
@@ -139,25 +139,24 @@ export function OrgHomePage() {
 
 function NoReposYet({ org }: { org: string }) {
 	return (
-		<Empty art={<MascotArt mood="repos-syncing" />}>
-			<EmptyHeader>
-				<EmptyTitle>No repos to show yet</EmptyTitle>
-				<EmptyDescription>
+		<EmptyState art={<MascotArt mood="repos-syncing" />}>
+			<EmptyStateHeader>
+				<EmptyStateTitle>No repos to show yet</EmptyStateTitle>
+				<EmptyStateDescription>
 					Repos appear here a few seconds after you connect them. If none show
 					up, check which repos the connection can see.
-				</EmptyDescription>
-			</EmptyHeader>
-			<EmptyContent>
+				</EmptyStateDescription>
+			</EmptyStateHeader>
+			<EmptyStateContent>
 				<Button
-					nativeButton={false}
-					render={<Link params={{ org }} to="/$org/settings/connections" />}
-					size="sm"
+					href={`/${org}/settings/connections`}
+					size="small"
 					variant="secondary"
 				>
 					Manage connections
 				</Button>
-			</EmptyContent>
-		</Empty>
+			</EmptyStateContent>
+		</EmptyState>
 	);
 }
 
@@ -166,33 +165,33 @@ function InstallCta({ org }: { org: string }) {
 	const isAdmin = useOrgPermission(org, "connections:manage");
 
 	return (
-		<Empty art={<MascotArt mood="repos-empty" />}>
-			<EmptyHeader>
-				<EmptyTitle>No repos yet</EmptyTitle>
-				<EmptyDescription>
+		<EmptyState art={<MascotArt mood="repos-empty" />}>
+			<EmptyStateHeader>
+				<EmptyStateTitle>No repos yet</EmptyStateTitle>
+				<EmptyStateDescription>
 					{isAdmin
 						? "Connect the repos you want Tripwire to check."
 						: "Ask an admin of this org to connect repos."}
-				</EmptyDescription>
-			</EmptyHeader>
+				</EmptyStateDescription>
+			</EmptyStateHeader>
 			{isAdmin ? (
-				<EmptyContent>
+				<EmptyStateContent>
 					<Button
-						onClick={() => setConnecting(true)}
-						size="sm"
+						onAction={() => setConnecting(true)}
+						size="small"
 						variant="secondary"
 					>
 						<Icon icon={Add} />
 						Connect repos
 					</Button>
-				</EmptyContent>
+				</EmptyStateContent>
 			) : null}
 			<ConnectForgeDialog
 				onOpenChange={setConnecting}
 				open={connecting}
 				org={org}
 			/>
-		</Empty>
+		</EmptyState>
 	);
 }
 
@@ -243,7 +242,7 @@ function RepoCard({ org, repo }: { org: string; repo: SwitcherRepo }) {
 								<Badge>{repo.pendingModeration} to review</Badge>
 							) : null}
 							{repo.blocked24h > 0 ? (
-								<Badge variant="fail">{repo.blocked24h} blocked</Badge>
+								<Badge tone="danger">{repo.blocked24h} blocked</Badge>
 							) : null}
 						</>
 					) : null
@@ -273,12 +272,9 @@ function RepoCard({ org, repo }: { org: string; repo: SwitcherRepo }) {
 					>
 						{shortcuts.map((shortcut) => (
 							<Button
+								href={`/${encodeURIComponent(org)}/${encodeURIComponent(repo.name)}/${shortcut.to.split("/").at(-1)}`}
 								key={shortcut.to}
-								nativeButton={false}
-								render={
-									<Link params={{ org, repo: repo.name }} to={shortcut.to} />
-								}
-								size="sm"
+								size="small"
 								variant="secondary"
 							>
 								<Icon icon={shortcut.icon} />
@@ -291,7 +287,7 @@ function RepoCard({ org, repo }: { org: string; repo: SwitcherRepo }) {
 			title={
 				<CardRouterLink
 					aria-label={`${FORGE_BY_ID[repo.forge].label} repository ${repo.fullName}`}
-					className="inline-flex min-w-0 items-start gap-1.5"
+					data-layout-role="digest-repo-link"
 					params={{ org, repo: repo.name }}
 					to="/$org/$repo"
 				>

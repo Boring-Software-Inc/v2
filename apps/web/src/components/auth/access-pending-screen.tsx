@@ -1,9 +1,9 @@
 import type { AccessStatus } from "@tripwire/contracts";
+import { Avatar } from "@tripwire/ui/avatar";
+import { Button } from "@tripwire/ui/button";
 import { useState } from "react";
 import { ConfirmDestructiveDialog } from "#/components/common/confirm-destructive-dialog";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
-import { Avatar } from "#/design-system/ui/avatar";
-import { Button } from "#/design-system/ui/button";
 import { useSignOut } from "#/hooks/use-sign-out";
 
 /**
@@ -50,10 +50,10 @@ export function AccessPendingScreen({
 
 				{onCheck && !rejected ? (
 					<Button
-						onClick={onCheck}
+						onAction={onCheck}
 						pending={checking}
 						pendingLabel="Checking status"
-						size="sm"
+						size="small"
 						type="button"
 						variant="secondary"
 					>
@@ -74,8 +74,8 @@ export function AccessPendingScreen({
 						</>
 					) : null}
 					<Button
-						onClick={() => setSignOutOpen(true)}
-						size="sm"
+						onAction={() => setSignOutOpen(true)}
+						size="small"
 						type="button"
 						variant="ghost"
 					>
@@ -83,7 +83,7 @@ export function AccessPendingScreen({
 					</Button>
 				</div>
 				<ConfirmDestructiveDialog
-					actionLabel="Sign out"
+					confirmLabel="Sign out"
 					description="Your session on this device ends. You'll need to sign in again to check your access status."
 					onConfirm={() => signOut.mutateAsync()}
 					onOpenChange={setSignOutOpen}

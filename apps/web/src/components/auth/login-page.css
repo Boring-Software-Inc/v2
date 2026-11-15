@@ -1,0 +1,22 @@
+[data-layout-role="login-card"] {
+	border: var(--line-width) solid var(--line-faint);
+	background: var(--shell);
+}
+
+[data-layout-role="forge-sign-in-grid"]
+	[data-slot="button"][data-variant="secondary"]:is(
+		:disabled,
+		[aria-disabled="true"]
+	):not([aria-busy="true"]) {
+	background-color: var(--field);
+	border-color: transparent;
+	box-shadow: 0 0 0 var(--line-width) var(--line-faint);
+	color: var(--text-disabled);
+	letter-spacing: var(--tracking-label);
+	opacity: 1;
+
+	@media (forced-colors: active) {
+		border-color: ButtonText;
+		box-shadow: none;
+	}
+}

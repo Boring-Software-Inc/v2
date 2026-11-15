@@ -1,4 +1,4 @@
-import { Skeleton } from "#/design-system/ui/skeleton";
+import { Skeleton } from "@tripwire/ui/skeleton";
 
 export function RunnerPageSkeleton() {
 	return (
@@ -6,7 +6,13 @@ export function RunnerPageSkeleton() {
 			aria-hidden
 			className="grid min-h-dvh place-items-center bg-page px-4 py-10"
 		>
-			<Skeleton className="min-h-72 w-full max-w-xl rounded-shell" />
+			<span
+				data-skeleton-box=""
+				aria-hidden
+				className="min-h-72 w-full max-w-xl rounded-shell"
+			>
+				<Skeleton fill />
+			</span>
 		</main>
 	);
 }

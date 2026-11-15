@@ -1,25 +1,15 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { orgSlugSchema, slugifyOrgName } from "@tripwire/contracts";
-import { useId, useState } from "react";
-import { OrgAvatar } from "#/components/organizations/org-avatar";
-import {
-	Dialog,
-	DialogAction,
-	DialogBody,
-	DialogClose,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/design-system/ui/dialog";
+import { Dialog } from "@tripwire/ui/dialog";
 import {
 	Field,
 	FieldDescription,
 	FieldError,
 	FieldLabel,
-} from "#/design-system/ui/field";
-import { Input } from "#/design-system/ui/input";
+	Input,
+} from "@tripwire/ui/field";
+import { useState } from "react";
+import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { createOrg } from "#/lib/org.functions";
 import { orgQueryKeys } from "#/lib/org.query";
 
@@ -33,23 +23,24 @@ export function CreateOrgDialog({
 	onCreated: (slug: string) => void;
 }) {
 	return (
-		<Dialog onOpenChange={onOpenChange} open={open}>
-			<DialogContent size="sm">
-				<DialogHeader>
-					<DialogTitle>Create an org</DialogTitle>
-					<DialogDescription>
-						Name it after your team. You can rename it later.
-					</DialogDescription>
-				</DialogHeader>
-				<CreateOrgForm onCreated={onCreated} />
-			</DialogContent>
-		</Dialog>
+		<CreateOrgForm
+			onCreated={onCreated}
+			onOpenChange={onOpenChange}
+			open={open}
+		/>
 	);
 }
 
-function CreateOrgForm({ onCreated }: { onCreated: (slug: string) => void }) {
+function CreateOrgForm({
+	onCreated,
+	onOpenChange,
+	open,
+}: {
+	onCreated: (slug: string) => void;
+	onOpenChange: (open: boolean) => void;
+	open: boolean;
+}) {
 	const queryClient = useQueryClient();
-	const formId = useId();
 	const [name, setName] = useState("");
 	const [slugOverride, setSlugOverride] = useState<string | null>(null);
 	const [serverError, setServerError] = useState<string | null>(null);
@@ -81,73 +72,83 @@ function CreateOrgForm({ onCreated }: { onCreated: (slug: string) => void }) {
 		!create.isPending;
 
 	return (
-		<>
-			<DialogBody>
-				<form
-					className="flex flex-col gap-4"
-					id={formId}
-					noValidate
-					onSubmit={(event) => {
-						event.preventDefault();
-						if (canSubmit) {
-							setServerError(null);
-							create.mutate();
-						}
-					}}
-				>
-					<div className="flex items-end gap-3">
-						<OrgAvatar animate className="mb-1" name={name} size="lg" />
-						<Field className="flex-1">
+		<Dialog
+			action={{
+				disabled: !canSubmit,
+				label: "Create org",
+				onAction: async () => {
+					setServerError(null);
+					const result = await create.mutateAsync();
+					if ("error" in result) throw new Error(result.error);
+				},
+				pendingLabel: "Creating",
+			}}
+			description="Name it after your team. You can rename it later."
+			onOpenChange={onOpenChange}
+			open={open}
+			title="Create an org"
+		>
+			<form
+				className="flex flex-col composition-gap-group"
+				noValidate
+				onSubmit={(event) => {
+					event.preventDefault();
+					if (canSubmit) {
+						setServerError(null);
+						create.mutate();
+					}
+				}}
+			>
+				<div className="flex items-end composition-gap-section">
+					<OrgAvatar
+						animate
+						className="composition-bottom-small"
+						name={name}
+						size="lg"
+					/>
+					<div className="flex-1">
+						<Field>
 							<FieldLabel>Org name</FieldLabel>
 							<Input
 								autoComplete="off"
-								data-autofocus
+								autoFocus
+								labelledByField
 								onValueChange={setName}
 								placeholder="Acme"
 								value={name}
 							/>
 						</Field>
 					</div>
+				</div>
 
-					<Field invalid={slugError !== null}>
-						<FieldLabel>Slug</FieldLabel>
+				<Field invalid={slugError !== null}>
+					<FieldLabel>Slug</FieldLabel>
+					<div className="content-mono">
 						<Input
 							autoComplete="off"
-							mono
+							labelledByField
 							onValueChange={(value) => setSlugOverride(value.toLowerCase())}
 							placeholder="acme"
 							value={slug}
 						/>
-						{slugError ? (
-							<FieldError>{slugError}</FieldError>
-						) : (
-							<FieldDescription>
-								{slug
-									? `Your org's address: /${slug}/home`
-									: "Used in your org's web address."}
-							</FieldDescription>
-						)}
-					</Field>
+					</div>
+					{slugError ? (
+						<FieldError>{slugError}</FieldError>
+					) : (
+						<FieldDescription>
+							{slug
+								? `Your org's address: /${slug}/home`
+								: "Used in your org's web address."}
+						</FieldDescription>
+					)}
+				</Field>
 
-					{serverError ? (
-						<p className="type-body-sm text-fail-text" role="alert">
-							{serverError}
-						</p>
-					) : null}
-				</form>
-			</DialogBody>
-			<DialogFooter>
-				<DialogClose>Cancel</DialogClose>
-				<DialogAction
-					close={false}
-					disabled={!canSubmit}
-					form={formId}
-					pending={create.isPending}
-					type="submit"
-				>
-					Create org
-				</DialogAction>
-			</DialogFooter>
-		</>
+				{serverError ? (
+					<p className="content-body-small tone-danger" role="alert">
+						{serverError}
+					</p>
+				) : null}
+			</form>
+		</Dialog>
 	);
 }

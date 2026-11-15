@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { cn } from "#/design-system/lib/utils";
+import { cn } from "#/lib/utils";
 
 export interface AnimatedHeightProps {
 	children: ReactNode;

@@ -1,0 +1,4 @@
+[data-layout-role="workflow-toolbox-row"] [data-slot="item-title"] > span {
+	display: block;
+	min-inline-size: 0;
+}

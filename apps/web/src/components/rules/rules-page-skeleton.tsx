@@ -1,14 +1,9 @@
+import { Card, CardFooter } from "@tripwire/ui/card";
+import { Panel } from "@tripwire/ui/panel";
+import { Skeleton, SkeletonText } from "@tripwire/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import {
-	RULE_CARD_CLASS,
-	RULE_FOOTER_CLASS,
-	RULE_HEADER_CLASS,
-	RULE_PANEL_CLASS,
-} from "#/components/rules/rule-card-frame";
-import { cn } from "#/design-system/lib/utils";
-import { Card, CardFooter } from "#/design-system/ui/card";
-import { Panel } from "#/design-system/ui/panel";
-import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
+import { RULE_HEADER_CLASS } from "#/components/rules/rule-card-frame";
+import { cn } from "#/lib/utils";
 
 const RULE_SLOTS = [
 	{ key: "a", name: "w-32" },
@@ -27,23 +22,34 @@ export function RuleGridSkeleton() {
 			data-layout-role="rules-skeleton-grid"
 		>
 			{RULE_SLOTS.map((slot) => (
-				<Card className={RULE_CARD_CLASS} key={slot.key}>
-					<Panel className={RULE_PANEL_CLASS}>
+				<Card data-layout-role="rule-card-frame" key={slot.key}>
+					<Panel data-layout-role="rule-card-panel">
 						<div className={RULE_HEADER_CLASS}>
-							<SkeletonText
+							<span
+								data-skeleton-line=""
+								aria-hidden
 								className={cn(slot.name, "type-label-lg")}
-								type="label"
-							/>
-							<Skeleton
+							>
+								<SkeletonText type="label" />
+							</span>
+							<span
+								data-skeleton-box=""
+								aria-hidden
 								className="h-4 w-7 shrink-0 rounded-pill"
 								data-layout-role="rules-skeleton-toggle"
-							/>
+							>
+								<Skeleton fill />
+							</span>
 						</div>
 						<SkeletonText lines={2} type="body-sm" />
 					</Panel>
-					<CardFooter className={RULE_FOOTER_CLASS}>
-						<SkeletonText className="w-14" type="label-sm" />
-						<SkeletonText className="w-28" type="caption" />
+					<CardFooter data-layout-role="rule-card-footer">
+						<span data-skeleton-line="" aria-hidden className="w-14">
+							<SkeletonText type="label-sm" />
+						</span>
+						<span data-skeleton-line="" aria-hidden className="w-28">
+							<SkeletonText type="caption" />
+						</span>
 					</CardFooter>
 				</Card>
 			))}
@@ -57,17 +63,41 @@ export function RulesPageSkeleton() {
 			<div data-layout-role="page-skeleton-shell">
 				<div data-layout-role="page-skeleton-body">
 					<header data-layout-role="page-skeleton-heading">
-						<SkeletonText className="w-24" type="heading" />
-						<SkeletonText className="w-96 max-w-full" type="body" />
+						<span data-skeleton-line="" aria-hidden className="w-24">
+							<SkeletonText type="heading" />
+						</span>
+						<span data-skeleton-line="" aria-hidden className="w-96 max-w-full">
+							<SkeletonText type="body" />
+						</span>
 					</header>
 					<div aria-hidden data-layout-role="page-skeleton-section">
-						<SkeletonText className="w-80 max-w-full" type="body" />
-						<Skeleton className="h-48 w-full rounded-shell" />
+						<span data-skeleton-line="" aria-hidden className="w-80 max-w-full">
+							<SkeletonText type="body" />
+						</span>
+						<span
+							data-skeleton-box=""
+							aria-hidden
+							className="h-48 w-full rounded-shell"
+						>
+							<Skeleton fill />
+						</span>
 					</div>
 					<div data-layout-role="page-skeleton-section">
 						<div data-layout-role="page-skeleton-toolbar">
-							<Skeleton className="h-(--control-sm) w-56 rounded-pill" />
-							<Skeleton className="h-(--control-sm) w-36 rounded-pill" />
+							<span
+								data-skeleton-box=""
+								aria-hidden
+								className="h-(--control-sm) w-56 rounded-pill"
+							>
+								<Skeleton fill />
+							</span>
+							<span
+								data-skeleton-box=""
+								aria-hidden
+								className="h-(--control-sm) w-36 rounded-pill"
+							>
+								<Skeleton fill />
+							</span>
 						</div>
 						<RuleGridSkeleton />
 					</div>

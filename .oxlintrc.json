@@ -21,11 +21,7 @@
 		".agents/**",
 		".claude/**",
 		"scripts/oxlint/anti-slop/**",
-		"scripts/oxlint/design-system/**",
-		"**/components/glaze/ui/**",
-		"**/components/glaze/ai/**",
-		"**/components/glaze/icon.tsx",
-		"**/lib/glaze/**"
+		"scripts/oxlint/design-system/**"
 	],
 	"rules": {
 		"anti-slop/no-chained-type-assertions": "error",
@@ -43,7 +39,8 @@
 		"design-system/no-inline-visual-styles": "error",
 		"design-system/no-raw-color": "error",
 		"design-system/no-raw-spacing": "error",
-		"design-system/no-raw-typography": "error"
+		"design-system/no-raw-typography": "error",
+		"design-system/no-ui-chrome-props": "error"
 	},
 	"overrides": [
 		{

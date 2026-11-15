@@ -1,7 +1,7 @@
+import { notify } from "@tripwire/ui/toast";
 import { useState } from "react";
 import { z } from "zod";
 import { writeLatencyCookie } from "#/components/dev/use-dev-scenario";
-import { toast } from "#/design-system/ui/toast";
 import type { DevAppliedState } from "#/lib/dev/scenario-panel";
 import type { DevScenario } from "#/lib/dev/scenarios";
 
@@ -36,14 +36,20 @@ export function useDevActions(onApplied: (applied: DevAppliedState) => void) {
 			const ok = appliedSchema.safeParse(body);
 			if (!(res.ok && ok.success)) {
 				const failed = errorSchema.safeParse(body);
-				toast.fail(failed.success ? failed.data.error : fallback);
+				notify.show(
+					{ title: failed.success ? failed.data.error : fallback },
+					"error",
+				);
 				setBusy(null);
 				return;
 			}
 			onApplied(target);
 			window.location.assign(ok.data.landing);
 		} catch (err) {
-			toast.fail(err instanceof Error ? err.message : fallback);
+			notify.show(
+				{ title: err instanceof Error ? err.message : fallback },
+				"error",
+			);
 			setBusy(null);
 		}
 	}
@@ -54,7 +60,10 @@ export function useDevActions(onApplied: (applied: DevAppliedState) => void) {
 			await post("/api/dev/reset");
 			window.location.assign("/");
 		} catch {
-			toast.fail("Couldn't reset dev data. Check the dev server log.");
+			notify.show(
+				{ title: "Couldn't reset dev data. Check the dev server log." },
+				"error",
+			);
 			setBusy(null);
 		}
 	}
@@ -65,7 +74,7 @@ export function useDevActions(onApplied: (applied: DevAppliedState) => void) {
 			await post("/api/dev/logout");
 			window.location.assign("/login");
 		} catch {
-			toast.fail("Couldn't sign out. Try again.");
+			notify.show({ title: "Couldn't sign out. Try again." }, "error");
 			setBusy(null);
 		}
 	}

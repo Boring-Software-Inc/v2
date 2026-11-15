@@ -1,19 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import { FORGE_BY_ID, type ForgeConnection } from "@tripwire/contracts";
-import { useTheme } from "next-themes";
-import { useState } from "react";
-import { DeleteAccountDialog } from "#/components/account/delete-account-dialog";
-import { ForgeMark } from "#/components/common/forge-marks";
-import { MetaRow } from "#/components/common/meta-row";
-import { ItemRouterLink } from "#/components/common/router-links";
-import { OrgAvatar } from "#/components/organizations/org-avatar";
-import {
-	SettingsHeader,
-	SettingsSection,
-} from "#/components/settings/settings-frame";
-import { TimezonePicker } from "#/components/timezones/timezone-picker";
-import { ZonedTime } from "#/components/timezones/zoned-time";
+import { Avatar } from "@tripwire/ui/avatar";
+import { Badge } from "@tripwire/ui/badge";
+import { Button } from "@tripwire/ui/button";
 import {
 	ArrowRight,
 	Check,
@@ -21,28 +10,7 @@ import {
 	Icon,
 	Light,
 	Monitor,
-} from "#/design-system/icon";
-import { Avatar } from "#/design-system/ui/avatar";
-import { Badge } from "#/design-system/ui/badge";
-import { Button } from "#/design-system/ui/button";
-import {
-	Dialog,
-	DialogAction,
-	DialogBody,
-	DialogClose,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-	DialogTrigger,
-} from "#/design-system/ui/dialog";
-import {
-	Empty,
-	EmptyDescription,
-	EmptyHeader,
-	EmptyTitle,
-} from "#/design-system/ui/empty-state";
+} from "@tripwire/ui/icon";
 import {
 	Item,
 	ItemActions,
@@ -51,12 +19,32 @@ import {
 	ItemGroup,
 	ItemMedia,
 	ItemTitle,
-} from "#/design-system/ui/item";
-import { SkeletonSwap, SkeletonText } from "#/design-system/ui/skeleton";
-import { Status } from "#/design-system/ui/status";
-import { Switch } from "#/design-system/ui/switch";
-import { toast } from "#/design-system/ui/toast";
-import { SupportingText } from "#/design-system/ui/typography";
+} from "@tripwire/ui/item";
+import { SkeletonSwap, SkeletonText } from "@tripwire/ui/skeleton";
+import { Status } from "@tripwire/ui/status";
+import { Switch } from "@tripwire/ui/switch";
+import { notify } from "@tripwire/ui/toast";
+import { SupportingText } from "@tripwire/ui/typography";
+import { useTheme } from "next-themes";
+import { useEffect, useRef, useState } from "react";
+import { DeleteAccountDialog } from "#/components/account/delete-account-dialog";
+import {
+	EmptyState,
+	EmptyStateDescription,
+	EmptyStateHeader,
+	EmptyStateTitle,
+} from "#/components/common/empty-state";
+import { ForgeMark } from "#/components/common/forge-marks";
+import { MetaRow } from "#/components/common/meta-row";
+import { ItemRouterLink } from "#/components/common/router-links";
+import { OrgAvatar } from "#/components/organizations/org-avatar";
+import {
+	SettingsHeader,
+	SettingsPanel,
+	SettingsSection,
+} from "#/components/settings/settings-frame";
+import { TimezonePicker } from "#/components/timezones/timezone-picker";
+import { ZonedTime } from "#/components/timezones/zoned-time";
 import { useHasMounted } from "#/hooks/use-has-mounted";
 import { useOrgSwitchPath } from "#/hooks/use-org-switch-path";
 import { useSignOut } from "#/hooks/use-sign-out";
@@ -76,6 +64,7 @@ import { authQueryKeys, sessionInfoQueryOptions } from "#/lib/auth.query";
 import { connectionsQueryOptions } from "#/lib/connections.query";
 import { reconnectForge } from "#/lib/forge-connect";
 import { myOrgsQueryOptions } from "#/lib/org.query";
+import { ACCOUNT_SECTIONS } from "#/lib/settings-sections";
 import { setAccountTimezone } from "#/lib/timezone.functions";
 import { describeUserAgent } from "#/lib/user-agent";
 
@@ -105,6 +94,18 @@ function tokenExpired(connection: ForgeConnection): boolean {
 }
 
 export function AccountPage({ org, user }: { org: string; user: CurrentUser }) {
+	useEffect(() => {
+		const hash = window.location.hash.slice(1);
+		const section = ACCOUNT_SECTIONS.find((section) => section === hash);
+		if (!section) return;
+		const frame = requestAnimationFrame(() => {
+			const target = document.getElementById(section);
+			if (target?.closest("main")?.scrollTop === 0) {
+				target.scrollIntoView({ behavior: "instant", block: "start" });
+			}
+		});
+		return () => cancelAnimationFrame(frame);
+	}, []);
 	const { data: connections, isLoading: connectionsLoading } = useQuery(
 		connectionsQueryOptions(),
 	);
@@ -127,7 +128,7 @@ export function AccountPage({ org, user }: { org: string; user: CurrentUser }) {
 			<SessionsSection />
 			<PreferencesSection />
 			<OrgsSection activeOrg={org} />
-			<AccountFooter />
+			<AccountActions />
 		</>
 	);
 }
@@ -186,7 +187,9 @@ function SignInSection({
 					{loading ? (
 						<Item aria-hidden>
 							<ItemContent>
-								<SkeletonText className="w-32" type="label" />
+								<span data-skeleton-line="" aria-hidden className="w-32">
+									<SkeletonText type="label" />
+								</span>
 							</ItemContent>
 						</Item>
 					) : (
@@ -204,11 +207,8 @@ function SignInSection({
 						</ItemContent>
 						<ItemActions>
 							<Button
-								nativeButton={false}
-								render={
-									<Link params={{ org }} to="/$org/settings/connections" />
-								}
-								size="sm"
+								href={`/${org}/settings/connections`}
+								size="small"
 								variant="secondary"
 							>
 								Open connections
@@ -239,21 +239,21 @@ function SignInRow({
 			<ItemContent>
 				<ItemTitle>{login ? `@${login}` : label}</ItemTitle>
 			</ItemContent>
-			<ItemActions className="gap-3">
-				<Status size="sm" status={expired ? "warn" : "ok"}>
+			<ItemActions data-layout-role="account-sessions-actions">
+				<Status size="small" status={expired ? "warn" : "ok"}>
 					{expired ? "Access expired" : "Connected"}
 				</Status>
 				{expired ? (
 					<Button
-						aria-label={`Reconnect ${label}`}
-						onClick={() => {
+						ariaLabel={`Reconnect ${label}`}
+						onAction={() => {
 							void reconnectForge(connection.forge).then((message) => {
 								if (message) {
-									toast.fail(message);
+									notify.show({ title: message }, "error");
 								}
 							});
 						}}
-						size="sm"
+						size="small"
 						variant="secondary"
 					>
 						Reconnect
@@ -269,8 +269,8 @@ function SessionRow({ session }: { session: AccountSession }) {
 	const device = describeUserAgent(session.userAgent);
 	const revoke = useMutation({
 		mutationFn: () => revokeMySession({ data: { sessionId: session.id } }),
-		onSuccess: () => toast.success(`Signed out ${device}`),
-		onError: (error) => toast.fail(error.message),
+		onSuccess: () => notify.show({ title: `Signed out ${device}` }, "success"),
+		onError: (error) => notify.show({ title: error.message }, "error"),
 		onSettled: () =>
 			queryClient.invalidateQueries({ queryKey: accountQueryKeys.sessions() }),
 	});
@@ -294,15 +294,14 @@ function SessionRow({ session }: { session: AccountSession }) {
 					<span className="type-body-sm text-text-2">This device</span>
 				) : (
 					<Button
-						aria-label={`Sign out ${device}`}
+						ariaLabel={`Sign out ${device}`}
 						confirmation={{
-							actionLabel: "Sign out device",
+							confirmLabel: "Sign out device",
 							description: `This ends the active Tripwire session on ${device}.`,
-							pendingLabel: "Signing out",
 							title: `Sign out ${device}?`,
 						}}
 						onAction={() => revoke.mutateAsync()}
-						size="sm"
+						size="small"
 						variant="destructive"
 					>
 						Sign out
@@ -319,8 +318,9 @@ function SessionsSection() {
 	const others = sessions?.filter((session) => !session.current).length ?? 0;
 	const revokeOthers = useMutation({
 		mutationFn: () => revokeMyOtherSessions(),
-		onSuccess: () => toast.success("Signed out everywhere else"),
-		onError: (error) => toast.fail(error.message),
+		onSuccess: () =>
+			notify.show({ title: "Signed out everywhere else" }, "success"),
+		onError: (error) => notify.show({ title: error.message }, "error"),
 		onSettled: () =>
 			queryClient.invalidateQueries({ queryKey: accountQueryKeys.sessions() }),
 	});
@@ -328,39 +328,20 @@ function SessionsSection() {
 		<SettingsSection
 			action={
 				others > 0 ? (
-					<Dialog role="alertdialog">
-						<DialogTrigger
-							render={
-								<Button confirmation={false} size="sm" variant="destructive" />
-							}
-						>
-							Sign out everywhere else
-						</DialogTrigger>
-						<DialogContent>
-							<DialogHeader>
-								<DialogTitle>Sign out everywhere else?</DialogTitle>
-								<DialogDescription>
-									This keeps this device signed in and ends {others} other{" "}
-									{others === 1 ? "session" : "sessions"}.
-								</DialogDescription>
-							</DialogHeader>
-							<DialogBody>
-								<SupportingText>
-									You will need to sign in again on those devices.
-								</SupportingText>
-							</DialogBody>
-							<DialogFooter>
-								<DialogClose>Cancel</DialogClose>
-								<DialogAction
-									onAction={() => revokeOthers.mutateAsync()}
-									pendingLabel="Signing out"
-									variant="destructive"
-								>
-									Sign out
-								</DialogAction>
-							</DialogFooter>
-						</DialogContent>
-					</Dialog>
+					<Button
+						confirmation={{
+							confirmLabel: "Sign out",
+							description: `This keeps this device signed in and ends ${others} other ${others === 1 ? "session" : "sessions"}. You will need to sign in again on those devices.`,
+							title: "Sign out everywhere else?",
+						}}
+						onAction={() => revokeOthers.mutateAsync()}
+						pending={revokeOthers.isPending}
+						pendingLabel="Signing out"
+						size="small"
+						variant="destructive"
+					>
+						Sign out everywhere else
+					</Button>
 				) : null
 			}
 			id="sessions"
@@ -379,14 +360,14 @@ function SessionsSection() {
 							))}
 						</ItemGroup>
 					) : (
-						<Empty size="sm" variant="plain">
-							<EmptyHeader>
-								<EmptyTitle>No active sessions</EmptyTitle>
-								<EmptyDescription>
+						<EmptyState size="sm" variant="plain">
+							<EmptyStateHeader>
+								<EmptyStateTitle>No active sessions</EmptyStateTitle>
+								<EmptyStateDescription>
 									Sessions appear here after you sign in on a device.
-								</EmptyDescription>
-							</EmptyHeader>
-						</Empty>
+								</EmptyStateDescription>
+							</EmptyStateHeader>
+						</EmptyState>
 					)}
 				</div>
 			</SkeletonSwap>
@@ -405,16 +386,22 @@ function PreferencesSection() {
 	const saveMotion = useMutation({
 		mutationFn: (next: boolean) => setAgentMotion({ data: { reduce: next } }),
 		onError: () =>
-			toast.fail("Tripwire could not save the setting. Try again."),
+			notify.show(
+				{ title: "Tripwire could not save the setting. Try again." },
+				"error",
+			),
 		onSettled: () =>
 			queryClient.invalidateQueries({ queryKey: authQueryKeys.session() }),
 	});
 	const saveTimezone = useMutation({
 		mutationFn: (next: string | null) =>
 			setAccountTimezone({ data: { timezone: next } }),
-		onSuccess: () => toast.success("Timezone saved"),
+		onSuccess: () => notify.show({ title: "Timezone saved" }, "success"),
 		onError: () =>
-			toast.fail("Tripwire could not save the timezone. Try again."),
+			notify.show(
+				{ title: "Tripwire could not save the timezone. Try again." },
+				"error",
+			),
 		onSettled: () =>
 			queryClient.invalidateQueries({ queryKey: authQueryKeys.session() }),
 	});
@@ -474,7 +461,7 @@ function PreferencesSection() {
 							</ItemContent>
 							<ItemActions>
 								<Switch
-									aria-labelledby="agent-motion-label"
+									ariaLabelledBy="agent-motion-label"
 									checked={checked}
 									disabled={!signedIn}
 									onCheckedChange={(next) => saveMotion.mutate(next)}
@@ -482,11 +469,11 @@ function PreferencesSection() {
 								/>
 							</ItemActions>
 						</Item>
-						<Item className="flex-wrap py-2">
+						<Item data-layout-role="account-timezone-row">
 							<ItemContent>
 								<ItemTitle id="timezone-label">Timezone</ItemTitle>
 							</ItemContent>
-							<ItemActions className="w-full max-w-80 @max-sm/item:me-0 @max-sm/item:max-w-none">
+							<ItemActions data-layout-role="account-timezone-picker">
 								<div className="w-full">
 									<TimezonePicker
 										disabled={!signedIn || saveTimezone.isPending}
@@ -586,12 +573,12 @@ function OrgsSection({ activeOrg }: { activeOrg: string }) {
 										<OrgAvatar hue={entry.avatarHue} name={entry.name} />
 									</ItemMedia>
 									<ItemContent>
-										<ItemTitle className="flex items-center gap-2">
+										<ItemTitle data-layout-role="account-workspace-title">
 											<ItemRouterLink to={orgSwitchPath(entry.slug)}>
 												{entry.name}
 											</ItemRouterLink>
 											{entry.isPersonal ? (
-												<Badge size="sm" variant="outline">
+												<Badge size="small" variant="outline">
 													Personal
 												</Badge>
 											) : (
@@ -616,39 +603,59 @@ function OrgsSection({ activeOrg }: { activeOrg: string }) {
 	);
 }
 
-function AccountFooter() {
+function AccountActions() {
 	const signOut = useSignOut();
 	const [deleting, setDeleting] = useState(false);
+	const deleteActionRef = useRef<HTMLDivElement>(null);
 	return (
-		<div className="flex flex-wrap items-center justify-between gap-3 border-line-faint border-t pt-4">
-			<Button
-				confirmation={{
-					actionLabel: "Sign out",
-					description:
-						"Your session on this device ends. You'll need to sign in again to use Tripwire.",
-					pendingLabel: "Signing out",
-					title: "Sign out of Tripwire?",
-				}}
-				onAction={() => signOut.mutateAsync()}
-				size="sm"
-				variant="destructive"
-			>
-				Sign out
-			</Button>
-			<Button
-				confirmation={false}
-				onClick={() => setDeleting(true)}
-				size="sm"
-				variant="destructive"
-			>
-				Delete account
-			</Button>
+		<>
+			<SettingsPanel id="account-actions" title="Sign out">
+				<SupportingText id="account-sign-out-description">
+					End your Tripwire session on this device.
+				</SupportingText>
+				<div data-layout-role="account-action">
+					<Button
+						confirmation={{
+							confirmLabel: "Sign out",
+							description:
+								"Your session on this device ends. You'll need to sign in again to use Tripwire.",
+							title: "Sign out of Tripwire?",
+						}}
+						describedBy="account-sign-out-description"
+						onAction={() => signOut.mutateAsync()}
+						variant="destructive"
+					>
+						Sign out
+					</Button>
+				</div>
+			</SettingsPanel>
+			<SettingsPanel danger id="delete-account" title="Delete account">
+				<SupportingText id="account-delete-description">
+					Permanently delete your Tripwire account and its personal data. This
+					cannot be undone.
+				</SupportingText>
+				<div data-layout-role="account-action" ref={deleteActionRef}>
+					<Button
+						describedBy="account-delete-description"
+						name="delete-account"
+						onAction={() => setDeleting(true)}
+						variant="secondary"
+					>
+						Delete account
+					</Button>
+				</div>
+			</SettingsPanel>
 			<DeleteAccountDialog
+				finalFocus={() =>
+					deleteActionRef.current?.querySelector<HTMLButtonElement>(
+						'button[name="delete-account"]',
+					) ?? null
+				}
 				onLeave={() => setDeleting(false)}
 				onOpenChange={setDeleting}
 				open={deleting}
 			/>
-		</div>
+		</>
 	);
 }
 
@@ -659,7 +666,9 @@ function RowsSkeleton() {
 				{ROW_SLOTS.map((slot) => (
 					<Item key={slot}>
 						<ItemContent>
-							<SkeletonText className="w-40" type="label" />
+							<span data-skeleton-line="" aria-hidden className="w-40">
+								<SkeletonText type="label" />
+							</span>
 						</ItemContent>
 					</Item>
 				))}

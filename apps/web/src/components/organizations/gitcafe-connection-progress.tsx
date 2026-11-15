@@ -1,12 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import type { GitCafeConnectionRefusal } from "@tripwire/contracts";
+import { Alert, AlertTitle } from "@tripwire/ui/alert";
+import { Button } from "@tripwire/ui/button";
 import {
 	InstallSetupHeader,
 	InstallSetupShell,
 } from "#/components/organizations/install-setup-shell";
-import { Alert, AlertTitle } from "#/design-system/ui/alert";
-import { Button } from "#/design-system/ui/button";
 import { gitCafeConnectionStatusQueryOptions } from "#/lib/gitcafe-connection.query";
 
 const REFUSAL_COPY = {
@@ -62,12 +61,7 @@ export function GitCafeConnectionProgress({
 					title={`GitCafe connected to ${org.name}`}
 					body={`${current.repoCount} ${current.repoCount === 1 ? "repo is" : "repos are"} connected with protection off. GitCafe checks aren't available yet.`}
 				/>
-				<Button
-					nativeButton={false}
-					render={<Link to="/$org/home" params={{ org: org.slug }} />}
-				>
-					Open repos
-				</Button>
+				<Button href={`/${org.slug}/home`}>Open repos</Button>
 			</InstallSetupShell>
 		);
 	if (status.isPending || current?.status === "pending")
@@ -95,11 +89,11 @@ export function GitCafeConnectionProgress({
 				}
 			/>
 			<div className="flex flex-wrap justify-end gap-2">
-				<Button onClick={() => void status.refetch()} variant="secondary">
+				<Button onAction={() => void status.refetch()} variant="secondary">
 					Check again
 				</Button>
 				<Button
-					onClick={onRetry}
+					onAction={onRetry}
 					pending={retryPending}
 					pendingLabel="Opening GitCafe"
 				>
@@ -107,12 +101,12 @@ export function GitCafeConnectionProgress({
 				</Button>
 			</div>
 			{retryError ? (
-				<Alert status="fail">
+				<Alert role="alert" status="danger">
 					<AlertTitle>{retryError.message}</AlertTitle>
 				</Alert>
 			) : null}
 			{status.isError ? (
-				<Alert status="fail">
+				<Alert role="alert" status="danger">
 					<AlertTitle>
 						Couldn't read connection progress. Check your connection and try
 						again.

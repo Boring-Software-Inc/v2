@@ -3,19 +3,19 @@ import type {
 	Finding,
 	FindingSeverity,
 } from "@tripwire/contracts";
+import { External, Icon } from "@tripwire/ui/icon";
+import {
+	Caption,
+	CodeText,
+	Label,
+	SupportingText,
+} from "@tripwire/ui/typography";
 import {
 	blobUrl,
 	FileIcon,
 	FilePath,
 	renderBackticks,
 } from "#/components/runs/evidence-parts";
-import { External, Icon } from "#/design-system/icon";
-import {
-	Caption,
-	CodeText,
-	Label,
-	SupportingText,
-} from "#/design-system/ui/typography";
 
 const SEVERITY = {
 	critical: "Critical",

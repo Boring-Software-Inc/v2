@@ -1,8 +1,8 @@
 import type { ResponseVariable } from "@tripwire/contracts";
+import { Hide, Icon } from "@tripwire/ui/icon";
 import type { MouseEvent } from "react";
 import { VARIABLE_LABELS } from "#/components/responses/blocks/block-catalog";
-import { Hide, Icon } from "#/design-system/icon";
-import { cn } from "#/design-system/lib/utils";
+import { cn } from "#/lib/utils";
 
 export const VARIABLE_CHIP_CLASS =
 	"inline-flex h-5.5 items-center gap-1 rounded-pill border border-line bg-field px-1.75 align-middle type-label-sm text-text-1";
@@ -33,7 +33,7 @@ export function VariableChip({
 			onMouseDown={preventBlur}
 			type="button"
 		>
-			{hidden ? <Icon className="text-text-3" icon={Hide} size={12} /> : null}
+			{hidden ? <Icon icon={Hide} size={12} tone="tertiary" /> : null}
 			{VARIABLE_LABELS[name]}
 		</button>
 	);

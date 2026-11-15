@@ -1,9 +1,9 @@
+import { Button } from "@tripwire/ui/button";
 import {
 	DiscardChangesButton,
 	SaveQueueNavGuard,
 	useSaveQueue,
 } from "#/components/save-queue/save-queue-context";
-import { Button } from "#/design-system/ui/button";
 
 /**
  * The floating unsaved-changes bar. Driven ONLY by provider state — it has no
@@ -26,10 +26,10 @@ export function UnsavedChangesBar() {
 						</span>
 						<DiscardChangesButton disabled={isCommitting} onDiscard={discard} />
 						<Button
-							onClick={commit}
+							onAction={commit}
 							pending={isCommitting}
 							pendingLabel="Saving"
-							size="sm"
+							size="small"
 						>
 							Save changes
 						</Button>

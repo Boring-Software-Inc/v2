@@ -1,8 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
+import { DestructiveDialog } from "@tripwire/ui/dialog";
+import { notify } from "@tripwire/ui/toast";
+import { useState } from "react";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
-import { toast } from "#/design-system/ui/toast";
 import { authQueryKeys } from "#/lib/auth.query";
 import type { OrgWithRole } from "#/lib/org.functions";
 import { deleteOrg } from "#/lib/org.functions";
@@ -11,14 +12,11 @@ import { orgQueryKeys } from "#/lib/org.query";
 export function DeleteOrgDialog({
 	org,
 	orgContext,
-	open,
-	onOpenChange,
 }: {
 	org: string;
 	orgContext: OrgWithRole;
-	open: boolean;
-	onOpenChange: (open: boolean) => void;
 }) {
+	const [open, setOpen] = useState(false);
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const orgName = orgContext.name;
@@ -44,7 +42,7 @@ export function DeleteOrgDialog({
 				queryClient.invalidateQueries({ queryKey: authQueryKeys.session() }),
 			]);
 
-			toast.success(`Deleted ${orgName}`);
+			notify.show({ title: `Deleted ${orgName}` }, "success");
 			if (next) {
 				navigate({ to: "/$org/home", params: { org: next.slug } });
 				return;
@@ -54,8 +52,8 @@ export function DeleteOrgDialog({
 	});
 
 	return (
-		<ConfirmDeleteDialog
-			actionLabel="Delete org"
+		<DestructiveDialog
+			confirmLabel="Delete org"
 			confirmText={orgName}
 			description="This can't be undone."
 			media={
@@ -68,9 +66,11 @@ export function DeleteOrgDialog({
 				/>
 			}
 			onConfirm={() => deletion.mutateAsync()}
-			onOpenChange={onOpenChange}
+			onOpenChange={setOpen}
 			open={open}
+			pendingLabel="Deleting"
 			title={`Delete ${orgName}?`}
+			trigger={{ label: "Delete organization", size: "small" }}
 		/>
 	);
 }

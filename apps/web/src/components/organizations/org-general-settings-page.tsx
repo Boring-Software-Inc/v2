@@ -1,24 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { orgSlugSchema } from "@tripwire/contracts";
+import { Button } from "@tripwire/ui/button";
+import { Field, FieldError, FieldLabel, Input } from "@tripwire/ui/field";
+import { Skeleton, SkeletonSwap, SkeletonText } from "@tripwire/ui/skeleton";
+import { notify } from "@tripwire/ui/toast";
 import { useState } from "react";
 import { DeleteOrgDialog } from "#/components/organizations/delete-org-dialog";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { OrgModerationDefaults } from "#/components/organizations/org-moderation-defaults";
 import {
 	SettingsHeader,
-	SettingsSection,
+	SettingsPanel,
 } from "#/components/settings/settings-frame";
 import { TimezonePicker } from "#/components/timezones/timezone-picker";
-import { Button } from "#/design-system/ui/button";
-import { Field, FieldError, FieldLabel } from "#/design-system/ui/field";
-import { Input } from "#/design-system/ui/input";
-import {
-	Skeleton,
-	SkeletonSwap,
-	SkeletonText,
-} from "#/design-system/ui/skeleton";
-import { toast } from "#/design-system/ui/toast";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import type { OrgWithRole } from "#/lib/org.functions";
 import { updateOrg } from "#/lib/org.functions";
@@ -31,14 +26,20 @@ export function OrgGeneralSettingsPage({ org }: { org: string }) {
 
 	return (
 		<>
-			<SettingsHeader title="General" />
+			<SettingsHeader
+				description="Manage organization details and defaults."
+				title="General"
+			/>
 			<SkeletonSwap
 				fallback={<OrgGeneralSettingsSkeleton />}
 				label="Loading org settings"
 				loading={!orgContext}
 			>
 				{orgContext ? (
-					<div className="flex flex-col gap-6">
+					<div
+						className="flex flex-col"
+						data-layout-role="org-settings-sections"
+					>
 						{canManage ? (
 							<RenameCard
 								key={orgContext.id}
@@ -66,18 +67,25 @@ export function OrgGeneralSettingsPage({ org }: { org: string }) {
 
 function ReadOnlyCard({ orgContext }: { orgContext: OrgWithRole }) {
 	return (
-		<div className="shell">
-			<dl className="panel flex flex-col gap-4 p-4">
-				<div className="flex flex-col gap-1">
-					<dt className="type-label">Name</dt>
-					<dd className="type-body text-text-2">{orgContext.name}</dd>
+		<SettingsPanel id="org-details" title="Organization details">
+			<dl
+				className="flex flex-col composition-gap-group"
+				data-layout-role="org-settings-fields"
+			>
+				<div className="flex flex-col composition-gap-small">
+					<dt className="content-label">Name</dt>
+					<dd className="content-body tone-content-secondary">
+						{orgContext.name}
+					</dd>
 				</div>
-				<div className="flex flex-col gap-1">
-					<dt className="type-label">Slug</dt>
-					<dd className="type-code-sm text-text-2">/{orgContext.slug}</dd>
+				<div className="flex flex-col composition-gap-small">
+					<dt className="content-label">Slug</dt>
+					<dd className="content-code-small tone-content-secondary">
+						/{orgContext.slug}
+					</dd>
 				</div>
 			</dl>
-		</div>
+		</SettingsPanel>
 	);
 }
 
@@ -126,10 +134,10 @@ function RenameCard({
 			}),
 		onSuccess: (result) => {
 			if ("error" in result) {
-				toast.fail(result.error);
+				notify.show({ title: result.error }, "error");
 				return;
 			}
-			toast.success("Org saved");
+			notify.show({ title: "Org saved" }, "success");
 			if (result.slug !== org) {
 				navigate({
 					to: "/$org/settings/general",
@@ -145,7 +153,6 @@ function RenameCard({
 
 	return (
 		<form
-			className="shell"
 			onSubmit={(event) => {
 				event.preventDefault();
 				if (dirty && !slugError && !nameError) {
@@ -153,58 +160,70 @@ function RenameCard({
 				}
 			}}
 		>
-			<div className="panel flex flex-col gap-4 p-4">
-				<div data-layout-role="org-name-fields">
-					<OrgAvatar
-						animate
-						className="org-name-avatar"
-						hue={orgContext.avatarHue}
-						name={name}
-						size="lg"
-					/>
-					<Field className="max-w-90 flex-1" invalid={nameError !== null}>
-						<FieldLabel>Name</FieldLabel>
-						<Input
-							onChange={(event) => setName(event.target.value)}
-							value={name}
+			<SettingsPanel
+				id="org-details"
+				title="Organization details"
+				footer={
+					<>
+						<Button
+							disabled={!dirty}
+							onAction={() => {
+								setName(orgContext.name);
+								setSlug(orgContext.slug);
+							}}
+							size="small"
+							type="button"
+							variant="secondary"
+						>
+							Discard
+						</Button>
+						<Button
+							disabled={!dirty || slugError !== null || nameError !== null}
+							pending={saveMutation.isPending}
+							pendingLabel="Saving"
+							size="small"
+							type="submit"
+							variant="primary"
+						>
+							Save changes
+						</Button>
+					</>
+				}
+			>
+				<div
+					className="flex flex-col composition-gap-group"
+					data-layout-role="org-settings-fields"
+				>
+					<div data-layout-role="org-name-fields">
+						<OrgAvatar
+							animate
+							className="org-name-avatar"
+							hue={orgContext.avatarHue}
+							name={name}
+							size="lg"
 						/>
-						{nameError ? <FieldError>{nameError}</FieldError> : null}
-					</Field>
+						<div className="max-w-90 flex-1">
+							<Field invalid={nameError !== null}>
+								<FieldLabel>Name</FieldLabel>
+								<Input labelledByField onValueChange={setName} value={name} />
+								{nameError ? <FieldError>{nameError}</FieldError> : null}
+							</Field>
+						</div>
+					</div>
+					<div className="max-w-90 content-mono">
+						<Field invalid={slugError !== null}>
+							<FieldLabel>Slug</FieldLabel>
+							<Input
+								labelledByField
+								leadingIcon={<span>/</span>}
+								onValueChange={setSlug}
+								value={slug}
+							/>
+							{slugError ? <FieldError>{slugError}</FieldError> : null}
+						</Field>
+					</div>
 				</div>
-				<Field className="max-w-90" invalid={slugError !== null}>
-					<FieldLabel>Slug</FieldLabel>
-					<Input
-						leading="/"
-						mono
-						onChange={(event) => setSlug(event.target.value)}
-						value={slug}
-					/>
-					{slugError ? <FieldError>{slugError}</FieldError> : null}
-				</Field>
-			</div>
-			<div className="shell-foot justify-end">
-				<Button
-					disabled={!dirty}
-					onClick={() => {
-						setName(orgContext.name);
-						setSlug(orgContext.slug);
-					}}
-					size="sm"
-					type="button"
-					variant="secondary"
-				>
-					Discard
-				</Button>
-				<Button
-					disabled={!dirty || slugError !== null || nameError !== null}
-					pending={saveMutation.isPending}
-					pendingLabel="Saving"
-					size="sm"
-					type="submit"
-				>
-					Save changes
-				</Button>
-			</div>
+			</SettingsPanel>
 		</form>
 	);
 }
@@ -222,24 +241,28 @@ function TimezoneSection({
 	const save = useMutation({
 		mutationFn: (next: string | null) =>
 			setOrgTimezone({ data: { org, timezone: next } }),
-		onSuccess: () => toast.success("Timezone saved"),
+		onSuccess: () => notify.show({ title: "Timezone saved" }, "success"),
 		onError: () =>
-			toast.fail("Tripwire could not save the timezone. Try again."),
+			notify.show(
+				{ title: "Tripwire could not save the timezone. Try again." },
+				"error",
+			),
 		onSettled: () =>
 			queryClient.invalidateQueries({ queryKey: orgQueryKeys.detail(org) }),
 	});
 	return (
-		<SettingsSection id="org-timezone" title="Timezone">
+		<SettingsPanel id="org-timezone" title="Timezone">
 			<div className="max-w-90">
 				<TimezonePicker
 					disabled={!canManage || save.isPending}
 					labelledBy="org-timezone-heading"
 					onChange={(next) => save.mutate(next)}
-					unsetLabel="UTC"
+					showDisclosure
+					unsetLabel="Default (UTC)"
 					value={timezone}
 				/>
 			</div>
-		</SettingsSection>
+		</SettingsPanel>
 	);
 }
 
@@ -250,53 +273,57 @@ function DeleteOrgRow({
 	org: string;
 	orgContext: OrgWithRole;
 }) {
-	const [open, setOpen] = useState(false);
-
 	return (
-		<div className="rounded-shell border border-fail/40 bg-fail-tint p-(--shell-inset)">
-			<div className="flex min-h-10 items-center px-3">
-				<p className="type-label text-fail-text">Delete organization</p>
-			</div>
-			<div className="flex flex-col gap-4 rounded-panel border border-line-faint bg-paper p-4 sm:flex-row sm:items-end sm:justify-between">
-				<div className="flex min-w-0 flex-col gap-1">
-					<p className="type-body-sm text-text-1">
-						Permanently delete {orgContext.name} and all of its data.
-					</p>
-					<p className="type-caption text-text-2">This cannot be undone.</p>
-				</div>
-				<Button
-					confirmation={false}
-					className="self-end"
-					onClick={() => setOpen(true)}
-					size="sm"
-					variant="destructive"
-				>
-					Delete organization
-				</Button>
-			</div>
-			<DeleteOrgDialog
-				onOpenChange={setOpen}
-				open={open}
-				org={org}
-				orgContext={orgContext}
-			/>
-		</div>
+		<SettingsPanel
+			danger
+			id="delete-organization"
+			title="Delete organization"
+			footer={<DeleteOrgDialog org={org} orgContext={orgContext} />}
+		>
+			<p className="content-body-small tone-content-primary">
+				Permanently delete {orgContext.name} and all of its data.
+			</p>
+			<p className="content-caption tone-content-secondary">
+				This cannot be undone.
+			</p>
+		</SettingsPanel>
 	);
 }
 
 function OrgGeneralSettingsSkeleton() {
 	return (
-		<div aria-hidden className="shell">
-			<div className="panel flex flex-col gap-4 p-4">
-				<div className="flex max-w-90 flex-col gap-1.5">
-					<SkeletonText className="w-12" type="label" />
-					<Skeleton className="h-(--control) w-full rounded-pill" />
+		<div aria-hidden>
+			<SettingsPanel id="org-details-loading" title="Organization details">
+				<div
+					className="flex flex-col composition-gap-group"
+					data-layout-role="org-settings-fields"
+				>
+					<div className="flex max-w-90 flex-col composition-gap-control">
+						<span data-skeleton-line="" aria-hidden className="w-12">
+							<SkeletonText type="label" />
+						</span>
+						<span
+							data-skeleton-box=""
+							aria-hidden
+							className="h-(--control) w-full rounded-pill"
+						>
+							<Skeleton fill />
+						</span>
+					</div>
+					<div className="flex max-w-90 flex-col composition-gap-control">
+						<span data-skeleton-line="" aria-hidden className="w-10">
+							<SkeletonText type="label" />
+						</span>
+						<span
+							data-skeleton-box=""
+							aria-hidden
+							className="h-(--control) w-full rounded-pill"
+						>
+							<Skeleton fill />
+						</span>
+					</div>
 				</div>
-				<div className="flex max-w-90 flex-col gap-1.5">
-					<SkeletonText className="w-10" type="label" />
-					<Skeleton className="h-(--control) w-full rounded-pill" />
-				</div>
-			</div>
+			</SettingsPanel>
 		</div>
 	);
 }

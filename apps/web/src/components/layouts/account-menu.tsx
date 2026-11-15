@@ -1,14 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { useTheme } from "next-themes";
-import { useState } from "react";
-import { ConfirmDestructiveDialog } from "#/components/common/confirm-destructive-dialog";
-import { useFeedback } from "#/components/feedback";
-import { CreateOrgDialog } from "#/components/organizations/create-org-dialog";
-import { OrgAvatar } from "#/components/organizations/org-avatar";
+import { useNavigate } from "@tanstack/react-router";
+import { Avatar } from "@tripwire/ui/avatar";
+import { Command, type CommandEntry } from "@tripwire/ui/command";
+import { Dialog } from "@tripwire/ui/dialog";
 import {
 	Add,
-	Check,
 	ChevronDown,
 	Comment,
 	Dark,
@@ -16,44 +12,15 @@ import {
 	Light,
 	More,
 	SignOut,
-} from "#/design-system/icon";
-import { Avatar } from "#/design-system/ui/avatar";
-import { Badge } from "#/design-system/ui/badge";
-import { Button } from "#/design-system/ui/button";
-import {
-	Command,
-	CommandEmpty,
-	CommandGroup,
-	CommandInput,
-	CommandItem,
-	CommandLabel,
-	CommandList,
-} from "#/design-system/ui/command";
-import {
-	Dialog,
-	DialogBody,
-	DialogClose,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/design-system/ui/dialog";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuGroup,
-	DropdownMenuItem,
-	DropdownMenuLabel,
-	DropdownMenuLinkItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "#/design-system/ui/dropdown-menu";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/design-system/ui/tooltip";
+} from "@tripwire/ui/icon";
+import { Menu, type MenuEntry } from "@tripwire/ui/menu";
+import { UI_MOTION } from "@tripwire/ui/motion";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { useTheme } from "next-themes";
+import { type ComponentPropsWithRef, type ReactNode, useState } from "react";
+import { useFeedback } from "#/components/feedback";
+import { CreateOrgDialog } from "#/components/organizations/create-org-dialog";
+import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { useActiveScope } from "#/hooks/use-active-scope";
 import { useHasMounted } from "#/hooks/use-has-mounted";
 import { useOrgSwitchPath } from "#/hooks/use-org-switch-path";
@@ -65,7 +32,55 @@ import { myOrgsQueryOptions } from "#/lib/org.query";
 
 const VISIBLE_OTHER_ORGS = 3;
 const WORKSPACE_DIALOG_BATCH_SIZE = 5;
-const KEEP_ABOVE_TRIGGER = { side: "none", align: "shift" } as const;
+
+interface SidebarAccountTriggerProps
+	extends Omit<ComponentPropsWithRef<"button">, "children" | "className"> {
+	avatar: ReactNode;
+	collapsed: boolean;
+	name: string;
+}
+
+function SidebarAccountTrigger({
+	avatar,
+	collapsed,
+	name,
+	ref,
+	type = "button",
+	...buttonProps
+}: SidebarAccountTriggerProps) {
+	const reduceMotion = useReducedMotion();
+	const transition = reduceMotion ? { duration: 0 } : UI_MOTION.state;
+	return (
+		<button
+			{...buttonProps}
+			data-collapsed={collapsed ? "" : undefined}
+			data-layout-role="sidebar-account-trigger"
+			ref={ref}
+			type={type}
+		>
+			{avatar}
+			<AnimatePresence initial={false} mode="popLayout">
+				{collapsed ? null : (
+					<motion.span
+						animate={{ opacity: 1, transform: "translateX(0px)" }}
+						data-layout-role="sidebar-account-label"
+						exit={{
+							opacity: 0,
+							transform: "translateX(calc(var(--space-1) * -1))",
+						}}
+						initial={{
+							opacity: 0,
+							transform: "translateX(calc(var(--space-1) * -1))",
+						}}
+						transition={transition}
+					>
+						{name}
+					</motion.span>
+				)}
+			</AnimatePresence>
+		</button>
+	);
+}
 
 function visibleOtherOrganizations(
 	organizations: OrgWithRole[],
@@ -98,7 +113,6 @@ export function AccountMenu({
 	const isDark = hasMounted && resolvedTheme === "dark";
 	const [allOpen, setAllOpen] = useState(false);
 	const [createOrgOpen, setCreateOrgOpen] = useState(false);
-	const [signOutOpen, setSignOutOpen] = useState(false);
 	const moderator = user ?? PLACEHOLDER_USER;
 	const identity = accountIdentity(moderator);
 	const visible = visibleOtherOrganizations(organizations, org?.id ?? null);
@@ -109,178 +123,142 @@ export function AccountMenu({
 	}
 
 	const trigger = (
-		<DropdownMenuTrigger
-			render={
-				<Button
-					aria-label={`Account menu for ${moderator.name}`}
-					className={
-						collapsed
-							? undefined
-							: "w-full min-w-0 justify-start rounded-tag px-2"
-					}
-					data-account-menu-trigger
-					size={collapsed ? "icon" : "default"}
-					variant="ghost"
+		<SidebarAccountTrigger
+			aria-label={`Account menu for ${moderator.name}`}
+			avatar={
+				<Avatar
+					decorative
+					name={moderator.name}
+					src={moderator.image || undefined}
 				/>
 			}
-		>
-			<Avatar
-				decorative
-				name={moderator.name}
-				src={moderator.image || undefined}
-			/>
-			{collapsed ? null : (
-				<span className="min-w-0 truncate">{moderator.name}</span>
-			)}
-		</DropdownMenuTrigger>
+			collapsed={collapsed}
+			name={moderator.name}
+		/>
 	);
+	const menuItems: MenuEntry[] = [
+		...(org
+			? [
+					{
+						label: "Active workspace",
+						type: "label" as const,
+						value: "active-workspace-label",
+					},
+					{
+						badge: org.isPersonal ? { label: "Personal" } : undefined,
+						icon: <OrgAvatar hue={org.avatarHue} name={org.name} size="sm" />,
+						label: org.name,
+						selected: true,
+						type: "summary" as const,
+						value: "active-workspace",
+					},
+					{ type: "separator" as const, value: "workspaces-separator" },
+				]
+			: []),
+		{
+			items: [
+				...visible.organizations.map(
+					(candidate): MenuEntry => ({
+						icon: (
+							<OrgAvatar
+								hue={candidate.avatarHue}
+								name={candidate.name}
+								size="sm"
+							/>
+						),
+						badge: candidate.isPersonal ? { label: "Personal" } : undefined,
+						label: candidate.name,
+						onAction: () => selectOrganization(candidate.slug),
+						value: `workspace:${candidate.id}`,
+					}),
+				),
+				...(visible.hasMore
+					? [
+							{
+								icon: <Icon icon={More} />,
+								label: "Show all",
+								onAction: () => setAllOpen(true),
+								value: "show-all",
+							},
+						]
+					: [
+							{
+								icon: <Icon icon={Add} />,
+								label: "Create org",
+								onAction: () => setCreateOrgOpen(true),
+								value: "create-org",
+							},
+						]),
+			],
+			label: "Other workspaces",
+			type: "group",
+			value: "other-workspaces",
+		},
+		{ type: "separator", value: "account-separator" },
+		{
+			description: identity ?? undefined,
+			href: org ? `/${org.slug}/settings/account` : "/account",
+			icon: (
+				<Avatar
+					decorative
+					name={moderator.name}
+					src={moderator.image || undefined}
+				/>
+			),
+			label: moderator.name,
+			type: "link",
+			value: "account-summary",
+		},
+		{
+			icon: <Icon icon={Comment} />,
+			label: "Send feedback",
+			onAction: () => openFeedback?.(),
+			value: "send-feedback",
+		},
+		{
+			icon: <Icon icon={isDark ? Light : Dark} />,
+			label: isDark ? "Light theme" : "Dark theme",
+			onAction: () => setTheme(isDark ? "light" : "dark"),
+			value: "toggle-theme",
+		},
+		{
+			confirmation: {
+				confirmLabel: "Sign out",
+				description:
+					"Your session on this device ends. You'll need to sign in again to use Tripwire.",
+				title: "Sign out of Tripwire?",
+			},
+			icon: <Icon icon={SignOut} />,
+			label: "Sign out",
+			onAction: () => signOut.mutateAsync(),
+			tone: "destructive" as const,
+			value: "sign-out",
+		},
+	];
 
 	return (
 		<>
-			<DropdownMenu>
-				{collapsed ? (
-					<Tooltip>
-						<TooltipTrigger render={trigger} />
-						<TooltipContent side="right" sideOffset={16} variant="sidebar">
-							Account
-						</TooltipContent>
-					</Tooltip>
-				) : (
-					trigger
-				)}
-				<DropdownMenuContent
+			<div data-layout-role="account-menu-trigger">
+				<Menu
 					align="start"
-					className="w-(--popover)"
-					collisionAvoidance={KEEP_ABOVE_TRIGGER}
-					side="top"
-					sideOffset={4}
-				>
-					{org ? (
-						<>
-							<DropdownMenuGroup>
-								<DropdownMenuLabel
-									className="min-h-7"
-									data-layout-role="account-menu-section-label"
-								>
-									Active workspace
-								</DropdownMenuLabel>
-								<div
-									className="mx-0.5 my-1.5 flex min-h-(--menu-item-h) items-center gap-2 rounded-tag px-1.5"
-									data-layout-role="account-menu-active-workspace"
-								>
-									<OrgAvatar hue={org.avatarHue} name={org.name} size="sm" />
-									<span className="min-w-0 flex-1 truncate">{org.name}</span>
-									{org.isPersonal ? (
-										<Badge size="sm" variant="outline">
-											Personal
-										</Badge>
-									) : null}
-									<Icon className="ms-auto" icon={Check} />
-								</div>
-							</DropdownMenuGroup>
-							<DropdownMenuSeparator className="-mx-1 my-0" />
-						</>
-					) : null}
-					<DropdownMenuGroup>
-						<DropdownMenuLabel
-							className="min-h-7"
-							data-layout-role="account-menu-section-label"
-						>
-							Other workspaces
-						</DropdownMenuLabel>
-						{visible.organizations.length ? (
-							<>
-								{visible.organizations.map((candidate, index) => (
-									<DropdownMenuItem
-										className={index === 0 ? "px-1.5" : "mt-0.5 px-1.5"}
-										key={candidate.id}
-										onClick={() => selectOrganization(candidate.slug)}
-									>
-										<OrgAvatar
-											hue={candidate.avatarHue}
-											name={candidate.name}
-											size="sm"
-										/>
-										<span className="min-w-0 flex-1 truncate">
-											{candidate.name}
-										</span>
-										{candidate.isPersonal ? (
-											<Badge size="sm" variant="outline">
-												Personal
-											</Badge>
-										) : null}
-									</DropdownMenuItem>
-								))}
-								{visible.hasMore ? (
-									<DropdownMenuItem
-										className="mt-0.5 px-1.5"
-										onClick={() => setAllOpen(true)}
-									>
-										<Icon icon={More} />
-										Show all
-									</DropdownMenuItem>
-								) : null}
-							</>
-						) : null}
-						{visible.hasMore ? null : (
-							<DropdownMenuItem
-								className="mt-0.5 px-1.5"
-								onClick={() => setCreateOrgOpen(true)}
-							>
-								<Icon icon={Add} />
-								Create org
-							</DropdownMenuItem>
-						)}
-					</DropdownMenuGroup>
-					<DropdownMenuSeparator className="mx-0 my-1.5" />
-					<DropdownMenuLinkItem
-						className="mx-1.5 min-h-11.5 w-auto px-1.5 py-1"
-						render={
-							org ? (
-								<Link params={{ org: org.slug }} to="/$org/settings/account" />
-							) : (
-								<Link to="/account" />
-							)
-						}
-					>
-						<Avatar
-							decorative
-							name={moderator.name}
-							src={moderator.image || undefined}
-						/>
-						<span className="min-w-0 flex-1">
-							<span className="block truncate">{moderator.name}</span>
-							{identity ? (
-								<span
-									className="block truncate"
-									data-layout-role="account-menu-identity"
-								>
-									{identity}
-								</span>
-							) : null}
-						</span>
-					</DropdownMenuLinkItem>
-					<DropdownMenuItem className="px-1.5" onClick={openFeedback}>
-						<Icon icon={Comment} />
-						Send feedback
-					</DropdownMenuItem>
-					<DropdownMenuItem
-						className="mt-0.5 px-1.5"
-						onClick={() => setTheme(isDark ? "light" : "dark")}
-					>
-						<Icon icon={isDark ? Light : Dark} />
-						{isDark ? "Light theme" : "Dark theme"}
-					</DropdownMenuItem>
-					<DropdownMenuItem
-						className="mt-0.5 px-1.5"
-						onClick={() => setSignOutOpen(true)}
-						variant="destructive"
-					>
-						<Icon icon={SignOut} />
-						Sign out
-					</DropdownMenuItem>
-				</DropdownMenuContent>
-			</DropdownMenu>
+					ariaLabel={`Account menu for ${moderator.name}`}
+					items={menuItems}
+					offset="tight"
+					placement="top"
+					trigger={trigger}
+					triggerTooltip={
+						collapsed
+							? {
+									children: "Account",
+									offset: "spacious",
+									placement: "right",
+									variant: "sidebar",
+								}
+							: undefined
+					}
+					width="popover"
+				/>
+			</div>
 			{allOpen ? (
 				<OrganizationDialog
 					onCreate={() => {
@@ -301,15 +279,6 @@ export function AccountMenu({
 				}}
 				onOpenChange={setCreateOrgOpen}
 				open={createOrgOpen}
-			/>
-			<ConfirmDestructiveDialog
-				actionLabel="Sign out"
-				description="Your session on this device ends. You'll need to sign in again to use Tripwire."
-				onConfirm={() => signOut.mutateAsync()}
-				onOpenChange={setSignOutOpen}
-				open={signOutOpen}
-				pendingLabel="Signing out"
-				title="Sign out of Tripwire?"
 			/>
 		</>
 	);
@@ -344,73 +313,74 @@ function OrganizationDialog({
 			Math.min(visibleCount + WORKSPACE_DIALOG_BATCH_SIZE, count),
 		);
 	}
+	const commandItems: CommandEntry[] = [
+		{
+			items: shownOrganizations.map((candidate) => ({
+				badge:
+					candidate.id === selectedId
+						? "Current"
+						: candidate.isPersonal
+							? "Personal"
+							: undefined,
+				current: candidate.id === selectedId,
+				icon: (
+					<OrgAvatar
+						hue={candidate.avatarHue}
+						name={candidate.name}
+						size="sm"
+					/>
+				),
+				keywords: [candidate.slug],
+				label: candidate.name,
+				onAction: () => onSelect(candidate.slug),
+				value: candidate.id,
+			})),
+			label: "Workspaces",
+			type: "group",
+		},
+		{
+			items: [
+				...(hasMore
+					? [
+							{
+								icon: <Icon icon={ChevronDown} />,
+								label: "View more",
+								onAction: revealMoreOrganizations,
+								value: "view-more",
+							},
+						]
+					: []),
+				{
+					icon: <Icon icon={Add} />,
+					label: "Create org",
+					onAction: onCreate,
+					value: "create-org",
+				},
+			],
+			label: "Actions",
+			type: "group",
+		},
+	];
 
 	return (
-		<Dialog onOpenChange={onOpenChange} open={open}>
-			<DialogContent size="sm">
-				<DialogHeader>
-					<DialogTitle>Choose a workspace</DialogTitle>
-					<DialogDescription>
-						Switch the dashboard to another workspace.
-					</DialogDescription>
-				</DialogHeader>
-				<DialogBody className="p-0">
-					<Command className="rounded-none border-0" label="Workspaces" loop>
-						<CommandInput
-							autoFocus
-							onValueChange={setQuery}
-							placeholder="Search workspaces"
-							value={query}
-						/>
-						<CommandList className="max-h-none overflow-visible p-0">
-							<CommandEmpty>No workspaces match</CommandEmpty>
-							<CommandGroup>
-								<div className="h-[calc(var(--menu-row)*5+var(--space-2))] scroll-py-1 overflow-y-auto overscroll-contain p-1">
-									{shownOrganizations.map((candidate) => (
-										<CommandItem
-											key={candidate.id}
-											keywords={[candidate.slug]}
-											onSelect={() => onSelect(candidate.slug)}
-											value={candidate.name}
-										>
-											<OrgAvatar
-												hue={candidate.avatarHue}
-												name={candidate.name}
-												size="default"
-											/>
-											<CommandLabel>{candidate.name}</CommandLabel>
-											{candidate.isPersonal ? (
-												<Badge size="sm" variant="outline">
-													Personal
-												</Badge>
-											) : null}
-											{candidate.id === selectedId ? (
-												<Icon className="ms-auto" icon={Check} />
-											) : null}
-										</CommandItem>
-									))}
-								</div>
-								{hasMore ? (
-									<CommandItem
-										onSelect={revealMoreOrganizations}
-										value="View more"
-									>
-										<Icon icon={ChevronDown} />
-										<CommandLabel>View more</CommandLabel>
-									</CommandItem>
-								) : null}
-								<CommandItem onSelect={onCreate} value="Create org">
-									<Icon icon={Add} />
-									<CommandLabel>Create org</CommandLabel>
-								</CommandItem>
-							</CommandGroup>
-						</CommandList>
-					</Command>
-				</DialogBody>
-				<DialogFooter>
-					<DialogClose>Close</DialogClose>
-				</DialogFooter>
-			</DialogContent>
+		<Dialog
+			cancelLabel="Close"
+			description="Switch the dashboard to another workspace."
+			initialFocus="first-field"
+			onOpenChange={onOpenChange}
+			open={open}
+			title="Choose a workspace"
+		>
+			<div data-layout-role="workspace-picker">
+				<Command
+					ariaLabel="Workspaces"
+					autoFocus
+					emptyLabel="No workspaces match"
+					items={commandItems}
+					onQueryChange={setQuery}
+					placeholder="Search workspaces"
+				/>
+			</div>
 		</Dialog>
 	);
 }

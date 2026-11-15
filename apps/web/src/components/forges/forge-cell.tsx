@@ -1,10 +1,10 @@
 import type { ForgeId } from "@tripwire/contracts";
+import { Button } from "@tripwire/ui/button";
+import { notify } from "@tripwire/ui/toast";
 import { useId } from "react";
 import { ForgeMark } from "#/components/common/forge-marks";
-import { Button } from "#/design-system/ui/button";
-import { toast } from "#/design-system/ui/toast";
 
-export const FORGE_GRID = "grid grid-cols-2 gap-2";
+export const FORGE_GRID = "grid grid-cols-2 composition-gap-standard";
 
 /**
  * One blocked shape, not three. Every reason a forge can't be used right now (no
@@ -20,11 +20,10 @@ export type ForgeCellState =
 
 /**
  * One forge button, shared by the sign-in grid and the connect grid. Blocked
- * cells are deliberately NOT `disabled` — a disabled button gets
- * `pointer-events-none` and would swallow the click, so unavailability is
- * carried by `aria-disabled` + the not-allowed cursor while the click still
- * reaches the toast that says why. Stays focusable, so keyboard users get the
- * same explanation.
+ * cells remain actions because their purpose is to reveal why the forge cannot
+ * be used. Their accessible name and description carry that explanation before
+ * activation, and the resulting toast gives pointer and keyboard users the
+ * same next step.
  */
 export function ForgeCell({
 	id,
@@ -38,41 +37,47 @@ export function ForgeCell({
 	const reasonId = useId();
 	if (state.kind === "loading") {
 		return (
-			<Button className="w-full" pending variant="secondary">
-				<ForgeMark forge={id} />
-				{label}
-			</Button>
+			<div className="grid w-full">
+				<Button
+					leadingIcon={<ForgeMark forge={id} />}
+					pending
+					variant="secondary"
+				>
+					{label}
+				</Button>
+			</div>
 		);
 	}
 	if (state.kind === "unavailable") {
 		return (
-			<Button
-				className="w-full"
-				disabled
-				focusableWhenDisabled
-				variant="secondary"
-			>
-				<ForgeMark forge={id} />
-				{label}
-			</Button>
+			<div className="grid w-full">
+				<Button
+					disabled
+					focusableWhenDisabled
+					leadingIcon={<ForgeMark forge={id} />}
+					variant="secondary"
+				>
+					{label}
+				</Button>
+			</div>
 		);
 	}
 	if (state.kind === "blocked") {
 		return (
 			<>
 				<Button
-					aria-describedby={reasonId}
-					aria-disabled="true"
-					className="w-full"
-					onClick={() => {
-						toast(state.title, {
+					ariaLabel={`${label}. ${state.title}`}
+					describedBy={reasonId}
+					leadingIcon={<ForgeMark forge={id} />}
+					onAction={() => {
+						notify.show({
 							description: state.body,
 							id: `forge-blocked:${id}`,
+							title: state.title,
 						});
 					}}
 					variant="secondary"
 				>
-					<ForgeMark forge={id} />
 					{label}
 				</Button>
 				<span className="sr-only" id={reasonId}>
@@ -82,14 +87,15 @@ export function ForgeCell({
 		);
 	}
 	return (
-		<Button
-			className="w-full"
-			onClick={state.onSelect}
-			pending={state.pending ?? false}
-			variant="secondary"
-		>
-			<ForgeMark forge={id} />
-			{label}
-		</Button>
+		<div className="grid w-full">
+			<Button
+				leadingIcon={<ForgeMark forge={id} />}
+				onAction={state.onSelect}
+				pending={state.pending ?? false}
+				variant="secondary"
+			>
+				{label}
+			</Button>
+		</div>
 	);
 }

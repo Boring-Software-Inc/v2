@@ -1,28 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { useState } from "react";
-import { AccessStatusMark } from "#/components/admin/access-status-dot";
-import { AdminPagination } from "#/components/admin/admin-pagination";
-import { formatAdminDate } from "#/components/admin/format-admin-date";
-import { UserSheet } from "#/components/admin/user-sheet/user-sheet";
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { Page, PageBody, PageHeader } from "#/components/layouts/page";
-import { MascotArt } from "#/components/mascot/mascot-art";
-import { Avatar } from "#/design-system/ui/avatar";
-import { Badge } from "#/design-system/ui/badge";
-import { Button } from "#/design-system/ui/button";
-import { Checkbox, CheckboxGroup } from "#/design-system/ui/checkbox";
-import {
-	FilterBar,
-	FilterBarSearch,
-	FilterToggle,
-} from "#/design-system/ui/filter-bar";
-import { RelativeTime } from "#/design-system/ui/relative-time";
-import {
-	SegmentedControl,
-	SegmentedControlItem,
-} from "#/design-system/ui/segmented-control";
-import { Switch } from "#/design-system/ui/switch";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { AgentBoundary } from "@tripwire/ui/agent-policy";
+import { Avatar } from "@tripwire/ui/avatar";
+import { Badge } from "@tripwire/ui/badge";
+import { Button } from "@tripwire/ui/button";
+import { Checkbox } from "@tripwire/ui/checkbox";
+import { DestructiveDialog } from "@tripwire/ui/dialog";
+import { SegmentedControl } from "@tripwire/ui/radio-group";
+import { RelativeTime } from "@tripwire/ui/relative-time";
+import { Switch } from "@tripwire/ui/switch";
 import {
 	Table,
 	TableBody,
@@ -32,9 +18,22 @@ import {
 	TableHeader,
 	TableLoading,
 	TableRow,
-} from "#/design-system/ui/table";
-import { toast } from "#/design-system/ui/toast";
-import { Caption, Label, SupportingText } from "#/design-system/ui/typography";
+} from "@tripwire/ui/table";
+import { notify } from "@tripwire/ui/toast";
+import { Caption, Label, SupportingText } from "@tripwire/ui/typography";
+import { useState } from "react";
+import { AccessStatusMark } from "#/components/admin/access-status-dot";
+import { AdminPagination } from "#/components/admin/admin-pagination";
+import { formatAdminDate } from "#/components/admin/format-admin-date";
+import { UserSheet } from "#/components/admin/user-sheet/user-sheet";
+import {
+	FilterBar,
+	FilterBarSearch,
+	FilterToggle,
+} from "#/components/common/filter-bar";
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Page, PageBody, PageHeader } from "#/components/layouts/page";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import { useDebouncedValue } from "#/hooks/use-debounced-value";
 import {
 	reviewUserAccess,
@@ -74,7 +73,6 @@ export function AdminUsersPage() {
 	const [search, setSearch] = useState("");
 	const [offset, setOffset] = useState(0);
 	const [selected, setSelected] = useState<string[]>([]);
-	const [confirmRejectId, setConfirmRejectId] = useState<string | null>(null);
 	const debouncedSearch = useDebouncedValue(search, 250);
 
 	const filter = {
@@ -110,20 +108,27 @@ export function AdminUsersPage() {
 						trackEvent("beta_approved", { count: result.changed });
 					}
 					setSelected([]);
-					setConfirmRejectId(null);
 					const verb = decision === "approve" ? "Approved" : "Declined";
 					const noun = result.total === 1 ? "user" : "users";
-					toast.success(
-						result.changed === result.total
-							? `${verb} ${result.total} ${noun}`
-							: `${verb} ${result.changed} of ${result.total} ${noun}. The rest already had that status.`,
+					notify.show(
+						{
+							title:
+								result.changed === result.total
+									? `${verb} ${result.total} ${noun}`
+									: `${verb} ${result.changed} of ${result.total} ${noun}. The rest already had that status.`,
+						},
+						"success",
 					);
 				},
 				onError: (failure) => {
-					toast.fail(
-						failure instanceof Error
-							? failure.message
-							: "Tripwire couldn't save the access decision. Try again.",
+					notify.show(
+						{
+							title:
+								failure instanceof Error
+									? failure.message
+									: "Tripwire couldn't save the access decision. Try again.",
+						},
+						"error",
 					);
 				},
 			},
@@ -202,260 +207,271 @@ export function AdminUsersPage() {
 					title="Users"
 				/>
 				<PageBody>
-					<CheckboxGroup
-						allValues={pendingIds}
-						onValueChange={setSelected}
-						value={selected}
-					>
-						<Table
-							aria-busy={isLoading || undefined}
-							aria-label="Users"
-							data-admin-table="users"
-							footer={
-								<AdminPagination
-									noun="users"
-									offset={offset}
-									onOffsetChange={setOffset}
-									total={total}
+					<Table
+						aria-busy={isLoading || undefined}
+						aria-label="Users"
+						data-admin-table="users"
+						footer={
+							<AdminPagination
+								noun="users"
+								offset={offset}
+								onOffsetChange={setOffset}
+								total={total}
+							/>
+						}
+						toolbar={
+							<FilterBar aria-label="Filter users">
+								<SegmentedControl
+									ariaLabel="Access status"
+									onValueChange={(value) => value && setStatus(value)}
+									options={STATUS_FILTERS.map((statusFilter) => ({
+										label: statusFilter.label,
+										value: statusFilter.key,
+									}))}
+									size="small"
+									value={status}
 								/>
-							}
-							toolbar={
-								<FilterBar aria-label="Filter users">
-									<SegmentedControl
-										aria-label="Access status"
-										onValueChange={setStatus}
-										size="sm"
-										value={status}
-									>
-										{STATUS_FILTERS.map((statusFilter) => (
-											<SegmentedControlItem
-												key={statusFilter.key}
-												value={statusFilter.key}
-											>
-												{statusFilter.label}
-											</SegmentedControlItem>
-										))}
-									</SegmentedControl>
-									<FilterToggle
-										onPressedChange={(pressed) => {
-											setOffset(0);
-											setSelected([]);
-											void navigate({
-												search: (prev) => ({
-													...prev,
-													online: pressed ? true : undefined,
-												}),
-												replace: true,
-												resetScroll: false,
-											});
-										}}
-										pressed={online === true}
-									>
-										Online now
-									</FilterToggle>
-									{selected.length > 0 ? (
-										<div data-layout-role="admin-bulk-actions">
-											<Caption>{selected.length} selected</Caption>
+								<FilterToggle
+									onPressedChange={(pressed) => {
+										setOffset(0);
+										setSelected([]);
+										void navigate({
+											search: (prev) => ({
+												...prev,
+												online: pressed ? true : undefined,
+											}),
+											replace: true,
+											resetScroll: false,
+										});
+									}}
+									pressed={online === true}
+								>
+									Online now
+								</FilterToggle>
+								{selected.length > 0 ? (
+									<div data-layout-role="admin-bulk-actions">
+										<Caption>{selected.length} selected</Caption>
+										<Button
+											onAction={() => setSelected([])}
+											size="small"
+											variant="secondary"
+										>
+											Clear selection
+										</Button>
+										<AgentBoundary visibility="hidden">
 											<Button
-												onClick={() => setSelected([])}
-												size="sm"
-												variant="secondary"
-											>
-												Clear selection
-											</Button>
-											<Button
-												onClick={() => decide(selected, "approve")}
+												onAction={() => decide(selected, "approve")}
 												pending={review.isPending}
-												size="sm"
+												size="small"
 											>
 												Approve selected
 											</Button>
-										</div>
-									) : null}
-									<FilterBarSearch
-										aria-label="Search users"
-										onValueChange={(value) => {
-											setSearch(value);
-											setOffset(0);
-										}}
-										placeholder="Login or email"
-										value={search}
+										</AgentBoundary>
+									</div>
+								) : null}
+								<FilterBarSearch
+									aria-label="Search users"
+									onValueChange={(value) => {
+										setSearch(value);
+										setOffset(0);
+									}}
+									placeholder="Login or email"
+									value={search}
+								/>
+							</FilterBar>
+						}
+					>
+						<TableHeader>
+							<TableRow>
+								<TableHead>
+									<Checkbox
+										ariaLabel="Select all pending on this page"
+										checked={
+											selected.length === 0
+												? false
+												: selected.length === pendingIds.length
+													? true
+													: "indeterminate"
+										}
+										disabled={pendingIds.length === 0}
+										onCheckedChange={(checked) =>
+											setSelected(checked === true ? pendingIds : [])
+										}
+										size="small"
 									/>
-								</FilterBar>
-							}
-						>
-							<TableHeader>
-								<TableRow>
-									<TableHead>
-										<Checkbox
-											aria-label="Select all pending on this page"
-											checked={pendingIds.length === 0 ? false : undefined}
-											disabled={pendingIds.length === 0}
-											parent={pendingIds.length > 0}
-										/>
-									</TableHead>
-									<TableHead>User</TableHead>
-									<TableHead>Status</TableHead>
-									<TableHead data-admin-column="user-personal-org">
-										Personal org
-									</TableHead>
-									<TableHead data-admin-column="user-org-count" numeric>
-										Orgs
-									</TableHead>
-									<TableHead data-admin-column="user-joined">Joined</TableHead>
-									<TableHead data-admin-column="user-last-seen">
-										Last seen
-									</TableHead>
-									<TableHead>Skip cooldown</TableHead>
-									<TableHead>
-										<span className="sr-only">Actions</span>
-									</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{isLoading ? (
-									<TableLoading
-										columns={[
-											{ checkbox: true },
-											{},
-											{},
-											{},
-											{ numeric: true },
-											{},
-											{},
-											{},
-											{},
-										]}
-									/>
-								) : error ? (
-									<TableEmpty
-										action={
+								</TableHead>
+								<TableHead>User</TableHead>
+								<TableHead>Status</TableHead>
+								<TableHead data-admin-column="user-personal-org">
+									Personal org
+								</TableHead>
+								<TableHead data-admin-column="user-org-count" numeric>
+									Orgs
+								</TableHead>
+								<TableHead data-admin-column="user-joined">Joined</TableHead>
+								<TableHead data-admin-column="user-last-seen">
+									Last seen
+								</TableHead>
+								<TableHead data-admin-column="user-skip-cooldown">
+									Skip cooldown
+								</TableHead>
+								<TableHead>
+									<span className="sr-only">Actions</span>
+								</TableHead>
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							{isLoading ? (
+								<TableLoading
+									columns={[
+										{ checkbox: true },
+										{},
+										{},
+										{},
+										{ numeric: true },
+										{},
+										{},
+										{},
+										{},
+									]}
+								/>
+							) : error ? (
+								<TableEmpty
+									action={
+										<Button
+											onAction={() => void refetch()}
+											size="small"
+											variant="secondary"
+										>
+											Load users again
+										</Button>
+									}
+									colSpan={COLUMN_COUNT}
+									description={error.message}
+									reason="error"
+									title="Tripwire couldn't load users"
+								/>
+							) : users.length === 0 ? (
+								<TableEmpty
+									action={
+										filtered ? (
 											<Button
-												onClick={() => void refetch()}
-												size="sm"
+												onAction={clearFilters}
+												size="small"
 												variant="secondary"
 											>
-												Load users again
+												Clear filters
 											</Button>
-										}
-										colSpan={COLUMN_COUNT}
-										description={error.message}
-										reason="error"
-										title="Tripwire couldn't load users"
-									/>
-								) : users.length === 0 ? (
-									<TableEmpty
-										action={
-											filtered ? (
-												<Button
-													onClick={clearFilters}
-													size="sm"
-													variant="secondary"
-												>
-													Clear filters
-												</Button>
-											) : (
-												<Button
-													nativeButton={false}
-													render={<Link to="/admin/orgs" />}
-													size="sm"
-													variant="secondary"
-												>
-													View orgs
-												</Button>
-											)
-										}
-										art={<MascotArt mood="admin-table-empty" size="compact" />}
-										colSpan={COLUMN_COUNT}
-										description={
-											filtered
-												? "Try another access status, online filter or search."
-												: "New signups appear here as pending."
-										}
-										reason={filtered ? "no-results" : "empty"}
-										title={
-											filtered ? "No users match this filter" : "No users yet"
-										}
-									/>
-								) : (
-									users.map((user) => (
-										<TableRow
-											data-clickable=""
-											key={user.id}
-											onClick={(event) => {
-												if (
-													event.target instanceof Element &&
-													event.target.closest(
-														"button, a, input, label, [role='checkbox'], [role='switch'], [role='menuitem']",
-													)
-												) {
-													return;
-												}
-												openUser(user.id);
-											}}
-											open={user.id === openUserId}
-											selected={selected.includes(user.id)}
-										>
-											<TableCell>
-												<Checkbox
-													aria-label={`Select ${user.name}`}
-													disabled={user.accessStatus !== "pending"}
-													value={user.id}
-												/>
-											</TableCell>
-											<TableCell>
-												<button
-													aria-label={`Open ${user.name}`}
-													data-layout-role="admin-user-open"
-													onClick={() => openUser(user.id)}
-													type="button"
-												>
-													<Avatar
-														decorative
-														name={user.name}
-														size="sm"
-														src={user.image ?? undefined}
-													/>
-													<span>
-														<span data-layout-role="admin-user-name">
-															<Label>{user.name}</Label>
-															{user.isPlatformAdmin ? (
-																<Badge size="sm" variant="outline">
-																	Staff
-																</Badge>
-															) : null}
-														</span>
-														<SupportingText as="span">
-															{user.email}
-														</SupportingText>
-													</span>
-												</button>
-											</TableCell>
-											<TableCell>
-												<AccessStatusMark status={user.accessStatus} />
-											</TableCell>
-											<TableCell
-												data-admin-column="user-personal-org"
-												mono={user.personalOrgSlug !== null}
+										) : (
+											<Button
+												href="/admin/orgs"
+												size="small"
+												variant="secondary"
 											>
-												{user.personalOrgSlug ?? "None"}
-											</TableCell>
-											<TableCell data-admin-column="user-org-count" numeric>
-												{user.membershipCount}
-											</TableCell>
-											<TableCell data-admin-column="user-joined">
-												{formatAdminDate(user.createdAt)}
-											</TableCell>
-											<TableCell data-admin-column="user-last-seen">
-												{user.lastSeenAt ? (
-													<RelativeTime date={user.lastSeenAt} />
-												) : (
-													"Unknown"
-												)}
-											</TableCell>
-											<TableCell>
+												View orgs
+											</Button>
+										)
+									}
+									art={<MascotArt mood="admin-table-empty" size="compact" />}
+									colSpan={COLUMN_COUNT}
+									description={
+										filtered
+											? "Try another access status, online filter or search."
+											: "New signups appear here as pending."
+									}
+									reason={filtered ? "no-results" : "empty"}
+									title={
+										filtered ? "No users match this filter" : "No users yet"
+									}
+								/>
+							) : (
+								users.map((user) => (
+									<TableRow
+										data-clickable=""
+										key={user.id}
+										onClick={(event) => {
+											if (
+												event.target instanceof Element &&
+												event.target.closest(
+													"button, a, input, label, [role='checkbox'], [role='switch'], [role='menuitem']",
+												)
+											) {
+												return;
+											}
+											openUser(user.id);
+										}}
+										open={user.id === openUserId}
+										selected={selected.includes(user.id)}
+									>
+										<TableCell>
+											<Checkbox
+												ariaLabel={`Select ${user.name}`}
+												checked={selected.includes(user.id)}
+												disabled={user.accessStatus !== "pending"}
+												onCheckedChange={(checked) =>
+													setSelected((current) =>
+														checked === true
+															? [...current, user.id]
+															: current.filter((id) => id !== user.id),
+													)
+												}
+												size="small"
+											/>
+										</TableCell>
+										<TableCell>
+											<button
+												aria-label={`Open ${user.name}`}
+												data-layout-role="admin-user-open"
+												onClick={() => openUser(user.id)}
+												type="button"
+											>
+												<Avatar
+													decorative
+													name={user.name}
+													size="sm"
+													src={user.image ?? undefined}
+												/>
+												<span>
+													<span data-layout-role="admin-user-name">
+														<Label>{user.name}</Label>
+														{user.isPlatformAdmin ? (
+															<Badge size="small" variant="outline">
+																Staff
+															</Badge>
+														) : null}
+													</span>
+													<SupportingText as="span">
+														{user.email}
+													</SupportingText>
+												</span>
+											</button>
+										</TableCell>
+										<TableCell>
+											<AccessStatusMark status={user.accessStatus} />
+										</TableCell>
+										<TableCell
+											data-admin-column="user-personal-org"
+											mono={user.personalOrgSlug !== null}
+										>
+											{user.personalOrgSlug ?? "None"}
+										</TableCell>
+										<TableCell data-admin-column="user-org-count" numeric>
+											{user.membershipCount}
+										</TableCell>
+										<TableCell data-admin-column="user-joined">
+											{formatAdminDate(user.createdAt)}
+										</TableCell>
+										<TableCell data-admin-column="user-last-seen">
+											{user.lastSeenAt ? (
+												<RelativeTime date={user.lastSeenAt} />
+											) : (
+												"Unknown"
+											)}
+										</TableCell>
+										<TableCell data-admin-column="user-skip-cooldown">
+											<AgentBoundary visibility="hidden">
 												<Switch
-													aria-label={`Skip re-run cooldown for ${user.name}`}
+													ariaLabel={`Skip re-run cooldown for ${user.name}`}
 													checked={user.rerunCooldownExempt}
 													onCheckedChange={(exempt) =>
 														flagRerun.mutate(
@@ -463,16 +479,22 @@ export function AdminUsersPage() {
 															{
 																onSuccess: (result) => {
 																	if (result.changed) {
-																		toast.success(
-																			exempt
-																				? `${user.name} can re-run without the cooldown`
-																				: `${user.name} has the re-run cooldown again`,
+																		notify.show(
+																			{
+																				title: exempt
+																					? `${user.name} can re-run without the cooldown`
+																					: `${user.name} has the re-run cooldown again`,
+																			},
+																			"success",
 																		);
 																	}
 																},
 																onError: () => {
-																	toast.fail(
-																		`Tripwire couldn't change the cooldown for ${user.name}. Try again.`,
+																	notify.show(
+																		{
+																			title: `Tripwire couldn't change the cooldown for ${user.name}. Try again.`,
+																		},
+																		"error",
 																	);
 																},
 															},
@@ -482,62 +504,38 @@ export function AdminUsersPage() {
 														flagRerun.isPending &&
 														flagRerun.variables?.data.userId === user.id
 													}
-													size="sm"
+													size="small"
 												/>
-											</TableCell>
-											<TableCell>
-												<div data-layout-role="admin-user-actions">
+											</AgentBoundary>
+										</TableCell>
+										<TableCell>
+											<div data-layout-role="admin-user-actions">
+												<AgentBoundary visibility="hidden">
 													{user.accessStatus !== "approved" ? (
 														<Button
 															disabled={review.isPending}
-															onClick={() => decide([user.id], "approve")}
-															size="sm"
+															onAction={() => decide([user.id], "approve")}
+															size="small"
 															variant="secondary"
 														>
 															Approve
 														</Button>
 													) : null}
 													{user.accessStatus !== "rejected" ? (
-														confirmRejectId === user.id ? (
-															<Button
-																aria-label={`Confirm decline for ${user.name}`}
-																confirmation={false}
-																onBlur={() => setConfirmRejectId(null)}
-																onClick={() => decide([user.id], "reject")}
-																onKeyDown={(event) => {
-																	if (event.key === "Escape") {
-																		setConfirmRejectId(null);
-																	}
-																}}
-																pending={review.isPending}
-																ref={(node: HTMLButtonElement | null) =>
-																	node?.focus()
-																}
-																size="sm"
-																variant="destructive"
-															>
-																Confirm decline
-															</Button>
-														) : (
-															<Button
-																aria-label={`Decline ${user.name}`}
-																disabled={review.isPending}
-																onClick={() => setConfirmRejectId(user.id)}
-																size="sm"
-																variant="secondary"
-															>
-																Decline
-															</Button>
-														)
+														<DeclineAccess
+															disabled={review.isPending}
+															name={user.name}
+															onDecline={() => decide([user.id], "reject")}
+														/>
 													) : null}
-												</div>
-											</TableCell>
-										</TableRow>
-									))
-								)}
-							</TableBody>
-						</Table>
-					</CheckboxGroup>
+												</AgentBoundary>
+											</div>
+										</TableCell>
+									</TableRow>
+								))
+							)}
+						</TableBody>
+					</Table>
 				</PageBody>
 			</Page>
 			<UserSheet
@@ -547,5 +545,35 @@ export function AdminUsersPage() {
 				userId={openUserId}
 			/>
 		</DashboardLayout>
+	);
+}
+
+function DeclineAccess({
+	disabled,
+	name,
+	onDecline,
+}: {
+	disabled: boolean;
+	name: string;
+	onDecline: () => void;
+}) {
+	const [open, setOpen] = useState(false);
+	return (
+		<DestructiveDialog
+			agentVisibility="hidden"
+			confirmLabel="Decline user"
+			description={`${name} will lose beta access.`}
+			onConfirm={onDecline}
+			onOpenChange={setOpen}
+			open={open}
+			pendingLabel="Declining"
+			title={`Decline ${name}?`}
+			trigger={{
+				ariaLabel: `Decline ${name}`,
+				disabled,
+				label: "Decline",
+				size: "small",
+			}}
+		/>
 	);
 }

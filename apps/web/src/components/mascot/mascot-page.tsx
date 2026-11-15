@@ -1,3 +1,8 @@
+import { Badge } from "@tripwire/ui/badge";
+import { IconButton } from "@tripwire/ui/button";
+import { Card, CardContent } from "@tripwire/ui/card";
+import { Dark, Icon, Light } from "@tripwire/ui/icon";
+import { Kbd } from "@tripwire/ui/kbd";
 import { useTheme } from "next-themes";
 import {
 	type KeyboardEvent,
@@ -16,11 +21,6 @@ import { MascotControls } from "#/components/mascot/mascot-controls";
 import { MascotFigure } from "#/components/mascot/mascot-figure";
 import { MascotMachineCard } from "#/components/mascot/mascot-machine-card";
 import { useReducedMotion } from "#/components/mascot/use-reduced-motion";
-import { Dark, Icon, Light } from "#/design-system/icon";
-import { Badge } from "#/design-system/ui/badge";
-import { Button } from "#/design-system/ui/button";
-import { Card, CardContent } from "#/design-system/ui/card";
-import { Kbd } from "#/design-system/ui/kbd";
 import { useHasMounted } from "#/hooks/use-has-mounted";
 
 const REACH = 260;
@@ -107,17 +107,13 @@ export function MascotPage() {
 					<p className="type-body-sm text-text-2">
 						Click the ghost to poke it. Press <Kbd>Space</Kbd> to hop.
 					</p>
-					<Button
-						aria-label={
-							isDark ? "Switch to light theme" : "Switch to dark theme"
-						}
-						className="ms-auto"
-						onClick={() => setTheme(isDark ? "light" : "dark")}
-						size="icon"
+					<IconButton
+						label={isDark ? "Switch to light theme" : "Switch to dark theme"}
+						icon={<Icon icon={isDark ? Light : Dark} />}
+						onAction={() => setTheme(isDark ? "light" : "dark")}
+						size="small"
 						variant="ghost"
-					>
-						<Icon icon={isDark ? Light : Dark} />
-					</Button>
+					/>
 				</header>
 
 				<div className="flex flex-col gap-6 lg:flex-row lg:items-start">

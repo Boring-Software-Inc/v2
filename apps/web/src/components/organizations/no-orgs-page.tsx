@@ -1,21 +1,17 @@
 import { useMutation } from "@tanstack/react-query";
 import { orgSlugSchema, slugifyOrgName } from "@tripwire/contracts";
-import { useId, useState } from "react";
-import { OrgAvatar } from "#/components/organizations/org-avatar";
-import { Button } from "#/design-system/ui/button";
-import {
-	Card,
-	CardContent,
-	CardFooter,
-	CardMeta,
-} from "#/design-system/ui/card";
+import { Button } from "@tripwire/ui/button";
+import { Card, CardContent, CardFooter, CardMeta } from "@tripwire/ui/card";
 import {
 	Field,
 	FieldDescription,
 	FieldError,
 	FieldLabel,
-} from "#/design-system/ui/field";
-import { Input } from "#/design-system/ui/input";
+	Input,
+} from "@tripwire/ui/field";
+import { PageTitle } from "@tripwire/ui/typography";
+import { useId, useState } from "react";
+import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { createOrg } from "#/lib/org.functions";
 
 /**
@@ -51,13 +47,17 @@ export function NoOrgsPage() {
 	const canSubmit = name.trim().length > 0 && slugCheck.success;
 
 	return (
-		<div className="flex min-h-dvh items-center justify-center bg-page px-4 py-10">
-			<div className="flex w-full max-w-sm flex-col gap-6">
-				<div className="flex flex-col gap-1">
-					<h1 className="type-title" id={headingId}>
-						Create your first org
-					</h1>
-					<p className="type-body text-text-2">
+		<div
+			className="flex min-h-dvh items-center justify-center tone-surface-page"
+			data-layout-role="first-org-page"
+		>
+			<div
+				className="flex w-full max-w-sm flex-col"
+				data-layout-role="first-org-content"
+			>
+				<div className="flex flex-col composition-gap-small">
+					<PageTitle id={headingId}>Create your first org</PageTitle>
+					<p className="content-body tone-content-secondary">
 						An org holds your repos, rules and members.
 					</p>
 				</div>
@@ -74,53 +74,58 @@ export function NoOrgsPage() {
 					}}
 				>
 					<Card aria-labelledby={headingId} role="group">
-						<CardContent className="gap-4">
-							<Field invalid={nameMissing}>
-								<FieldLabel>Name</FieldLabel>
-								<Input
-									autoFocus
-									leading={<OrgAvatar animate name={name} size="xs" />}
-									onChange={(event) => {
-										setName(event.target.value);
-										if (nameMissing) setNameMissing(false);
-									}}
-									placeholder="Acme"
-									value={name}
-								/>
-								{nameMissing ? (
-									<FieldError>Enter a name for your org.</FieldError>
-								) : null}
-							</Field>
-							<Field invalid={slugError !== null}>
-								<FieldLabel>Slug</FieldLabel>
-								<Input
-									mono
-									onChange={(event) =>
-										setSlugDraft(event.target.value.toLowerCase())
-									}
-									placeholder="acme"
-									value={slug}
-								/>
-								{slugError ? (
-									<FieldError>{slugError}</FieldError>
-								) : (
-									<FieldDescription>
-										Your org's URL: /{slug || "…"}
-									</FieldDescription>
-								)}
-							</Field>
+						<CardContent>
+							<div className="flex flex-col composition-gap-group">
+								<Field invalid={nameMissing}>
+									<FieldLabel>Name</FieldLabel>
+									<Input
+										autoFocus
+										labelledByField
+										leadingIcon={<OrgAvatar animate name={name} size="xs" />}
+										onChange={(event) => {
+											setName(event.target.value);
+											if (nameMissing) setNameMissing(false);
+										}}
+										placeholder="Acme"
+										value={name}
+									/>
+									{nameMissing ? (
+										<FieldError>Enter a name for your org.</FieldError>
+									) : null}
+								</Field>
+								<Field invalid={slugError !== null}>
+									<FieldLabel>Slug</FieldLabel>
+									<div className="content-mono">
+										<Input
+											labelledByField
+											onChange={(event) =>
+												setSlugDraft(event.target.value.toLowerCase())
+											}
+											placeholder="acme"
+											value={slug}
+										/>
+									</div>
+									{slugError ? (
+										<FieldError>{slugError}</FieldError>
+									) : (
+										<FieldDescription>
+											Your org's URL: /{slug || "…"}
+										</FieldDescription>
+									)}
+								</Field>
+							</div>
 						</CardContent>
 						<CardFooter>
 							{serverError ? (
-								<CardMeta className="text-fail-text" role="alert">
-									{serverError}
+								<CardMeta role="alert">
+									<span className="tone-danger">{serverError}</span>
 								</CardMeta>
 							) : null}
 							<Button
 								disabled={slugError !== null}
 								pending={create.isPending}
 								pendingLabel="Creating"
-								size="sm"
+								size="small"
 								type="submit"
 							>
 								Create org
