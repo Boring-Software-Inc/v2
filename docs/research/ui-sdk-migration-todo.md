@@ -1056,9 +1056,15 @@ After each step:
 - [x] Fix the narrow deletion wizard header and restore focus when leaving
   the typed confirmation. Verify reopening returns to the first applicable
   step. Local evidence is in account-deletion-wizard.
-- [ ] Close the terminal Workflow Review layout regression. Accepted, Declined,
-  and Expired hydrated on both builds in all 12 audit pairs. The notices lost
-  their status icons and stacked text, and Accepted lost its green surface.
-  Before captures are in workflow-review-terminal-independent.
+- [x] Restore the accepted, declined, and expired Workflow Review notices.
+  Their icons, stacked copy, and fills match Glaze in 12 paired cases at
+  390px and 1280px in both themes. The accepted link worked by keyboard.
+  Independent score: 100/100 for the notice slice. One reference capture
+  came from the earlier run using the same fixture.
+  Local captures are in workflow-review-terminal-independent.
+- [x] Compare General timezone and Redaction Save payloads with Glaze.
+  In two paired viewport and theme combinations, each change emitted one
+  matching intercepted request per build. Both settings then persisted after
+  a real browser save and reload on a separate disposable organization.
 - [ ] Reconcile the app-wide matrix and remaining write paths on a frozen
   revision, then record the independent score and CI result.
