@@ -86,25 +86,3 @@ export function buildSeo({
 		links: [{ rel: "canonical", href: url }],
 	};
 }
-
-export function buildWebSiteSchema() {
-	return {
-		"@context": "https://schema.org",
-		"@type": "WebSite",
-		name: siteConfig.name,
-		url: toAbsoluteUrl("/"),
-		description: siteConfig.defaultDescription,
-	};
-}
-
-export function buildSoftwareApplicationSchema() {
-	return {
-		"@context": "https://schema.org",
-		"@type": "SoftwareApplication",
-		name: siteConfig.name,
-		applicationCategory: "DeveloperApplication",
-		operatingSystem: "Web",
-		url: toAbsoluteUrl("/"),
-		description: siteConfig.defaultDescription,
-	};
-}
