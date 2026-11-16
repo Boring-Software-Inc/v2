@@ -4,7 +4,6 @@ import {
 	githubIntegrationSchema,
 	moderationItemSchema,
 	repoContentSchema,
-	repoInsightsSchema,
 	ruleSchema,
 	runLogEntrySchema,
 } from "./index.ts";
@@ -141,19 +140,11 @@ describe("contracts parse demo shapes", () => {
 		).not.toThrow();
 	});
 
-	test("githubIntegration, repoInsights, repoContent parse minimal shapes", () => {
+	test("githubIntegration, repoContent parse minimal shapes", () => {
 		expect(() =>
 			githubIntegrationSchema.parse({
 				accounts: [],
 				repos: [],
-			}),
-		).not.toThrow();
-		expect(() =>
-			repoInsightsSchema.parse({
-				metrics: [],
-				blockedByRule: [],
-				activeThreads: [],
-				threads: {},
 			}),
 		).not.toThrow();
 		expect(() =>
