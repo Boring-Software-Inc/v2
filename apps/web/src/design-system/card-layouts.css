@@ -367,3 +367,52 @@
 	padding-inline: calc(var(--space-3) + var(--line-width))
 		calc(var(--shell-foot-inset) - var(--shell-inset));
 }
+
+[data-layout-role="organization-details"] {
+	padding: 0 var(--space-0-5) var(--space-0-5);
+	border-radius: calc(var(--radius-shell) + var(--space-0-5));
+}
+
+[data-layout-role="organization-details"] > h2 {
+	display: flex;
+	align-items: center;
+	min-block-size: var(--space-10);
+	margin: 0;
+	padding-inline: calc(var(--space-3) + var(--space-0-5));
+	font: var(--type-label-lg);
+}
+
+[data-layout-role="organization-details-body"] {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-6);
+	padding: var(--space-3) var(--space-4);
+	border-color: var(--tw-boundary-default);
+	border-radius: var(--radius-shell);
+}
+
+[data-layout-role="organization-details-body"] [data-slot="field"] {
+	gap: var(--space-2);
+}
+
+[data-layout-role="organization-details-body"] .organization-details-avatar {
+	border-radius: calc(var(--radius-tag) + var(--space-0-5));
+}
+
+[data-layout-role="organization-details-body"] [data-slot="field-label"] {
+	font: var(--type-label-lg);
+	line-height: 1;
+}
+
+[data-layout-role="organization-details-body"] [data-slot="field-description"] {
+	font: var(--type-caption);
+}
+
+[data-layout-role="organization-details-body"]
+	:is([data-slot="input"], [data-slot="button"]) {
+	border-radius: calc(var(--radius-tag) + var(--space-0-5));
+}
+
+[data-layout-role="organization-details-body"] [data-slot="button"] {
+	font: var(--type-label-lg);
+}
