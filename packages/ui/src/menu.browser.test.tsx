@@ -253,14 +253,15 @@ test("menus preserve keyboard, pending, controlled, confirmation, and agent beha
 			expect(await caret.count()).toBe(1);
 			const groupBounds = await split.boundingBox();
 			if (!groupBounds) throw new Error("Split button is absent");
-			await page.waitForFunction(
-				(x) =>
-					Math.abs(
-						(document.querySelector("[role=menu]")?.getBoundingClientRect().x ??
-							Infinity) - x,
-					) < 1,
-				groupBounds.x,
-			);
+			await page.waitForFunction((x) => {
+				const menu = document.querySelector("[role=menu]");
+				if (!menu) return false;
+				const scale = getComputedStyle(menu).scale;
+				return (
+					(scale === "none" || scale === "1") &&
+					Math.abs(menu.getBoundingClientRect().x - x) < 1
+				);
+			}, groupBounds.x);
 			expect((await splitMenu.boundingBox())?.width).toBeGreaterThanOrEqual(
 				groupBounds.width - 1,
 			);
