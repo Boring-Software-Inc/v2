@@ -2,7 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { orgSlugSchema } from "@tripwire/contracts";
 import { Button } from "@tripwire/ui/button";
-import { Field, FieldError, FieldLabel, Input } from "@tripwire/ui/field";
+import {
+	Field,
+	FieldDescription,
+	FieldError,
+	FieldLabel,
+	Input,
+} from "@tripwire/ui/field";
 import { Skeleton, SkeletonSwap, SkeletonText } from "@tripwire/ui/skeleton";
 import { notify } from "@tripwire/ui/toast";
 import { useState } from "react";
@@ -84,6 +90,12 @@ function ReadOnlyCard({ orgContext }: { orgContext: OrgWithRole }) {
 						/{orgContext.slug}
 					</dd>
 				</div>
+				<div className="flex flex-col composition-gap-small">
+					<dt className="content-label">ID</dt>
+					<dd className="content-code-small tone-content-secondary wrap-anywhere">
+						{orgContext.id}
+					</dd>
+				</div>
 			</dl>
 		</SettingsPanel>
 	);
@@ -160,11 +172,51 @@ function RenameCard({
 				}
 			}}
 		>
-			<SettingsPanel
-				id="org-details"
-				title="Organization details"
-				footer={
-					<>
+			<SettingsPanel id="org-details" title="Organization details">
+				<div className="flex flex-col composition-gap-group">
+					<div className="flex items-center composition-gap-group">
+						<OrgAvatar
+							animate
+							hue={orgContext.avatarHue}
+							name={name}
+							size="xl"
+						/>
+						<div>
+							<p className="content-label">Logo</p>
+							<p className="content-body-small tone-content-secondary">
+								Generated from your organization name.
+							</p>
+						</div>
+					</div>
+					<Field invalid={nameError !== null}>
+						<FieldLabel>Name</FieldLabel>
+						<FieldDescription>The name shown in Tripwire.</FieldDescription>
+						<Input labelledByField onValueChange={setName} value={name} />
+						{nameError ? <FieldError>{nameError}</FieldError> : null}
+					</Field>
+					<Field invalid={slugError !== null}>
+						<FieldLabel>Slug</FieldLabel>
+						<FieldDescription>
+							Used in your organization’s Tripwire URL.
+						</FieldDescription>
+						<Input labelledByField onValueChange={setSlug} value={slug} />
+						{slugError ? <FieldError>{slugError}</FieldError> : null}
+					</Field>
+					<Field>
+						<FieldLabel>ID</FieldLabel>
+						<Input labelledByField readOnly value={orgContext.id} />
+					</Field>
+					<div className="flex flex-wrap composition-gap-standard">
+						<Button
+							disabled={!dirty || slugError !== null || nameError !== null}
+							pending={saveMutation.isPending}
+							pendingLabel="Saving"
+							size="small"
+							type="submit"
+							variant="primary"
+						>
+							Save changes
+						</Button>
 						<Button
 							disabled={!dirty}
 							onAction={() => {
@@ -177,50 +229,6 @@ function RenameCard({
 						>
 							Discard
 						</Button>
-						<Button
-							disabled={!dirty || slugError !== null || nameError !== null}
-							pending={saveMutation.isPending}
-							pendingLabel="Saving"
-							size="small"
-							type="submit"
-							variant="primary"
-						>
-							Save changes
-						</Button>
-					</>
-				}
-			>
-				<div
-					className="flex flex-col composition-gap-group"
-					data-layout-role="org-settings-fields"
-				>
-					<div data-layout-role="org-name-fields">
-						<OrgAvatar
-							animate
-							className="org-name-avatar"
-							hue={orgContext.avatarHue}
-							name={name}
-							size="lg"
-						/>
-						<div className="max-w-90 flex-1">
-							<Field invalid={nameError !== null}>
-								<FieldLabel>Name</FieldLabel>
-								<Input labelledByField onValueChange={setName} value={name} />
-								{nameError ? <FieldError>{nameError}</FieldError> : null}
-							</Field>
-						</div>
-					</div>
-					<div className="max-w-90 content-mono">
-						<Field invalid={slugError !== null}>
-							<FieldLabel>Slug</FieldLabel>
-							<Input
-								labelledByField
-								leadingIcon={<span>/</span>}
-								onValueChange={setSlug}
-								value={slug}
-							/>
-							{slugError ? <FieldError>{slugError}</FieldError> : null}
-						</Field>
 					</div>
 				</div>
 			</SettingsPanel>
@@ -251,13 +259,15 @@ function TimezoneSection({
 			queryClient.invalidateQueries({ queryKey: orgQueryKeys.detail(org) }),
 	});
 	return (
-		<SettingsPanel id="org-timezone" title="Timezone">
-			<div className="max-w-90">
+		<SettingsPanel id="org-timezone" title="Organization timezone">
+			<div className="flex max-w-90 flex-col composition-gap-standard">
+				<p className="content-body-small tone-content-secondary">
+					The default for member timestamps and new workflow schedules.
+				</p>
 				<TimezonePicker
 					disabled={!canManage || save.isPending}
 					labelledBy="org-timezone-heading"
 					onChange={(next) => save.mutate(next)}
-					showDisclosure
 					unsetLabel="Default (UTC)"
 					value={timezone}
 				/>
@@ -298,7 +308,7 @@ function OrgGeneralSettingsSkeleton() {
 					className="flex flex-col composition-gap-group"
 					data-layout-role="org-settings-fields"
 				>
-					<div className="flex max-w-90 flex-col composition-gap-control">
+					<div className="flex flex-col composition-gap-control">
 						<span data-skeleton-line="" aria-hidden className="w-12">
 							<SkeletonText type="label" />
 						</span>
@@ -310,7 +320,7 @@ function OrgGeneralSettingsSkeleton() {
 							<Skeleton fill />
 						</span>
 					</div>
-					<div className="flex max-w-90 flex-col composition-gap-control">
+					<div className="flex flex-col composition-gap-control">
 						<span data-skeleton-line="" aria-hidden className="w-10">
 							<SkeletonText type="label" />
 						</span>

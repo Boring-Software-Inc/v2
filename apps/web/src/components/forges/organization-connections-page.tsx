@@ -85,7 +85,7 @@ export function OrganizationConnectionsPage({ org }: { org: string }) {
 					{query.data?.length ? (
 						<div className="shell">
 							<div className="panel p-0">
-								<fieldset>
+								<fieldset data-layout-role="organization-connections">
 									<legend className="sr-only">Connected forges</legend>
 									{query.data.map((connection) => (
 										<OrganizationConnectionRow

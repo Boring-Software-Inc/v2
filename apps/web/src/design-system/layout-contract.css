@@ -1133,8 +1133,14 @@
 	color: var(--tw-content-secondary);
 }
 
-[data-layout-role="invite-dialog-form"] {
-	gap: var(--space-4);
+[data-layout-role="organization-connections"]
+	[data-slot="collapsible-panel"][hidden="until-found"] {
+	padding-block: 0;
+}
+
+[data-slot="collapsible-trigger"][aria-expanded="true"]
+	[data-layout-role="connection-disclosure-chevron"] {
+	rotate: 180deg;
 }
 
 [data-layout-role="settings-content-skeleton-heading"] {
@@ -4342,16 +4348,6 @@ span[data-layout-role="agent-client-logo"] {
 
 [data-layout-role="pilot-rule-action"] {
 	margin-inline-start: auto;
-}
-
-[data-layout-role="org-name-fields"] {
-	display: flex;
-	align-items: end;
-	gap: var(--space-3);
-}
-
-[data-layout-role="org-name-fields"] > .org-name-avatar {
-	margin-block-end: var(--space-1);
 }
 
 [data-layout-role="standalone-route-error"] {

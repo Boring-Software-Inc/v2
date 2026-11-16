@@ -14,7 +14,6 @@ export interface TimezonePickerProps {
 	unsetLabel: string;
 	disabled?: boolean;
 	labelledBy?: string;
-	showDisclosure?: boolean;
 	onChange: (zone: string | null) => void;
 }
 
@@ -23,7 +22,6 @@ export function TimezonePicker({
 	unsetLabel,
 	disabled,
 	labelledBy,
-	showDisclosure,
 	onChange,
 }: TimezonePickerProps) {
 	const options = useMemo<ZoneItem[]>(
@@ -45,7 +43,7 @@ export function TimezonePicker({
 					? { ariaLabelledBy: labelledBy }
 					: { ariaLabel: "Timezone" })}
 				disabled={disabled}
-				disclosureLabel={showDisclosure ? "Show timezones" : undefined}
+				disclosureLabel="Show timezones"
 				emptyLabel="No timezone matches"
 				onValueChange={(next) => {
 					if (next !== null) {
