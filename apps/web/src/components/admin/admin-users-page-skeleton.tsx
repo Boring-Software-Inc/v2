@@ -1,6 +1,4 @@
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { Page, PageBody } from "#/components/layouts/page";
-import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
+import { Skeleton, SkeletonText } from "@tripwire/ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -8,19 +6,25 @@ import {
 	TableHeader,
 	TableLoading,
 	TableRow,
-} from "#/design-system/ui/table";
+} from "@tripwire/ui/table";
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Page, PageBody } from "#/components/layouts/page";
 
 export function AdminUsersPageSkeleton() {
 	return (
 		<DashboardLayout counts={{}}>
 			<Page>
 				<header aria-hidden data-layout-role="admin-page-header-skeleton">
-					<SkeletonText data-layout-size="page-title" type="heading" />
-					<SkeletonText
+					<span data-skeleton-line="" aria-hidden data-layout-size="page-title">
+						<SkeletonText type="heading" />
+					</span>
+					<span
+						data-skeleton-line=""
+						aria-hidden
 						data-layout-size="page-description-long"
-						lines={2}
-						type="body"
-					/>
+					>
+						<SkeletonText lines={2} type="body" />
+					</span>
 				</header>
 				<PageBody>
 					<Table
@@ -29,9 +33,27 @@ export function AdminUsersPageSkeleton() {
 						data-admin-table="users"
 						toolbar={
 							<div aria-hidden data-layout-role="admin-table-toolbar-skeleton">
-								<Skeleton data-layout-size="filter-wide" />
-								<Skeleton data-layout-size="filter-short" />
-								<Skeleton data-layout-size="search" />
+								<span
+									data-skeleton-box=""
+									aria-hidden
+									data-layout-size="filter-wide"
+								>
+									<Skeleton fill />
+								</span>
+								<span
+									data-skeleton-box=""
+									aria-hidden
+									data-layout-size="filter-short"
+								>
+									<Skeleton fill />
+								</span>
+								<span
+									data-skeleton-box=""
+									aria-hidden
+									data-layout-size="search"
+								>
+									<Skeleton fill />
+								</span>
 							</div>
 						}
 					>

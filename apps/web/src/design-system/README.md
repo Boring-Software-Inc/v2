@@ -1,76 +1,97 @@
-# Tripwire semantic UI contract
+# Tripwire web design-system boundary
 
-`@tripwire/ui` owns the application-agnostic semantic contract. Feature code keeps importing the stable `#/design-system/*` and `#/components/layouts/*` facades, while those facades delegate to the package. Glaze remains the web app's implementation boundary for primitive components and supplies the custom properties consumed by the package CSS.
-
-## Typography
-
-| Role | Element | Purpose |
-| --- | --- | --- |
-| `PageTitle` | `h1` | one title per page |
-| `SectionHeading` | `h2` by default | named page region |
-| `Subheading` | `h3` by default | one nested region |
-| `Body` | `p` | primary prose |
-| `SupportingText` | `p` | descriptions and helper prose |
-| `Label` | `span` | compact molecule-owned label |
-| `Caption` | `span` | timestamps, counts, tertiary metadata |
-| `CodeText` | `code` | IDs, paths, rule IDs, commands |
-| `DataValue` | `span` | changing numeric values |
-
-No role accepts visual size, weight, line-height, tracking, color, or `className` props. Heading-level overrides are finite and do not change visual style.
-
-Page hierarchy is limited to `PageTitle → SectionHeading → Subheading`. Dialog, field, card, item, table, and empty-state titles remain owned by those primitives.
-
-## Layout
-
-Normal content pages compose:
-
-```tsx
-<Page>
-  <PageHeader title="…" actions={…} />
-  <PageBody>
-    <Section id="…">
-      <SectionHeader title="…" />
-      <SectionBody>…</SectionBody>
-    </Section>
-  </PageBody>
-</Page>
-```
-
-The package molecules own gutters, padding, gaps, wrapping, and responsive reflow. Feature code does not pass spacing props. Specialized canvas and game layouts stay feature-owned. Member and invite collection-row geometry remains app-owned because it encodes product-specific action placement.
-
-## Color
-
-Feature code supplies semantic state, never a color. The package contract owns:
-
-- surfaces: canvas, page, container, raised, inset, overlay, inverse;
-- content: primary, secondary, tertiary, disabled, inverse;
-- boundaries: subtle, default, control, strong, focus;
-- interaction: hover, selected, pressed, disabled;
-- intent: success, warning, danger, info.
-
-`content-tertiary` is not required prose. Blue remains reserved for agent activity. Source logo and illustration colors are exceptions and cannot be reused as application chrome.
-
-The package CSS intentionally maps these roles to custom properties supplied by the consuming implementation. In web, Glaze defines the current `--page`, `--paper`, `--text-*`, state, typography, spacing, control, and radius values before the package styles load. Moving Glaze components into the package is deferred.
-
-## States
-
-Each interactive primitive supports a finite subset of rest, hover, focus-visible, pressed, selected/current, open, disabled, invalid, pending, and reduced-motion states. Supported states must produce the declared visible effect; unsupported combinations are not composed ad hoc.
-
-Focus and sole selection boundaries meet 3:1 non-text contrast. The feedback picker uses a dual-tone outline because it crosses arbitrary page content.
-
-## Responsive and accessibility rules
-
-- Break where content stops fitting, not at device-name breakpoints.
-- Preserve source order and logical heading order.
-- Actions wrap without clipping and stay reachable.
-- Text survives 200% zoom.
-- Required instructions and errors never use tertiary or disabled text.
-- Keyboard focus remains visible in light and dark themes.
-- Reduced-motion behavior remains available for every animated component.
+The web app consumes `@tripwire/ui` directly and adds only the product-shell
+contracts that cannot live in an application-agnostic package. ui-sdk remains an
+implementation detail of `@tripwire/ui`; it is not imported from application
+code.
 
 ## Ownership
 
-- `@tripwire/ui`: semantic typography, generic layout molecules, and semantic typography/color/layout CSS.
-- `src/design-system`: stable feature facade, Glaze root/provider composition, and implementation-bound state metadata.
-- `src/components/layouts`: compatibility facades plus app-specific structures such as member/invite collection rows.
-- feature components: data, permissions, domain copy, and semantic state.
+| Layer | Owns | Must not own |
+| --- | --- | --- |
+| `@tripwire/ui` | Glaze tokens and recipes, semantic primitives, generic molecules, accessibility, behavior, agent exposure | routes, auth, data fetching, organization or repository concepts |
+| `src/design-system` | root providers, overlay host, agent bridge, shell-only measured geometry | duplicate primitives, feature facades, visual escape hatches |
+| `src/components/layouts` | named product molecules such as repository switching, account access, Search, and navigation | generic `Button` variants for product roles |
+| feature components | domain data, permissions, copy, and approved composition | raw visual values or ui-sdk internals |
+| routes | loading, errors, metadata, SEO, and server composition | direct visual-control composition |
+
+The dependency direction is:
+
+```text
+ui-sdk behavior
+  -> @tripwire/ui Glaze contracts
+    -> named web molecules
+      -> feature components
+        -> server routes
+```
+
+## Root composition
+
+`root.tsx` installs the complete package-global stylesheet set, the web shell
+layout contract, overlay host, and agent providers. The `tripwire` body class
+scopes the system. Named product molecules may own colocated CSS for behavior
+that is not a generic package primitive, and third-party canvases may import
+their required library CSS. Routes do not reconstruct providers or package
+global styles locally.
+
+## Typography
+
+Use the semantic roles exported by `@tripwire/ui/typography`:
+
+| Role | Default element | Purpose |
+| --- | --- | --- |
+| `PageTitle` | `h1` | one page title |
+| `SectionHeading` | `h2` | named page region |
+| `Subheading` | `h3` | nested region |
+| `Body` | `p` | primary prose |
+| `SupportingText` | `p` | description or helper copy |
+| `Label` | `span` | compact molecule-owned label |
+| `Caption` | `span` | count, timestamp, tertiary metadata |
+| `CodeText` | `code` | ID, path, rule ID, command |
+| `DataValue` | `span` | changing numeric value |
+
+The roles do not accept visual size, weight, line-height, tracking, color, or
+`className` overrides. Page hierarchy is `PageTitle -> SectionHeading ->
+Subheading`; component titles remain owned by their primitive.
+
+## Layout and spacing
+
+Normal content pages compose `Page`, `PageHeader`, `PageBody`, `Section`,
+`SectionHeader`, and `SectionBody`. These molecules own gutters, gaps, wrapping,
+and responsive reflow. Features choose the composition; they do not tune it.
+
+`layout-contract.css` is limited to named web molecules and measurable shell
+geometry. A selector must have a corresponding `data-layout-role` owner. Raw
+spacing added to compensate for a misaligned child is not a contract: fix the
+child's owned geometry instead.
+
+## States and motion
+
+Interactive components expose only their declared states: rest, hover,
+focus-visible, pressed, selected or current, open, disabled, invalid, pending,
+and reduced motion. State changes use `UI_MOTION`; predetermined shell geometry
+may use the equivalent CSS duration and easing tokens when browser-native,
+interruptible interpolation is more reliable.
+
+Destructive actions use the shared confirmation contract. Human and agent
+callers receive the same boundary, and feature code cannot disable it.
+
+The browser agent may open and close Combobox popups. The product bridge blocks
+query, selection, and clear actions. In Settings, a selection can save a
+preference immediately.
+
+## Validation
+
+Before closing a web design-system wave:
+
+1. run package and web typechecks;
+2. run focused behavior tests;
+3. run `scripts/check-component-states.tsx` in light and dark;
+4. run `scripts/check-ui-contract.ts` against narrow, intermediate, and desktop
+   widths at normal and 200% text size;
+5. inspect authenticated product routes in both shell states;
+6. receive a fresh independent read-only visual audit.
+
+Root [`DESIGN.md`](../../../../DESIGN.md) defines the complete design language.
+The migration execution record lives in
+[`docs/research/ui-sdk-migration-todo.md`](../../../../docs/research/ui-sdk-migration-todo.md).

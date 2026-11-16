@@ -1,4 +1,25 @@
-import { Link, useParams } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
+import { Button } from "@tripwire/ui/button";
+import {
+	Icon,
+	type IconGlyph,
+	NoAccess,
+	Package,
+	Rules,
+	Success,
+	TrendDown,
+	TrendUp,
+	Warning,
+} from "@tripwire/ui/icon";
+import {
+	Item,
+	ItemContent,
+	ItemGroup,
+	ItemMedia,
+	ItemMeta,
+	ItemTitle,
+} from "@tripwire/ui/item";
+import { StatusMark, type StatusValue } from "@tripwire/ui/status";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
 	AnalyticsEventFilters,
@@ -7,52 +28,26 @@ import {
 	type EventSort,
 	matchEvent,
 } from "#/components/analytics/analytics-event-filters";
+import {
+	EmptyState,
+	EmptyStateContent,
+	EmptyStateDescription,
+	EmptyStateHeader,
+	EmptyStateTitle,
+} from "#/components/common/empty-state";
 import { EntityCard } from "#/components/common/entity-card";
-import { MetaRow } from "#/components/common/meta-row";
+import { useFilteredRows } from "#/components/common/filter-bar";
 import { ItemRouterLink } from "#/components/common/router-links";
 import { ScrollList } from "#/components/common/scroll-list";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { ZonedTime } from "#/components/timezones/zoned-time";
-import {
-	type GlazeIcon,
-	Icon,
-	NoAccess,
-	Package,
-	Rules,
-	Success,
-	TrendDown,
-	TrendUp,
-	Warning,
-} from "#/design-system/icon";
-import { cn } from "#/design-system/lib/utils";
-import { Button } from "#/design-system/ui/button";
-import {
-	Empty,
-	EmptyContent,
-	EmptyDescription,
-	EmptyHeader,
-	EmptyTitle,
-} from "#/design-system/ui/empty-state";
-import { useFilteredRows } from "#/design-system/ui/filter-bar";
-import {
-	Item,
-	ItemContent,
-	ItemGroup,
-	ItemMedia,
-	ItemMeta,
-	ItemTitle,
-} from "#/design-system/ui/item";
-import {
-	StatusMark,
-	type StatusValue,
-	statusVariants,
-} from "#/design-system/ui/status";
 import type {
 	AnalyticsEvent,
 	EventImpact,
 	EventKind,
 } from "#/lib/analytics-events";
 import type { DateRange } from "#/lib/date-range";
+import { cn } from "#/lib/utils";
 
 const KIND_ICON = {
 	spike: TrendUp,
@@ -62,7 +57,7 @@ const KIND_ICON = {
 	deploy: Package,
 	resolve: Success,
 	report: Warning,
-} satisfies Record<EventKind, GlazeIcon>;
+} satisfies Record<EventKind, IconGlyph>;
 
 function withFocusedOnTop(ids: string[], focusedId?: string | null): string[] {
 	if (!focusedId) return ids;
@@ -132,30 +127,29 @@ export function AnalyticsEvents({
 
 	if (ordered.length === 0 && range === null) {
 		return (
-			<Empty
+			<EmptyState
 				art={<MascotArt mood="analytics-events-empty" size="compact" />}
 				size="sm"
 			>
-				<EmptyHeader>
-					<EmptyTitle>No events for this metric</EmptyTitle>
-					<EmptyDescription>
+				<EmptyStateHeader>
+					<EmptyStateTitle>No events for this metric</EmptyStateTitle>
+					<EmptyStateDescription>
 						Events appear here when Tripwire checks change requests on this
 						repo.
-					</EmptyDescription>
-				</EmptyHeader>
+					</EmptyStateDescription>
+				</EmptyStateHeader>
 				{org && repo ? (
-					<EmptyContent>
+					<EmptyStateContent>
 						<Button
-							nativeButton={false}
-							render={<Link params={{ org, repo }} to="/$org/$repo/activity" />}
-							size="sm"
+							href={`/${org}/${repo}/activity`}
+							size="small"
 							variant="secondary"
 						>
 							Open activity
 						</Button>
-					</EmptyContent>
+					</EmptyStateContent>
 				) : null}
-			</Empty>
+			</EmptyState>
 		);
 	}
 
@@ -224,19 +218,21 @@ function EventRow({
 }) {
 	const outcome = KIND_OUTCOME[event.kind];
 	const text = (
-		<MetaRow>
+		<span data-layout-role="analytics-event-label">
 			<span>{event.detail}</span>
 			<span className="text-text-2">{event.title}</span>
-		</MetaRow>
+		</span>
 	);
 	return (
-		<Item aria-current={focused || undefined} selected={focused} size="sm">
+		<Item
+			aria-current={focused || undefined}
+			selected={focused}
+			density="compact"
+			data-layout-role="analytics-event-row"
+		>
 			<ItemMedia variant="icon">
 				{outcome ? (
-					<span
-						className={statusVariants({ size: "sm", status: outcome.status })}
-						title={outcome.label}
-					>
+					<span title={outcome.label}>
 						<StatusMark label={outcome.label} status={outcome.status} />
 					</span>
 				) : (
@@ -253,11 +249,11 @@ function EventRow({
 						text
 					)}
 				</ItemTitle>
+				{event.impact ? <ImpactChip impact={event.impact} /> : null}
+				<ItemMeta>
+					<ZonedTime at={event.at} format="short" />
+				</ItemMeta>
 			</ItemContent>
-			{event.impact ? <ImpactChip impact={event.impact} /> : null}
-			<ItemMeta className="w-36 whitespace-nowrap text-end">
-				<ZonedTime at={event.at} format="short" />
-			</ItemMeta>
 		</Item>
 	);
 }

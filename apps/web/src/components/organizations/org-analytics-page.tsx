@@ -1,14 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import { getRouteApi, Link } from "@tanstack/react-router";
+import { getRouteApi } from "@tanstack/react-router";
+import { Button } from "@tripwire/ui/button";
+import { SkeletonSwap } from "@tripwire/ui/skeleton";
 import {
 	ChartAtRest,
 	hourlyZeroRows,
 } from "#/components/analytics/chart-at-rest";
+import { Chart } from "#/components/common/chart";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { OrgAnalyticsBodySkeleton } from "#/components/organizations/org-analytics-page-skeleton";
-import { Button } from "#/design-system/ui/button";
-import { Chart } from "#/design-system/ui/chart";
-import { SkeletonSwap } from "#/design-system/ui/skeleton";
 import type { OrgAnalyticsSummary } from "#/lib/org.functions";
 import { orgAnalyticsQueryOptions } from "#/lib/org.query";
 
@@ -93,12 +93,7 @@ function OrgAnalyticsBody({
 			{atRest ? (
 				<ChartAtRest
 					action={
-						<Button
-							nativeButton={false}
-							render={<Link params={{ org }} to="/$org/home" />}
-							size="sm"
-							variant="ghost"
-						>
+						<Button href={`/${org}/home`} size="small" variant="ghost">
 							View repos
 						</Button>
 					}

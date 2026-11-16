@@ -1,13 +1,8 @@
 import { Link } from "@tanstack/react-router";
+import { Item, ItemContent, ItemGroup, ItemTitle } from "@tripwire/ui/item";
+import { SkeletonText } from "@tripwire/ui/skeleton";
+import { DataValue } from "@tripwire/ui/typography";
 import type { ReactNode } from "react";
-import {
-	Item,
-	ItemContent,
-	ItemGroup,
-	ItemTitle,
-} from "#/design-system/ui/item";
-import { SkeletonText } from "#/design-system/ui/skeleton";
-import { DataValue } from "#/design-system/ui/typography";
 import type { StaffOverview } from "#/lib/admin.functions";
 
 interface OverviewRow {
@@ -76,7 +71,10 @@ export function AdminOverviewStats({
 	];
 
 	return (
-		<ItemGroup aria-label="Product at a glance">
+		<ItemGroup
+			aria-label="Product at a glance"
+			data-layout-role="admin-dashboard-list"
+		>
 			{rows.map((row) => (
 				<Item key={row.key}>
 					<ItemContent>
@@ -90,7 +88,13 @@ export function AdminOverviewStats({
 					</ItemContent>
 					<div data-layout-role="admin-summary-value">
 						{row.value === undefined ? (
-							<SkeletonText data-layout-size="summary-value" type="label" />
+							<span
+								data-skeleton-line=""
+								aria-hidden
+								data-layout-size="summary-value"
+							>
+								<SkeletonText type="label" />
+							</span>
 						) : (
 							<>
 								<DataValue>{row.value}</DataValue>

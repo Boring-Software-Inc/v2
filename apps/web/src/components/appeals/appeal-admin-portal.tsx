@@ -3,9 +3,8 @@ import type {
 	AppealPortalSettings,
 	ContributionAppealDecision,
 } from "@tripwire/contracts";
-import { useState } from "react";
-import { OrgAvatar } from "#/components/organizations/org-avatar";
-import { Button } from "#/design-system/ui/button";
+import { AgentBoundary } from "@tripwire/ui/agent-policy";
+import { Button } from "@tripwire/ui/button";
 import {
 	Card,
 	CardContent,
@@ -13,29 +12,30 @@ import {
 	CardFooter,
 	CardHeader,
 	CardTitle,
-} from "#/design-system/ui/card";
-import {
-	Empty,
-	EmptyDescription,
-	EmptyHeader,
-	EmptyTitle,
-} from "#/design-system/ui/empty-state";
-import { Field, FieldLabel } from "#/design-system/ui/field";
-import { Input } from "#/design-system/ui/input";
-import { Textarea } from "#/design-system/ui/textarea";
-import { toast } from "#/design-system/ui/toast";
+} from "@tripwire/ui/card";
+import { Field, FieldLabel, Input, Textarea } from "@tripwire/ui/field";
+import { notify } from "@tripwire/ui/toast";
 import {
 	Body,
 	PageTitle,
 	SectionHeading,
 	SupportingText,
-} from "#/design-system/ui/typography";
+} from "@tripwire/ui/typography";
+import { useState } from "react";
+import {
+	EmptyState,
+	EmptyStateDescription,
+	EmptyStateHeader,
+	EmptyStateTitle,
+} from "#/components/common/empty-state";
+import { OrgAvatar } from "#/components/organizations/org-avatar";
 import {
 	decideContributionAppeal,
 	resolveOrganizationAppeal,
 	updateAppealPortalSettings,
 } from "#/lib/contribution-appeals.functions";
 import { contributionAppealPortalOptions } from "#/lib/contribution-appeals.query";
+import "./appeal-admin-portal.css";
 
 interface AdminPortalProps {
 	org: string;
@@ -83,18 +83,20 @@ export function AppealAdminPortal({
 		}) => decideContributionAppeal({ data: { org, ...input } }),
 		onSuccess: async () => {
 			await refresh();
-			toast.success("Appeal resolved");
+			notify.show({ title: "Appeal resolved" }, "success");
 		},
-		onError: () => toast.fail("Tripwire couldn't resolve the appeal."),
+		onError: () =>
+			notify.show({ title: "Tripwire couldn't resolve the appeal." }, "error"),
 	});
 	const resolve = useMutation({
 		mutationFn: (appealId: string) =>
 			resolveOrganizationAppeal({ data: { org, appealId } }),
 		onSuccess: async () => {
 			await refresh();
-			toast.success("Appeal resolved");
+			notify.show({ title: "Appeal resolved" }, "success");
 		},
-		onError: () => toast.fail("Tripwire couldn't resolve the appeal."),
+		onError: () =>
+			notify.show({ title: "Tripwire couldn't resolve the appeal." }, "error"),
 	});
 	const total = inbox.contributions.length + inbox.organizationAppeals.length;
 
@@ -105,7 +107,7 @@ export function AppealAdminPortal({
 					decorative={false}
 					hue={avatarHue}
 					name={orgName}
-					size="lg"
+					size="default"
 				/>
 				<div data-layout-role="appeal-admin-heading-copy">
 					<SupportingText>{orgName}</SupportingText>
@@ -126,14 +128,14 @@ export function AppealAdminPortal({
 						<SupportingText>{total} pending</SupportingText>
 					</div>
 					{total === 0 ? (
-						<Empty size="sm">
-							<EmptyHeader>
-								<EmptyTitle>No pending appeals</EmptyTitle>
-								<EmptyDescription>
+						<EmptyState size="sm">
+							<EmptyStateHeader>
+								<EmptyStateTitle>No pending appeals</EmptyStateTitle>
+								<EmptyStateDescription>
 									New requests will appear here for review.
-								</EmptyDescription>
-							</EmptyHeader>
-						</Empty>
+								</EmptyStateDescription>
+							</EmptyStateHeader>
+						</EmptyState>
 					) : (
 						<div data-layout-role="appeal-card-list">
 							{inbox.organizationAppeals.map((appeal) => (
@@ -155,16 +157,18 @@ export function AppealAdminPortal({
 									</CardContent>
 									{canManage ? (
 										<CardFooter>
-											<Button
-												onClick={() => resolve.mutate(appeal.id)}
-												pending={
-													resolve.isPending && resolve.variables === appeal.id
-												}
-												size="sm"
-												variant="secondary"
-											>
-												Mark resolved
-											</Button>
+											<AgentBoundary visibility="hidden">
+												<Button
+													onAction={() => resolve.mutate(appeal.id)}
+													pending={
+														resolve.isPending && resolve.variables === appeal.id
+													}
+													size="small"
+													variant="secondary"
+												>
+													Mark resolved
+												</Button>
+											</AgentBoundary>
 										</CardFooter>
 									) : null}
 								</Card>
@@ -188,33 +192,35 @@ export function AppealAdminPortal({
 										</Body>
 									</CardContent>
 									{canManage ? (
-										<CardFooter className="flex-wrap">
-											<Button
-												onClick={() =>
-													decide.mutate({
-														appealId: appeal.id,
-														repo: appeal.repo,
-														decision: "approve-once",
-													})
-												}
-												size="sm"
-												variant="secondary"
-											>
-												Approve
-											</Button>
-											<Button
-												onClick={() =>
-													decide.mutate({
-														appealId: appeal.id,
-														repo: appeal.repo,
-														decision: "deny",
-													})
-												}
-												size="sm"
-												variant="secondary"
-											>
-												Deny
-											</Button>
+										<CardFooter wrap>
+											<AgentBoundary visibility="hidden">
+												<Button
+													onAction={() =>
+														decide.mutate({
+															appealId: appeal.id,
+															repo: appeal.repo,
+															decision: "approve-once",
+														})
+													}
+													size="small"
+													variant="secondary"
+												>
+													Approve
+												</Button>
+												<Button
+													onAction={() =>
+														decide.mutate({
+															appealId: appeal.id,
+															repo: appeal.repo,
+															decision: "deny",
+														})
+													}
+													size="small"
+													variant="secondary"
+												>
+													Deny
+												</Button>
+											</AgentBoundary>
 										</CardFooter>
 									) : null}
 								</Card>
@@ -251,9 +257,13 @@ function PortalSettings({
 			await client.invalidateQueries({
 				queryKey: contributionAppealPortalOptions(org).queryKey,
 			});
-			toast.success("Portal settings saved");
+			notify.show({ title: "Portal settings saved" }, "success");
 		},
-		onError: () => toast.fail("Tripwire couldn't save the portal settings."),
+		onError: () =>
+			notify.show(
+				{ title: "Tripwire couldn't save the portal settings." },
+				"error",
+			),
 	});
 	return (
 		<section
@@ -275,6 +285,7 @@ function PortalSettings({
 						<FieldLabel>Title</FieldLabel>
 						<Input
 							disabled={!canManage}
+							labelledByField
 							maxLength={80}
 							onChange={(event) => setTitle(event.target.value)}
 							value={title}
@@ -284,8 +295,9 @@ function PortalSettings({
 						<FieldLabel>Introduction</FieldLabel>
 						<Textarea
 							disabled={!canManage}
+							labelledByField
 							maxLength={500}
-							onChange={(event) => setDescription(event.target.value)}
+							onValueChange={setDescription}
 							rows={5}
 							value={description}
 						/>
@@ -299,8 +311,10 @@ function PortalSettings({
 						<Button
 							disabled={!dirty || !title.trim() || !description.trim()}
 							pending={save.isPending}
-							size="sm"
+							reservePendingWidth
+							size="small"
 							type="submit"
+							variant="primary"
 						>
 							Save changes
 						</Button>

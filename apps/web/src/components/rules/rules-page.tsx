@@ -5,9 +5,21 @@ import {
 	ruleUiSchema,
 	SHARED_BLOCKLIST_RULE_ID,
 } from "@tripwire/contracts";
+import { Button } from "@tripwire/ui/button";
+import { Add, Icon } from "@tripwire/ui/icon";
+import { SegmentedControl } from "@tripwire/ui/radio-group";
+import { notify } from "@tripwire/ui/toast";
 import { useMemo, useState } from "react";
 import { ArmCallout } from "#/components/arming/arm-callout";
 import { Collection } from "#/components/collection/collection";
+import {
+	EmptyState,
+	EmptyStateContent,
+	EmptyStateDescription,
+	EmptyStateHeader,
+	EmptyStateRetry,
+	EmptyStateTitle,
+} from "#/components/common/empty-state";
 import { ShaderDither } from "#/components/dither/shader-dither";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { Page, PageBody, PageHeader } from "#/components/layouts/page";
@@ -40,21 +52,6 @@ import {
 	type SaveQueueValues,
 	UnsavedChangesBar,
 } from "#/components/save-queue";
-import { Add, Icon } from "#/design-system/icon";
-import { Button } from "#/design-system/ui/button";
-import {
-	Empty,
-	EmptyContent,
-	EmptyDescription,
-	EmptyHeader,
-	EmptyRetry,
-	EmptyTitle,
-} from "#/design-system/ui/empty-state";
-import {
-	SegmentedControl,
-	SegmentedControlItem,
-} from "#/design-system/ui/segmented-control";
-import { toast } from "#/design-system/ui/toast";
 import { useCollection } from "#/hooks/use-collection";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { useSharedBlocklistPilot } from "#/hooks/use-shared-blocklist-pilot";
@@ -196,7 +193,8 @@ export function RulesPage() {
 		navigate({ to: ".", search: (prev) => ({ ...prev, tab: next }) });
 	const setPilotInstalled = (enabled: boolean) =>
 		savePilot.mutate(enabled, {
-			onError: () => toast.fail("Couldn’t save Pilot. Try again."),
+			onError: () =>
+				notify.show({ title: "Couldn’t save Pilot. Try again." }, "error"),
 			onSuccess: () => {
 				if (enabled) {
 					void navigate({
@@ -317,11 +315,11 @@ export function RulesPage() {
 			});
 		}
 		if (failedKeys.length === 0) {
-			toast.success("Rule changes saved");
+			notify.show({ title: "Rule changes saved" }, "success");
 			return { ok: true };
 		}
 		const message = `${failedNames.join(" and ")} did not save. Select Save changes to try again.`;
-		toast.fail(message);
+		notify.show({ title: message }, "error");
 		return { error: message, failedKeys };
 	};
 
@@ -335,7 +333,7 @@ export function RulesPage() {
 		await queryClient.invalidateQueries({
 			queryKey: rulesQueryKeys.config(org, repoId),
 		});
-		toast.success("Rule deleted");
+		notify.show({ title: "Rule deleted" }, "success");
 	};
 
 	const saveDraft = async (draft: CustomRuleDraft): Promise<string | null> => {
@@ -356,7 +354,7 @@ export function RulesPage() {
 			queryKey: rulesQueryKeys.config(org, repoId),
 		});
 		trackEvent("custom_rule_created", {});
-		toast.success("Rule created");
+		notify.show({ title: "Rule created" }, "success");
 		return null;
 	};
 
@@ -384,7 +382,7 @@ export function RulesPage() {
 								)}
 								{isAdmin && (
 									<Button
-										onClick={() => setBuilderOpen(true)}
+										onAction={() => setBuilderOpen(true)}
 										variant="secondary"
 									>
 										<Icon icon={Add} />
@@ -433,8 +431,8 @@ export function RulesPage() {
 								/>
 								<div>
 									<Button
-										onClick={() => showTab("library")}
-										size="sm"
+										onAction={() => showTab("library")}
+										size="small"
 										variant="secondary"
 									>
 										Browse rules
@@ -443,64 +441,67 @@ export function RulesPage() {
 							</>
 						) : (
 							<>
-								<SegmentedControl
-									aria-label="Rules to show"
-									onValueChange={(value) => {
-										const next = RULES_TABS.find((t) => t === value);
-										if (next) {
-											showTab(next);
-										}
-									}}
-									value={activeTab}
-								>
-									<SegmentedControlItem
-										count={installed.length}
-										value="installed"
-									>
-										Installed
-									</SegmentedControlItem>
-									<SegmentedControlItem count={libraryCount} value="library">
-										Library
-									</SegmentedControlItem>
-									<SegmentedControlItem
-										count={customRules.length}
-										value="custom"
-									>
-										Custom
-									</SegmentedControlItem>
-								</SegmentedControl>
+								<div data-layout-role="rules-view-control">
+									<SegmentedControl
+										ariaLabel="Rules to show"
+										onValueChange={(value) => {
+											const next = RULES_TABS.find((t) => t === value);
+											if (next) {
+												showTab(next);
+											}
+										}}
+										options={[
+											{
+												count: installed.length,
+												label: "Installed",
+												value: "installed",
+											},
+											{
+												count: libraryCount,
+												label: "Library",
+												value: "library",
+											},
+											{
+												count: customRules.length,
+												label: "Custom",
+												value: "custom",
+											},
+										]}
+										value={activeTab}
+									/>
+								</div>
 
 								{activeTab === "library" ? (
 									rules === undefined ? (
 										rulesQuery.isError ? (
-											<Empty reason="error">
-												<EmptyHeader>
-													<EmptyTitle>Rules did not load</EmptyTitle>
-													<EmptyDescription>
+											<EmptyState reason="error">
+												<EmptyStateHeader>
+													<EmptyStateTitle>Rules did not load</EmptyStateTitle>
+													<EmptyStateDescription>
 														Check your connection and try again.
-													</EmptyDescription>
-												</EmptyHeader>
-												<EmptyContent>
-													<EmptyRetry
+													</EmptyStateDescription>
+												</EmptyStateHeader>
+												<EmptyStateContent>
+													<EmptyStateRetry
 														onRetry={async () => {
 															await rulesQuery.refetch({ throwOnError: true });
 														}}
 													>
 														Load rules again
-													</EmptyRetry>
-												</EmptyContent>
-											</Empty>
+													</EmptyStateRetry>
+												</EmptyStateContent>
+											</EmptyState>
 										) : (
 											<RuleGridSkeleton />
 										)
 									) : libraryCount === 0 ? (
-										<Empty art={<MascotArt mood="rules-empty" />}>
-											<EmptyHeader>
-												<EmptyTitle>
+										<EmptyState art={<MascotArt mood="rules-empty" />}>
+											<EmptyStateHeader>
+												<EmptyStateTitle>
 													Every rule in the library is installed
-												</EmptyTitle>
-											</EmptyHeader>
-										</Empty>
+												</EmptyStateTitle>
+											</EmptyStateHeader>
+										</EmptyState>
 									) : (
 										<RuleLibrary
 											canEdit={isAdmin}
@@ -529,7 +530,7 @@ export function RulesPage() {
 											collection={collection}
 											empty={
 												activeTab === "custom" ? (
-													<Empty
+													<EmptyState
 														art={<MascotArt mood="rules-custom-empty" />}
 														className="relative isolate overflow-hidden"
 													>
@@ -537,41 +538,45 @@ export function RulesPage() {
 															className="-z-10 bottom-auto h-30"
 															priority={1}
 														/>
-														<EmptyHeader>
-															<EmptyTitle>No custom rules yet</EmptyTitle>
-															<EmptyDescription>
+														<EmptyStateHeader>
+															<EmptyStateTitle>
+																No custom rules yet
+															</EmptyStateTitle>
+															<EmptyStateDescription>
 																{isAdmin
 																	? "A custom rule checks contributors and their changes against conditions you pick."
 																	: "Custom rules check for patterns specific to this repo. An org admin creates them."}
-															</EmptyDescription>
-														</EmptyHeader>
+															</EmptyStateDescription>
+														</EmptyStateHeader>
 														{isAdmin ? (
-															<EmptyContent>
+															<EmptyStateContent>
 																<Button
-																	onClick={() => setBuilderOpen(true)}
-																	size="sm"
+																	onAction={() => setBuilderOpen(true)}
+																	size="small"
 																	variant="secondary"
 																>
 																	Create rule
 																</Button>
-															</EmptyContent>
+															</EmptyStateContent>
 														) : null}
-													</Empty>
+													</EmptyState>
 												) : (
-													<Empty art={<MascotArt mood="rules-empty" />}>
-														<EmptyHeader>
-															<EmptyTitle>No rules installed</EmptyTitle>
-														</EmptyHeader>
-														<EmptyContent>
+													<EmptyState art={<MascotArt mood="rules-empty" />}>
+														<EmptyStateHeader>
+															<EmptyStateTitle>
+																No rules installed
+															</EmptyStateTitle>
+														</EmptyStateHeader>
+														<EmptyStateContent>
 															<Button
-																onClick={() => showTab("library")}
-																size="sm"
+																onAction={() => showTab("library")}
+																size="small"
 																variant="secondary"
 															>
 																Browse rules
 															</Button>
-														</EmptyContent>
-													</Empty>
+														</EmptyStateContent>
+													</EmptyState>
 												)
 											}
 											error={rulesQuery.isError}

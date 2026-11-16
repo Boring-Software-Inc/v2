@@ -1,6 +1,6 @@
+import { Button } from "@tripwire/ui/button";
+import { Add, FitView, Icon, Subtract } from "@tripwire/ui/icon";
 import { Panel, useReactFlow } from "@xyflow/react";
-import { Add, FitView, Icon, Subtract } from "#/design-system/icon";
-import { Button } from "#/design-system/ui/button";
 
 export function CanvasZoom() {
 	const { zoomIn, zoomOut, fitView } = useReactFlow();
@@ -12,25 +12,25 @@ export function CanvasZoom() {
 			role="group"
 		>
 			<Button
-				aria-label="Zoom in"
-				onClick={() => zoomIn()}
-				size="icon-sm"
+				ariaLabel="Zoom in"
+				onAction={() => zoomIn()}
+				size="small"
 				variant="ghost"
 			>
 				<Icon icon={Add} />
 			</Button>
 			<Button
-				aria-label="Zoom out"
-				onClick={() => zoomOut()}
-				size="icon-sm"
+				ariaLabel="Zoom out"
+				onAction={() => zoomOut()}
+				size="small"
 				variant="ghost"
 			>
 				<Icon icon={Subtract} />
 			</Button>
 			<Button
-				aria-label="Fit to view"
-				onClick={() => fitView()}
-				size="icon-sm"
+				ariaLabel="Fit to view"
+				onAction={() => fitView()}
+				size="small"
 				variant="ghost"
 			>
 				<Icon icon={FitView} />

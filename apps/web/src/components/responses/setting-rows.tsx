@@ -1,10 +1,10 @@
+import { Checkbox } from "@tripwire/ui/checkbox";
 import { type ReactNode, useId } from "react";
 import {
 	PreviewLinked,
 	type PreviewSetting,
 } from "#/components/responses/preview-link";
-import { cn } from "#/design-system/lib/utils";
-import { Checkbox } from "#/design-system/ui/checkbox";
+import { cn } from "#/lib/utils";
 
 const SETTING_ROW = "rounded-panel px-3 py-2";
 const SETTING_NESTED = "ps-10";
@@ -69,14 +69,15 @@ export function SettingToggle({
 				)}
 			>
 				<Checkbox
-					aria-describedby={description ? `${id}-d` : undefined}
-					aria-labelledby={`${id}-l`}
+					ariaDescribedBy={description ? `${id}-d` : undefined}
+					ariaLabelledBy={`${id}-l`}
 					id={id}
 					checked={checked}
 					disabled={disabled}
 					onCheckedChange={(next) => {
 						onChange(next === true);
 					}}
+					size="small"
 				/>
 				<span className="flex min-w-0 flex-col gap-0.5">
 					<span

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
+import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import {
 	FORGE_BY_ID,
 	type Forge,
@@ -10,12 +10,37 @@ import {
 	type WorkflowTemplate,
 	workingAgents,
 } from "@tripwire/contracts";
+import { Badge } from "@tripwire/ui/badge";
+import { Button, IconButton } from "@tripwire/ui/button";
+import { ButtonGroup, ButtonGroupMenu } from "@tripwire/ui/button-group";
+import { Dialog } from "@tripwire/ui/dialog";
+import { Field, FieldLabel, Input } from "@tripwire/ui/field";
+import { Add, Icon, MoreVertical } from "@tripwire/ui/icon";
+import {
+	Item,
+	ItemActions,
+	ItemContent,
+	ItemDescription,
+	ItemGroup,
+	ItemTitle,
+} from "@tripwire/ui/item";
+import { Menu, type MenuEntry } from "@tripwire/ui/menu";
+import { Status, type StatusValue } from "@tripwire/ui/status";
+import { Switch } from "@tripwire/ui/switch";
+import { notify } from "@tripwire/ui/toast";
 import { useMemo, useState } from "react";
 import { AgentOutline } from "#/components/agent/agent-outline";
 import { AgentPresence } from "#/components/agent/agent-presence";
 import { Collection } from "#/components/collection/collection";
 import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
 import { ConfirmDestructiveDialog } from "#/components/common/confirm-destructive-dialog";
+import {
+	EmptyState,
+	EmptyStateContent,
+	EmptyStateDescription,
+	EmptyStateHeader,
+	EmptyStateTitle,
+} from "#/components/common/empty-state";
 import { EntityCard } from "#/components/common/entity-card";
 import { MetaRow } from "#/components/common/meta-row";
 import { CardRouterLink } from "#/components/common/router-links";
@@ -36,51 +61,9 @@ import {
 	WORKFLOWS_COLLECTION,
 } from "#/components/workflows/workflows-collection";
 import { GridSkeleton } from "#/components/workflows/workflows-grid-page-skeleton";
-import { Add, Icon, MoreVertical } from "#/design-system/icon";
-import { Badge } from "#/design-system/ui/badge";
-import { Button } from "#/design-system/ui/button";
-import { ButtonGroup, ButtonGroupMenu } from "#/design-system/ui/button-group";
-import {
-	Dialog,
-	DialogAction,
-	DialogBody,
-	DialogClose,
-	DialogContent,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/design-system/ui/dialog";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuGroup,
-	DropdownMenuItem,
-	DropdownMenuLabel,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "#/design-system/ui/dropdown-menu";
-import {
-	Empty,
-	EmptyContent,
-	EmptyDescription,
-	EmptyHeader,
-	EmptyTitle,
-} from "#/design-system/ui/empty-state";
-import { Field, FieldLabel } from "#/design-system/ui/field";
-import { Input } from "#/design-system/ui/input";
-import {
-	Item,
-	ItemActions,
-	ItemContent,
-	ItemDescription,
-	ItemGroup,
-	ItemTitle,
-} from "#/design-system/ui/item";
-import { Status, type StatusValue } from "#/design-system/ui/status";
-import { Switch } from "#/design-system/ui/switch";
-import { toast } from "#/design-system/ui/toast";
 import { type AgentMotion, useAgentMotion } from "#/hooks/use-agent-motion";
 import { useCollection } from "#/hooks/use-collection";
+import { useMediaQuery } from "#/hooks/use-media-query";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { useWorkClock } from "#/hooks/use-work-clock";
 import { useLiveWork } from "#/lib/live-work.query";
@@ -98,6 +81,7 @@ import {
 	workflowsListQueryOptions,
 	workflowsQueryKeys,
 } from "#/lib/workflows.query";
+import "./workflows-grid-page.css";
 
 const STATE_STATUS = {
 	on: "ok",
@@ -148,12 +132,20 @@ export function WorkflowsGridPage() {
 				});
 				return;
 			}
-			toast.fail(
-				result.error ?? "Tripwire could not create the workflow. Try again.",
+			notify.show(
+				{
+					title:
+						result.error ??
+						"Tripwire could not create the workflow. Try again.",
+				},
+				"error",
 			);
 		},
 		onError: () => {
-			toast.fail("Tripwire could not create the workflow. Try again.");
+			notify.show(
+				{ title: "Tripwire could not create the workflow. Try again." },
+				"error",
+			);
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({
@@ -226,11 +218,11 @@ export function WorkflowsGridPage() {
 			});
 		}
 		if (failedKeys.length === 0) {
-			toast.success("Workflow changes saved");
+			notify.show({ title: "Workflow changes saved" }, "success");
 			return { ok: true as const };
 		}
 		const message = refusals.join(" ");
-		toast.fail(message);
+		notify.show({ title: message }, "error");
 		return { error: message, failedKeys };
 	};
 
@@ -307,32 +299,39 @@ function CreateSplitButton({
 	onBlank: () => void;
 	onTemplate: (tpl: WorkflowTemplate) => void;
 }) {
+	const actionsWrap = useMediaQuery("(max-width: 30rem)");
+
 	return (
 		<ButtonGroup aria-label="New workflow" className="shrink-0">
 			<Button
-				onClick={onBlank}
+				leadingIcon={<Icon icon={Add} />}
+				onAction={onBlank}
 				pending={creating}
 				pendingLabel="Creating"
-				size="sm"
+				reservePendingWidth
+				size="small"
 				variant="secondary"
 			>
-				<Icon icon={Add} />
 				Create workflow
 			</Button>
 			<ButtonGroupMenu
+				align={actionsWrap ? "start" : "end"}
+				items={[
+					{
+						items: WORKFLOW_TEMPLATES.map((tpl) => ({
+							label: `Start from ${tpl.name}`,
+							onAction: () => onTemplate(tpl),
+							value: tpl.id,
+						})),
+						label: "Templates",
+						type: "group",
+						value: "templates",
+					},
+				]}
 				label="Start from a template"
 				pending={creating}
-				size="sm"
-			>
-				<DropdownMenuGroup>
-					<DropdownMenuLabel>Templates</DropdownMenuLabel>
-					{WORKFLOW_TEMPLATES.map((tpl) => (
-						<DropdownMenuItem key={tpl.id} onClick={() => onTemplate(tpl)}>
-							Start from {tpl.name}
-						</DropdownMenuItem>
-					))}
-				</DropdownMenuGroup>
-			</ButtonGroupMenu>
+				size="small"
+			/>
 		</ButtonGroup>
 	);
 }
@@ -354,54 +353,51 @@ function WorkflowsEmpty({
 }) {
 	if (!canManage) {
 		return (
-			<Empty art={<MascotArt mood="workflows-empty" />}>
-				<EmptyHeader>
-					<EmptyTitle>No workflows yet</EmptyTitle>
-					<EmptyDescription>
+			<EmptyState art={<MascotArt mood="workflows-empty" />}>
+				<EmptyStateHeader>
+					<EmptyStateTitle>No workflows yet</EmptyStateTitle>
+					<EmptyStateDescription>
 						Only org admins can create workflows. Ask an admin to add one.
-					</EmptyDescription>
-				</EmptyHeader>
-				<EmptyContent>
+					</EmptyStateDescription>
+				</EmptyStateHeader>
+				<EmptyStateContent>
 					<Button
-						nativeButton={false}
-						render={
-							<Link params={{ org, repo: repoName }} to="/$org/$repo/rules" />
-						}
-						size="sm"
+						href={`/${org}/${repoName}/rules`}
+						size="small"
 						variant="secondary"
 					>
 						Review rules
 					</Button>
-				</EmptyContent>
-			</Empty>
+				</EmptyStateContent>
+			</EmptyState>
 		);
 	}
 
 	return (
 		<div className="flex flex-col gap-6">
-			<Empty
+			<EmptyState
 				art={<MascotArt mood="workflows-empty" />}
 				className="relative isolate overflow-hidden"
 			>
 				<ShaderDither className="-z-10 bottom-auto h-30" priority={1} />
-				<EmptyHeader>
-					<EmptyTitle>No workflows yet</EmptyTitle>
-					<EmptyDescription>
+				<EmptyStateHeader>
+					<EmptyStateTitle>No workflows yet</EmptyStateTitle>
+					<EmptyStateDescription>
 						Build one from scratch, or start from a template below.
-					</EmptyDescription>
-				</EmptyHeader>
-				<EmptyContent>
+					</EmptyStateDescription>
+				</EmptyStateHeader>
+				<EmptyStateContent>
 					<Button
-						onClick={onBlank}
+						onAction={onBlank}
 						pending={creating}
 						pendingLabel="Creating"
-						size="sm"
+						size="small"
 					>
 						<Icon icon={Add} />
 						Create workflow
 					</Button>
-				</EmptyContent>
-			</Empty>
+				</EmptyStateContent>
+			</EmptyState>
 			<section
 				aria-labelledby="workflow-templates"
 				className="flex flex-col gap-2"
@@ -420,10 +416,10 @@ function WorkflowsEmpty({
 							</ItemContent>
 							<ItemActions>
 								<Button
-									aria-label={`Use the ${tpl.name} template`}
+									ariaLabel={`Use the ${tpl.name} template`}
 									disabled={creating}
-									onClick={() => onTemplate(tpl)}
-									size="sm"
+									onAction={() => onTemplate(tpl)}
+									size="small"
 									variant="secondary"
 								>
 									Use template
@@ -492,16 +488,23 @@ function WorkflowRow({
 			duplicateRepoWorkflow({ data: { org, repoId, workflowId: workflow.id } }),
 		onSuccess: (result) => {
 			if (!result.workflow) {
-				toast.fail(
-					result.error ??
-						"Tripwire could not duplicate the workflow. Try again.",
+				notify.show(
+					{
+						title:
+							result.error ??
+							"Tripwire could not duplicate the workflow. Try again.",
+					},
+					"error",
 				);
 				return;
 			}
-			toast.success(`Duplicated ${workflow.name}`);
+			notify.show({ title: `Duplicated ${workflow.name}` }, "success");
 		},
 		onError: () => {
-			toast.fail("Tripwire could not duplicate the workflow. Try again.");
+			notify.show(
+				{ title: "Tripwire could not duplicate the workflow. Try again." },
+				"error",
+			);
 		},
 		onSettled: invalidateList,
 	});
@@ -537,6 +540,28 @@ function WorkflowRow({
 		) : workflow.triggerKinds.length === 0 ? (
 			"No trigger yet"
 		) : undefined;
+	const menuItems: MenuEntry[] = [
+		{
+			label: "Rename workflow",
+			onAction: () => {
+				setRenameValue(workflow.name);
+				setRenaming(true);
+			},
+			value: "rename",
+		},
+		{
+			disabled: duplicateMutation.isPending,
+			label: "Duplicate workflow",
+			onAction: () => duplicateMutation.mutate(),
+			value: "duplicate",
+		},
+		{ type: "separator", value: "destructive-separator" },
+		{
+			label: "Delete workflow",
+			onAction: () => setDeleting(true),
+			value: "delete",
+		},
+	];
 
 	return (
 		<>
@@ -548,7 +573,7 @@ function WorkflowRow({
 					seed={workflow.id}
 				/>
 				<EntityCard
-					className="[&>[data-slot=card-footer]]:flex-wrap [&_[data-slot=card-meta]]:flex-1"
+					footerLayout="workflow"
 					feedbackName="WorkflowRow"
 					badges={
 						workflow.draftId || workflow.triggerKinds.length > 0 ? (
@@ -605,14 +630,14 @@ function WorkflowRow({
 					status={
 						draftOnly ? undefined : (
 							<>
-								<Status size="sm" status={STATE_STATUS[workflow.state]}>
+								<Status size="small" status={STATE_STATUS[workflow.state]}>
 									{WORKFLOW_STATE_LABELS[workflow.state]}
 								</Status>
 								<Switch
-									aria-describedby={
+									ariaDescribedBy={
 										protectionAvailable ? undefined : protectionReasonId
 									}
-									aria-label={`Run ${workflow.name} on change requests`}
+									ariaLabel={`Run ${workflow.name} on change requests`}
 									checked={queuedEnabled}
 									disabled={
 										!canManage || (!queuedEnabled && !protectionAvailable)
@@ -624,45 +649,22 @@ function WorkflowRow({
 										}
 										if (protectionAvailable) setQueuedEnabled(true);
 									}}
-									size="sm"
+									size="small"
 								/>
 								{canManage ? (
-									<DropdownMenu>
-										<DropdownMenuTrigger
-											render={
-												<Button
-													aria-label={`Actions for ${workflow.name}`}
-													size="icon-sm"
-													variant="ghost"
-												/>
-											}
-										>
-											<Icon icon={MoreVertical} />
-										</DropdownMenuTrigger>
-										<DropdownMenuContent align="end" size="sm">
-											<DropdownMenuItem
-												onClick={() => {
-													setRenameValue(workflow.name);
-													setRenaming(true);
-												}}
-											>
-												Rename workflow
-											</DropdownMenuItem>
-											<DropdownMenuItem
-												disabled={duplicateMutation.isPending}
-												onClick={() => duplicateMutation.mutate()}
-											>
-												Duplicate workflow
-											</DropdownMenuItem>
-											<DropdownMenuSeparator />
-											<DropdownMenuItem
-												onClick={() => setDeleting(true)}
-												variant="destructive"
-											>
-												Delete workflow
-											</DropdownMenuItem>
-										</DropdownMenuContent>
-									</DropdownMenu>
+									<Menu
+										align="end"
+										ariaLabel={`Actions for ${workflow.name}`}
+										items={menuItems}
+										trigger={
+											<IconButton
+												icon={<Icon icon={MoreVertical} />}
+												label={`Actions for ${workflow.name}`}
+												size="small"
+												variant="ghost"
+											/>
+										}
+									/>
 								) : null}
 							</>
 						)
@@ -679,33 +681,27 @@ function WorkflowRow({
 				/>
 			</div>
 
-			<Dialog onOpenChange={setRenaming} open={renaming}>
-				<DialogContent size="sm">
-					<DialogHeader>
-						<DialogTitle>Rename {workflow.name}</DialogTitle>
-					</DialogHeader>
-					<DialogBody>
-						<Field>
-							<FieldLabel>Workflow name</FieldLabel>
-							<Input
-								autoComplete="off"
-								maxLength={120}
-								onChange={(event) => setRenameValue(event.target.value)}
-								value={renameValue}
-							/>
-						</Field>
-					</DialogBody>
-					<DialogFooter>
-						<DialogClose>Cancel</DialogClose>
-						<DialogAction
-							disabled={renameValue.trim().length === 0}
-							onAction={submitRename}
-							pendingLabel="Saving"
-						>
-							Save name
-						</DialogAction>
-					</DialogFooter>
-				</DialogContent>
+			<Dialog
+				action={{
+					disabled: renameValue.trim().length === 0,
+					label: "Save name",
+					onAction: submitRename,
+					pendingLabel: "Saving",
+				}}
+				onOpenChange={setRenaming}
+				open={renaming}
+				title={`Rename ${workflow.name}`}
+			>
+				<Field>
+					<FieldLabel>Workflow name</FieldLabel>
+					<Input
+						autoComplete="off"
+						labelledByField
+						maxLength={120}
+						onChange={(event) => setRenameValue(event.target.value)}
+						value={renameValue}
+					/>
+				</Field>
 			</Dialog>
 
 			<ConfirmDeleteDialog
@@ -716,7 +712,7 @@ function WorkflowRow({
 				title={`Delete ${workflow.name}?`}
 			/>
 			<ConfirmDestructiveDialog
-				actionLabel="Turn off workflow"
+				confirmLabel="Turn off workflow"
 				description={`${workflow.name} will stop evaluating new change requests after you save this change.`}
 				onConfirm={() => {
 					setQueuedEnabled(false);

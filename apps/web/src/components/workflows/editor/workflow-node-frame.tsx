@@ -1,3 +1,4 @@
+import { StatusMark } from "@tripwire/ui/status";
 import type { ReactNode } from "react";
 import {
 	NodeAgentOutline,
@@ -11,7 +12,6 @@ import {
 	ProblemPeek,
 	severityStatus,
 } from "#/components/workflows/editor/problems-list";
-import { StatusMark } from "#/design-system/ui/status";
 
 interface WorkflowNodeFrameProps {
 	nodeId: string;

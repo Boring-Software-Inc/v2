@@ -1,6 +1,4 @@
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { Page, PageBody } from "#/components/layouts/page";
-import { SkeletonText } from "#/design-system/ui/skeleton";
+import { SkeletonText } from "@tripwire/ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -8,15 +6,25 @@ import {
 	TableHeader,
 	TableLoading,
 	TableRow,
-} from "#/design-system/ui/table";
+} from "@tripwire/ui/table";
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Page, PageBody } from "#/components/layouts/page";
 
 export function AdminInstallationsPageSkeleton() {
 	return (
 		<DashboardLayout counts={{}}>
 			<Page>
 				<header aria-hidden data-layout-role="admin-page-header-skeleton">
-					<SkeletonText data-layout-size="page-title" type="heading" />
-					<SkeletonText data-layout-size="page-description" type="body" />
+					<span data-skeleton-line="" aria-hidden data-layout-size="page-title">
+						<SkeletonText type="heading" />
+					</span>
+					<span
+						data-skeleton-line=""
+						aria-hidden
+						data-layout-size="page-description"
+					>
+						<SkeletonText type="body" />
+					</span>
 				</header>
 				<PageBody>
 					<Table

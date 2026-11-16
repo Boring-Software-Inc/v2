@@ -1,23 +1,14 @@
 import type { LintFix } from "@tripwire/contracts";
+import { Button } from "@tripwire/ui/button";
+import { Popover } from "@tripwire/ui/popover";
+import { Status } from "@tripwire/ui/status";
+import { Tooltip } from "@tripwire/ui/tooltip";
+import { Label } from "@tripwire/ui/typography";
 import {
 	type Problem,
 	problemCount,
 	problemSections,
 } from "#/components/workflows/editor/node-issues";
-import { cn } from "#/design-system/lib/utils";
-import { Button } from "#/design-system/ui/button";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "#/design-system/ui/popover";
-import { Status } from "#/design-system/ui/status";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/design-system/ui/tooltip";
-import { Label } from "#/design-system/ui/typography";
 
 export function severityStatus(problems: readonly Problem[]): "fail" | "warn" {
 	return problems.some((problem) => problem.severity === "error")
@@ -64,8 +55,8 @@ function ProblemRow({
 					{fixes.map((fix, index) => (
 						<Button
 							key={fix.label}
-							onClick={() => onFix?.(problem, fix)}
-							size="sm"
+							onAction={() => onFix?.(problem, fix)}
+							size="small"
 							variant={index === 0 ? "secondary" : "ghost"}
 						>
 							{fix.label}
@@ -130,52 +121,44 @@ export function ProblemsButton({
 		return null;
 	}
 	const blocking = severityStatus(problems) === "fail";
-	const explanation = problems
-		.filter((problem) => problem.severity === (blocking ? "error" : "warning"))
-		.slice(0, 3)
-		.map((problem) => ({
-			key: problem.key,
-			text: `${problem.step}: ${problem.message}`,
-		}));
 	return (
-		<Popover onOpenChange={onOpenChange} open={open}>
-			<div
-				data-layout-role="workflow-problems-trigger"
-				data-blocking={blocking || undefined}
-			>
-				<Tooltip>
-					<TooltipTrigger render={<span className="inline-flex" />}>
-						<PopoverTrigger
-							render={
-								<Button size="sm" variant={blocking ? "ghost" : "secondary"} />
-							}
-						>
-							{blocking ? (
-								<Status size="sm" status="fail">
-									{problemCount(problems)}
-								</Status>
-							) : (
-								problemCount(problems)
-							)}
-						</PopoverTrigger>
-					</TooltipTrigger>
-					<TooltipContent>
-						<span className="flex max-w-72 flex-col gap-1">
-							{explanation.map((line) => (
-								<span key={line.key}>{line.text}</span>
-							))}
-						</span>
-					</TooltipContent>
-				</Tooltip>
-			</div>
-			<PopoverContent
-				align="end"
-				data-layout-role="workflow-problems-popup"
-				finalFocus={false}
-			>
-				<ProblemRows onFix={onFix} onReveal={onReveal} problems={problems} />
-			</PopoverContent>
-		</Popover>
+		<Tooltip
+			trigger={
+				<span
+					data-layout-role="workflow-problems-trigger"
+					data-blocking={blocking || undefined}
+				>
+					<Popover
+						align="end"
+						finalFocus="none"
+						onOpenChange={onOpenChange}
+						open={open}
+						trigger={
+							<Button size="small" variant={blocking ? "ghost" : "secondary"}>
+								{blocking ? (
+									<Status size="small" status="fail">
+										{problemCount(problems)}
+									</Status>
+								) : (
+									problemCount(problems)
+								)}
+							</Button>
+						}
+						triggerLabel={`${problemCount(problems)} workflow problems`}
+					>
+						<div data-layout-role="workflow-problems-popup">
+							<ProblemRows
+								onFix={onFix}
+								onReveal={onReveal}
+								problems={problems}
+							/>
+						</div>
+					</Popover>
+				</span>
+			}
+		>
+			{`${problemCount(problems)} workflow problems`}
+		</Tooltip>
 	);
 }
 
@@ -191,19 +174,20 @@ export function ProblemPeek({
 	children: React.ReactNode;
 }) {
 	return (
-		<Popover>
-			<PopoverTrigger
-				closeDelay={150}
-				delay={150}
-				nativeButton={false}
-				openOnHover
-				render={<span className={cn("nodrag nopan", className)} />}
-			>
-				{children}
-			</PopoverTrigger>
-			<PopoverContent data-layout-role="workflow-problem-peek" side="top">
+		<Popover
+			hoverTiming="brief"
+			interaction="hover"
+			placement="top"
+			trigger={
+				<button className={`nodrag nopan ${className ?? ""}`} type="button">
+					{children}
+				</button>
+			}
+			triggerLabel={problems.map((problem) => problem.message).join(". ")}
+		>
+			<div data-layout-role="workflow-problem-peek">
 				<ProblemRows onFix={onFix} problems={problems} />
-			</PopoverContent>
+			</div>
 		</Popover>
 	);
 }

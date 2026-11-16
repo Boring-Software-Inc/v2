@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button } from "#/design-system/ui/button";
-import { toast } from "#/design-system/ui/toast";
+import { Button } from "@tripwire/ui/button";
+import { notify } from "@tripwire/ui/toast";
 import { discardRepoDraft, promoteRepoDraft } from "#/lib/workflows.functions";
 import { workflowsQueryKeys } from "#/lib/workflows.query";
 
@@ -37,18 +37,25 @@ export function DraftActions({
 		mutationFn: () => promoteRepoDraft({ data: { org, repoId, draftId } }),
 		onSuccess: (result) => {
 			if (!result.ok) {
-				toast.fail(
-					result.issues
-						.slice(0, 2)
-						.map((issue) => issue.message)
-						.join(" "),
+				notify.show(
+					{
+						title: result.issues
+							.slice(0, 2)
+							.map((issue) => issue.message)
+							.join(" "),
+					},
+					"error",
 				);
 				return;
 			}
-			toast.success(`Saved ${name}`);
+			notify.show({ title: `Saved ${name}` }, "success");
 			onSaved?.(result.workflowId);
 		},
-		onError: () => toast.fail("Tripwire could not save the draft. Try again."),
+		onError: () =>
+			notify.show(
+				{ title: "Tripwire could not save the draft. Try again." },
+				"error",
+			),
 		onSettled: refresh,
 	});
 	const discard = useMutation({
@@ -60,11 +67,10 @@ export function DraftActions({
 		<>
 			<Button
 				confirmation={{
-					actionLabel: "Discard",
+					confirmLabel: "Discard",
 					description: replacesLive
 						? "The live version keeps running as it is."
 						: "This can't be undone.",
-					pendingLabel: "Discarding",
 					title: "Discard this draft?",
 				}}
 				onAction={async () => {
@@ -74,16 +80,18 @@ export function DraftActions({
 					}
 					onDiscarded?.();
 				}}
-				size="sm"
+				pending={discard.isPending}
+				pendingLabel="Discarding"
+				size="small"
 				variant="destructive"
 			>
 				Discard
 			</Button>
 			<Button
-				onClick={() => promote.mutate()}
+				onAction={() => promote.mutate()}
 				pending={promote.isPending}
 				pendingLabel="Saving"
-				size="sm"
+				size="small"
 			>
 				{replacesLive ? "Save over live version" : "Save workflow"}
 			</Button>

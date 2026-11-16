@@ -1,11 +1,12 @@
 import { getRouteApi } from "@tanstack/react-router";
+import { Card, CardContent } from "@tripwire/ui/card";
 import { BrandLockup } from "#/components/auth/brand-lockup";
 import { ForgeGrid } from "#/components/auth/forge-grid";
 import { LoginFaq } from "#/components/auth/login-faq";
 import { WebviewNotice } from "#/components/auth/webview-notice";
 import { DevScenarioDisclosure } from "#/components/dev/dev-scenario-disclosure";
 import { ShaderDither } from "#/components/dither/shader-dither";
-import { Card, CardContent } from "#/design-system/ui/card";
+import "./login-page.css";
 
 const route = getRouteApi("/login");
 

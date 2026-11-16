@@ -9,6 +9,10 @@ import {
 	lensLevel,
 	variableHidden,
 } from "@tripwire/contracts";
+import { Button } from "@tripwire/ui/button";
+import { Sheet } from "@tripwire/ui/drawer";
+import { Add, Icon } from "@tripwire/ui/icon";
+import { Switch } from "@tripwire/ui/switch";
 import { useId } from "react";
 import { BlockCanvas } from "#/components/responses/blocks/block-canvas";
 import { BLOCK_META } from "#/components/responses/blocks/block-catalog";
@@ -28,10 +32,6 @@ import {
 import { ResponsesPreview } from "#/components/responses/responses-preview";
 import { sampleRunFor } from "#/components/responses/sample-run";
 import type { useSaveQueue } from "#/components/save-queue";
-import { Add, Icon } from "#/design-system/icon";
-import { Button } from "#/design-system/ui/button";
-import { Sheet, SheetContent } from "#/design-system/ui/sheet";
-import { Switch } from "#/design-system/ui/switch";
 
 export interface ResponseBuilderProps {
 	outcome: OutcomeMeta;
@@ -75,82 +75,94 @@ export function ResponseBuilder({
 
 	return (
 		<DndContext {...dnd}>
-			<Sheet onOpenChange={builder.showPalette} open={builder.paletteOpen}>
-				<div className="relative min-h-0" data-layout-role="response-builder">
-					<ResponsesPreview
-						action={
-							canEdit ? (
-								<div className="flex w-full items-center gap-2 sm:min-w-0 sm:flex-1">
-									{builder.full ? null : (
-										<Button
-											onClick={() => builder.browse()}
-											size="sm"
-											variant="secondary"
-										>
-											<Icon icon={Add} />
-											Add block
-										</Button>
-									)}
-									<div className="ms-auto flex shrink-0 items-center gap-2">
-										<span
-											className="type-label-sm text-text-2"
-											id={postingLabelId}
-										>
-											Post a comment
-										</span>
-										<Switch
-											aria-labelledby={postingLabelId}
-											checked={posting}
-											onCheckedChange={setPosting}
-											size="sm"
-										/>
-									</div>
+			<div className="relative min-h-0" data-layout-role="response-builder">
+				<ResponsesPreview
+					action={
+						canEdit ? (
+							<div className="flex w-full items-center composition-gap-standard sm:min-w-0 sm:flex-1">
+								{builder.full ? null : (
+									<Button
+										onAction={() => builder.browse()}
+										size="small"
+										variant="secondary"
+									>
+										<Icon icon={Add} />
+										Add block
+									</Button>
+								)}
+								<div
+									className="composition-push-end flex shrink-0 items-center composition-gap-standard"
+									data-layout-role="response-posting-control"
+								>
+									<span
+										className="content-label-small tone-content-secondary"
+										id={postingLabelId}
+									>
+										Post a comment
+									</span>
+									<Switch
+										ariaLabelledBy={postingLabelId}
+										checked={posting}
+										onCheckedChange={setPosting}
+										size="small"
+									/>
 								</div>
-							) : undefined
-						}
-						canvas={
-							<div className="flex flex-col gap-2" data-region="comment">
-								{posting && plan.comment !== "upsert" ? (
-									<p className="type-body-sm text-text-2 sm:ms-13">
-										Tripwire posts no separate PR comment. These blocks appear
-										in the GitHub review.
-									</p>
-								) : null}
-								<GithubCommentMock
-									action={
-										posting && plan.comment !== "upsert" ? "review" : "comment"
-									}
-									body={posting ? "" : null}
-									edited={outcome.edited}
-									editor={
-										<BlockCanvas
-											builder={builder}
-											outputs={outputs}
-											readOnly={readOnly}
-										/>
-									}
-								/>
 							</div>
-						}
-						check={preview.check}
-						onView={builder.setView}
-						outcome={outcome}
-						plan={plan}
-						run={sampleRunFor(outcome, plan, preview.check)}
-						runPageLevel={preview.runPageLevel}
-						view={view}
-					/>
-					<SheetContent side="end">
-						<BlockColumn
-							builder={builder}
-							helpDefaultContent={helpDefaultContent}
-							org={org}
-							outcome={outcome.value}
-							readOnly={readOnly}
-							rulesHidden={rulesHidden}
-						/>
-					</SheetContent>
-				</div>
+						) : undefined
+					}
+					canvas={
+						<div
+							className="flex flex-col composition-gap-standard"
+							data-region="comment"
+						>
+							{posting && plan.comment !== "upsert" ? (
+								<p className="content-body-small tone-content-secondary composition-support-indent">
+									Tripwire posts no separate PR comment. These blocks appear in
+									the GitHub review.
+								</p>
+							) : null}
+							<GithubCommentMock
+								action={
+									posting && plan.comment !== "upsert" ? "review" : "comment"
+								}
+								body={posting ? "" : null}
+								edited={outcome.edited}
+								editor={
+									<BlockCanvas
+										builder={builder}
+										outputs={outputs}
+										readOnly={readOnly}
+									/>
+								}
+							/>
+						</div>
+					}
+					check={preview.check}
+					onView={builder.setView}
+					outcome={outcome}
+					plan={plan}
+					run={sampleRunFor(outcome, plan, preview.check)}
+					runPageLevel={preview.runPageLevel}
+					view={view}
+				/>
+			</div>
+			<Sheet
+				bodyInset="content"
+				onOpenChange={builder.showPalette}
+				open={builder.paletteOpen}
+				showFooter={false}
+				showHeader={false}
+				title={builder.selected ? "Block settings" : "Add block"}
+			>
+				<BlockColumn
+					builder={builder}
+					key={builder.selectedId ?? builder.insertIndex ?? "palette"}
+					helpDefaultContent={helpDefaultContent}
+					org={org}
+					outcome={outcome.value}
+					readOnly={readOnly}
+					rulesHidden={rulesHidden}
+				/>
 			</Sheet>
 			<DragOverlay dropAnimation={null}>
 				{dragged?.source === "palette" ? (

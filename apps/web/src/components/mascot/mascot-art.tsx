@@ -13,22 +13,26 @@ import {
 } from "#/components/mascot/moods";
 import { registerRunnerHost } from "#/components/mascot/runner/trigger";
 import { useReducedMotion } from "#/components/mascot/use-reduced-motion";
-import { cn } from "#/design-system/lib/utils";
-import {
-	type EmptyArtSize,
-	emptyArtClass,
-} from "#/design-system/ui/empty-state";
+import { cn } from "#/lib/utils";
+
+type MascotArtSize = "compact" | "default";
 
 export type MascotArtProps = {
 	mood: MascotMoodKey;
-	size?: EmptyArtSize;
+	size?: MascotArtSize;
 	className?: string;
+	minigame?: boolean;
 };
 
 const PIXELS = { default: 64, compact: 48 } satisfies Record<
-	EmptyArtSize,
+	MascotArtSize,
 	number
 >;
+
+const ART_CLASS = {
+	compact: "size-12",
+	default: "size-16",
+} satisfies Record<MascotArtSize, string>;
 
 function settingsFor(mood: MascotMood, reduced: boolean): MascotSettings {
 	return {
@@ -49,6 +53,7 @@ export function MascotArt({
 	mood,
 	size = "default",
 	className,
+	minigame = false,
 }: MascotArtProps) {
 	const config: MascotMood = MASCOT_MOODS[mood];
 	const reduced = useReducedMotion();
@@ -71,21 +76,22 @@ export function MascotArt({
 	}, [engine, config.far]);
 
 	useEffect(() => {
-		if (!button.current || size !== "default") {
+		if (!button.current || !minigame || size !== "default") {
 			return;
 		}
 		return registerRunnerHost({ engine, art: button.current });
-	}, [engine, size]);
+	}, [engine, minigame, size]);
 
 	return (
 		<button
 			aria-label="Poke the ghost"
 			className={cn(
-				emptyArtClass(size),
+				ART_CLASS[size],
 				"cursor-pointer rounded-panel focus-visible:focus-ring",
 				className,
 			)}
 			data-size={size}
+			data-minigame={minigame ? "" : undefined}
 			data-slot="empty-art"
 			onClick={() => engine.poke()}
 			ref={button}

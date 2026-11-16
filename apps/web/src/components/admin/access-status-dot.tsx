@@ -1,5 +1,5 @@
 import type { AccessStatus } from "@tripwire/contracts";
-import { Status, type StatusValue } from "#/design-system/ui/status";
+import { Status, type StatusValue } from "@tripwire/ui/status";
 
 const STATUS = {
 	pending: { status: "waiting", label: "Pending" },
@@ -10,7 +10,7 @@ const STATUS = {
 export function AccessStatusMark({ status }: { status: AccessStatus }) {
 	const { status: value, label } = STATUS[status];
 	return (
-		<Status size="sm" status={value}>
+		<Status size="small" status={value}>
 			{label}
 		</Status>
 	);

@@ -1,5 +1,7 @@
 import type { RedactionPolicy, RedactionSurface } from "@tripwire/contracts";
 import { REDACTION_SURFACES } from "@tripwire/contracts";
+import { Collapsible } from "@tripwire/ui/collapsible";
+import { StepSlider } from "@tripwire/ui/slider";
 import { useId } from "react";
 import {
 	REDACTION_MAJOR_STEPS,
@@ -10,12 +12,6 @@ import {
 } from "#/components/responses/redaction-model";
 import { RedactionTally } from "#/components/responses/redaction-tally";
 import { SettingToggle } from "#/components/responses/setting-rows";
-import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from "#/design-system/ui/collapsible";
-import { StepSlider } from "#/design-system/ui/step-slider";
 
 export interface RedactionControlsProps {
 	policy: RedactionPolicy;
@@ -34,12 +30,15 @@ export function RedactionControls({
 }: RedactionControlsProps) {
 	const labelId = useId();
 	return (
-		<div className="flex flex-col gap-3">
-			<div className="flex flex-col gap-3 px-3 py-2">
+		<div className="flex flex-col composition-gap-section">
+			<div
+				className="flex flex-col composition-gap-section composition-inline-inset"
+				data-layout-role="response-redaction-level"
+			>
 				<div className="flex items-baseline justify-between gap-6">
 					<span
 						className={
-							disabled ? "type-label text-text-disabled" : "type-label"
+							disabled ? "content-label tone-content-disabled" : "content-label"
 						}
 						id={labelId}
 					>
@@ -49,47 +48,48 @@ export function RedactionControls({
 						aria-live="polite"
 						className={
 							disabled
-								? "type-heading-sm text-text-disabled"
-								: "type-heading-sm text-text-1"
+								? "type-heading-sm tone-content-disabled"
+								: "type-heading-sm tone-content-primary"
 						}
 					>
 						{stopName(policy.level)}
 					</span>
 				</div>
 				<StepSlider
-					aria-labelledby={labelId}
+					ariaLabelledBy={labelId}
 					disabled={disabled}
 					getValueText={stopName}
-					majorSteps={REDACTION_MAJOR_STEPS}
 					onValueChange={onLevel}
-					steps={REDACTION_STEPS}
+					showTickLabels={false}
+					steps={REDACTION_STEPS.map((step) => ({
+						label: REDACTION_MAJOR_STEPS.includes(step) ? stopName(step) : "",
+						value: step,
+					}))}
 					value={policy.level}
 				/>
 			</div>
 			<RedactionTally disabled={disabled} level={policy.level} />
-			<Collapsible>
-				<CollapsibleTrigger
-					size="sm"
-					summary={`${policy.surfaces.length} of ${REDACTION_SURFACES.length}`}
-				>
-					Where it applies
-				</CollapsibleTrigger>
-				<CollapsibleContent>
-					<div className="flex flex-col gap-0.5">
-						{REDACTION_SURFACES.map((surface) => (
-							<SettingToggle
-								checked={policy.surfaces.includes(surface)}
-								disabled={disabled}
-								key={surface}
-								label={REDACTION_SURFACE_LABELS[surface]}
-								onChange={(on) =>
-									onSurfaces(toggleSurface(policy.surfaces, surface, on))
-								}
-								setting={`surface-${surface}`}
-							/>
-						))}
-					</div>
-				</CollapsibleContent>
+			<Collapsible
+				closedSummary={[policy.surfaces.length, REDACTION_SURFACES.length].join(
+					" of ",
+				)}
+				trigger="Where it applies"
+				variant="compact"
+			>
+				<div className="flex flex-col composition-gap-hairline">
+					{REDACTION_SURFACES.map((surface) => (
+						<SettingToggle
+							checked={policy.surfaces.includes(surface)}
+							disabled={disabled}
+							key={surface}
+							label={REDACTION_SURFACE_LABELS[surface]}
+							onChange={(on) =>
+								onSurfaces(toggleSurface(policy.surfaces, surface, on))
+							}
+							setting={`surface-${surface}`}
+						/>
+					))}
+				</div>
 			</Collapsible>
 			<SettingToggle
 				checked={policy.showHelp}

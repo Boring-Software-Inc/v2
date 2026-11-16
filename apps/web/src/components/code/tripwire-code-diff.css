@@ -1,0 +1,13 @@
+[data-review-diff] [data-layout-role="code-diff-copy"] > [data-slot="button"] {
+	min-inline-size: calc(3 * var(--control));
+	border: 0;
+	box-shadow: 0 0 0 var(--line-width) var(--flat-ring);
+	letter-spacing: var(--tracking-label);
+}
+
+[data-review-diff]
+	[data-slot="segmented-control"]
+	[data-slot="radio-option"]:has([data-slot="radio"]:focus-visible)
+	[data-slot="radio-label"] {
+	outline-offset: calc(-1 * var(--focus-width));
+}

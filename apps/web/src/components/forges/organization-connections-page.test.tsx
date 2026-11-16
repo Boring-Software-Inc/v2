@@ -11,7 +11,6 @@ import { renderToString } from "react-dom/server";
 import { GitCafeRepositorySelection } from "#/components/forges/gitcafe-repository-selection";
 import { OrganizationConnectionRow } from "#/components/forges/organization-connection-row";
 import { OrganizationConnectionsPage } from "#/components/forges/organization-connections-page";
-import { CollapsibleGroup } from "#/design-system/ui/collapsible";
 import { providerAvailabilityQueryOptions } from "#/lib/auth.query";
 import { organizationConnectionsQueryOptions } from "#/lib/connections.query";
 import { orgContextQueryOptions } from "#/lib/org.query";
@@ -106,13 +105,13 @@ test("a non-manager cannot see cached repository names or disconnect controls", 
 test("empty GitCafe installations remain manageable and unknown metadata offers no disconnect", () => {
 	const empty = renderToString(
 		<QueryClientProvider client={createClient(true)}>
-			<CollapsibleGroup>
+			<div>
 				<OrganizationConnectionRow
 					org="team"
 					connection={{ ...connection, repositories: [] }}
 					onCheckAccess={async () => undefined}
 				/>
-			</CollapsibleGroup>
+			</div>
 		</QueryClientProvider>,
 	);
 	expect(empty).toContain("0 repos");
@@ -120,13 +119,13 @@ test("empty GitCafe installations remain manageable and unknown metadata offers 
 	expect(empty).not.toMatch(/<button[^>]*\sdisabled(?:=""|\s|>)/);
 	const unknown = renderToString(
 		<QueryClientProvider client={new QueryClient()}>
-			<CollapsibleGroup defaultValue={["gitcafe"]}>
+			<div>
 				<OrganizationConnectionRow
 					org="team"
 					connection={{ ...connection, installations: [] }}
 					onCheckAccess={async () => undefined}
 				/>
-			</CollapsibleGroup>
+			</div>
 		</QueryClientProvider>,
 	);
 	expect(unknown).toContain("boring/scratch");

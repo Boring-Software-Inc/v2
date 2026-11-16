@@ -1,12 +1,5 @@
+import { Dialog } from "@tripwire/ui/dialog";
 import { ConnectForgeGrid } from "#/components/forges/connect-forge-grid";
-import {
-	Dialog,
-	DialogBody,
-	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
-} from "#/design-system/ui/dialog";
 
 /**
  * The single "connect repos" surface. One entry point, one grid, the forge
@@ -24,18 +17,15 @@ export function ConnectForgeDialog({
 	onOpenChange: (open: boolean) => void;
 }) {
 	return (
-		<Dialog onOpenChange={onOpenChange} open={open}>
-			<DialogContent size="sm">
-				<DialogHeader>
-					<DialogTitle>Connect repos</DialogTitle>
-					<DialogDescription>
-						Pick the forge your repos live on.
-					</DialogDescription>
-				</DialogHeader>
-				<DialogBody>
-					<ConnectForgeGrid onDone={() => onOpenChange(false)} org={org} />
-				</DialogBody>
-			</DialogContent>
+		<Dialog
+			description="Pick the forge your repos live on."
+			onOpenChange={onOpenChange}
+			open={open}
+			showFooter={false}
+			size="small"
+			title="Connect repos"
+		>
+			<ConnectForgeGrid onDone={() => onOpenChange(false)} org={org} />
 		</Dialog>
 	);
 }

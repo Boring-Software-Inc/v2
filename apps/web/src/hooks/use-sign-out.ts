@@ -4,7 +4,7 @@ import {
 	useMutation,
 	useQueryClient,
 } from "@tanstack/react-query";
-import { toast } from "#/design-system/ui/toast";
+import { notify } from "@tripwire/ui/toast";
 import { authClient } from "#/lib/auth-client";
 
 interface SignOutEffects {
@@ -18,7 +18,7 @@ const SIGN_OUT_FAILED = "Tripwire could not sign you out. Try again.";
 const BROWSER_EFFECTS: SignOutEffects = {
 	signOut: () => authClient.signOut(),
 	go: (url) => window.location.assign(url),
-	fail: (message) => toast.fail(message),
+	fail: (message) => notify.show({ title: message }, "error"),
 };
 
 export function signOutMutationOptions(

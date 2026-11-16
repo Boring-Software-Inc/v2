@@ -10,6 +10,9 @@ import {
 	WORKFLOW_PORT_LABELS,
 	WORKFLOW_PORT_TONE,
 } from "@tripwire/contracts";
+import { Button } from "@tripwire/ui/button";
+import { Icon } from "@tripwire/ui/icon";
+import { Caption, CodeText, Label } from "@tripwire/ui/typography";
 import {
 	Handle,
 	type Node,
@@ -34,9 +37,6 @@ import {
 	useNodeVerdict,
 } from "#/components/workflows/editor/typed-connections";
 import { WorkflowNodeFrame } from "#/components/workflows/editor/workflow-node-frame";
-import { Icon } from "#/design-system/icon";
-import { Button } from "#/design-system/ui/button";
-import { Caption, CodeText, Label } from "#/design-system/ui/typography";
 import { triggerPath } from "#/lib/trigger-kinds";
 
 /** The one node data shape the canvas renders. */
@@ -227,35 +227,36 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 						const items = fieldListItems(field, value);
 						return (
 							<div data-layout-role="workflow-node-field" key={field.key}>
-								<Button
-									aria-label={`Edit ${field.label}`}
-									data-layout-role="workflow-node-field-action"
-									onClick={() => editField(node.id, field.key)}
-									size="sm"
-									variant="ghost"
-								>
-									{bare ? null : (
-										<span data-layout-role="workflow-node-field-label">
-											{field.label}
-										</span>
-									)}
-									<span
-										data-layout-role="workflow-node-field-value"
-										data-message={bare || undefined}
-										data-unset={unset || undefined}
+								<div data-layout-role="workflow-node-field-action">
+									<Button
+										ariaLabel={`Edit ${field.label}`}
+										onAction={() => editField(node.id, field.key)}
+										size="small"
+										variant="ghost"
 									>
-										{items
-											? items.map((item, index) => (
-													<Fragment key={item}>
-														{index > 0 ? " " : null}
-														<span data-layout-role="workflow-node-field-item">
-															{index < items.length - 1 ? `${item},` : item}
-														</span>
-													</Fragment>
-												))
-											: summarizeFieldValue(field, value)}
-									</span>
-								</Button>
+										{bare ? null : (
+											<span data-layout-role="workflow-node-field-label">
+												{field.label}
+											</span>
+										)}
+										<span
+											data-layout-role="workflow-node-field-value"
+											data-message={bare || undefined}
+											data-unset={unset || undefined}
+										>
+											{items
+												? items.map((item, index) => (
+														<Fragment key={item}>
+															{index > 0 ? " " : null}
+															<span data-layout-role="workflow-node-field-item">
+																{index < items.length - 1 ? `${item},` : item}
+															</span>
+														</Fragment>
+													))
+												: summarizeFieldValue(field, value)}
+										</span>
+									</Button>
+								</div>
 							</div>
 						);
 					})}

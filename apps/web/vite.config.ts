@@ -1,14 +1,47 @@
 import { builtinModules } from "node:module";
+import { fileURLToPath } from "node:url";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { pierreCatalogs, pierreClientOnly } from "./scripts/pierre-catalogs";
 
 const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN;
+const { TRIPWIRE_PREVIEW_ORIGIN: previewOrigin } = loadEnv(
+	"development",
+	fileURLToPath(new URL("../..", import.meta.url)),
+	"TRIPWIRE_PREVIEW_ORIGIN",
+);
+const previewHost = previewOrigin ? new URL(previewOrigin).hostname : null;
+
+const previewCors = {
+	name: "tripwire-preview-cors",
+	configureServer(server: import("vite").ViteDevServer) {
+		if (!previewOrigin) return;
+		server.middlewares.use((request, response, next) => {
+			if (request.headers.origin !== previewOrigin) {
+				next();
+				return;
+			}
+			response.setHeader("Access-Control-Allow-Origin", previewOrigin);
+			response.setHeader("Vary", "Origin");
+			if (request.method === "OPTIONS") {
+				response.setHeader(
+					"Access-Control-Allow-Methods",
+					"GET, HEAD, POST, OPTIONS",
+				);
+				response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+				response.statusCode = 204;
+				response.end();
+				return;
+			}
+			next();
+		});
+	},
+};
 
 const QUIET_WARNINGS = new Set([
 	"EVAL",
@@ -51,6 +84,7 @@ export default defineConfig({
 		},
 	},
 	plugins: [
+		previewCors,
 		pierreCatalogs(),
 		pierreClientOnly(),
 		tsconfigPaths({ projects: ["./tsconfig.json"] }),
@@ -86,9 +120,20 @@ export default defineConfig({
 		...sentryPlugins,
 	],
 	server: {
+		cors: {
+			origin: [
+				/^https?:\/\/(?:(?:[^:]+\.)?localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/,
+				...(previewOrigin ? [previewOrigin] : []),
+			],
+		},
 		// Leading dot = the domain and all its subdomains, so every fresh ngrok
 		// tunnel is allowed without re-pinning the random URL on each restart.
-		allowedHosts: [".ngrok-free.app", ".ngrok.app", ".trycloudflare.com"],
+		allowedHosts: [
+			".ngrok-free.app",
+			".ngrok.app",
+			".trycloudflare.com",
+			...(previewHost ? [previewHost] : []),
+		],
 	},
 	build: {
 		rollupOptions: {

@@ -42,7 +42,7 @@ describe("resolvePick", () => {
 		expect(target?.name).toBe("RuleCard");
 	});
 
-	test("falls back to the nearest Glaze slot when nothing is named", () => {
+	test("falls back to the nearest Tripwire slot when nothing is named", () => {
 		const table = node("table", { "data-slot": "table" }, main);
 		const row = node("tr", { "data-slot": "table-row" }, table);
 		const cell = node("span", {}, row);

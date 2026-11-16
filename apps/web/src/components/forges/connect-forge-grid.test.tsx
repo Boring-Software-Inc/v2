@@ -313,7 +313,11 @@ describe("Connect uses the login availability decision", () => {
 			?.setState({ status: "error", error: new Error("lookup failed") });
 		const failed = render(client, null);
 		expect(failed).toContain("Providers are unavailable right now");
-		expect(button(failed, "GitCafe")).toContain('aria-disabled="true"');
+		expect(button(failed, "GitCafe")).toContain(
+			'aria-label="GitCafe. Providers are unavailable right now"',
+		);
+		expect(button(failed, "GitCafe")).toContain("aria-describedby=");
+		expect(button(failed, "GitCafe")).not.toContain('aria-disabled="true"');
 		client.clear();
 	});
 });

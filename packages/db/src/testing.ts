@@ -26,71 +26,80 @@ async function run(cmd: string[]): Promise<string> {
 	return out.trim();
 }
 
-async function startContainer(): Promise<{ name: string; port: string }> {
-	let lastError: unknown;
+async function startContainer(name: string): Promise<void> {
+	await run([
+		"docker",
+		"run",
+		"-d",
+		"--rm",
+		"--name",
+		name,
+		"-e",
+		"POSTGRES_USER=test",
+		"-e",
+		"POSTGRES_PASSWORD=test",
+		"-e",
+		"POSTGRES_DB=test",
+		"-p",
+		"0:5432",
+		"postgres:17-alpine",
+	]);
+}
+
+async function waitForPostgres(name: string, url: string): Promise<void> {
+	const { Pool } = await import("pg");
+	const pool = new Pool({
+		connectionString: url,
+		connectionTimeoutMillis: 1_000,
+		max: 1,
+		query_timeout: 1_000,
+	});
+	const deadline = performance.now() + 18_000;
+	try {
+		for (;;) {
+			try {
+				await pool.query("select 1");
+				return;
+			} catch (error) {
+				if (performance.now() >= deadline) {
+					throw new Error(`test postgres ${name} never became ready`, {
+						cause: error,
+					});
+				}
+				await Bun.sleep(300);
+			}
+		}
+	} finally {
+		await pool.end();
+	}
+}
+
+export async function createTestDatabase(): Promise<TestDatabase> {
+	const failures: unknown[] = [];
 	for (let attempt = 0; attempt < 3; attempt++) {
-		const name = `tripwire-test-${generateId().slice(0, 13)}`;
+		const name = `tripwire-test-${generateId()}`;
+		const stop = async () => {
+			await run(["docker", "rm", "-f", name]).catch(() => undefined);
+		};
 		try {
-			await run([
-				"docker",
-				"run",
-				"-d",
-				"--rm",
-				"--name",
-				name,
-				"-e",
-				"POSTGRES_USER=test",
-				"-e",
-				"POSTGRES_PASSWORD=test",
-				"-e",
-				"POSTGRES_DB=test",
-				"-p",
-				"0:5432",
-				"postgres:17-alpine",
-			]);
+			await startContainer(name);
 			const portLine = await run(["docker", "port", name, "5432/tcp"]);
 			const port = portLine.split("\n")[0]?.split(":").at(-1);
 			if (!port) {
 				throw new Error(`could not determine mapped port for ${name}`);
 			}
-			return { name, port };
+			const url = `postgres://test:test@localhost:${port}/test`;
+			await waitForPostgres(name, url);
+			return { url, stop };
 		} catch (error) {
-			lastError = error;
-			await run(["docker", "rm", "-f", name]).catch(() => undefined);
-			await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+			failures.push(error);
+			await stop();
 		}
 	}
-	throw lastError;
-}
-
-export async function createTestDatabase(): Promise<TestDatabase> {
-	const { name, port } = await startContainer();
-	const url = `postgres://test:test@localhost:${port}/test`;
-
-	const { Pool } = await import("pg");
-	const deadline = Date.now() + 60_000;
-	for (;;) {
-		const pool = new Pool({ connectionString: url, max: 1 });
-		try {
-			await pool.query("select 1");
-			await pool.end();
-			break;
-		} catch {
-			await pool.end().catch(() => undefined);
-			if (Date.now() > deadline) {
-				await run(["docker", "rm", "-f", name]).catch(() => undefined);
-				throw new Error(`test postgres ${name} never became ready`);
-			}
-			await new Promise((r) => setTimeout(r, 300));
-		}
-	}
-
-	return {
-		url,
-		stop: async () => {
-			await run(["docker", "rm", "-f", name]).catch(() => undefined);
-		},
-	};
+	throw new AggregateError(
+		failures,
+		"Could not start a test Postgres database",
+	);
 }
 
 export async function turnOnLegacyRules(db: Db, repoId: string): Promise<void> {

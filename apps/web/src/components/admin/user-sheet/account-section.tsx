@@ -1,4 +1,11 @@
 import { Link } from "@tanstack/react-router";
+import { AgentBoundary } from "@tripwire/ui/agent-policy";
+import { Badge } from "@tripwire/ui/badge";
+import { Button } from "@tripwire/ui/button";
+import { DestructiveDialog } from "@tripwire/ui/dialog";
+import { ChevronRight, External, Icon } from "@tripwire/ui/icon";
+import { RelativeTime } from "@tripwire/ui/relative-time";
+import { Switch } from "@tripwire/ui/switch";
 import { useId, useState } from "react";
 import { formatStaffDate } from "#/components/admin/user-sheet/format";
 import {
@@ -13,23 +20,6 @@ import {
 import { useStaffAction } from "#/components/admin/user-sheet/use-staff-action";
 import { ConfirmDestructiveDialog } from "#/components/common/confirm-destructive-dialog";
 import { TimezonePicker } from "#/components/timezones/timezone-picker";
-import { ChevronRight, External, Icon } from "#/design-system/icon";
-import { Badge } from "#/design-system/ui/badge";
-import { Button } from "#/design-system/ui/button";
-import {
-	Dialog,
-	DialogAction,
-	DialogBody,
-	DialogClose,
-	DialogConfirmField,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/design-system/ui/dialog";
-import { RelativeTime } from "#/design-system/ui/relative-time";
-import { Switch } from "#/design-system/ui/switch";
 import { setUserRerunCooldownExempt } from "#/lib/admin.functions";
 import {
 	type AdminUserView,
@@ -72,46 +62,31 @@ function PlatformAdminRow({ view }: { view: AdminUserView }) {
 	return (
 		<FieldRow label="Platform admin">
 			<Switch
-				aria-label={`Platform admin for ${user.name}`}
+				ariaLabel={`Platform admin for ${user.name}`}
 				checked={user.isPlatformAdmin}
 				disabled={self}
 				onCheckedChange={() => setOpen(true)}
-				size="sm"
+				size="small"
 			/>
-			<Dialog
+			<DestructiveDialog
+				confirmLabel={granting ? "Make admin" : "Remove admin"}
 				confirmText={confirmText}
+				description={
+					granting
+						? "They can see and change every user, org and repo."
+						: "They lose access to the staff pages."
+				}
+				onConfirm={() => change.mutateAsync(confirmText)}
 				onOpenChange={setOpen}
 				open={open}
-				role="alertdialog"
-			>
-				<DialogContent size="sm">
-					<DialogHeader>
-						<DialogTitle>
-							{granting
-								? `Make ${confirmText} a platform admin?`
-								: `Remove ${confirmText} as a platform admin?`}
-						</DialogTitle>
-						<DialogDescription>
-							{granting
-								? "They can see and change every user, org and repo."
-								: "They lose access to the staff pages."}
-						</DialogDescription>
-					</DialogHeader>
-					<DialogBody>
-						<DialogConfirmField />
-					</DialogBody>
-					<DialogFooter>
-						<DialogClose>Cancel</DialogClose>
-						<DialogAction
-							onAction={() => change.mutateAsync(confirmText)}
-							pendingLabel="Saving"
-							variant={granting ? "primary" : "destructive"}
-						>
-							{granting ? "Make admin" : "Remove admin"}
-						</DialogAction>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+				pendingLabel="Saving"
+				title={
+					granting
+						? `Make ${confirmText} a platform admin?`
+						: `Remove ${confirmText} as a platform admin?`
+				}
+				variant={granting ? "primary" : "destructive"}
+			/>
 		</FieldRow>
 	);
 }
@@ -170,13 +145,15 @@ export function AccountSection({ view }: { view: AdminUserView }) {
 					</div>
 				</FieldRow>
 				<FieldRow label="Skip re-run cooldown">
-					<Switch
-						aria-label={`Skip re-run cooldown for ${user.name}`}
-						checked={user.rerunCooldownExempt}
-						onCheckedChange={(exempt) => cooldown.mutate(exempt)}
-						pending={cooldown.isPending}
-						size="sm"
-					/>
+					<AgentBoundary visibility="hidden">
+						<Switch
+							ariaLabel={`Skip re-run cooldown for ${user.name}`}
+							checked={user.rerunCooldownExempt}
+							onCheckedChange={(exempt) => cooldown.mutate(exempt)}
+							pending={cooldown.isPending}
+							size="small"
+						/>
+					</AgentBoundary>
 				</FieldRow>
 				<PlatformAdminRow view={view} />
 			</FieldRows>
@@ -186,11 +163,10 @@ export function AccountSection({ view }: { view: AdminUserView }) {
 					action={
 						view.sessions.length > 0 ? (
 							<Button
-								confirmation={false}
 								disabled={signOutAll.isPending || view.viewerId === user.id}
-								onClick={() => setSignOutAllOpen(true)}
-								size="sm"
-								variant="destructive"
+								onAction={() => setSignOutAllOpen(true)}
+								size="small"
+								variant="secondary"
 							>
 								Sign out everywhere
 							</Button>
@@ -207,7 +183,7 @@ export function AccountSection({ view }: { view: AdminUserView }) {
 								<span data-layout-role="user-sheet-list-main">
 									<span>{describeUserAgent(entry.userAgent)}</span>
 									{entry.impersonatedBy ? (
-										<Badge size="sm" variant="warn">
+										<Badge size="small" tone="warning">
 											Impersonation
 										</Badge>
 									) : null}
@@ -220,17 +196,16 @@ export function AccountSection({ view }: { view: AdminUserView }) {
 								</span>
 								<span data-layout-role="user-sheet-list-action">
 									<Button
-										aria-label={`Sign out ${describeUserAgent(entry.userAgent)}`}
-										confirmation={false}
+										ariaLabel={`Sign out ${describeUserAgent(entry.userAgent)}`}
 										disabled={revokeSession.isPending}
-										onClick={() =>
+										onAction={() =>
 											setSelectedSession({
 												id: entry.id,
 												device: describeUserAgent(entry.userAgent),
 											})
 										}
-										size="sm"
-										variant="destructive"
+										size="small"
+										variant="secondary"
 									>
 										Sign out
 									</Button>
@@ -266,17 +241,16 @@ export function AccountSection({ view }: { view: AdminUserView }) {
 								</span>
 								<span data-layout-role="user-sheet-list-action">
 									<Button
-										aria-label={`Revoke ${agent.name}`}
-										confirmation={false}
+										ariaLabel={`Revoke ${agent.name}`}
 										disabled={revokeAgent.isPending}
-										onClick={() =>
+										onAction={() =>
 											setSelectedAgent({
 												clientId: agent.clientId,
 												name: agent.name,
 											})
 										}
-										size="sm"
-										variant="destructive"
+										size="small"
+										variant="secondary"
 									>
 										Revoke
 									</Button>
@@ -357,7 +331,7 @@ export function AccountSection({ view }: { view: AdminUserView }) {
 				)}
 			</div>
 			<ConfirmDestructiveDialog
-				actionLabel="Sign out everywhere"
+				confirmLabel="Sign out everywhere"
 				description={`This ends all ${view.sessions.length} active sessions for ${user.name}.`}
 				onConfirm={() => signOutAll.mutateAsync()}
 				onOpenChange={setSignOutAllOpen}
@@ -366,7 +340,7 @@ export function AccountSection({ view }: { view: AdminUserView }) {
 				title={`Sign ${user.name} out everywhere?`}
 			/>
 			<ConfirmDestructiveDialog
-				actionLabel="Sign out device"
+				confirmLabel="Sign out device"
 				description={
 					selectedSession
 						? `This ends ${user.name}'s active Tripwire session on ${selectedSession.device}.`
@@ -385,7 +359,7 @@ export function AccountSection({ view }: { view: AdminUserView }) {
 				title={`Sign out ${selectedSession?.device ?? "this device"}?`}
 			/>
 			<ConfirmDestructiveDialog
-				actionLabel="Revoke agent"
+				confirmLabel="Revoke agent"
 				description={`${selectedAgent?.name ?? "This agent"} immediately loses access to every workspace granted through this connection.`}
 				onConfirm={() =>
 					selectedAgent

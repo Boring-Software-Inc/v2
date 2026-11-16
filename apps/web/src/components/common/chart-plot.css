@@ -1,0 +1,93 @@
+[data-slot="chart-plot"] {
+	position: relative;
+	inline-size: 100%;
+	min-inline-size: 0;
+}
+
+[data-slot="chart-plot"][data-empty] {
+	color: var(--text-2);
+	font: var(--type-body-sm);
+	letter-spacing: var(--tracking-body);
+}
+
+[data-slot="chart-empty-message"] {
+	display: block;
+	padding-block-start: var(--space-2);
+}
+
+[data-slot="chart-empty-baseline"] {
+	position: absolute;
+	inset-inline: 0;
+	inset-block-end: var(--space-6);
+	block-size: var(--line-width);
+	background: var(--line);
+}
+
+[data-slot="chart-hit-region"] {
+	position: absolute;
+	isolation: isolate;
+	display: flex;
+}
+
+[data-slot="chart-active-band"],
+[data-slot="chart-line-area"] {
+	fill: var(--hover);
+}
+
+[data-slot="chart-line-area"] {
+	stroke: none;
+}
+
+[data-slot="chart-gridline"] {
+	stroke: var(--line-faint);
+}
+
+[data-slot="chart-gridline"][data-zero] {
+	stroke: var(--line);
+}
+
+[data-slot="chart-axis-label"] {
+	fill: var(--text-2);
+	font: var(--type-caption);
+	letter-spacing: var(--tracking-body);
+	font-variant-numeric: tabular-nums;
+}
+
+[data-slot="chart-crosshair"] {
+	stroke: var(--line-strong);
+}
+
+[data-slot="chart-active-point"] {
+	fill: currentColor;
+	stroke: var(--paper);
+}
+
+[data-slot="chart-line-path"] {
+	stroke: currentColor;
+}
+
+:is([data-slot="chart-bar"], [data-slot="chart-bar-segment"]) {
+	fill: currentColor;
+}
+
+:is([data-slot="chart-bar"], [data-slot="chart-bar-segment"])[data-hollow] {
+	fill: var(--paper);
+	stroke: currentColor;
+}
+
+[data-slot="chart-tooltip-row"][data-summary] {
+	margin-block-start: var(--space-0-5);
+	border-block-start: var(--line-width) solid
+		color-mix(in oklab, var(--text-inverse) 20%, transparent);
+	padding-block-start: var(--space-1);
+}
+
+@media (forced-colors: active) {
+	[data-slot="chart-line-path"] {
+		stroke: CanvasText;
+	}
+
+	[data-slot="chart-bar"] {
+		fill: CanvasText;
+	}
+}

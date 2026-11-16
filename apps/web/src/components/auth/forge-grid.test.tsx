@@ -52,7 +52,7 @@ describe("sign-in provider SSR", () => {
 					!ids.includes(id),
 				);
 			}
-			expect(markup).toContain("grid grid-cols-2 gap-2");
+			expect(markup).toContain("grid grid-cols-2 composition-gap-standard");
 			server.clear();
 			client.clear();
 		});
@@ -80,8 +80,12 @@ describe("sign-in provider SSR", () => {
 			});
 		const markup = renderGrid(client);
 		for (const label of ["GitHub", "GitCafe"]) {
-			expect(button(markup, label)).toContain('aria-disabled="true"');
-			expect(button(markup, label)).toContain("aria-describedby=");
+			const blocked = button(markup, label);
+			expect(blocked).not.toContain('aria-disabled="true"');
+			expect(blocked).toContain(
+				`aria-label="${label}. Sign-in is unavailable right now"`,
+			);
+			expect(blocked).toContain("aria-describedby=");
 		}
 		expect(markup).toContain("Refresh the page to try again.");
 		client.clear();

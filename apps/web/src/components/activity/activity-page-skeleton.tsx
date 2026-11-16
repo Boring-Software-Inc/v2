@@ -1,13 +1,8 @@
+import { Card, CardContent, CardHeader } from "@tripwire/ui/card";
+import { Item, ItemContent, ItemGroup, ItemMedia } from "@tripwire/ui/item";
+import { Skeleton, SkeletonText } from "@tripwire/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { Page, PageBody } from "#/components/layouts/page";
-import { Card, CardContent, CardHeader } from "#/design-system/ui/card";
-import {
-	Item,
-	ItemContent,
-	ItemGroup,
-	ItemMedia,
-} from "#/design-system/ui/item";
-import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 
 const STACK_SLOTS = [
 	{ key: "stack-a", rows: ["r1", "r2", "r3"] },
@@ -22,15 +17,21 @@ export function ActivityListSkeleton() {
 			{STACK_SLOTS.map((stack) => (
 				<Card key={stack.key}>
 					<CardHeader>
-						<SkeletonText className="w-2/3" type="label" />
-						<SkeletonText className="w-48" type="body-sm" />
+						<span data-skeleton-line="" aria-hidden className="w-2/3">
+							<SkeletonText type="label" />
+						</span>
+						<span data-skeleton-line="" aria-hidden className="w-48">
+							<SkeletonText type="body-sm" />
+						</span>
 					</CardHeader>
 					<CardContent flush>
 						<ItemGroup variant="plain">
 							{stack.rows.map((row) => (
-								<Item key={row} size="sm">
+								<Item key={row} density="compact">
 									<ItemContent>
-										<SkeletonText className="w-56" type="label" />
+										<span data-skeleton-line="" aria-hidden className="w-56">
+											<SkeletonText type="label" />
+										</span>
 									</ItemContent>
 								</Item>
 							))}
@@ -42,11 +43,21 @@ export function ActivityListSkeleton() {
 				{ROW_SLOTS.map((row) => (
 					<Item key={row}>
 						<ItemMedia>
-							<Skeleton className="size-5 rounded-pill" />
+							<span
+								data-skeleton-box=""
+								aria-hidden
+								className="size-5 rounded-pill"
+							>
+								<Skeleton fill />
+							</span>
 						</ItemMedia>
 						<ItemContent>
-							<SkeletonText className="w-1/2" type="label" />
-							<SkeletonText className="w-36" type="body-sm" />
+							<span data-skeleton-line="" aria-hidden className="w-1/2">
+								<SkeletonText type="label" />
+							</span>
+							<span data-skeleton-line="" aria-hidden className="w-36">
+								<SkeletonText type="body-sm" />
+							</span>
 						</ItemContent>
 					</Item>
 				))}
@@ -61,12 +72,22 @@ export function ActivityPageSkeleton() {
 			<Page purpose="task">
 				<header data-layout-role="page-header">
 					<div>
-						<SkeletonText className="w-28" type="heading" />
-						<SkeletonText className="w-80" type="body" />
+						<span data-skeleton-line="" aria-hidden className="w-28">
+							<SkeletonText type="heading" />
+						</span>
+						<span data-skeleton-line="" aria-hidden className="w-80">
+							<SkeletonText type="body" />
+						</span>
 					</div>
 				</header>
 				<PageBody>
-					<Skeleton className="h-(--control-sm) w-80 max-w-full rounded-pill" />
+					<span
+						data-skeleton-box=""
+						aria-hidden
+						className="h-(--control-sm) w-80 max-w-full rounded-pill"
+					>
+						<Skeleton fill />
+					</span>
 					<ActivityListSkeleton />
 				</PageBody>
 			</Page>

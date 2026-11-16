@@ -6,12 +6,12 @@ import {
 	FilterBarCount,
 	FilterBarSearch,
 	FilterBarSelect,
-} from "#/design-system/ui/filter-bar";
+} from "#/components/common/filter-bar";
 import type { AnalyticsEvent } from "#/lib/analytics-events";
 import type { DateRange } from "#/lib/date-range";
 
 export const EVENT_FIELDS: FacetField<AnalyticsEvent>[] = [
-	{ id: "contributor", value: (event) => event.title },
+	{ id: "contributor", value: (event) => [event.title] },
 ];
 
 export type EventSort = "newest" | "oldest";

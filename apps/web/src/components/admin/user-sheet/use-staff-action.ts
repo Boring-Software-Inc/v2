@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "#/design-system/ui/toast";
+import { notify } from "@tripwire/ui/toast";
 import { adminQueryKeys } from "#/lib/admin.query";
 import type { StaffActionResult } from "#/lib/staff-users.functions";
 import { staffUserQueryKeys } from "#/lib/staff-users.query";
@@ -33,12 +33,12 @@ export function useStaffAction<TInput>(input: {
 		onSuccess: (_result, value) => {
 			const message = input.success?.(value);
 			if (message) {
-				toast.success(message);
+				notify.show({ title: message }, "success");
 			}
 		},
 		onError: (error) => {
 			if (input.toastErrors !== false) {
-				toast.fail(errorText(error, input.failure));
+				notify.show({ title: errorText(error, input.failure) }, "error");
 			}
 		},
 		onSettled: () => {

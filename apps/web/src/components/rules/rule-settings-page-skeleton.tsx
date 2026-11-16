@@ -1,6 +1,6 @@
+import { Skeleton } from "@tripwire/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { Page, PageBody, PageHeader } from "#/components/layouts/page";
-import { Skeleton } from "#/design-system/ui/skeleton";
 
 export function RuleSettingsPageSkeleton() {
 	return (
@@ -8,10 +8,13 @@ export function RuleSettingsPageSkeleton() {
 			<Page purpose="task">
 				<PageHeader title="Rule settings" />
 				<PageBody>
-					<Skeleton
+					<output
+						data-skeleton-box=""
 						aria-label="Loading rule settings"
 						className="h-36 w-full"
-					/>
+					>
+						<Skeleton fill />
+					</output>
 				</PageBody>
 			</Page>
 		</DashboardLayout>

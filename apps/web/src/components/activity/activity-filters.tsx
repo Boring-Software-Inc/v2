@@ -1,10 +1,7 @@
 import { getRouteApi } from "@tanstack/react-router";
+import { SegmentedControl } from "@tripwire/ui/radio-group";
 import { DateRangeFilter } from "#/components/common/date-range-filter";
-import { FilterBar } from "#/design-system/ui/filter-bar";
-import {
-	SegmentedControl,
-	SegmentedControlItem,
-} from "#/design-system/ui/segmented-control";
+import { FilterBar } from "#/components/common/filter-bar";
 import { type DateRange, isoDay } from "#/lib/date-range";
 import { pickValue } from "#/lib/pick-value";
 import { ACTIVITY_VERDICT_LABELS, ACTIVITY_VERDICTS } from "#/lib/repo-search";
@@ -31,29 +28,41 @@ export function ActivityFilters() {
 		});
 	return (
 		<FilterBar aria-label="Activity filters">
-			<div className="flex max-w-full items-center overflow-x-auto pointer-coarse:min-h-11">
-				<SegmentedControl
-					aria-label="Filter by verdict"
-					className="w-max max-w-none"
-					size="sm"
-					value={verdict}
-					onValueChange={(value) => {
-						const next = pickValue(ACTIVITY_VERDICTS, value);
-						if (next)
-							void navigate({
-								search: (previous) => ({ ...previous, verdict: next }),
-								resetScroll: false,
-							});
-					}}
-				>
-					{ACTIVITY_VERDICTS.filter(
-						(value) => !range || value !== "no-run",
-					).map((value) => (
-						<SegmentedControlItem key={value} value={value}>
-							{ACTIVITY_VERDICT_LABELS[value]}
-						</SegmentedControlItem>
-					))}
-				</SegmentedControl>
+			<div
+				className="max-w-full overflow-x-auto"
+				onFocusCapture={(event) => {
+					const scroller = event.currentTarget;
+					const scrollBounds = scroller.getBoundingClientRect();
+					const optionBounds = event.target.getBoundingClientRect();
+					const left = optionBounds.left - scrollBounds.left;
+					const right = optionBounds.right - scrollBounds.right;
+					const offset = left < 0 ? left : Math.max(0, right);
+					if (offset !== 0)
+						scroller.scrollBy({ left: offset, behavior: "instant" });
+				}}
+			>
+				<div className="flex w-max items-center pointer-coarse:min-h-11">
+					<SegmentedControl
+						ariaLabel="Filter by verdict"
+						size="small"
+						options={ACTIVITY_VERDICTS.filter(
+							(value) => !range || value !== "no-run",
+						).map((value) => ({
+							label: ACTIVITY_VERDICT_LABELS[value],
+							value,
+						}))}
+						value={verdict}
+						onValueChange={(value) => {
+							if (!value) return;
+							const next = pickValue(ACTIVITY_VERDICTS, value);
+							if (next)
+								void navigate({
+									search: (previous) => ({ ...previous, verdict: next }),
+									resetScroll: false,
+								});
+						}}
+					/>
+				</div>
 			</div>
 			<DateRangeFilter onValueChange={setRange} value={range} />
 		</FilterBar>

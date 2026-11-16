@@ -3,10 +3,6 @@
 	"private": true,
 	"type": "module",
 	"imports": {
-		"#/design-system/icon": "./src/components/glaze/icon.tsx",
-		"#/design-system/ui/typography": "./src/design-system/ui/typography.tsx",
-		"#/design-system/ui/*": "./src/components/glaze/ui/*",
-		"#/design-system/lib/*": "./src/lib/glaze/*",
 		"#/*": "./src/*"
 	},
 	"scripts": {
@@ -21,7 +17,6 @@
 		"check:game-chunk": "vite build && bun run scripts/check-game-chunk.ts"
 	},
 	"dependencies": {
-		"@base-ui/react": "^1.8.0",
 		"@databuddy/sdk": "^2.4.20",
 		"@dnd-kit/core": "^6.3.1",
 		"@fontsource-variable/geist": "^5.2.9",
@@ -29,7 +24,6 @@
 		"@giphy/js-fetch-api": "^5.8.0",
 		"@giphy/react-components": "^10.1.2",
 		"@paper-design/shaders-react": "^0.0.77",
-		"@phosphor-icons/react": "^2.1.10",
 		"@pierre/diffs": "^1.6.1",
 		"@renoun/screenshot": "^0.3.3",
 		"@resvg/resvg-js": "^2.6.2",

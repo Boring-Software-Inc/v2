@@ -1,0 +1,186 @@
+.chart-tone-ink {
+	color: var(--tw-content-primary);
+}
+
+.chart-tone-ink-muted {
+	color: var(--tw-content-secondary);
+}
+
+.chart-tone-inverse {
+	color: var(--tw-content-inverse);
+}
+
+.chart-tone-inverse-muted {
+	color: color-mix(in oklab, var(--tw-content-inverse) 60%, transparent);
+}
+
+.chart-tone-disabled {
+	color: var(--tw-content-tertiary);
+}
+
+[data-chart-stroke="system"] {
+	stroke: currentColor;
+}
+
+[data-slot="chart-tooltip"] {
+	position: fixed;
+	z-index: var(--z-overlay);
+	display: flex;
+	min-inline-size: calc(var(--space-1) * 32);
+	flex-direction: column;
+	align-items: stretch;
+	gap: var(--space-1);
+	pointer-events: none;
+	background: var(--tw-surface-inverse);
+	color: var(--tw-content-inverse);
+	border-radius: var(--radius-tag);
+	padding-block: var(--space-1-5);
+	padding-inline: calc(var(--space-1) * 2.5);
+}
+
+[data-slot="chart-tooltip-content"] {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+}
+
+[data-slot="chart-tooltip-row"] {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	font: var(--type-label-sm);
+	letter-spacing: var(--tracking-label);
+}
+
+[data-slot="chart-tooltip-title"] {
+	font: var(--type-label-sm);
+	letter-spacing: var(--tracking-label);
+}
+
+:is([data-slot="chart-tooltip-title"], [data-slot="chart-tooltip-label"]) {
+	color: color-mix(in oklab, var(--tw-content-inverse) 70%, transparent);
+}
+
+[data-slot="chart-tooltip-value"] {
+	color: var(--tw-content-inverse);
+}
+
+.chart-table-heading,
+.chart-table-cell {
+	height: var(--control);
+	padding-inline: var(--space-3);
+	vertical-align: middle;
+	font: var(--type-label-sm);
+	letter-spacing: var(--tracking-label);
+}
+
+.chart-table-heading {
+	position: sticky;
+	top: 0;
+	border-block-end: var(--line-width) solid var(--tw-boundary-subtle);
+	background: var(--tw-surface-container);
+	color: var(--tw-content-secondary);
+}
+
+.chart-table-row-title {
+	font-weight: 400;
+	white-space: nowrap;
+	color: var(--tw-content-secondary);
+}
+
+[data-slot="chart-data-table-body"] > tr:not(:last-child) > * {
+	border-block-end: var(--line-width) solid var(--tw-boundary-subtle);
+}
+
+[data-slot="chart-legend"] {
+	gap: var(--space-0-5);
+}
+
+[data-slot="chart-legend-value"] {
+	margin-inline-start: auto;
+	padding-inline-start: var(--space-2);
+	color: var(--tw-content-secondary);
+}
+
+.chart-legend-toggle {
+	transition:
+		color var(--dur-state) var(--ease-out),
+		background-color var(--dur-state) var(--ease-out);
+}
+
+@media (hover: hover) {
+	.chart-legend-toggle:hover {
+		background-color: var(--tw-interaction-hover);
+	}
+}
+
+.chart-legend-toggle[data-force-hover] {
+	background-color: var(--tw-interaction-hover);
+}
+
+.chart-fill-current {
+	fill: currentColor;
+}
+
+[data-slot="sparkline-area"] {
+	fill: var(--tw-interaction-hover);
+}
+
+[data-slot="sparkline-end"] {
+	background: currentColor;
+}
+
+[data-slot="status-bar"] {
+	gap: var(--space-1-5);
+}
+
+[data-slot="status-bar-strip"] {
+	gap: var(--space-0-5);
+}
+
+[data-slot="status-bar-strip"][data-dense] {
+	gap: var(--line-width);
+}
+
+[data-slot="status-bar-ends"] {
+	display: flex;
+	justify-content: space-between;
+	gap: var(--space-4);
+	color: var(--tw-content-secondary);
+	font: var(--type-caption);
+	letter-spacing: var(--tracking-body);
+	font-variant-numeric: tabular-nums;
+}
+
+[data-slot="chart-tooltip-row"] [data-slot="status-mark"] {
+	height: auto;
+	color: var(--tw-content-inverse);
+}
+
+@media (forced-colors: active) {
+	[data-chart-stroke="system"] {
+		stroke: CanvasText;
+	}
+
+	[data-slot="status-bar-cell"] {
+		background: CanvasText;
+	}
+
+	[data-slot="status-bar-cell"][data-tone="quiet"] {
+		background: Canvas;
+		outline-width: var(--line-width);
+		outline-offset: calc(var(--line-width) * -1);
+	}
+}
+
+.chart-tone-ok {
+	color: var(--tw-success-mark);
+}
+
+.chart-tone-warn {
+	color: var(--tw-warning-mark);
+}
+
+.chart-tone-fail {
+	color: var(--tw-danger-mark);
+}

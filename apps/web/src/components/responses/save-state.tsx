@@ -1,11 +1,11 @@
+import { Button } from "@tripwire/ui/button";
+import { Status } from "@tripwire/ui/status";
 import { useEffect, useState } from "react";
 import {
 	DiscardChangesButton,
 	SaveQueueNavGuard,
 	useSaveQueue,
 } from "#/components/save-queue";
-import { Button } from "#/design-system/ui/button";
-import { Status } from "#/design-system/ui/status";
 
 const WAIT_SHOW_MS = 150;
 
@@ -49,7 +49,7 @@ function SaveStatus({
 	if (error && !isCommitting) {
 		return (
 			<span className="flex flex-col items-end gap-0.5 text-end">
-				<Status size="sm" status="fail">
+				<Status size="small" status="fail">
 					Not saved
 				</Status>
 				<span className="type-caption text-fail-text">{error}</span>
@@ -64,7 +64,7 @@ function SaveStatus({
 		);
 	}
 	return (
-		<Status size="sm" status="ok">
+		<Status size="small" status="ok">
 			Saved
 		</Status>
 	);
@@ -88,10 +88,10 @@ export function SaveState({ canEdit, error, onDiscard }: SaveStateProps) {
 				<>
 					<DiscardChangesButton disabled={isCommitting} onDiscard={onDiscard} />
 					<Button
-						onClick={commit}
+						onAction={commit}
 						pending={saving}
 						pendingLabel="Saving"
-						size="sm"
+						size="small"
 					>
 						{error ? "Save again" : "Save"}
 					</Button>

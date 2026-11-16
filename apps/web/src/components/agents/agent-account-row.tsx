@@ -1,6 +1,6 @@
+import { Button } from "@tripwire/ui/button";
+import { notify } from "@tripwire/ui/toast";
 import { useState } from "react";
-import { Button } from "#/design-system/ui/button";
-import { toast } from "#/design-system/ui/toast";
 import { authClient } from "#/lib/auth-client";
 import { oauthAuthorizeResume } from "#/lib/oauth-resume";
 
@@ -54,7 +54,7 @@ const BROWSER_STEPS: SwitchAccountSteps = {
 				() => false,
 			),
 	go: (url) => window.location.assign(url),
-	fail: (message) => toast.fail(message),
+	fail: (message) => notify.show({ title: message }, "error"),
 };
 
 export function AgentAccountRow({
@@ -84,9 +84,9 @@ export function AgentAccountRow({
 				</span>
 			</p>
 			<Button
-				onClick={() => void startSwitch()}
+				onAction={() => void startSwitch()}
 				pending={pending}
-				size="sm"
+				size="small"
 				type="button"
 				variant="ghost"
 			>

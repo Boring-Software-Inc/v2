@@ -121,7 +121,7 @@ describe("AiTraceMeta", () => {
 			/<button\b[^>]*data-slot="collapsible-trigger"[^>]*>/,
 		)?.[0];
 		const panel = html.match(
-			/<div\b[^>]*data-slot="collapsible-content"[^>]*>/,
+			/<div\b[^>]*data-slot="collapsible-panel"[^>]*>/,
 		)?.[0];
 		expect(trigger).toContain('type="button"');
 		expect(trigger).toContain('aria-expanded="false"');

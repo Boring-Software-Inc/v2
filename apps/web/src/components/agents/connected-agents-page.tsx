@@ -1,10 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MetaRow } from "#/components/common/meta-row";
-import { MascotArt } from "#/components/mascot/mascot-art";
-import { SettingsHeader } from "#/components/settings/settings-frame";
-import { ZonedTime } from "#/components/timezones/zoned-time";
-import { Button } from "#/design-system/ui/button";
-import { Empty, EmptyHeader, EmptyTitle } from "#/design-system/ui/empty-state";
+import { Button } from "@tripwire/ui/button";
 import {
 	Item,
 	ItemActions,
@@ -12,9 +7,17 @@ import {
 	ItemDescription,
 	ItemGroup,
 	ItemTitle,
-} from "#/design-system/ui/item";
-import { SkeletonSwap, SkeletonText } from "#/design-system/ui/skeleton";
-import { toast } from "#/design-system/ui/toast";
+} from "@tripwire/ui/item";
+import { SkeletonSwap, SkeletonText } from "@tripwire/ui/skeleton";
+import {
+	EmptyState,
+	EmptyStateHeader,
+	EmptyStateTitle,
+} from "#/components/common/empty-state";
+import { MetaRow } from "#/components/common/meta-row";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import { SettingsHeader } from "#/components/settings/settings-frame";
+import { ZonedTime } from "#/components/timezones/zoned-time";
 import {
 	type ConnectedAgent,
 	revokeConnectedAgent,
@@ -29,7 +32,8 @@ function AgentRow({ agent }: { agent: ConnectedAgent }) {
 	const revoke = useMutation({
 		mutationFn: () =>
 			revokeConnectedAgent({ data: { clientId: agent.clientId } }),
-		onSuccess: () => toast.success(`${agent.name} disconnected`),
+		onSuccess: () =>
+			notify.show({ title: `${agent.name} disconnected` }, "success"),
 		onSettled: () =>
 			queryClient.invalidateQueries({ queryKey: agentQueryKeys.lists() }),
 	});
@@ -62,15 +66,16 @@ function AgentRow({ agent }: { agent: ConnectedAgent }) {
 			</ItemContent>
 			<ItemActions>
 				<Button
-					aria-label={`Disconnect ${agent.name}`}
+					ariaLabel={`Disconnect ${agent.name}`}
 					confirmation={{
-						actionLabel: "Disconnect",
-						confirmText: agent.name,
-						pendingLabel: "Disconnecting",
+						confirmLabel: "Disconnect",
+						description: `This disconnects ${agent.name} from Tripwire.`,
 						title: `Disconnect ${agent.name}?`,
 					}}
 					onAction={() => revoke.mutateAsync()}
-					size="sm"
+					pending={revoke.isPending}
+					pendingLabel="Disconnecting"
+					size="small"
 					variant="destructive"
 				>
 					Disconnect
@@ -88,8 +93,12 @@ function AgentRowsSkeleton() {
 			{ROW_SLOTS.map((slot) => (
 				<Item key={slot}>
 					<ItemContent>
-						<SkeletonText className="w-24" type="label" />
-						<SkeletonText className="w-48" type="body-sm" />
+						<span data-skeleton-line="" aria-hidden className="w-24">
+							<SkeletonText type="label" />
+						</span>
+						<span data-skeleton-line="" aria-hidden className="w-48">
+							<SkeletonText type="body-sm" />
+						</span>
 					</ItemContent>
 				</Item>
 			))}
@@ -116,17 +125,21 @@ export function ConnectedAgentsPage() {
 						</ItemGroup>
 					</div>
 				) : (
-					<Empty
+					<EmptyState
 						art={<MascotArt mood="admin-table-empty" size="compact" />}
 						size="sm"
 						variant="plain"
 					>
-						<EmptyHeader>
-							<EmptyTitle>No agents connected</EmptyTitle>
-						</EmptyHeader>
-					</Empty>
+						<EmptyStateHeader>
+							<EmptyStateTitle headingLevel={2}>
+								No agents connected
+							</EmptyStateTitle>
+						</EmptyStateHeader>
+					</EmptyState>
 				)}
 			</SkeletonSwap>
 		</>
 	);
 }
+
+import { notify } from "@tripwire/ui/toast";

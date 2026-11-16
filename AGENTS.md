@@ -67,6 +67,112 @@ Before writing ANY helper, check `@tripwire/utils`. Before writing ANY UI
 primitive, check `@tripwire/ui`. A helper used by 2+ files moves to utils; a
 primitive belongs in ui. Never redefine what already has a home.
 
+## UI architecture and regression governance
+
+These rules are mandatory whenever an agent touches `apps/web/**`,
+`packages/ui/**`, a visual test, or the design system. Before editing, read the
+root `DESIGN.md`, applicable scoped `agents.md`, `.claude/rules/frontend.md`,
+`.claude/skills/tripwire-design/SKILL.md`, and the antislop files named below.
+
+### Compose the system in layers
+
+Do not infer a design-system component from its root HTML element. A product
+control may render a `<button>` without being the generic `Button` component.
+Use these layers, in this order:
+
+1. **Native semantics** — HTML element, keyboard behavior, form behavior, ARIA.
+2. **Behavior primitive** — ui-sdk owns headless behavior such as dialog,
+   popover, menu, tabs, selection, focus, and dismissal.
+3. **Styled control** — `@tripwire/ui` owns application-agnostic Tripwire
+   chrome and finite semantic props.
+4. **Product pattern or molecule** — a named composition owns contextual
+   anatomy and geometry. A proven application-agnostic molecule may live in
+   `@tripwire/ui`; anything with product data, navigation, queries, auth, or
+   domain logic stays in `apps/web/src/components`.
+5. **Feature and route** — feature components bind data and behavior; thin
+   routes bind the page component, pending component, and SEO.
+
+Example: the sidebar account entry is a native `button` using a popover trigger
+behavior, rendered by a named `SidebarAccountTrigger` molecule, which opens the
+data-aware `AccountMenu`. It is not `Button variant="account-menu"`.
+
+### Variants describe a shared contract, not a product location
+
+A prop belongs on a shared control only when all usages retain the same
+anatomy, behavior, interaction contract, and accessibility contract. Finite
+semantic axes such as emphasis, intent, size, loading, disabled state, and icon
+placement are valid. Product roles such as `account-menu`, `repo-picker`,
+`search-launcher`, `sidebar-navigation`, and `workspace-switcher` are not Button
+variants. Give them a named control or molecule. Parent layout differences stay
+with the molecule or container. Keep a one-off local until real call sites prove
+reuse; never create an enum to hide unrelated compositions behind one API.
+
+### Preserve approved output unless a redesign is explicit
+
+An existing approved Tripwire surface is the visual and interaction baseline.
+Replacing a primitive does not authorize changing spacing, sizing, typography,
+alignment, contrast, motion, focus behavior, or responsive behavior. Any such
+change is a regression unless the work item explicitly marks that surface for
+redesign and names its approved reference. External design systems are
+architectural precedent for boundaries and APIs, not permission to copy their
+appearance or override Tripwire's baseline.
+
+Before a broad UI migration, primitive replacement, or repair pass begins,
+write a user-approved implementation spec. It must enumerate:
+
+- every in-scope surface and route;
+- the reference or captured baseline for each surface;
+- whether each surface is `preserve` or `redesign`;
+- component ownership across the five layers above;
+- required themes, breakpoints, content extremes, and interaction states;
+- keyboard, focus, loading, empty, error, disabled, and reduced-motion states;
+- migration order, test coverage, visual evidence, and per-surface done-when
+  criteria.
+
+Do not start the broad pass from a loose issue list. Fix one vertical slice,
+verify every consumer, then move to the next primitive or molecule.
+
+### Independent visual audit after every repair round
+
+Each UI repair round ends with a fresh audit subagent that did not implement
+that round. The audit is read-only: it may inspect code and operate the app, but
+must not make fixes. It compares the rendered result to the approved reference
+across the required themes, breakpoints, and states, then reports evidence and
+a score. The implementing agent must not grade its own work.
+
+Capture browser screenshots of every affected surface before editing and
+again after verification. Keep the route, fixture data, viewport, theme, and
+interaction state matched. Store both sets together and link them from the
+round's ledger entry. For keyboard and motion changes, include intermediate
+states or a recording. If a true pre-edit capture was missed, label any
+reconstruction or reference comparison and disclose the gap.
+
+Score 0–5 in each category, then multiply by the listed weight divided by 5:
+
+- geometry, edges, alignment, and pixel placement — 20;
+- spacing, density, and rhythm — 15;
+- typography, icon sizing, and optical alignment — 15;
+- color, contrast, and theme parity — 15;
+- surface hierarchy, borders, elevation, and nested-card misuse — 15;
+- interaction states, focus, overlays, and motion — 10;
+- responsive behavior, overflow, and content resilience — 5;
+- keyboard and accessibility behavior — 5.
+
+Category meanings: `5` matches the reference or an explicitly approved change;
+`4` has only minor polish defects; `3` has visible inconsistencies; `2` has a
+systematic mismatch; `1` is substantially broken; `0` is missing or unusable.
+A round passes only with no blocker, no category below 4, a total score of at
+least 95, and user approval of any intentional visual delta.
+
+Every finding must include the route and surface, viewport, theme, UI state,
+expected reference, observed difference, measured pixel or token delta when
+possible, severity, screenshot evidence, owning layer, and whether it is a
+regression or an approved redesign. Specifically inspect shared edges, left and
+right padding, baselines, icon optical centering, contrast equivalence between
+themes and states, accidental nested cards, duplicated borders, incorrect
+elevation, clipping, wrapping, scroll behavior, overlays, hover/active/focus
+states, and reduced motion. A score without this evidence is invalid.
+
 ## useEffect policy (§9)
 Keep `useEffect` usage down. If an effect syncs server data, it should be a
 TanStack Query; if it derives state, it should be `useMemo`; use refs for stable

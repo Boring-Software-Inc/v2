@@ -1,11 +1,11 @@
 import { afterAll, afterEach, expect, spyOn, test } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { HomeDigest, OrgPermission } from "@tripwire/contracts";
+import { notify } from "@tripwire/ui/toast";
 import { generateId } from "@tripwire/utils";
 import { Children, isValidElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { DigestCaughtCard } from "#/components/organizations/digest-caught-card";
-import { toast } from "#/design-system/ui/toast";
 import * as armFunctions from "#/lib/arm.functions";
 import { orgQueryKeys } from "#/lib/org.query";
 import * as rulesFunctions from "#/lib/rules.functions";
@@ -23,18 +23,16 @@ const CAUGHT: NonNullable<HomeDigest["caught"]> = {
 
 const arm = spyOn(armFunctions, "armRepo");
 const save = spyOn(rulesFunctions, "setRulesEnabled");
-const success = spyOn(toast, "success");
-const fail = spyOn(toast, "fail");
+const show = spyOn(notify, "show");
 
 afterAll(() => {
-	for (const spy of [arm, save, success, fail]) spy.mockRestore();
+	for (const spy of [arm, save, show]) spy.mockRestore();
 });
 
 afterEach(() => {
 	arm.mockReset();
 	save.mockReset();
-	success.mockReset();
-	fail.mockReset();
+	show.mockReset();
 });
 
 function render(armed: boolean, permissions: OrgPermission[]) {
@@ -47,10 +45,12 @@ function render(armed: boolean, permissions: OrgPermission[]) {
 				!isValidElement<{
 					children?: ReactNode;
 					onClick?: () => Promise<void>;
+					onAction?: () => Promise<void>;
 				}>(child)
 			)
 				return;
-			if (child.props.onClick) action.click = child.props.onClick;
+			if (child.props.onAction) action.click = child.props.onAction;
+			else if (child.props.onClick) action.click = child.props.onClick;
 			findInstall(child.props.children);
 		});
 	}
@@ -84,7 +84,7 @@ test("disarmed installation turns on the gate before saving the rule", async () 
 			return { ok: true };
 		}, rulesFunctions.setRulesEnabled),
 	);
-	success.mockImplementation(() => "toast");
+	show.mockImplementation(() => "toast");
 	const { html, click } = render(false, ["rules:manage", "connections:manage"]);
 	expect(html).toContain("Turn on Tripwire and install Crypto address");
 	expect(click).not.toBeNull();
@@ -103,14 +103,14 @@ test("disarmed installation turns on the gate before saving the rule", async () 
 
 test("a refused activation never installs or announces success", async () => {
 	arm.mockRejectedValue(new Error("permission denied"));
-	fail.mockImplementation(() => "toast");
+	show.mockImplementation(() => "toast");
 	const { click } = render(false, ["rules:manage", "connections:manage"]);
 	await click?.();
 	expect(arm).toHaveBeenCalledTimes(1);
 	expect(save).not.toHaveBeenCalled();
-	expect(success).not.toHaveBeenCalled();
-	expect(fail).toHaveBeenCalledWith(
-		"Only an org admin can turn on Tripwire for this repo.",
+	expect(show).toHaveBeenCalledWith(
+		{ title: "Only an org admin can turn on Tripwire for this repo." },
+		"error",
 	);
 });
 
@@ -121,13 +121,13 @@ test("a queue initialization refusal offers retry without installing or announci
 		reason: "queue-unavailable",
 		repoId: CAUGHT.repoId,
 	});
-	fail.mockImplementation(() => "toast");
+	show.mockImplementation(() => "toast");
 	const { click } = render(false, ["rules:manage", "connections:manage"]);
 	await click?.();
 	expect(save).not.toHaveBeenCalled();
-	expect(success).not.toHaveBeenCalled();
-	expect(fail).toHaveBeenCalledWith(
-		"Tripwire did not turn on. Try again in a moment.",
+	expect(show).toHaveBeenCalledWith(
+		{ title: "Tripwire did not turn on. Try again in a moment." },
+		"error",
 	);
 });
 
@@ -141,7 +141,7 @@ test("rule managers without activation permission see why an admin is required",
 
 test("an armed repo only needs rule management permission", async () => {
 	save.mockResolvedValue({ ok: true });
-	success.mockImplementation(() => "toast");
+	show.mockImplementation(() => "toast");
 	const { html, click } = render(true, ["rules:manage"]);
 	expect(html).toContain("Install Crypto address");
 	await click?.();

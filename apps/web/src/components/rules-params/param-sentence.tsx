@@ -1,19 +1,13 @@
-import { Link } from "@tanstack/react-router";
 import {
 	formatParamValue,
 	type JsonValue,
 	type RuleParam,
 	ruleUiSchema,
 } from "@tripwire/contracts";
+import { Button } from "@tripwire/ui/button";
+import { Popover } from "@tripwire/ui/popover";
+import { SupportingText } from "@tripwire/ui/typography";
 import { Fragment, type ReactNode, useState } from "react";
-import { Button } from "#/design-system/ui/button";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTitle,
-	PopoverTrigger,
-} from "#/design-system/ui/popover";
-import { SupportingText } from "#/design-system/ui/typography";
 import { ParamEditor } from "./param-editor";
 import { ParamValue } from "./param-value";
 
@@ -62,47 +56,43 @@ export function ParamSentence({
 		}
 		return (
 			<Popover
+				align="start"
+				initialFocus={param.kind === "string-list" ? "none" : "auto"}
 				open={editing === param.key}
 				onOpenChange={(open) =>
 					setEditing((current) =>
 						open ? param.key : current === param.key ? null : current,
 					)
 				}
+				title={param.label}
+				trigger={
+					<button
+						aria-label={`Edit ${param.label}, now ${spokenValue(param, cfg[param.key])}`}
+						className="cursor-pointer rounded-tag underline decoration-line-strong decoration-dotted underline-offset-3 transition-colors duration-(--dur-state) ease-out focus-sm hover:decoration-solid data-popup-open:decoration-solid"
+						type="button"
+					>
+						<ParamValue param={param} value={cfg[param.key]} />
+					</button>
+				}
+				triggerLabel={`Edit ${param.label}, now ${spokenValue(param, cfg[param.key])}`}
 			>
-				<PopoverTrigger
-					aria-label={`Edit ${param.label}, now ${spokenValue(param, cfg[param.key])}`}
-					className="cursor-pointer rounded-tag underline decoration-line-strong decoration-dotted underline-offset-3 transition-colors duration-(--dur-state) ease-out focus-sm hover:decoration-solid data-popup-open:decoration-solid"
-				>
-					<ParamValue param={param} value={cfg[param.key]} />
-				</PopoverTrigger>
-				<PopoverContent
-					align="start"
-					initialFocus={param.kind === "string-list" ? false : undefined}
-				>
-					<PopoverTitle>{param.label}</PopoverTitle>
-					<ParamEditor
-						onCancel={() => setEditing(null)}
-						onSave={(value) => onSaveParam(param.key, value)}
-						param={param}
-						value={cfg[param.key]}
-					/>
-					{settingsScope && (
+				<ParamEditor
+					onCancel={() => setEditing(null)}
+					onSave={(value) => onSaveParam(param.key, value)}
+					param={param}
+					value={cfg[param.key]}
+				/>
+				{settingsScope && (
+					<div className="self-start">
 						<Button
-							className="self-start"
-							nativeButton={false}
-							render={
-								<Link
-									params={{ ...settingsScope, ruleId }}
-									to="/$org/$repo/rules/$ruleId/settings"
-								/>
-							}
-							size="sm"
+							href={`/${encodeURIComponent(settingsScope.org)}/${encodeURIComponent(settingsScope.repo)}/rules/${encodeURIComponent(ruleId)}/settings`}
+							size="small"
 							variant="secondary"
 						>
 							Open settings
 						</Button>
-					)}
-				</PopoverContent>
+					</div>
+				)}
 			</Popover>
 		);
 	};

@@ -1,11 +1,6 @@
 import type { EventKind, NormalizedEvent } from "@tripwire/contracts";
-import { runOutcome } from "#/components/activity/verdict-chip";
-import { ForgeLinkButton } from "#/components/common/forge-link-button";
-import { MetaRow } from "#/components/common/meta-row";
-import { ItemRouterLink } from "#/components/common/router-links";
-import { ZonedTime } from "#/components/timezones/zoned-time";
-import { Avatar } from "#/design-system/ui/avatar";
-import { Badge } from "#/design-system/ui/badge";
+import { Avatar } from "@tripwire/ui/avatar";
+import { Badge } from "@tripwire/ui/badge";
 import {
 	Item,
 	ItemActions,
@@ -14,8 +9,13 @@ import {
 	ItemMedia,
 	ItemMeta,
 	ItemTitle,
-} from "#/design-system/ui/item";
-import { Status } from "#/design-system/ui/status";
+} from "@tripwire/ui/item";
+import { Status } from "@tripwire/ui/status";
+import { runOutcome } from "#/components/activity/verdict-chip";
+import { ForgeLinkButton } from "#/components/common/forge-link-button";
+import { MetaRow } from "#/components/common/meta-row";
+import { ItemRouterLink } from "#/components/common/router-links";
+import { ZonedTime } from "#/components/timezones/zoned-time";
 import type { ActivityItem } from "#/lib/activity.functions";
 import { eventForgeLink } from "#/lib/activity-links";
 
@@ -151,10 +151,10 @@ export function ActivityRow({
 				reason={unarmed && !hasRun ? "Tripwire is off" : noRunReason(event)}
 				run={run}
 			/>
-			<ItemMeta className="w-36 whitespace-nowrap text-end">
+			<ItemMeta data-layout-role="activity-item-time">
 				<ZonedTime at={event.occurredAt} format="short" />
 			</ItemMeta>
-			<ItemActions className="w-14 justify-end">
+			<ItemActions data-layout-role="activity-forge-action">
 				{forgeLink ? (
 					<ForgeLinkButton forge={event.forge} link={forgeLink} />
 				) : null}
@@ -177,11 +177,11 @@ function RowStatus({
 	if (run || pending) {
 		const verdict = runOutcome(kind, run);
 		return verdict ? (
-			<Status size="sm" status={verdict.status}>
+			<Status size="small" status={verdict.status}>
 				{verdict.label}
 			</Status>
 		) : (
-			<Status size="sm" status="running">
+			<Status size="small" status="running">
 				Checking
 			</Status>
 		);

@@ -1,13 +1,11 @@
+import { Badge } from "@tripwire/ui/badge";
+import { Button } from "@tripwire/ui/button";
+import { Textarea } from "@tripwire/ui/field";
+import { Close, Icon } from "@tripwire/ui/icon";
 import { type CSSProperties, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Close, Icon } from "#/design-system/icon";
-import { overlayPanel, overlayShell } from "#/design-system/lib/overlay";
-import { cn } from "#/design-system/lib/utils";
-import { Badge } from "#/design-system/ui/badge";
-import { Button } from "#/design-system/ui/button";
-import { Textarea } from "#/design-system/ui/textarea";
-import { toast } from "#/design-system/ui/toast";
 import { submitFeedback } from "#/lib/feedback.functions";
+import { cn } from "#/lib/utils";
 import { captureElement, captureViewport } from "./capture";
 import { useFeedback } from "./feedback-context";
 import { PickOutline, useViewportBox } from "./feedback-outline";
@@ -130,7 +128,7 @@ function Panel() {
 			if (!result.ok) {
 				throw new Error(SEND_ERROR);
 			}
-			toast.success("Feedback sent");
+			notify.show({ title: "Feedback sent" }, "success");
 			finish(sentFrom);
 		} catch {
 			setError(SEND_ERROR);
@@ -148,7 +146,7 @@ function Panel() {
 				aria-labelledby={titleId}
 				aria-modal="false"
 				className={cn(
-					overlayShell,
+					"shell grid-rows-[minmax(0,1fr)] tone-border-default tone-content-primary outline-none forced-colors:outline-solid forced-colors:outline-1 forced-colors:outline-[CanvasText]",
 					"fixed top-(--panel-top) left-(--panel-left) z-(--z-overlay) w-[min(var(--popover),calc(100vw-var(--space-4)))]",
 					placement ? "visible" : "invisible",
 				)}
@@ -171,7 +169,8 @@ function Panel() {
 				}
 			>
 				<form
-					className={cn(overlayPanel, "gap-3 p-4")}
+					className="panel"
+					data-layout-role="feedback-form"
 					id={`${titleId}-form`}
 					noValidate
 					onSubmit={(e) => {
@@ -179,42 +178,46 @@ function Panel() {
 						void send();
 					}}
 				>
-					<div className="flex items-center justify-between gap-2">
-						<h2 className="type-heading-sm text-text-1" id={titleId}>
+					<div className="flex items-center justify-between composition-gap-standard">
+						<h2 data-layout-role="feedback-title" id={titleId}>
 							Send feedback
 						</h2>
 						<Button
-							aria-label="Close"
+							ariaLabel="Close"
 							disabled={sending}
-							onClick={close}
-							size="icon-sm"
+							onAction={close}
+							size="small"
 							type="button"
 							variant="ghost"
 						>
 							<Icon icon={Close} />
 						</Button>
 					</div>
-					<div className="flex min-w-0 items-center justify-between gap-2">
+					<div className="flex min-w-0 items-center justify-between composition-gap-standard">
 						{picked ? (
 							<Badge className="min-w-0" title={picked.summary.path}>
 								<span className="mono truncate">{picked.name}</span>
 							</Badge>
 						) : null}
-						<Button
-							className={picked ? "-me-2" : "-ms-2"}
-							disabled={sending}
-							onClick={pickAgain}
-							size="sm"
-							type="button"
-							variant="ghost"
+						<div
+							data-layout-role="feedback-pick-action"
+							data-picked={picked ? "" : undefined}
 						>
-							{picked ? "Pick again" : "Pick an element"}
-						</Button>
+							<Button
+								disabled={sending}
+								onAction={pickAgain}
+								size="small"
+								type="button"
+								variant="ghost"
+							>
+								{picked ? "Pick again" : "Pick an element"}
+							</Button>
+						</div>
 					</div>
 					<Textarea
-						aria-describedby={error ? errorId : undefined}
-						aria-invalid={error ? true : undefined}
-						aria-labelledby={titleId}
+						ariaDescribedBy={error ? errorId : undefined}
+						ariaLabel="Feedback"
+						invalid={error ? true : undefined}
 						disabled={sending}
 						onKeyDown={(e) => {
 							if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
@@ -234,7 +237,7 @@ function Panel() {
 					/>
 					{error ? (
 						<p
-							className="type-body-sm text-fail-text"
+							className="content-body-small tone-danger"
 							id={errorId}
 							role="alert"
 						>
@@ -247,7 +250,7 @@ function Panel() {
 						form={`${titleId}-form`}
 						pending={sending}
 						pendingLabel="Sending"
-						size="sm"
+						size="small"
 						type="submit"
 					>
 						Send
@@ -257,3 +260,5 @@ function Panel() {
 		</>
 	);
 }
+
+import { notify } from "@tripwire/ui/toast";

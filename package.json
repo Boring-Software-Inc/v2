@@ -24,6 +24,8 @@
 		"format": "biome format --write .",
 		"check": "biome check .",
 		"check:boundaries": "bun run scripts/check-boundaries.ts",
+		"check:component-states": "bun run scripts/check-component-states.tsx",
+		"check:ui-boundaries": "bun run scripts/check-ui-boundaries.ts",
 		"cli:release": "bun run scripts/cli-release/release.ts",
 		"test": "bun run scripts/e2e/harness.ts",
 		"beta": "bun --env-file=.env.production run scripts/beta-approve.ts",
@@ -54,6 +56,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.5",
+		"@tailwindcss/vite": "^4.3.3",
 		"@clack/prompts": "^1.7.0",
 		"@oxlint/plugins": "1.78.0",
 		"@commitlint/cli": "^21.2.1",
@@ -73,7 +76,8 @@
 		"tsrs": "0.20.0-ts7.1.0-beta",
 		"turbo": "^2.6.2",
 		"typescript": "^5.7.2",
-		"ultracite": "7.8.3"
+		"ultracite": "7.8.3",
+		"vite": "^7.3.1"
 	},
 	"engines": {
 		"bun": ">=1.3.0"

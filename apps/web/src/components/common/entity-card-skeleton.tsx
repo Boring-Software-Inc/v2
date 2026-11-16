@@ -4,8 +4,8 @@ import {
 	CardFooter,
 	CardHeader,
 	CardTitle,
-} from "#/design-system/ui/card";
-import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
+} from "@tripwire/ui/card";
+import { Skeleton, SkeletonText } from "@tripwire/ui/skeleton";
 
 const CHIN_SLOTS = [
 	{ key: "a", width: "w-26" },
@@ -23,12 +23,16 @@ export function EntityCardSkeleton({
 	chin?: boolean;
 }) {
 	return (
-		<Card aria-hidden className="h-full">
+		<Card aria-hidden data-layout-role="entity-card-skeleton">
 			<CardHeader>
 				<CardTitle>
-					<SkeletonText className="w-48" type="label" />
+					<span data-skeleton-line="" aria-hidden className="w-48">
+						<SkeletonText type="label" />
+					</span>
 				</CardTitle>
-				<SkeletonText className="col-start-1 w-64" type="body-sm" />
+				<span data-skeleton-line="" aria-hidden className="col-start-1 w-64">
+					<SkeletonText type="body-sm" />
+				</span>
 			</CardHeader>
 			{body ? (
 				<CardContent>
@@ -39,10 +43,14 @@ export function EntityCardSkeleton({
 				<CardFooter>
 					<div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
 						{CHIN_SLOTS.map((slot) => (
-							<Skeleton
+							<span
+								data-skeleton-box=""
+								aria-hidden
 								className={`h-(--control-sm) rounded-pill ${slot.width}`}
 								key={slot.key}
-							/>
+							>
+								<Skeleton fill />
+							</span>
 						))}
 					</div>
 				</CardFooter>

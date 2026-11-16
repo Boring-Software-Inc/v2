@@ -1,25 +1,22 @@
 import { SHARED_BLOCKLIST_RULE_ID } from "@tripwire/contracts";
-import { useState } from "react";
-import { AgentOutline } from "#/components/agent/agent-outline";
-import { ConfirmDestructiveDialog } from "#/components/common/confirm-destructive-dialog";
-import {
-	RULE_CARD_CLASS,
-	RULE_FOOTER_CLASS,
-	RULE_HEADER_CLASS,
-	RULE_PANEL_CLASS,
-	RULE_SENTENCE_CLASS,
-} from "#/components/rules/rule-card-frame";
-import { RuleSettingsMenu } from "#/components/rules/rule-settings-menu";
-import { Button } from "#/design-system/ui/button";
-import { Card, CardFooter } from "#/design-system/ui/card";
+import { Button } from "@tripwire/ui/button";
+import { Card, CardFooter } from "@tripwire/ui/card";
 import {
 	Item,
 	ItemActions,
 	ItemContent,
 	ItemDescription,
 	ItemTitle,
-} from "#/design-system/ui/item";
-import { Panel } from "#/design-system/ui/panel";
+} from "@tripwire/ui/item";
+import { Panel } from "@tripwire/ui/panel";
+import { useState } from "react";
+import { AgentOutline } from "#/components/agent/agent-outline";
+import { ConfirmDestructiveDialog } from "#/components/common/confirm-destructive-dialog";
+import {
+	RULE_HEADER_CLASS,
+	RULE_SENTENCE_CLASS,
+} from "#/components/rules/rule-card-frame";
+import { RuleSettingsMenu } from "#/components/rules/rule-settings-menu";
 import { useAgentMotion } from "#/hooks/use-agent-motion";
 import { siteConfig } from "#/lib/site-config";
 
@@ -46,12 +43,13 @@ export function PilotLibraryRow({
 				</ItemContent>
 				<ItemActions>
 					<Button
-						aria-label="Install Pilot"
+						ariaLabel="Install Pilot"
 						disabled={!canEdit}
-						onClick={onInstall}
+						onAction={onInstall}
 						pending={pending}
 						pendingLabel="Installing"
-						size="sm"
+						reservePendingWidth
+						size="small"
 						variant="secondary"
 					>
 						Install
@@ -89,23 +87,23 @@ export function SharedBlocklistRuleCard({
 					tone="white"
 				/>
 			) : null}
-			<Card className={RULE_CARD_CLASS}>
-				<Panel className={RULE_PANEL_CLASS}>
+			<Card data-layout-role="rule-card-frame">
+				<Panel data-layout-role="rule-card-panel">
 					<div className={RULE_HEADER_CLASS}>
 						<h2 className="min-w-0 truncate type-label-lg">Pilot</h2>
 						<span className="flex items-center">
 							{" "}
-							<Button
-								aria-label="Uninstall Pilot"
-								confirmation={false}
-								disabled={!canEdit || pending}
-								data-layout-role="pilot-rule-action"
-								onClick={() => setConfirmingUninstall(true)}
-								size="sm"
-								variant="destructive"
-							>
-								Uninstall
-							</Button>
+							<span data-layout-role="pilot-rule-action">
+								<Button
+									ariaLabel="Uninstall Pilot"
+									disabled={!canEdit || pending}
+									onAction={() => setConfirmingUninstall(true)}
+									size="small"
+									variant="secondary"
+								>
+									Uninstall
+								</Button>
+							</span>
 							{scope && (
 								<RuleSettingsMenu
 									{...scope}
@@ -117,12 +115,12 @@ export function SharedBlocklistRuleCard({
 					</div>
 					<p className={RULE_SENTENCE_CLASS}>{PILOT_DESCRIPTION}</p>
 				</Panel>
-				<CardFooter className={RULE_FOOTER_CLASS}>
+				<CardFooter data-layout-role="rule-card-footer">
 					<a href={siteConfig.pilotUrl}>Browse the public list</a>
 				</CardFooter>
 			</Card>
 			<ConfirmDestructiveDialog
-				actionLabel="Uninstall Pilot"
+				confirmLabel="Uninstall Pilot"
 				description="Pilot will stop checking new contribution authors after you save this change."
 				onConfirm={() => {
 					onUninstall();

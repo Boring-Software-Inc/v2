@@ -1,17 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { RedactionPolicy } from "@tripwire/contracts";
+import { Button } from "@tripwire/ui/button";
+import { Skeleton, SkeletonSwap, SkeletonText } from "@tripwire/ui/skeleton";
+import { notify } from "@tripwire/ui/toast";
 import { useState } from "react";
 import { PreviewLinkProvider } from "#/components/responses/preview-link";
 import { RedactionControls } from "#/components/responses/redaction-controls";
 import { sameSurfaces } from "#/components/responses/redaction-model";
 import { SettingsHeader } from "#/components/settings/settings-frame";
-import { Button } from "#/design-system/ui/button";
-import {
-	Skeleton,
-	SkeletonSwap,
-	SkeletonText,
-} from "#/design-system/ui/skeleton";
-import { toast } from "#/design-system/ui/toast";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import {
 	type OrgResponseDefaultsView,
@@ -86,10 +82,10 @@ function OrgRedactionForm({
 			}),
 		onSuccess: (result) => {
 			if ("error" in result) {
-				toast.fail(result.error);
+				notify.show({ title: result.error }, "error");
 				return;
 			}
-			toast.success("Redaction defaults saved");
+			notify.show({ title: "Redaction defaults saved" }, "success");
 		},
 		onSettled: () =>
 			queryClient.invalidateQueries({
@@ -124,8 +120,8 @@ function OrgRedactionForm({
 					<>
 						<Button
 							disabled={!dirty || saveMutation.isPending}
-							onClick={() => setDraft(saved)}
-							size="sm"
+							onAction={() => setDraft(saved)}
+							size="small"
 							type="button"
 							variant="secondary"
 						>
@@ -134,7 +130,7 @@ function OrgRedactionForm({
 						<Button
 							disabled={!dirty}
 							pending={saveMutation.isPending}
-							size="sm"
+							size="small"
 							type="submit"
 						>
 							Save
@@ -149,9 +145,19 @@ function OrgRedactionForm({
 function OrgRedactionPageSkeleton() {
 	return (
 		<div aria-hidden className="flex flex-col gap-4 px-3">
-			<SkeletonText className="w-24" />
-			<Skeleton className="h-10 w-full rounded-pill" />
-			<SkeletonText className="w-48" />
+			<span data-skeleton-line="" aria-hidden className="w-24">
+				<SkeletonText />
+			</span>
+			<span
+				data-skeleton-box=""
+				aria-hidden
+				className="h-10 w-full rounded-pill"
+			>
+				<Skeleton fill />
+			</span>
+			<span data-skeleton-line="" aria-hidden className="w-48">
+				<SkeletonText />
+			</span>
 		</div>
 	);
 }

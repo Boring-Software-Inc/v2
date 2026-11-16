@@ -1,5 +1,4 @@
 import { useDraggable } from "@dnd-kit/core";
-import { Link } from "@tanstack/react-router";
 import type {
 	EventKind,
 	GateMode,
@@ -18,6 +17,11 @@ import {
 	TRIGGER_CATALOG,
 	WORKFLOW_PORT_LABELS,
 } from "@tripwire/contracts";
+import { Button } from "@tripwire/ui/button";
+import { Add, Close, Icon } from "@tripwire/ui/icon";
+import { Tabs } from "@tripwire/ui/tabs";
+import { Tooltip } from "@tripwire/ui/tooltip";
+import { SupportingText, Label as TextLabel } from "@tripwire/ui/typography";
 import { useEffect, useId, useRef, useState } from "react";
 import {
 	GroupedPicker,
@@ -38,19 +42,8 @@ import {
 	triggerIcon,
 } from "#/components/workflows/editor/step-meta";
 import { PortGlyph } from "#/components/workflows/editor/typed-connections";
-import { Add, Close, Icon } from "#/design-system/icon";
-import { cn } from "#/design-system/lib/utils";
-import { Button } from "#/design-system/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "#/design-system/ui/tabs";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/design-system/ui/tooltip";
-import {
-	SupportingText,
-	Label as TextLabel,
-} from "#/design-system/ui/typography";
+import { cn } from "#/lib/utils";
+import "./editor-sidebar.css";
 
 /**
  * The floating left sidebar. With nothing selected it is the toolbox
@@ -274,19 +267,22 @@ export function EditorSidebar({
 
 	return (
 		<>
-			<Button
+			<div
 				className={cn(
 					"absolute start-3 top-3 z-(--z-raised)",
 					visibility === "auto" && "md:hidden",
 					visibility === "open" && "hidden",
 				)}
-				onClick={() => setShown("open")}
-				size="sm"
-				variant="secondary"
 			>
-				{readOnly ? null : <Icon icon={Add} />}
-				{readOnly ? "Show toolbox" : "Add steps"}
-			</Button>
+				<Button
+					leadingIcon={readOnly ? undefined : <Icon icon={Add} />}
+					onAction={() => setShown("open")}
+					size="small"
+					variant="secondary"
+				>
+					{readOnly ? "Show toolbox" : "Add steps"}
+				</Button>
+			</div>
 			<div
 				data-toolbox=""
 				className={cn(
@@ -299,25 +295,28 @@ export function EditorSidebar({
 				<div className="panel flex min-h-0 flex-1 flex-col overflow-hidden">
 					<div data-layout-role="workflow-sidebar-tabs">
 						<Tabs
+							ariaLabel="Sidebar"
+							items={[
+								{ label: "Toolbox", value: "toolbox" },
+								{
+									disabled: !selectable,
+									label: "Properties",
+									value: "properties",
+								},
+							]}
 							onValueChange={(value) =>
 								setToolboxFor(
 									value === "toolbox" ? (selectable?.id ?? null) : null,
 								)
 							}
+							panelMode="external"
 							value={propertiesNode ? "properties" : "toolbox"}
-						>
-							<TabsList aria-label="Sidebar" size="sm">
-								<TabsTrigger value="toolbox">Toolbox</TabsTrigger>
-								<TabsTrigger disabled={!selectable} value="properties">
-									Properties
-								</TabsTrigger>
-							</TabsList>
-						</Tabs>
+						/>
 						{connect?.pending ? null : (
 							<Button
-								aria-label="Hide sidebar"
-								onClick={hide}
-								size="icon-sm"
+								ariaLabel="Hide sidebar"
+								onAction={hide}
+								size="small"
 								variant="ghost"
 							>
 								<Icon icon={Close} />
@@ -391,9 +390,9 @@ function Toolbox({
 					</TextLabel>
 					{connect.pending ? (
 						<Button
-							aria-label="Cancel connection"
-							onClick={onCancelConnect}
-							size="icon-sm"
+							ariaLabel="Cancel connection"
+							onAction={onCancelConnect}
+							size="small"
 							variant="ghost"
 						>
 							<Icon icon={Close} />
@@ -412,18 +411,19 @@ function Toolbox({
 				}))}
 				matches={matches}
 				noun="steps"
+				presentation="disclosure"
 				renderFooter={(group, allOpen) =>
 					group.key === "rule" && !allOpen ? (
-						<Button
-							data-layout-role="workflow-toolbox-create-rule"
-							nativeButton={false}
-							render={<Link params={{ org, repo }} to="/$org/$repo/rules" />}
-							size="sm"
-							variant="ghost"
-						>
-							<Icon icon={Add} />
-							Create rule
-						</Button>
+						<div data-layout-role="workflow-toolbox-create-rule">
+							<Button
+								href={`/${org}/${repo}/rules`}
+								size="small"
+								variant="ghost"
+							>
+								<Icon icon={Add} />
+								Create rule
+							</Button>
+						</div>
 					) : null
 				}
 				renderItem={(item) => (
@@ -436,6 +436,7 @@ function Toolbox({
 						refusal={connectRefusal(connect, item.kind)}
 					/>
 				)}
+				searchAppearance="compact-search"
 			/>
 		</>
 	);
@@ -478,9 +479,7 @@ function ToolboxRow({
 	});
 	const addButton = (
 		<PickerRowAction
-			aria-describedby={refused ? reasonId : undefined}
-			aria-disabled={refused || undefined}
-			aria-label={`Add ${item.name}`}
+			ariaLabel={`Add ${item.name}`}
 			disabled={disabled}
 			glyph={Add}
 			reveal={refused ? "touch" : "hover"}
@@ -491,9 +490,8 @@ function ToolboxRow({
 			action={
 				<>
 					{refused ? (
-						<Tooltip>
-							<TooltipTrigger render={addButton} />
-							<TooltipContent side="right">{refusal}</TooltipContent>
+						<Tooltip placement="right" trigger={addButton}>
+							{refusal}
 						</Tooltip>
 					) : (
 						addButton
@@ -505,10 +503,9 @@ function ToolboxRow({
 					) : null}
 				</>
 			}
-			className={cn(
-				!(disabled || refused || picking) && "cursor-grab",
-				isDragging && "opacity-40",
-			)}
+			data-layout-role="workflow-toolbox-row"
+			data-draggable={!(disabled || refused || picking) || undefined}
+			data-dragging={isDragging || undefined}
 			disabled={disabled || refused}
 			icon={toolboxItemIcon(item)}
 			muted={refused}

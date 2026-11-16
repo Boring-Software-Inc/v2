@@ -1,6 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
+import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { FORGE_CATALOG, type Forge } from "@tripwire/contracts";
+import { Alert, AlertTitle } from "@tripwire/ui/alert";
+import { Badge } from "@tripwire/ui/badge";
+import { Button } from "@tripwire/ui/button";
+import { Card, CardContent } from "@tripwire/ui/card";
+import {
+	Item,
+	ItemActions,
+	ItemContent,
+	ItemDescription,
+	ItemGroup,
+	ItemMedia,
+	ItemTitle,
+} from "@tripwire/ui/item";
+import { Skeleton, SkeletonSwap, SkeletonText } from "@tripwire/ui/skeleton";
+import { notify } from "@tripwire/ui/toast";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { MetaRow } from "#/components/common/meta-row";
@@ -12,25 +27,6 @@ import {
 	InstallSetupShell as SetupShell,
 } from "#/components/organizations/install-setup-shell";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
-import { Alert, AlertTitle } from "#/design-system/ui/alert";
-import { Badge } from "#/design-system/ui/badge";
-import { Button } from "#/design-system/ui/button";
-import { Card, CardContent } from "#/design-system/ui/card";
-import {
-	Item,
-	ItemActions,
-	ItemContent,
-	ItemDescription,
-	ItemGroup,
-	ItemMedia,
-	ItemTitle,
-} from "#/design-system/ui/item";
-import {
-	Skeleton,
-	SkeletonSwap,
-	SkeletonText,
-} from "#/design-system/ui/skeleton";
-import { toast } from "#/design-system/ui/toast";
 import { authClient } from "#/lib/auth-client";
 import {
 	type ClaimableInstallStatus,
@@ -103,7 +99,9 @@ function RecoverInstallation({ state }: { state: string | undefined }) {
 	if (claimable.length === 0) {
 		return (
 			<SetupShell>
-				<MascotArt className="self-center" mood="install-nothing" />
+				<div data-layout-role="install-recovery-mascot">
+					<MascotArt mood="install-nothing" />
+				</div>
 				<SetupHeader
 					body="Tripwire has no new installations to connect. If you installed Tripwire a moment ago, refresh this page in a minute while it loads your repos. Repos you already connected are in their org."
 					title="Nothing to connect yet"
@@ -139,11 +137,11 @@ function RecoverInstallation({ state }: { state: string | undefined }) {
 											</MetaRow>
 										</ItemDescription>
 									</ItemContent>
-									<ItemActions className="me-0">
+									<ItemActions data-layout-role="install-setup-row-action">
 										<Button
-											aria-label={`Choose ${account}`}
-											onClick={() => setPicked(c.installationId)}
-											size="sm"
+											ariaLabel={`Choose ${account}`}
+											onAction={() => setPicked(c.installationId)}
+											size="small"
 											variant="secondary"
 										>
 											Choose
@@ -253,10 +251,7 @@ function SetupFlow({
 						title={`Already connected to ${status.orgSlug}`}
 					/>
 					<div className="flex justify-center">
-						<Button
-							nativeButton={false}
-							render={<Link params={{ org: status.orgSlug }} to="/$org/home" />}
-						>
+						<Button href={`/${status.orgSlug}/home`}>
 							{`Open ${status.orgSlug}`}
 						</Button>
 					</div>
@@ -383,18 +378,14 @@ function RecoveryScreen({
 			<SetupHeader title={title} />
 			<div className="flex flex-wrap justify-center gap-2">
 				<Button
-					onClick={onRecover}
+					onAction={onRecover}
 					pending={pending}
 					pendingLabel="Checking"
 					type="button"
 				>
 					{action}
 				</Button>
-				<Button
-					nativeButton={false}
-					render={<Link to="/" />}
-					variant="secondary"
-				>
+				<Button href="/" variant="secondary">
 					Back home
 				</Button>
 			</div>
@@ -421,7 +412,7 @@ function SignInAgainScreen() {
 			<SetupHeader title="Sign in with GitHub again to connect this installation" />
 			<div className="flex justify-center">
 				<Button
-					onClick={() => signIn.mutate()}
+					onAction={() => signIn.mutate()}
 					pending={signIn.isPending}
 					pendingLabel="Opening GitHub"
 					type="button"
@@ -473,11 +464,11 @@ function ConfirmScreen({
 				</CardContent>
 			</Card>
 			<div className="flex flex-wrap items-center justify-end gap-2">
-				<Button onClick={onChooseDifferent} type="button" variant="secondary">
+				<Button onAction={onChooseDifferent} type="button" variant="secondary">
 					Choose a different org
 				</Button>
 				<Button
-					onClick={() => claim.mutate(stateOrg.slug)}
+					onAction={() => claim.mutate(stateOrg.slug)}
 					pending={claim.isPending}
 					pendingLabel="Connecting"
 					type="button"
@@ -537,25 +528,25 @@ function ClaimScreen({ preview }: { preview: ClaimableInstallStatus }) {
 											<ItemTitle>
 												<span>{org.name}</span>
 												{org.isPersonal ? (
-													<Badge size="sm">Personal</Badge>
+													<Badge size="small">Personal</Badge>
 												) : null}
 											</ItemTitle>
 											{orgSlugDetail(org) ? (
 												<ItemDescription>{orgSlugDetail(org)}</ItemDescription>
 											) : null}
 										</ItemContent>
-										<ItemActions className="me-0">
+										<ItemActions data-layout-role="install-setup-row-action">
 											<Button
-												aria-label={`Connect to ${org.name}`}
+												ariaLabel={`Connect to ${org.name}`}
 												disabled={
 													claim.isPending && claim.variables !== org.slug
 												}
-												onClick={() => claim.mutate(org.slug)}
+												onAction={() => claim.mutate(org.slug)}
 												pending={
 													claim.isPending && claim.variables === org.slug
 												}
 												pendingLabel=""
-												size="sm"
+												size="small"
 											>
 												Connect
 											</Button>
@@ -588,11 +579,15 @@ function useClaimMutation(installationId: string, forge: Forge) {
 		onSuccess: (result, org) => {
 			if (result.claimed) {
 				trackEvent("installation_claimed", { forge });
-				toast.success(`Installation connected to ${org}`);
+				notify.show({ title: `Installation connected to ${org}` }, "success");
 				navigate({ to: `/${org}/home` });
 			} else {
-				toast.fail(
-					"Another org connected this installation first. Open that org to manage it.",
+				notify.show(
+					{
+						title:
+							"Another org connected this installation first. Open that org to manage it.",
+					},
+					"error",
 				);
 			}
 		},
@@ -601,7 +596,7 @@ function useClaimMutation(installationId: string, forge: Forge) {
 
 function ClaimError({ message }: { message: Error }) {
 	return (
-		<Alert status="fail">
+		<Alert role="alert" status="danger">
 			<AlertTitle>
 				{message.message ||
 					"Couldn't connect this installation. Try again in a moment."}
@@ -654,10 +649,18 @@ function OrgRowsSkeleton() {
 			{["a", "b"].map((slot) => (
 				<Item key={slot}>
 					<ItemMedia>
-						<Skeleton className="size-5 rounded-pill" />
+						<span
+							data-skeleton-box=""
+							aria-hidden
+							className="size-5 rounded-pill"
+						>
+							<Skeleton fill />
+						</span>
 					</ItemMedia>
 					<ItemContent>
-						<SkeletonText className="w-32" type="label" />
+						<span data-skeleton-line="" aria-hidden className="w-32">
+							<SkeletonText type="label" />
+						</span>
 					</ItemContent>
 				</Item>
 			))}
@@ -673,14 +676,10 @@ function LoadError({ title, onRetry }: { title: string; onRetry: () => void }) {
 				title={title}
 			/>
 			<div className="flex flex-wrap justify-center gap-2">
-				<Button onClick={onRetry} type="button">
+				<Button onAction={onRetry} type="button">
 					Try again
 				</Button>
-				<Button
-					nativeButton={false}
-					render={<Link to="/" />}
-					variant="secondary"
-				>
+				<Button href="/" variant="secondary">
 					Back home
 				</Button>
 			</div>
@@ -691,7 +690,7 @@ function LoadError({ title, onRetry }: { title: string; onRetry: () => void }) {
 function BackHome() {
 	return (
 		<div className="flex justify-center">
-			<Button nativeButton={false} render={<Link to="/" />} variant="secondary">
+			<Button href="/" variant="secondary">
 				Back home
 			</Button>
 		</div>

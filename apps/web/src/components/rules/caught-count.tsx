@@ -1,4 +1,4 @@
-import { cn } from "#/design-system/lib/utils";
+import { cn } from "#/lib/utils";
 
 export function caughtLabel(count: number): string {
 	return `Would have caught ${count}`;

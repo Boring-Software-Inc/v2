@@ -1,21 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Forge } from "@tripwire/contracts";
-import { GitCafeMirrorNotice } from "#/components/forges/gitcafe-mirror-notice";
 import {
 	Alert,
 	AlertAction,
 	AlertDescription,
 	AlertTitle,
-} from "#/design-system/ui/alert";
-import { Button } from "#/design-system/ui/button";
+} from "@tripwire/ui/alert";
+import { Button } from "@tripwire/ui/button";
 import {
 	Card,
 	CardDescription,
 	CardFooter,
 	CardHeader,
 	CardTitle,
-} from "#/design-system/ui/card";
-import { toast } from "#/design-system/ui/toast";
+} from "@tripwire/ui/card";
+import { notify } from "@tripwire/ui/toast";
+import { GitCafeMirrorNotice } from "#/components/forges/gitcafe-mirror-notice";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { armRepo } from "#/lib/arm.functions";
 import { orgContextQueryOptions } from "#/lib/org.query";
@@ -27,7 +27,6 @@ interface ArmCalloutProps {
 	repo: string;
 	repoFullName: string;
 	variant?: "hero" | "banner";
-	className?: string;
 }
 
 function useArm(org: string, repo: string, repoFullName: string) {
@@ -40,18 +39,25 @@ function useArm(org: string, repo: string, repoFullName: string) {
 		onSuccess: (result) => {
 			if (result.armed) {
 				trackEvent("repo_activated", {});
-				toast.success(`Tripwire is on for ${repoFullName}`);
+				notify.show({ title: `Tripwire is on for ${repoFullName}` }, "success");
 				return;
 			}
-			toast.fail(
-				!result.ok && result.reason === "queue-unavailable"
-					? "Tripwire did not turn on. Try again in a moment."
-					: `Tripwire did not turn on for ${repoFullName}. Reload the page and try again.`,
+			notify.show(
+				{
+					title:
+						!result.ok && result.reason === "queue-unavailable"
+							? "Tripwire did not turn on. Try again in a moment."
+							: `Tripwire did not turn on for ${repoFullName}. Reload the page and try again.`,
+				},
+				"error",
 			);
 		},
 		onError: () =>
-			toast.fail(
-				`Tripwire did not turn on for ${repoFullName}. Check your connection and try again.`,
+			notify.show(
+				{
+					title: `Tripwire did not turn on for ${repoFullName}. Check your connection and try again.`,
+				},
+				"error",
 			),
 	});
 }
@@ -62,7 +68,6 @@ export function ArmCallout({
 	repo,
 	repoFullName,
 	variant = "banner",
-	className,
 }: ArmCalloutProps) {
 	const arm = useArm(org, repo, repoFullName);
 	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
@@ -70,9 +75,9 @@ export function ArmCallout({
 
 	if (variant === "hero") {
 		return (
-			<Card className={className}>
+			<Card>
 				<CardHeader>
-					<CardTitle className="type-heading">
+					<CardTitle data-layout-role="arm-callout-title">
 						Tripwire is off for <span className="mono">{repoFullName}</span>
 					</CardTitle>
 					<CardDescription>
@@ -87,10 +92,10 @@ export function ArmCallout({
 				{canArm ? (
 					<CardFooter>
 						<Button
-							onClick={() => arm.mutate()}
+							onAction={() => arm.mutate()}
 							pending={arm.isPending}
 							pendingLabel="Turning on"
-							size="sm"
+							size="small"
 						>
 							Turn on Tripwire
 						</Button>
@@ -101,7 +106,7 @@ export function ArmCallout({
 	}
 
 	return (
-		<Alert announce={false} className={className} status="warn">
+		<Alert status="warning">
 			<AlertTitle>Tripwire is off</AlertTitle>
 			<AlertDescription>
 				{canArm || !orgContext
@@ -112,10 +117,10 @@ export function ArmCallout({
 			{canArm ? (
 				<AlertAction>
 					<Button
-						onClick={() => arm.mutate()}
+						onAction={() => arm.mutate()}
 						pending={arm.isPending}
 						pendingLabel="Turning on"
-						size="sm"
+						size="small"
 						variant="secondary"
 					>
 						Turn on Tripwire

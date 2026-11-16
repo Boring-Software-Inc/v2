@@ -1,19 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import type { ContributionAppealStatus } from "@tripwire/contracts";
+import { Button } from "@tripwire/ui/button";
+import { Field, FieldLabel, Textarea } from "@tripwire/ui/field";
+import { Caption, PageTitle, SupportingText } from "@tripwire/ui/typography";
 import { useState } from "react";
 import { AppealPageSkeleton } from "#/components/appeals/appeal-page-skeleton";
 import { AppealSignIn } from "#/components/appeals/appeal-sign-in";
 import { ContributionAppealLayout } from "#/components/layouts/contribution-appeal-layout";
 import { FormActions, FormSection } from "#/components/layouts/section";
-import { Button } from "#/design-system/ui/button";
-import { Field, FieldLabel } from "#/design-system/ui/field";
-import { Textarea } from "#/design-system/ui/textarea";
-import {
-	Caption,
-	PageTitle,
-	SupportingText,
-} from "#/design-system/ui/typography";
 import { submitContributionAppeal } from "#/lib/contribution-appeals.functions";
 import { contributionAppealOptions } from "#/lib/contribution-appeals.query";
 
@@ -57,9 +51,9 @@ export function AppealPage({ runId }: { runId: string }) {
 			{query.isError ? (
 				<>
 					<SupportingText>Tripwire couldn't load this appeal.</SupportingText>
-					<Button className="self-start" onClick={() => void query.refetch()}>
-						Try again
-					</Button>
+					<div className="self-start">
+						<Button onAction={() => void query.refetch()}>Try again</Button>
+					</div>
 				</>
 			) : appeal?.state === "signed-out" ? (
 				<AppealSignIn returnTo={`/appeals/${runId}`} />
@@ -78,21 +72,14 @@ export function AppealPage({ runId }: { runId: string }) {
 						You can submit another appeal after a maintainer resolves your open
 						case.
 					</SupportingText>
-					<Button
-						className="self-start"
-						nativeButton={false}
-						render={
-							<Link
-								params={{
-									target: appeal.pendingRunId ?? appeal.pendingOrgSlug ?? "",
-								}}
-								to="/appeals/$target"
-							/>
-						}
-						variant="secondary"
-					>
-						View open appeal
-					</Button>
+					<div className="self-start">
+						<Button
+							href={`/appeals/${appeal.pendingRunId ?? appeal.pendingOrgSlug ?? ""}`}
+							variant="secondary"
+						>
+							View open appeal
+						</Button>
+					</div>
 				</>
 			) : (
 				<FormSection
@@ -103,14 +90,14 @@ export function AppealPage({ runId }: { runId: string }) {
 					}}
 				>
 					<Field>
-						<FieldLabel htmlFor="appeal-reason" id="appeal-reason-label">
+						<FieldLabel>
 							Why should a maintainer review this decision?
 						</FieldLabel>
 						<Textarea
-							aria-labelledby="appeal-reason-label"
+							ariaLabel="Why should a maintainer review this decision?"
 							id="appeal-reason"
 							maxLength={2000}
-							onChange={(event) => setReason(event.target.value)}
+							onValueChange={setReason}
 							required
 							rows={5}
 							value={reason}

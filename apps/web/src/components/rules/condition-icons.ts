@@ -25,10 +25,10 @@ import {
 	Fork,
 	FormatCheck,
 	Gauge,
-	type GlazeIcon,
 	HalfCircle,
 	Hash,
 	Heading,
+	type IconGlyph,
 	Issue,
 	Key,
 	LinesAdded,
@@ -60,7 +60,7 @@ import {
 	UserList,
 	Verified,
 	Waiting,
-} from "#/design-system/icon";
+} from "@tripwire/ui/icon";
 
 export const CONDITION_GROUP_ICON = {
 	"The account": UserAvatar,
@@ -70,7 +70,7 @@ export const CONDITION_GROUP_ICON = {
 	"The change request description": Document,
 	"The commits": Commit,
 	"The comment": Comment,
-} satisfies Record<CustomSignalDisplay["group"], GlazeIcon>;
+} satisfies Record<CustomSignalDisplay["group"], IconGlyph>;
 
 export const CONDITION_ICON = {
 	"contributor.accountAge": Waiting,
@@ -125,11 +125,11 @@ export const CONDITION_ICON = {
 	"pr.conventionalCommits": Rules,
 	"pr.maxCommitMessageLength": Ruler,
 	"comment.body": CommentText,
-} satisfies Record<CustomSignalDisplay["id"], GlazeIcon>;
+} satisfies Record<CustomSignalDisplay["id"], IconGlyph>;
 
 const CONDITION_ICONS_BY_ID = new Map(Object.entries(CONDITION_ICON));
 
-export function conditionIcon(signal: CustomSignalDisplay): GlazeIcon {
+export function conditionIcon(signal: CustomSignalDisplay): IconGlyph {
 	return (
 		CONDITION_ICONS_BY_ID.get(signal.id) ?? CONDITION_GROUP_ICON[signal.group]
 	);

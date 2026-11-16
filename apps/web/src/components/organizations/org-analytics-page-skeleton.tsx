@@ -1,11 +1,13 @@
+import { SkeletonText } from "@tripwire/ui/skeleton";
+import { Chart } from "#/components/common/chart";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { Chart } from "#/design-system/ui/chart";
-import { SkeletonText } from "#/design-system/ui/skeleton";
 
 export function OrgAnalyticsBodySkeleton() {
 	return (
 		<div aria-hidden className="flex flex-col gap-6">
-			<SkeletonText className="w-96 max-w-full" type="body" />
+			<span data-skeleton-line="" aria-hidden className="w-96 max-w-full">
+				<SkeletonText type="body" />
+			</span>
 			<Chart
 				config={{ hour: { label: "Hour" }, events: { label: "Events" } }}
 				data={[]}
@@ -24,8 +26,12 @@ export function OrgAnalyticsPageSkeleton() {
 			<div className="px-4 py-6 md:px-8 md:py-10">
 				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
 					<header className="flex flex-col gap-1">
-						<SkeletonText className="w-32" type="heading" />
-						<SkeletonText className="w-80 max-w-full" type="body" />
+						<span data-skeleton-line="" aria-hidden className="w-32">
+							<SkeletonText type="heading" />
+						</span>
+						<span data-skeleton-line="" aria-hidden className="w-80 max-w-full">
+							<SkeletonText type="body" />
+						</span>
 					</header>
 					<OrgAnalyticsBodySkeleton />
 				</div>

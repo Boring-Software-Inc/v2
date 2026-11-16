@@ -10,9 +10,9 @@ import {
 	FileImage,
 	Flag,
 	FollowUp,
-	type GlazeIcon,
 	Heading,
 	Help,
+	type IconGlyph,
 	Link,
 	ListBullets,
 	Mention,
@@ -20,7 +20,7 @@ import {
 	Protected,
 	Retry,
 	Sparkle,
-} from "#/design-system/icon";
+} from "@tripwire/ui/icon";
 
 export type BlockGroupKey = "text" | "run" | "links" | "media";
 
@@ -28,7 +28,7 @@ export interface BlockMeta {
 	type: ResponseBlockType;
 	label: string;
 	description: string;
-	icon: GlazeIcon;
+	icon: IconGlyph;
 	group: BlockGroupKey;
 }
 
@@ -115,7 +115,7 @@ export const BLOCK_META = {
 export const BLOCK_GROUPS: readonly {
 	key: BlockGroupKey;
 	title: string;
-	icon: GlazeIcon;
+	icon: IconGlyph;
 }[] = [
 	{ key: "text", title: "Text", icon: Heading },
 	{ key: "run", title: "Run details", icon: Protected },

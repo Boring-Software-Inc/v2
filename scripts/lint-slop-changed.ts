@@ -9,14 +9,40 @@
  *   Local preview: pass `main` to diff the working tree against main.
  */
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { z } from "zod";
 
 const range = process.argv[2] ?? "origin/main...HEAD";
 
 const MAX_BUFFER = 256 * 1024 * 1024;
+const oxlintOutput = z.object({
+	diagnostics: z.array(
+		z.object({
+			code: z.string(),
+			filename: z.string(),
+			message: z.string(),
+			labels: z
+				.array(
+					z.object({
+						span: z.object({
+							line: z.number().int().positive(),
+							column: z.number().int().positive(),
+						}),
+					}),
+				)
+				.nonempty(),
+		}),
+	),
+});
 
 const baseline = spawnSync(
-	"bun",
-	["run", "scripts/check-design-system-lint-baseline.ts"],
+	process.execPath,
+	[
+		"run",
+		fileURLToPath(
+			new URL("./check-design-system-lint-baseline.ts", import.meta.url),
+		),
+	],
 	{
 		encoding: "utf8",
 		maxBuffer: MAX_BUFFER,
@@ -73,11 +99,15 @@ if (files.length === 0) {
 }
 
 // The JS plugins are TypeScript, so Node needs type-stripping to load them.
-const oxlint = spawnSync("./node_modules/.bin/oxlint", files, {
-	encoding: "utf8",
-	maxBuffer: MAX_BUFFER,
-	env: { ...process.env, NODE_OPTIONS: "--experimental-strip-types" },
-});
+const oxlint = spawnSync(
+	"./node_modules/.bin/oxlint",
+	["--format", "json", ...files],
+	{
+		encoding: "utf8",
+		maxBuffer: MAX_BUFFER,
+		env: { ...process.env, NODE_OPTIONS: "--experimental-strip-types" },
+	},
+);
 if (oxlint.error) {
 	console.error(`oxlint did not run: ${oxlint.error.message}`);
 	process.exit(1);
@@ -86,6 +116,7 @@ const output = `${oxlint.stdout ?? ""}\n${oxlint.stderr ?? ""}`;
 
 // A broken plugin/config must fail loudly — never pass by finding no matches.
 if (
+	(oxlint.status !== 0 && oxlint.status !== 1) ||
 	output.includes("Failed to load JS plugin") ||
 	output.includes("Failed to parse oxlint configuration")
 ) {
@@ -93,14 +124,31 @@ if (
 	process.exit(1);
 }
 
+let decoded: unknown;
+try {
+	decoded = JSON.parse(oxlint.stdout);
+} catch {
+	console.error(`Oxlint did not return JSON diagnostics:\n${output}`);
+	process.exit(1);
+}
+const parsed = oxlintOutput.safeParse(decoded);
+if (
+	!parsed.success ||
+	(oxlint.status === 1 && parsed.data.diagnostics.length === 0)
+) {
+	console.error(`Oxlint did not return valid JSON diagnostics:\n${output}`);
+	process.exit(1);
+}
 const violations: string[] = [];
-for (const line of output.split("\n")) {
-	const match = line.match(/^(.+?):(\d+):\d+:/);
-	if (match?.[1] === undefined || match[2] === undefined) {
-		continue;
-	}
-	if (addedLines.get(match[1])?.has(Number(match[2]))) {
-		violations.push(line.trim());
+for (const diagnostic of parsed.data.diagnostics) {
+	const { filename, labels, code, message } = diagnostic;
+	const label = labels.find(({ span }) =>
+		addedLines.get(filename)?.has(span.line),
+	);
+	if (label) {
+		violations.push(
+			`${filename}:${label.span.line}:${label.span.column}: ${code}: ${message}`,
+		);
 	}
 }
 

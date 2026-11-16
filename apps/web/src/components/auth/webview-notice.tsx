@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
-import { Alert, AlertDescription, AlertTitle } from "#/design-system/ui/alert";
-import { Input } from "#/design-system/ui/input";
+import { Alert, AlertDescription, AlertTitle } from "@tripwire/ui/alert";
+import { Input } from "@tripwire/ui/field";
 import { webviewHostQueryOptions } from "#/lib/webview.query";
 
 /**
@@ -22,7 +22,7 @@ export function WebviewNotice() {
 	const href = `${data.origin}${path}`;
 
 	return (
-		<Alert announce={false} status="warn">
+		<Alert status="warning">
 			<AlertTitle>Sign-in may not work in this app</AlertTitle>
 			<AlertDescription>
 				<div data-layout-role="webview-notice-content">
@@ -31,10 +31,8 @@ export function WebviewNotice() {
 						sign-in. Copy this link and open it in Safari, Chrome or Firefox.
 					</p>
 					<Input
-						aria-label="Sign-in link"
-						mode="copy"
-						noun="sign-in link"
-						size="sm"
+						ariaLabel="Sign-in link"
+						copy={{ label: "Copy sign-in link", value: href }}
 						value={href}
 					/>
 				</div>

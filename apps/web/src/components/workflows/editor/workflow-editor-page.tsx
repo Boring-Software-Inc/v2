@@ -1,22 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { liveNodeTouches, workingAgents } from "@tripwire/contracts";
+import { Badge } from "@tripwire/ui/badge";
+import { SkeletonSwap } from "@tripwire/ui/skeleton";
+import { PageTitle } from "@tripwire/ui/typography";
 import { AgentPresence } from "#/components/agent/agent-presence";
+import {
+	EmptyState,
+	EmptyStateContent,
+	EmptyStateDescription,
+	EmptyStateHeader,
+} from "#/components/common/empty-state";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { DraftActions } from "#/components/workflows/draft-actions";
 import { AgentWorkContext } from "#/components/workflows/editor/agent-work-context";
 import { WorkflowEditor } from "#/components/workflows/editor/workflow-editor";
 import { EditorFrameSkeleton } from "#/components/workflows/editor/workflow-editor-page-skeleton";
-import { Badge } from "#/design-system/ui/badge";
-import {
-	Empty,
-	EmptyContent,
-	EmptyDescription,
-	EmptyHeader,
-} from "#/design-system/ui/empty-state";
-import { SkeletonSwap } from "#/design-system/ui/skeleton";
-import { PageTitle } from "#/design-system/ui/typography";
 import { useAgentMotion } from "#/hooks/use-agent-motion";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { useWorkClock } from "#/hooks/use-work-clock";
@@ -101,17 +101,17 @@ export function WorkflowEditorPage() {
 	if (!(loading || workflow)) {
 		body = (
 			<div data-layout-role="workflow-editor-not-found">
-				<Empty
+				<EmptyState
 					art={<MascotArt mood="workflow-not-found" />}
 					reason="no-results"
 				>
-					<EmptyHeader>
+					<EmptyStateHeader>
 						<PageTitle>Workflow not found</PageTitle>
-						<EmptyDescription>
+						<EmptyStateDescription>
 							Someone may have deleted it, or the link is out of date.
-						</EmptyDescription>
-					</EmptyHeader>
-					<EmptyContent>
+						</EmptyStateDescription>
+					</EmptyStateHeader>
+					<EmptyStateContent>
 						<Link
 							data-layout-role="workflow-editor-recovery-link"
 							params={{ org, repo }}
@@ -119,8 +119,8 @@ export function WorkflowEditorPage() {
 						>
 							View workflows
 						</Link>
-					</EmptyContent>
-				</Empty>
+					</EmptyStateContent>
+				</EmptyState>
 			</div>
 		);
 	} else if (!loading && workflow && repoCtx) {

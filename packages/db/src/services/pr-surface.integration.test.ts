@@ -42,6 +42,7 @@ afterAll(async () => {
 async function seedRun(
 	id: string,
 	verdict: "pass" | "block" | "needs_review",
+	subjectNumber = 1,
 ): Promise<string> {
 	await db.insert(events).values({
 		id,
@@ -54,7 +55,7 @@ async function seedRun(
 	return createRun(db, {
 		eventId: id,
 		repoFullName: REPO,
-		subjectNumber: 1,
+		subjectNumber,
 		headSha: `sha-${id}`,
 		snapshot: SNAPSHOT,
 		status: "completed",
@@ -109,7 +110,8 @@ test("getPreviousVerdict + getLatestBlockReviewId drive the transition & dismiss
 });
 
 test("getActiveBlockReviewId: live until dismissed", async () => {
-	const blockRun = await seedRun("evt-active-block", "block");
+	const subjectNumber = 2;
+	const blockRun = await seedRun("evt-active-block", "block", subjectNumber);
 	const [block] = await recordActions(db, blockRun, [
 		{ kind: "block", payload: {}, idempotencyKey: "block:active" },
 	]);
@@ -118,14 +120,18 @@ test("getActiveBlockReviewId: live until dismissed", async () => {
 	}
 	await markActionExecuted(db, block.id, "95");
 	expect(
-		await getActiveBlockReviewId(db, { forge: "github", fullName: REPO }, 1),
+		await getActiveBlockReviewId(
+			db,
+			{ forge: "github", fullName: REPO },
+			subjectNumber,
+		),
 	).toBe("95");
 
-	const passRun = await seedRun("evt-active-pass", "pass");
+	const passRun = await seedRun("evt-active-pass", "pass", subjectNumber);
 	const [dismiss] = await recordActions(db, passRun, [
 		{
 			kind: "dismiss-review",
-			payload: { number: 1, reviewId: "95" },
+			payload: { number: subjectNumber, reviewId: "95" },
 			idempotencyKey: "dismiss-review:95",
 		},
 	]);
@@ -133,17 +139,25 @@ test("getActiveBlockReviewId: live until dismissed", async () => {
 		throw new Error("expected a recorded dismissal");
 	}
 	expect(
-		await getActiveBlockReviewId(db, { forge: "github", fullName: REPO }, 1),
+		await getActiveBlockReviewId(
+			db,
+			{ forge: "github", fullName: REPO },
+			subjectNumber,
+		),
 	).toBe("95");
 	await markActionExecuted(db, dismiss.id, "95");
 	expect(
-		await getActiveBlockReviewId(db, { forge: "github", fullName: REPO }, 1),
+		await getActiveBlockReviewId(
+			db,
+			{ forge: "github", fullName: REPO },
+			subjectNumber,
+		),
 	).toBeNull();
 	expect(
 		await getActiveBlockReviewId(
 			db,
 			{ forge: "github", fullName: "acme/other" },
-			1,
+			subjectNumber,
 		),
 	).toBeNull();
 });

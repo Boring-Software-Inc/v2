@@ -1,6 +1,6 @@
+import { FileCode, Icon } from "@tripwire/ui/icon";
 import type { ReactNode } from "react";
-import { FileCode, Icon } from "#/design-system/icon";
-import { cn } from "#/design-system/lib/utils";
+import { cn } from "#/lib/utils";
 
 export interface DiffStats {
 	added: number;
@@ -28,7 +28,7 @@ export function CodeHeader({
 			data-layout-role="code-header"
 		>
 			{leading}
-			<Icon className="text-text-2" icon={FileCode} />
+			<Icon icon={FileCode} tone="secondary" />
 			<span className="min-w-0 truncate type-code-block text-text-1">
 				{name}
 			</span>

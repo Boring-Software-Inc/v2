@@ -82,7 +82,7 @@ test("a saved GitHub reviewer missing from a known list retains its warning", ()
 		reviewers: [{ id: 42, login: "saved-reviewer" }],
 	});
 	expect(html).toContain("saved-reviewer");
-	expect(html).toContain('data-layout-role="workflow-reviewer-stale"');
+	expect(html).toContain('data-tone="warning"');
 	expect(html).toContain("can no longer review this repo");
 });
 

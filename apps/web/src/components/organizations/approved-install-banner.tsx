@@ -1,12 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import {
 	Alert,
 	AlertAction,
 	AlertDescription,
 	AlertTitle,
-} from "#/design-system/ui/alert";
-import { Button } from "#/design-system/ui/button";
+} from "@tripwire/ui/alert";
+import { Button } from "@tripwire/ui/button";
 import { approvedInstallRequestsQueryOptions } from "#/lib/onboarding.query";
 
 export function ApprovedInstallBanner() {
@@ -18,7 +17,7 @@ export function ApprovedInstallBanner() {
 	return (
 		<div className="flex flex-col gap-2">
 			{approved.map((request) => (
-				<Alert key={request.installationId} status="ok">
+				<Alert key={request.installationId} role="status" status="success">
 					<AlertTitle>
 						{request.account} approved your install request
 					</AlertTitle>
@@ -29,18 +28,8 @@ export function ApprovedInstallBanner() {
 					</AlertDescription>
 					<AlertAction>
 						<Button
-							nativeButton={false}
-							render={
-								<Link
-									search={{
-										installation_id: request.installationId,
-										setup_action: undefined,
-										state: undefined,
-									}}
-									to="/onboarding/setup"
-								/>
-							}
-							size="sm"
+							href={`/onboarding/setup?installation_id=${encodeURIComponent(request.installationId)}`}
+							size="small"
 						>
 							Connect repos
 						</Button>

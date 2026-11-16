@@ -3,10 +3,10 @@ import {
 	type ModerationOutcome,
 	moderationOutcomeSchema,
 } from "@tripwire/contracts";
+import { Field, FieldLabel } from "@tripwire/ui/field";
+import { Select } from "@tripwire/ui/select";
+import { SupportingText } from "@tripwire/ui/typography";
 import { useId } from "react";
-import { Field, FieldLabel } from "#/design-system/ui/field";
-import { Select } from "#/design-system/ui/select";
-import { SupportingText } from "#/design-system/ui/typography";
 
 export function ModerationOutcomePicker({
 	label,
@@ -35,12 +35,13 @@ export function ModerationOutcomePicker({
 
 	return (
 		<Field>
-			<FieldLabel htmlFor={id}>{label}</FieldLabel>
+			<FieldLabel>{label}</FieldLabel>
 			<Select
+				ariaLabel={label}
 				disabled={disabled}
 				id={id}
-				items={items}
-				native
+				options={items}
+				mode="native"
 				onValueChange={(next) => {
 					if (next === "default") onChange(null);
 					else if (next === "inherit") onChange(next);

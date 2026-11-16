@@ -1,6 +1,7 @@
+import { motion as Motion, useReducedMotion } from "motion/react";
 import { useMemo } from "react";
-import { cn } from "#/design-system/lib/utils";
 import type { AgentMotion } from "#/hooks/use-agent-motion";
+import { cn } from "#/lib/utils";
 
 const DOTS = 6;
 
@@ -28,20 +29,31 @@ export function AgentRain({
 	className?: string;
 }) {
 	const dots = useMemo(() => pulses(seed), [seed]);
+	const osReduced = useReducedMotion();
+	const animate = motion === "full" && !osReduced;
 	return (
 		<span
 			aria-hidden
-			className={cn("inline-grid shrink-0 grid-cols-3 gap-px", className)}
+			className={cn("inline-grid shrink-0 grid-cols-3", className)}
 			data-agent-rain={motion}
 		>
 			{dots.map((dot) => (
-				<span
-					className="size-0.75 bg-agent"
+				<Motion.span
+					animate={{ opacity: animate ? [0.2, 1] : 0.7 }}
+					className="size-0.75"
+					initial={{ opacity: 0.7 }}
 					key={dot.index}
-					style={{
-						animationDuration: `${dot.duration}ms`,
-						animationDelay: `${dot.delay}ms`,
-					}}
+					transition={
+						animate
+							? {
+									delay: dot.delay / 1000,
+									duration: dot.duration / 1000,
+									ease: [0.42, 0, 0.58, 1],
+									repeat: Infinity,
+									repeatType: "reverse",
+								}
+							: { duration: 0 }
+					}
 				/>
 			))}
 		</span>

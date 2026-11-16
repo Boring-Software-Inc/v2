@@ -1,5 +1,7 @@
 import { expect, test } from "bun:test";
 import type { JsonValue } from "@tripwire/contracts";
+import { Input, Textarea } from "@tripwire/ui/field";
+import { Select } from "@tripwire/ui/select";
 import {
 	Children,
 	type ComponentProps,
@@ -12,9 +14,6 @@ import {
 	ConfigField,
 	PropertiesPanel,
 } from "#/components/workflows/editor/properties-panel";
-import { Input } from "#/design-system/ui/input";
-import { Select } from "#/design-system/ui/select";
-import { Textarea } from "#/design-system/ui/textarea";
 
 function controls(
 	field: FieldSpec,
@@ -79,6 +78,24 @@ test("action properties keep saved-secret markers blank and controls disabled", 
 	}
 });
 
+test("lock actions render a nullable reason without a reserved option value", () => {
+	const html = renderToStaticMarkup(
+		<PropertiesPanel
+			node={{
+				action: "lock",
+				id: "lock",
+				params: {},
+				type: "action",
+			}}
+			onUpdate={() => undefined}
+			readOnly={false}
+		/>,
+	);
+	expect(html).toContain("None");
+	expect(html).toContain("Resolved");
+	expect(html).toContain("Off-topic");
+});
+
 test.each([
 	false,
 	true,
@@ -136,14 +153,14 @@ test("text and enum fields retain incomplete text and string-only read fallbacks
 	if (!isValidElement<ComponentProps<typeof Select>>(select)) {
 		throw new Error("Expected enum select");
 	}
-	expect(select.props.items).toEqual([
-		{ value: "0", label: 0 },
-		{ value: "1", label: 1 },
+	expect(select.props.options).toEqual([
+		{ value: "0", label: "0" },
+		{ value: "1", label: "1" },
 		{ value: "pending", label: "pending" },
 	]);
-	expect(select.props.value).toBe("");
-	select.props.onValueChange?.("1");
-	select.props.onValueChange?.(null);
+	expect(select.props.value).toBeNull();
+	select.props.onValueChange?.("1", { source: "programmatic" });
+	select.props.onValueChange?.(null, { source: "programmatic" });
 	expect(changes).toEqual(["1", ""]);
 });
 

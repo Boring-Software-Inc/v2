@@ -1,4 +1,9 @@
 import { inputLook, outputLook, ruleIdOf } from "@tripwire/contracts";
+import { Button, IconButton } from "@tripwire/ui/button";
+import { Add, Close, Except, Icon, Rules } from "@tripwire/ui/icon";
+import { Menu, type MenuEntry } from "@tripwire/ui/menu";
+import { Select } from "@tripwire/ui/select";
+import { Label } from "@tripwire/ui/typography";
 import {
 	Handle,
 	type NodeProps,
@@ -14,22 +19,6 @@ import {
 } from "#/components/workflows/editor/rule-groups-context";
 import { ruleIcon, stepName } from "#/components/workflows/editor/step-meta";
 import { WorkflowNodeFrame } from "#/components/workflows/editor/workflow-node-frame";
-import { Add, Close, Except, Icon, Rules } from "#/design-system/icon";
-import { Button } from "#/design-system/ui/button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "#/design-system/ui/dropdown-menu";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/design-system/ui/select";
-import { Label } from "#/design-system/ui/typography";
 import type { SkipMode } from "#/lib/rule-groups";
 
 export const GROUP_TITLE = "If any of these rules fail";
@@ -101,10 +90,10 @@ function MemberRow({
 	return (
 		<li className="nodrag nopan" data-layout-role="rule-card-member">
 			<Button
-				aria-label={`Edit ${name}`}
+				ariaLabel={`Edit ${name}`}
 				data-layout-role="rule-card-member-select"
-				onClick={() => select(nodeId)}
-				size="sm"
+				onAction={() => select(nodeId)}
+				size="small"
 				variant="ghost"
 			>
 				<Icon
@@ -115,9 +104,9 @@ function MemberRow({
 			</Button>
 			{removable && !readOnly ? (
 				<Button
-					aria-label={`Remove ${name}`}
-					onClick={onRemove}
-					size="icon-sm"
+					ariaLabel={`Remove ${name}`}
+					onAction={onRemove}
+					size="small"
 					variant="ghost"
 				>
 					<Icon icon={Close} />
@@ -141,30 +130,28 @@ function AddRuleMenu({
 		return null;
 	}
 	const open = choices.filter((choice) => !exclude.has(ruleIdOf(choice.ref)));
+	const items: MenuEntry[] = open.map((choice) => ({
+		icon: <Icon icon={ruleIcon(choice.ref)} />,
+		label: choice.name,
+		onAction: () => onPick(choice),
+		value: choice.ref,
+	}));
 	return (
-		<DropdownMenu>
-			<DropdownMenuTrigger
-				render={
-					<Button
-						className="nodrag nopan"
-						data-layout-role="rule-card-add"
-						size="sm"
+		<div className="nodrag nopan">
+			<Menu
+				align="start"
+				ariaLabel={label}
+				items={items}
+				trigger={
+					<IconButton
+						icon={<Icon icon={Add} />}
+						label={label}
+						size="small"
 						variant="ghost"
 					/>
 				}
-			>
-				<Icon icon={Add} />
-				{label}
-			</DropdownMenuTrigger>
-			<DropdownMenuContent align="start" size="sm">
-				{open.map((choice) => (
-					<DropdownMenuItem key={choice.ref} onClick={() => onPick(choice)}>
-						<Icon icon={ruleIcon(choice.ref)} />
-						{choice.name}
-					</DropdownMenuItem>
-				))}
-			</DropdownMenuContent>
-		</DropdownMenu>
+			/>
+		</div>
 	);
 }
 
@@ -211,16 +198,19 @@ export function RuleGroupNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 					onPick={(choice) => api.addRule(id, choice)}
 				/>
 				{card.skipId === null && !api.readOnly ? (
-					<Button
+					<span
 						className="nodrag nopan"
 						data-layout-role="rule-card-attach-skip"
-						onClick={() => api.attachSkip(id)}
-						size="sm"
-						variant="ghost"
 					>
-						<Icon icon={Add} />
-						{SKIP_TITLE}
-					</Button>
+						<Button
+							leadingIcon={<Icon icon={Add} />}
+							onAction={() => api.attachSkip(id)}
+							size="small"
+							variant="ghost"
+						>
+							{SKIP_TITLE}
+						</Button>
+					</span>
 				) : null}
 			</div>
 			<OutputPort port="fail" />
@@ -241,46 +231,34 @@ export function SkipWhenNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 				<Icon data-layout-role="rule-card-icon" icon={Except} />
 				<Label data-layout-role="rule-card-title">{SKIP_TITLE}</Label>
 				{api.readOnly ? null : (
-					<Button
-						aria-label="Remove Skip when"
+					<span
 						className="nodrag nopan"
 						data-layout-role="rule-card-remove-skip"
-						onClick={() => api.removeSkip(id)}
-						size="icon-sm"
-						variant="ghost"
 					>
-						<Icon icon={Close} />
-					</Button>
+						<IconButton
+							icon={<Icon icon={Close} />}
+							label="Remove Skip when"
+							onAction={() => api.removeSkip(id)}
+							size="small"
+							variant="ghost"
+						/>
+					</span>
 				)}
 			</div>
 			{card.checkIds.length > 1 && card.gateId ? (
 				<div className="nodrag nopan" data-layout-role="rule-card-mode">
 					<Select
+						ariaLabel="Skip when match"
 						disabled={api.readOnly}
-						items={MODE_ITEMS}
 						onValueChange={(value) => {
 							const mode = skipModeSchema.safeParse(value);
 							if (mode.success && mode.data !== card.mode) {
 								api.setMode(id, mode.data);
 							}
 						}}
+						options={MODE_ITEMS}
 						value={card.mode}
-					>
-						<SelectTrigger
-							aria-label="Skip when match"
-							data-layout-role="rule-card-mode-trigger"
-							size="sm"
-						>
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent size="sm">
-							{MODE_ITEMS.map((item) => (
-								<SelectItem key={item.value} value={item.value}>
-									{item.label}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+					/>
 				</div>
 			) : null}
 			{card.checkIds.length > 0 ? (

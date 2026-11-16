@@ -1,13 +1,17 @@
 import type { CloseGif, ResponseBlock } from "@tripwire/contracts";
 import { failedRulesStyleSchema } from "@tripwire/contracts";
+import {
+	Field,
+	FieldDescription,
+	FieldLabel,
+	Textarea,
+} from "@tripwire/ui/field";
+import { Icon } from "@tripwire/ui/icon";
+import { RadioGroup } from "@tripwire/ui/radio-group";
 import type { ComponentProps } from "react";
 import { BLOCK_META } from "#/components/responses/blocks/block-catalog";
 import { GifBlockPopover } from "#/components/responses/blocks/gif-block-popover";
 import { TextBlockEditor } from "#/components/responses/blocks/text-block-editor";
-import { Icon } from "#/design-system/icon";
-import { Field, FieldDescription, FieldLabel } from "#/design-system/ui/field";
-import { RadioGroup, RadioGroupOption } from "#/design-system/ui/radio-group";
-import { Textarea } from "#/design-system/ui/textarea";
 
 export interface BlockSettingsProps {
 	block: ResponseBlock;
@@ -61,7 +65,7 @@ export function BlockSettings({
 	return (
 		<div className="flex min-h-0 flex-1 flex-col gap-4">
 			<h2 className="flex items-center gap-2 type-label-lg">
-				<Icon className="text-text-1" icon={meta.icon} />
+				<Icon icon={meta.icon} tone="primary" />
 				{meta.label}
 			</h2>
 			{block.type === "failed-rules" ? (
@@ -70,20 +74,16 @@ export function BlockSettings({
 						Choose how much detail each failed rule includes in the response.
 					</p>
 					<RadioGroup
-						aria-label="Failed rule detail"
+						ariaLabel="Failed rule detail"
 						disabled={readOnly}
 						onValueChange={setStyle}
+						options={failedRulesStyleSchema.options.map((style) => ({
+							description: STYLE_OPTIONS[style].description,
+							label: STYLE_OPTIONS[style].label,
+							value: style,
+						}))}
 						value={block.style}
-					>
-						{failedRulesStyleSchema.options.map((style) => (
-							<RadioGroupOption
-								description={STYLE_OPTIONS[style].description}
-								key={style}
-								label={STYLE_OPTIONS[style].label}
-								value={style}
-							/>
-						))}
-					</RadioGroup>
+					/>
 				</div>
 			) : null}
 			{block.type === "ai-notice" ? (
@@ -96,11 +96,10 @@ export function BlockSettings({
 				<Field disabled={readOnly}>
 					<FieldLabel>Expanded content</FieldLabel>
 					<Textarea
-						autoGrow
-						limit={4000}
-						maxRows={12}
-						minRows={6}
+						labelledByField
+						maxLength={4000}
 						onValueChange={setHelpContent}
+						rows={6}
 						value={block.content ?? helpDefaultContent}
 					/>
 					<FieldDescription>

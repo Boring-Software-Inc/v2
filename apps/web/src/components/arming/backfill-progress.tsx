@@ -1,9 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import {
-	Progress,
-	ProgressLabel,
-	ProgressValue,
-} from "#/design-system/ui/progress";
+import { Progress } from "@tripwire/ui/progress";
 import { orgRepoQueryOptions } from "#/lib/org.query";
 
 export function BackfillProgress({
@@ -29,12 +25,13 @@ export function BackfillProgress({
 	const done = repo.backfillDone ?? 0;
 	const total = repo.backfillTotal;
 	return (
-		<Progress className={className} max={total} value={done}>
-			<ProgressLabel>
-				Importing past change requests. This keeps running if you leave the
-				page.
-			</ProgressLabel>
-			<ProgressValue>{() => `${done} of ${total}`}</ProgressValue>
-		</Progress>
+		<div className={className}>
+			<Progress
+				label="Importing past change requests. This keeps running if you leave the page."
+				max={total}
+				value={done}
+				valueText={`${done} of ${total}`}
+			/>
+		</div>
 	);
 }

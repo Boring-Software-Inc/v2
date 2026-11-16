@@ -1,21 +1,20 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@tripwire/ui/button";
+import { Add, Icon } from "@tripwire/ui/icon";
+import { SkeletonText } from "@tripwire/ui/skeleton";
 import { useState } from "react";
+import {
+	EmptyState,
+	EmptyStateCode,
+	EmptyStateContent,
+	EmptyStateDescription,
+	EmptyStateHeader,
+	EmptyStateRetry,
+	EmptyStateTitle,
+} from "#/components/common/empty-state";
 import { ConnectForgeDialog } from "#/components/forges/connect-forge-dialog";
 import { OrganizationConnectionRow } from "#/components/forges/organization-connection-row";
 import { SettingsHeader } from "#/components/settings/settings-frame";
-import { Add, Icon } from "#/design-system/icon";
-import { Button } from "#/design-system/ui/button";
-import { CollapsibleGroup } from "#/design-system/ui/collapsible";
-import {
-	Empty,
-	EmptyCode,
-	EmptyContent,
-	EmptyDescription,
-	EmptyHeader,
-	EmptyRetry,
-	EmptyTitle,
-} from "#/design-system/ui/empty-state";
-import { SkeletonText } from "#/design-system/ui/skeleton";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { organizationConnectionsQueryOptions } from "#/lib/connections.query";
 import { orgHomeQueryOptions } from "#/lib/org.query";
@@ -36,7 +35,7 @@ export function OrganizationConnectionsPage({ org }: { org: string }) {
 		<>
 			<SettingsHeader title="Connections">
 				{canManage ? (
-					<Button onClick={() => setConnecting(true)}>
+					<Button onAction={() => setConnecting(true)} variant="primary">
 						<Icon icon={Add} />
 						Connect repos
 					</Button>
@@ -48,28 +47,34 @@ export function OrganizationConnectionsPage({ org }: { org: string }) {
 				</p>
 			) : query.isPending ? (
 				<div className="flex flex-col gap-3">
-					<SkeletonText className="w-32" type="label" />
-					<SkeletonText className="w-20" type="body-sm" />
+					<span data-skeleton-line="" aria-hidden className="w-32">
+						<SkeletonText type="label" />
+					</span>
+					<span data-skeleton-line="" aria-hidden className="w-20">
+						<SkeletonText type="body-sm" />
+					</span>
 				</div>
 			) : query.isError && query.data === undefined ? (
-				<Empty reason="error" size="sm" variant="plain">
-					<EmptyHeader>
-						<EmptyTitle>Couldn't load connections</EmptyTitle>
-						<EmptyDescription>
+				<EmptyState reason="error" size="sm" variant="plain">
+					<EmptyStateHeader>
+						<EmptyStateTitle>Couldn't load connections</EmptyStateTitle>
+						<EmptyStateDescription>
 							Tripwire couldn't read this org's saved forge connections.
-						</EmptyDescription>
-						{errorDetail ? <EmptyCode>{errorDetail}</EmptyCode> : null}
-					</EmptyHeader>
-					<EmptyContent>
-						<EmptyRetry
+						</EmptyStateDescription>
+						{errorDetail ? (
+							<EmptyStateCode>{errorDetail}</EmptyStateCode>
+						) : null}
+					</EmptyStateHeader>
+					<EmptyStateContent>
+						<EmptyStateRetry
 							onRetry={async () => {
 								await query.refetch({ throwOnError: true });
 							}}
 						>
 							Try again
-						</EmptyRetry>
-					</EmptyContent>
-				</Empty>
+						</EmptyStateRetry>
+					</EmptyStateContent>
+				</EmptyState>
 			) : (
 				<>
 					{query.isError ? (
@@ -80,7 +85,8 @@ export function OrganizationConnectionsPage({ org }: { org: string }) {
 					{query.data?.length ? (
 						<div className="shell">
 							<div className="panel p-0">
-								<CollapsibleGroup aria-label="Connected forges" variant="plain">
+								<fieldset>
+									<legend className="sr-only">Connected forges</legend>
 									{query.data.map((connection) => (
 										<OrganizationConnectionRow
 											org={org}
@@ -94,7 +100,7 @@ export function OrganizationConnectionsPage({ org }: { org: string }) {
 											}}
 										/>
 									))}
-								</CollapsibleGroup>
+								</fieldset>
 							</div>
 						</div>
 					) : (

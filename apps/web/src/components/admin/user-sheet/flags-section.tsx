@@ -2,6 +2,22 @@ import { useFlags } from "@databuddy/sdk/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import type { FlagOverrideChoice } from "@tripwire/contracts";
+import { Button, IconButton } from "@tripwire/ui/button";
+import { CopyButton } from "@tripwire/ui/copy-button";
+import {
+	Add,
+	Check,
+	External,
+	Failed,
+	Icon,
+	Retry,
+	Time,
+} from "@tripwire/ui/icon";
+import { Menu } from "@tripwire/ui/menu";
+import { SegmentedControl } from "@tripwire/ui/radio-group";
+import { SkeletonText } from "@tripwire/ui/skeleton";
+import { notify } from "@tripwire/ui/toast";
+import { Tooltip } from "@tripwire/ui/tooltip";
 import { formatStaffDateTime } from "#/components/admin/user-sheet/format";
 import {
 	FieldRow,
@@ -16,34 +32,6 @@ import {
 	errorText,
 	unwrapStaffAction,
 } from "#/components/admin/user-sheet/use-staff-action";
-import {
-	Add,
-	Check,
-	External,
-	Failed,
-	Icon,
-	Retry,
-	Time,
-} from "#/design-system/icon";
-import { Button } from "#/design-system/ui/button";
-import { CopyButton } from "#/design-system/ui/copy-button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "#/design-system/ui/dropdown-menu";
-import {
-	SegmentedControl,
-	SegmentedControlItem,
-} from "#/design-system/ui/segmented-control";
-import { SkeletonText } from "#/design-system/ui/skeleton";
-import { toast } from "#/design-system/ui/toast";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/design-system/ui/tooltip";
 import {
 	databuddyUserUrl,
 	flagSourceLabel,
@@ -107,7 +95,10 @@ function useFlagOverride(userId: string) {
 			if (context?.previous) {
 				queryClient.setQueryData(key, context.previous);
 			}
-			toast.fail(errorText(error, "Tripwire couldn't change this flag."));
+			notify.show(
+				{ title: errorText(error, "Tripwire couldn't change this flag.") },
+				"error",
+			);
 		},
 		onSettled: () =>
 			Promise.all([
@@ -123,7 +114,10 @@ function useRetrySync(userId: string) {
 		mutationFn: (flagKey: string) =>
 			unwrapStaffAction(retryAdminUserFlagSync({ data: { userId, flagKey } })),
 		onError: (error) =>
-			toast.fail(errorText(error, "Tripwire couldn't retry the sync.")),
+			notify.show(
+				{ title: errorText(error, "Tripwire couldn't retry the sync.") },
+				"error",
+			),
 		onSettled: () =>
 			queryClient.invalidateQueries({
 				queryKey: staffUserQueryKeys.flags(userId),
@@ -160,23 +154,19 @@ function SyncCell({
 			{glyph ? <Icon icon={glyph} size={12} /> : null}
 			<span>{label}</span>
 			{tone === "fail" ? (
-				<Tooltip>
-					<TooltipTrigger
-						render={
-							<Button
-								aria-label={`Retry the sync for ${row.key}`}
-								disabled={retrying}
-								onClick={onRetry}
-								size="icon-sm"
-								variant="ghost"
-							/>
-						}
-					>
-						<Icon icon={Retry} />
-					</TooltipTrigger>
-					<TooltipContent>
-						{row.override?.syncError ?? "The sync failed"}
-					</TooltipContent>
+				<Tooltip
+					trigger={
+						<IconButton
+							disabled={retrying}
+							icon={<Icon icon={Retry} />}
+							label={`Retry the sync for ${row.key}`}
+							onAction={onRetry}
+							size="small"
+							variant="ghost"
+						/>
+					}
+				>
+					{row.override?.syncError ?? "The sync failed"}
 				</Tooltip>
 			) : null}
 		</span>
@@ -212,29 +202,26 @@ function FlagRow({
 			</span>
 			<span data-layout-role="user-sheet-flag-control">
 				<SegmentedControl
-					aria-label={`Override for ${row.key}`}
+					ariaLabel={`Override for ${row.key}`}
 					disabled={
 						!connected ||
 						row.inDatabuddy !== true ||
 						row.override === null ||
 						row.override.syncStatus === "pending"
 					}
-					fill
 					onValueChange={(value) => {
+						if (!value) return;
 						const next = pickValue(CHOICES, value);
 						if (next && next !== choice) {
 							onChoose(next);
 						}
 					}}
-					size="sm"
+					options={CHOICES.map((value) => ({
+						label: CHOICE_LABEL[value],
+						value,
+					}))}
 					value={choice}
-				>
-					{CHOICES.map((value) => (
-						<SegmentedControlItem key={value} value={value}>
-							{CHOICE_LABEL[value]}
-						</SegmentedControlItem>
-					))}
-				</SegmentedControl>
+				/>
 			</span>
 			<span data-layout-role="user-sheet-flag-sync">
 				<SyncCell
@@ -264,25 +251,26 @@ export function FlagsSection({ view }: { view: AdminUserView }) {
 			row.override.choice !== "on",
 	);
 	const action = (
-		<DropdownMenu>
-			<DropdownMenuTrigger
-				disabled={!connected || flaggable.length === 0}
-				render={<Button size="sm" variant="secondary" />}
-			>
-				<Icon icon={Add} />
-				Flag in
-			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end" size="sm">
-				{flaggable.map((row) => (
-					<DropdownMenuItem
-						key={row.key}
-						onClick={() => override.mutate({ flagKey: row.key, choice: "on" })}
-					>
-						<span className="mono">{row.key}</span>
-					</DropdownMenuItem>
-				))}
-			</DropdownMenuContent>
-		</DropdownMenu>
+		<Menu
+			align="end"
+			ariaLabel="Flag in"
+			items={flaggable.map((row) => ({
+				label: row.key,
+				onAction: () => override.mutate({ flagKey: row.key, choice: "on" }),
+				type: "action" as const,
+				value: row.key,
+			}))}
+			trigger={
+				<Button
+					disabled={!connected || flaggable.length === 0}
+					size="small"
+					variant="secondary"
+				>
+					<Icon icon={Add} />
+					Flag in
+				</Button>
+			}
+		/>
 	);
 	return (
 		<SheetSectionBlock action={action} id="flags" title="Flags">
@@ -291,7 +279,11 @@ export function FlagsSection({ view }: { view: AdminUserView }) {
 			) : error || !data ? (
 				<div data-layout-role="user-sheet-inline-state">
 					<QuietLine>Tripwire couldn't load the flags.</QuietLine>
-					<Button onClick={() => void refetch()} size="sm" variant="secondary">
+					<Button
+						onAction={() => void refetch()}
+						size="small"
+						variant="secondary"
+					>
 						Load flags again
 					</Button>
 				</div>
@@ -329,7 +321,7 @@ export function FlagsSection({ view }: { view: AdminUserView }) {
 					<span data-layout-role="user-sheet-mono-value">{user.id}</span>
 					<CopyButton
 						label="Copy Databuddy profile id"
-						size="icon-sm"
+						size="small"
 						value={user.id}
 					/>
 					<a
@@ -350,7 +342,7 @@ export function FlagsSection({ view }: { view: AdminUserView }) {
 							</span>
 							<CopyButton
 								label="Copy last anonymous id"
-								size="icon-sm"
+								size="small"
 								value={user.databuddyAnonId}
 							/>
 						</>

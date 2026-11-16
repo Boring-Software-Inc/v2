@@ -43,6 +43,8 @@ import {
 	stepNames,
 	WORKFLOW_PORT_TONE,
 } from "@tripwire/contracts";
+import { DestructiveDialog } from "@tripwire/ui/dialog";
+import { notify } from "@tripwire/ui/toast";
 import {
 	addEdge,
 	type Connection,
@@ -132,17 +134,6 @@ import {
 	type TypedFlowEdge,
 } from "#/components/workflows/editor/typed-connections";
 import { WorkflowCode } from "#/components/workflows/editor/workflow-code";
-import {
-	Dialog,
-	DialogAction,
-	DialogClose,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/design-system/ui/dialog";
-import { toast } from "#/design-system/ui/toast";
 import type { AgentMotion } from "#/hooks/use-agent-motion";
 import { repoReviewersQueryOptions } from "#/lib/reviewers.query";
 import {
@@ -582,10 +573,11 @@ function EditorBody({
 				),
 			});
 			const undo = commit(trimmed);
-			toast(cardIds.length === 1 ? "Step deleted" : "Steps deleted", {
+			notify.show({
+				title: cardIds.length === 1 ? "Step deleted" : "Steps deleted",
 				action: {
 					label: "Undo",
-					onClick: () => {
+					onAction: () => {
 						setNodes(undo.nodes);
 						setEdges(undo.edges);
 					},
@@ -603,10 +595,11 @@ function EditorBody({
 				: deletedEdges.length === 1
 					? "Connection deleted"
 					: `${deletedEdges.length} connections deleted`;
-		toast(title, {
+		notify.show({
+			title: title,
 			action: {
 				label: "Undo",
-				onClick: () => {
+				onAction: () => {
 					setNodes(before.nodes);
 					setEdges(before.edges);
 				},
@@ -1122,10 +1115,11 @@ function EditorBody({
 		requestAnimationFrame(() =>
 			fitView({ ...fitViewOptions(), duration: 200 }),
 		);
-		toast("Steps arranged", {
+		notify.show({
+			title: "Steps arranged",
 			action: {
 				label: "Undo",
-				onClick: () => {
+				onAction: () => {
 					setNodes(before.nodes);
 					setEdges(before.edges);
 				},
@@ -1321,10 +1315,11 @@ function EditorBody({
 					? "Connection deleted"
 					: null;
 		if (removal) {
-			toast(removal, {
+			notify.show({
+				title: removal,
 				action: {
 					label: "Undo",
-					onClick: () => {
+					onAction: () => {
 						setNodes(before.nodes);
 						setEdges(before.edges);
 					},
@@ -1423,13 +1418,16 @@ function EditorBody({
 			problem.key.startsWith("schedule:"),
 		);
 		if (unparsed) {
-			toast.fail(`${unparsed.message} Fix the schedule to save.`);
+			notify.show(
+				{ title: `${unparsed.message} Fix the schedule to save.` },
+				"error",
+			);
 			revealProblem(unparsed);
 			return;
 		}
 		const result = graphToDefinition(meta, nodes, edges);
 		if (!result.ok) {
-			toast.fail(result.error);
+			notify.show({ title: result.error }, "error");
 			return;
 		}
 		const saved = await onSave(result.definition).catch(() => ({
@@ -1445,22 +1443,34 @@ function EditorBody({
 				new Map(failed.map((issue) => [issue.nodeId, [issue.message]])),
 			);
 			if (failed.length > 0) {
-				toast.warn(
-					"Workflow saved, but Tripwire could not reach a delivery address. Open the marked step to fix it.",
+				notify.show(
+					{
+						title:
+							"Workflow saved, but Tripwire could not reach a delivery address. Open the marked step to fix it.",
+					},
+					"warning",
 				);
 			} else if (enabled) {
-				toast.success("Workflow saved");
+				notify.show({ title: "Workflow saved" }, "success");
 			} else {
-				toast.success("Saved. The workflow is still off.", {
-					action: {
-						label: "Turn on",
-						onClick: () => handleSetEnabled(true),
+				notify.show(
+					{
+						title: "Saved. The workflow is still off.",
+						action: {
+							label: "Turn on",
+							onAction: () => handleSetEnabled(true),
+						},
 					},
-				});
+					"success",
+				);
 			}
 		} else {
-			toast.fail(
-				saved.error ?? "Tripwire could not save the workflow. Try again.",
+			notify.show(
+				{
+					title:
+						saved.error ?? "Tripwire could not save the workflow. Try again.",
+				},
+				"error",
 			);
 		}
 	};
@@ -1468,8 +1478,12 @@ function EditorBody({
 	const handleSetEnabled = async (next: boolean) => {
 		const result = await onSetEnabled(next).catch(() => null);
 		if (result === null) {
-			toast.fail(
-				"Tripwire could not reach the server, so the workflow did not change. Try again.",
+			notify.show(
+				{
+					title:
+						"Tripwire could not reach the server, so the workflow did not change. Try again.",
+				},
+				"error",
 			);
 			return;
 		}
@@ -1477,22 +1491,26 @@ function EditorBody({
 			if (result.warnings?.length) {
 				setServerIssues({ against: lintResults, issues: result.warnings });
 			}
-			toast.success(
-				result.enabled ? "Workflow turned on" : "Workflow turned off",
+			notify.show(
+				{
+					title: result.enabled ? "Workflow turned on" : "Workflow turned off",
+				},
+				"success",
 			);
 		} else {
 			setServerIssues({ against: lintResults, issues: result.issues });
 			const errors = result.issues.filter(
 				(issue) => (issue.severity ?? "error") === "error",
 			);
-			toast.fail(
-				`${errors.length} ${errors.length === 1 ? "problem keeps" : "problems keep"} the workflow off`,
+			notify.show(
 				{
+					title: `${errors.length} ${errors.length === 1 ? "problem keeps" : "problems keep"} the workflow off`,
 					action: {
 						label: "Show problems",
-						onClick: () => setProblemsOpen(true),
+						onAction: () => setProblemsOpen(true),
 					},
 				},
+				"error",
 			);
 		}
 	};
@@ -1638,38 +1656,21 @@ function EditorBody({
 					) : null}
 				</DragOverlay>
 			</DndContext>
-			<Dialog
+			<DestructiveDialog
+				confirmLabel="Leave without saving"
+				description="Your changes to this workflow are not saved. If you leave now, they are lost."
 				onOpenChange={(open) => {
 					if (!open && leave.status === "blocked") {
 						leave.reset();
 					}
 				}}
+				onConfirm={() => {
+					if (leave.status === "blocked") leave.proceed();
+				}}
 				open={leave.status === "blocked"}
-				role="alertdialog"
-			>
-				<DialogContent size="sm">
-					<DialogHeader>
-						<DialogTitle>Leave without saving?</DialogTitle>
-						<DialogDescription>
-							Your changes to this workflow are not saved. If you leave now,
-							they are lost.
-						</DialogDescription>
-					</DialogHeader>
-					<DialogFooter>
-						<DialogClose>Keep editing</DialogClose>
-						<DialogAction
-							onAction={() => {
-								if (leave.status === "blocked") {
-									leave.proceed();
-								}
-							}}
-							variant="destructive"
-						>
-							Leave without saving
-						</DialogAction>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+				pendingLabel="Leaving"
+				title="Leave without saving?"
+			/>
 		</div>
 	);
 }

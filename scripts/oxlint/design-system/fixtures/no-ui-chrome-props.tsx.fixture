@@ -1,0 +1,19 @@
+import { Button, Card } from "@tripwire/ui";
+import * as UI from "@tripwire/ui";
+
+const opaqueProps = { className: "not-statically-inspected" };
+
+export function ChromePropFixture() {
+	return (
+		<>
+			<Button className="p-2" style={{ color: "red" }}>
+				Save
+			</Button>
+			<Card render={<a href="/" />} />
+			<UI.Button
+				{...{ "--button-width": "10rem", classes: {}, unstyled: true }}
+			/>
+			<Button {...opaqueProps}>Allowed for TypeScript to reject</Button>
+		</>
+	);
+}

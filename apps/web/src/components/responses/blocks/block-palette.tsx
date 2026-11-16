@@ -32,6 +32,7 @@ export function BlockPalette({ outcome, disabled, onAdd }: BlockPaletteProps) {
 			groups={groups}
 			matches={matches}
 			noun="blocks"
+			presentation="panel"
 			renderItem={(meta) => (
 				<BlockPaletteItem
 					disabled={disabled}

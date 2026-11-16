@@ -1,9 +1,9 @@
 import type { Verdict } from "@tripwire/contracts";
 import { CHECK_NAME } from "@tripwire/contracts";
+import { StatusMark, type StatusValue } from "@tripwire/ui/status";
 import { AnimatePresence, motion } from "motion/react";
 import { BLUR_SWAP } from "#/components/responses/preview-motion";
 import { PreviewObject } from "#/components/responses/preview-object";
-import { StatusMark, type StatusValue } from "#/design-system/ui/status";
 
 const CHECK_STATE = {
 	pass: { word: "Passing", status: "ok", tone: "text-ok-text" },

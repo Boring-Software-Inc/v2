@@ -7,12 +7,7 @@ export function isApplicationSource(filename: string) {
 }
 
 export function isDesignSystemImplementation(filename: string) {
-	const path = normalized(filename);
-	return (
-		path.includes("/apps/web/src/design-system/") ||
-		path.includes("/apps/web/src/components/glaze/") ||
-		path.includes("/apps/web/src/lib/glaze/")
-	);
+	return normalized(filename).includes("/packages/ui/src/");
 }
 
 export function ownsLayoutGeometry(filename: string) {

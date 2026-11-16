@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import {
 	Blocked,
 	ChangeRequest,
@@ -7,8 +6,8 @@ import {
 	Comment,
 	Commit,
 	FailedMark,
-	type GlazeIcon,
 	Icon,
+	type IconGlyph,
 	Negate,
 	Pending,
 	Retry,
@@ -18,7 +17,8 @@ import {
 	Undo,
 	Waiting,
 	Warning,
-} from "#/design-system/icon";
+} from "@tripwire/ui/icon";
+import type { ReactNode } from "react";
 import type { ChainGlyph, ChainTone } from "#/lib/run-chain";
 import { cn } from "#/lib/utils";
 
@@ -37,20 +37,20 @@ const RING_GLYPH = {
 	errored: Warning,
 	superseded: Undo,
 	ran: Check,
-} satisfies Record<ChainGlyph, GlazeIcon>;
+} satisfies Record<ChainGlyph, IconGlyph>;
 
 const NODE_GLYPH = {
 	...RING_GLYPH,
 	pass: Check,
 	fail: Close,
 	skipped: Subtract,
-} satisfies Record<ChainGlyph, GlazeIcon>;
+} satisfies Record<ChainGlyph, IconGlyph>;
 
-const TONE_TEXT = {
-	ok: "text-ok",
-	fail: "text-fail",
-	neutral: "text-text-2",
-} satisfies Record<ChainTone, string>;
+const ICON_TONE = {
+	ok: "success",
+	fail: "danger",
+	neutral: "secondary",
+} as const satisfies Record<ChainTone, "success" | "danger" | "secondary">;
 
 export const TONE_WORD = {
 	ok: "text-ok-text",
@@ -70,12 +70,10 @@ export function ChainMark({
 	return (
 		<span className="flex h-lh shrink-0 items-center">
 			<Icon
-				className={cn(
-					TONE_TEXT[tone],
-					glyph === "running" && "animate-spin motion-reduce:animate-none",
-				)}
 				icon={RING_GLYPH[glyph]}
+				motion={glyph === "running" ? "spin" : undefined}
 				size={size}
+				tone={ICON_TONE[tone]}
 			/>
 		</span>
 	);
@@ -110,10 +108,8 @@ export function ChainNode({
 			)}
 		>
 			<Icon
-				className={cn(
-					glyph === "running" && "animate-spin motion-reduce:animate-none",
-				)}
 				icon={NODE_GLYPH[glyph]}
+				motion={glyph === "running" ? "spin" : undefined}
 				size={12}
 				weight={solid ? "bold" : "regular"}
 			/>

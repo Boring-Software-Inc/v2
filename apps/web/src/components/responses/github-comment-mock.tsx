@@ -1,20 +1,20 @@
 import { BADGE_PATH, BADGE_WIDTH, COMMENT_MARKER } from "@tripwire/contracts";
+import { Badge } from "@tripwire/ui/badge";
 import { AnimatePresence, motion } from "motion/react";
 import type { ReactNode } from "react";
 import { AnimatedHeight } from "#/components/common/animated-height";
+import {
+	EmptyState,
+	EmptyStateContent,
+	EmptyStateHeader,
+	EmptyStateTitle,
+} from "#/components/common/empty-state";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
 import {
 	BLUR_SWAP,
 	keyedByContent,
 } from "#/components/responses/preview-motion";
 import { PreviewObject } from "#/components/responses/preview-object";
-import { Badge } from "#/design-system/ui/badge";
-import {
-	Empty,
-	EmptyContent,
-	EmptyHeader,
-	EmptyTitle,
-} from "#/design-system/ui/empty-state";
 
 type BodyBlock =
 	| { kind: "paragraph"; text: string }
@@ -294,12 +294,12 @@ function SilentComment({ action }: { action?: ReactNode }) {
 	return (
 		<div className="sm:ms-13" data-dim="">
 			<PreviewObject>
-				<Empty size="sm" variant="plain">
-					<EmptyHeader>
-						<EmptyTitle>Tripwire posts no comment</EmptyTitle>
-					</EmptyHeader>
-					{action ? <EmptyContent>{action}</EmptyContent> : null}
-				</Empty>
+				<EmptyState size="sm" variant="plain">
+					<EmptyStateHeader>
+						<EmptyStateTitle>Tripwire posts no comment</EmptyStateTitle>
+					</EmptyStateHeader>
+					{action ? <EmptyStateContent>{action}</EmptyStateContent> : null}
+				</EmptyState>
 			</PreviewObject>
 		</div>
 	);
@@ -337,7 +337,7 @@ function PostedComment({
 						<span className="type-label font-semibold text-text-1">
 							tripwire
 						</span>
-						<Badge size="sm" variant="outline">
+						<Badge size="small" variant="outline">
 							bot
 						</Badge>
 						<span className="type-body-sm text-text-2">

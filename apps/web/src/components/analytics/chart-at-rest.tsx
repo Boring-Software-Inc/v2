@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
-import { Chart } from "#/design-system/ui/chart";
+import { Chart } from "#/components/common/chart";
 
 type CartesianChartProps = Extract<
 	ComponentProps<typeof Chart>,

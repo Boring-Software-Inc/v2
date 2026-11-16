@@ -1,3 +1,5 @@
+import { Item, ItemContent, ItemGroup, ItemTitle } from "@tripwire/ui/item";
+import { SkeletonText } from "@tripwire/ui/skeleton";
 import { AdminOverviewStats } from "#/components/admin/admin-overview-stats";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { Page, PageBody } from "#/components/layouts/page";
@@ -6,13 +8,6 @@ import {
 	SectionBody,
 	SectionHeader,
 } from "#/components/layouts/section";
-import {
-	Item,
-	ItemContent,
-	ItemGroup,
-	ItemTitle,
-} from "#/design-system/ui/item";
-import { SkeletonText } from "#/design-system/ui/skeleton";
 
 const ROW_SLOTS = ["users", "orgs", "repos", "installations", "pilot"] as const;
 
@@ -21,8 +16,16 @@ export function AdminHomePageSkeleton() {
 		<DashboardLayout counts={{}}>
 			<Page purpose="task">
 				<header aria-hidden data-layout-role="admin-page-header-skeleton">
-					<SkeletonText data-layout-size="page-title" type="heading" />
-					<SkeletonText data-layout-size="page-description" type="body" />
+					<span data-skeleton-line="" aria-hidden data-layout-size="page-title">
+						<SkeletonText type="heading" />
+					</span>
+					<span
+						data-skeleton-line=""
+						aria-hidden
+						data-layout-size="page-description"
+					>
+						<SkeletonText type="body" />
+					</span>
 				</header>
 				<PageBody>
 					<Section id="admin-summary-skeleton">
@@ -34,20 +37,26 @@ export function AdminHomePageSkeleton() {
 					<Section id="admin-sections-skeleton">
 						<SectionHeader title="Staff tools" />
 						<SectionBody>
-							<ItemGroup aria-hidden>
+							<ItemGroup aria-hidden data-layout-role="admin-dashboard-list">
 								{ROW_SLOTS.map((slot) => (
 									<Item key={slot}>
 										<ItemContent>
 											<ItemTitle>
-												<SkeletonText
+												<span
+													data-skeleton-line=""
+													aria-hidden
 													data-layout-size="section-title"
-													type="label"
-												/>
+												>
+													<SkeletonText type="label" />
+												</span>
 											</ItemTitle>
-											<SkeletonText
+											<span
+												data-skeleton-line=""
+												aria-hidden
 												data-layout-size="section-description"
-												type="body-sm"
-											/>
+											>
+												<SkeletonText type="body-sm" />
+											</span>
 										</ItemContent>
 									</Item>
 								))}

@@ -22,6 +22,7 @@ const NOW_AND_THEN_TALK: readonly Ambient[] = [
 ];
 
 export const MASCOT_MOODS = {
+	empty: { face: "neutral", wander: true },
 	"moderation-queue-empty": { face: "sleepy", sleeps: true },
 	"activity-empty": { face: "neutral", wander: true },
 	"activity-no-matches": { face: "surprised", wander: true },

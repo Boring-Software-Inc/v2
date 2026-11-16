@@ -1,20 +1,9 @@
+import { Button } from "@tripwire/ui/button";
+import { Combobox } from "@tripwire/ui/combobox";
+import { Icon, Retry } from "@tripwire/ui/icon";
+import { Status } from "@tripwire/ui/status";
 import { useContext } from "react";
 import { ReviewerScopeContext } from "#/components/workflows/editor/reviewer-picker";
-import { Icon, Retry } from "#/design-system/icon";
-import { Button } from "#/design-system/ui/button";
-import {
-	Combobox,
-	ComboboxChip,
-	ComboboxChips,
-	ComboboxChipsInput,
-	ComboboxContent,
-	ComboboxEmpty,
-	ComboboxItem,
-	ComboboxList,
-	ComboboxValue,
-	useComboboxAnchor,
-} from "#/design-system/ui/combobox";
-import { Status } from "#/design-system/ui/status";
 import { useSyncedList } from "#/hooks/use-synced-list";
 import { labelColor, labelOptions } from "#/lib/label-options";
 import { refreshRepoLabels } from "#/lib/labels.functions";
@@ -23,10 +12,14 @@ import { repoLabelsQueryOptions } from "#/lib/labels.query";
 function LabelDot({ color }: { color: string | null }) {
 	return (
 		<span
-			aria-hidden
-			className="inline-block size-2 shrink-0 rounded-full border border-line-faint"
-			style={color ? { backgroundColor: `#${color}` } : undefined}
-		/>
+			aria-hidden="true"
+			className="inline-block size-2 shrink-0 overflow-hidden rounded-full"
+		>
+			<svg aria-hidden="true" focusable="false" viewBox="0 0 8 8">
+				<circle cx="4" cy="4" fill={color ? `#${color}` : "none"} r="4" />
+				<circle cx="4" cy="4" data-label-swatch-ring="" fill="none" r="3.5" />
+			</svg>
+		</span>
 	);
 }
 
@@ -55,24 +48,25 @@ export function RefreshLabels({ readOnly }: { readOnly: boolean }) {
 	const { data, loading, syncing, refresh, repoId } = useRepoLabels();
 	if (loading && (data?.labels ?? []).length === 0) {
 		return (
-			<Status size="sm" status="running">
+			<Status size="small" status="running">
 				Loading labels
 			</Status>
 		);
 	}
 	return (
-		<Button
-			className="self-start"
-			disabled={readOnly || repoId === ""}
-			onClick={refresh}
-			pending={syncing}
-			pendingLabel="Refreshing"
-			size="sm"
-			variant="ghost"
-		>
-			<Icon icon={Retry} />
-			Refresh labels
-		</Button>
+		<div className="self-start">
+			<Button
+				disabled={readOnly || repoId === ""}
+				onAction={refresh}
+				pending={syncing}
+				pendingLabel="Refreshing"
+				size="small"
+				variant="ghost"
+			>
+				<Icon icon={Retry} />
+				Refresh labels
+			</Button>
+		</div>
 	);
 }
 
@@ -82,72 +76,43 @@ export function LabelPicker({
 	readOnly,
 	creatable = false,
 	placeholder,
-	id,
 	"aria-label": ariaLabel,
 	showRefresh = true,
 }: LabelPickerProps) {
-	const anchor = useComboboxAnchor();
 	const { data, loading } = useRepoLabels();
 	const synced = data?.labels ?? [];
 	const options = labelOptions(synced, value);
 	const names = options.map((option) => option.name);
 
 	return (
-		<div className="flex flex-col gap-2">
-			<Combobox<string, true>
-				creatable={creatable}
+		<div className="flex flex-col composition-gap-standard">
+			<Combobox<string>
+				allowCustomValue={creatable}
+				ariaLabel={ariaLabel ?? "Labels"}
+				createLabel={creatable ? (query) => `Create ${query}` : undefined}
 				disabled={readOnly}
-				items={names}
+				emptyLabel={
+					loading && synced.length === 0
+						? "Loading labels"
+						: synced.length > 0
+							? "No labels match"
+							: "No labels found"
+				}
 				multiple
+				onCreate={
+					creatable ? (query) => onChange([...value, query]) : undefined
+				}
 				onValueChange={(next) => onChange(next)}
+				options={names.map((name) => ({
+					icon: <LabelDot color={labelColor(options, name)} />,
+					label: name,
+					value: name,
+				}))}
+				placeholder={
+					placeholder ?? (creatable ? "Pick or type a label" : "Pick labels")
+				}
 				value={[...value]}
-			>
-				<ComboboxChips ref={anchor}>
-					<ComboboxValue>
-						{(selected: string[]) => (
-							<>
-								{selected.map((name) => (
-									<ComboboxChip key={name} value={name}>
-										<span className="inline-flex items-center gap-1.5">
-											<LabelDot color={labelColor(options, name)} />
-											{name}
-										</span>
-									</ComboboxChip>
-								))}
-								<ComboboxChipsInput
-									aria-label={ariaLabel}
-									id={id}
-									placeholder={
-										selected.length > 0
-											? ""
-											: (placeholder ??
-												(creatable ? "Pick or type a label" : "Pick labels"))
-									}
-								/>
-							</>
-						)}
-					</ComboboxValue>
-				</ComboboxChips>
-				<ComboboxContent anchor={anchor}>
-					<ComboboxEmpty>
-						{loading && synced.length === 0
-							? "Loading labels"
-							: synced.length > 0
-								? "No labels match"
-								: "No labels found"}
-					</ComboboxEmpty>
-					<ComboboxList>
-						{(name: string) => (
-							<ComboboxItem key={name} value={name}>
-								<span className="flex min-w-0 items-center gap-2">
-									<LabelDot color={labelColor(options, name)} />
-									<span className="truncate">{name}</span>
-								</span>
-							</ComboboxItem>
-						)}
-					</ComboboxList>
-				</ComboboxContent>
-			</Combobox>
+			/>
 			{showRefresh ? <RefreshLabels readOnly={readOnly} /> : null}
 		</div>
 	);

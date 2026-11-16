@@ -90,7 +90,11 @@ describe("WorkflowNodeFrame", () => {
 				expect(html.includes('data-selected="true"')).toBe(selected);
 				expect(html).toContain(`data-problem-status="${status}"`);
 				expect(html).toContain(`data-status="${status}"`);
-				expect(html).toContain(
+				const problemTrigger = html.match(/<button[^>]+>/)?.[0] ?? "";
+				expect(problemTrigger).toContain('data-slot="popover-trigger"');
+				expect(problemTrigger).toContain('type="button"');
+				expect(problemTrigger).not.toContain('tabindex="-1"');
+				expect(problemTrigger).toContain(
 					`aria-label="${problems.map((problem) => problem.message).join(". ")}"`,
 				);
 			});

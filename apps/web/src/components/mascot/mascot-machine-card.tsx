@@ -1,22 +1,11 @@
-import type { MascotSnapshot } from "#/components/mascot/engine";
-import {
-	MASCOT_EVENTS,
-	MASCOT_STATES,
-	TRANSITIONS,
-} from "#/components/mascot/machine";
-import { Badge } from "#/design-system/ui/badge";
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from "#/design-system/ui/card";
+import { Badge } from "@tripwire/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@tripwire/ui/card";
 import {
 	DataList,
 	DataListItem,
 	DataListLabel,
 	DataListValue,
-} from "#/design-system/ui/data-list";
+} from "@tripwire/ui/data-list";
 import {
 	Table,
 	TableBody,
@@ -24,7 +13,13 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "#/design-system/ui/table";
+} from "@tripwire/ui/table";
+import type { MascotSnapshot } from "#/components/mascot/engine";
+import {
+	MASCOT_EVENTS,
+	MASCOT_STATES,
+	TRANSITIONS,
+} from "#/components/mascot/machine";
 
 export type MascotMachineCardProps = {
 	snapshot: MascotSnapshot;
@@ -64,7 +59,7 @@ export function MascotMachineCard({ snapshot, debug }: MascotMachineCardProps) {
 										<span className="mono" data-testid="mascot-last-event">
 											{snapshot.lastEvent}
 										</span>
-										<Badge variant={snapshot.lastAccepted ? "ok" : "warn"}>
+										<Badge tone={snapshot.lastAccepted ? "success" : "warning"}>
 											{snapshot.lastAccepted ? "Accepted" : "Ignored"}
 										</Badge>
 									</span>

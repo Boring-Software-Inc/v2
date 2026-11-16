@@ -7,11 +7,9 @@ import {
 	ruleSupportsForge,
 	sameSettings,
 } from "@tripwire/contracts";
-import { useMemo } from "react";
-import { CaughtCount } from "#/components/rules/caught-count";
-import { Badge } from "#/design-system/ui/badge";
-import { Button } from "#/design-system/ui/button";
-import { Card, CardContent } from "#/design-system/ui/card";
+import { Badge } from "@tripwire/ui/badge";
+import { Button } from "@tripwire/ui/button";
+import { Card, CardContent } from "@tripwire/ui/card";
 import {
 	Item,
 	ItemActions,
@@ -19,7 +17,9 @@ import {
 	ItemDescription,
 	ItemGroup,
 	ItemTitle,
-} from "#/design-system/ui/item";
+} from "@tripwire/ui/item";
+import { useMemo } from "react";
+import { CaughtCount } from "#/components/rules/caught-count";
 import type { RuleConfigView } from "#/lib/rules.functions";
 
 export function turnableRuleIds(
@@ -116,7 +116,7 @@ export function RulePacks({
 							);
 							const key = `pack:${pack.id}`;
 							return (
-								<Item className="gap-4 py-3" key={pack.id}>
+								<Item data-layout-role="rule-pack-row" key={pack.id}>
 									<ItemContent>
 										<ItemTitle>
 											<span>{pack.name}</span>
@@ -130,18 +130,18 @@ export function RulePacks({
 										className="max-sm:hidden"
 										count={rulesCaught(preview, rules, pack.ruleIds)}
 									/>
-									<ItemActions className="me-0">
+									<ItemActions data-layout-role="rule-pack-action">
 										<Button
-											aria-label={`Install ${pack.name}`}
+											ariaLabel={`Install ${pack.name}`}
 											disabled={
 												!canEdit ||
 												turnable.length === 0 ||
 												(pending !== null && pending !== key)
 											}
-											onClick={() => onInstall(key, pack.name, turnable)}
+											onAction={() => onInstall(key, pack.name, turnable)}
 											pending={pending === key}
 											pendingLabel="Installing"
-											size="sm"
+											size="small"
 											variant={pack.recommended ? "primary" : "secondary"}
 										>
 											Install pack
