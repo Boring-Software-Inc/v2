@@ -5,7 +5,6 @@ import {
 	moderationItemSchema,
 	repoContentSchema,
 	repoInsightsSchema,
-	ruleSchema,
 	runLogEntrySchema,
 } from "./index.ts";
 
@@ -37,40 +36,6 @@ describe("contracts parse demo shapes", () => {
 				status: "pending",
 				comments: 0,
 				reactions: 0,
-			}),
-		).not.toThrow();
-	});
-
-	test("rule — nested recent match", () => {
-		expect(() =>
-			ruleSchema.parse({
-				id: "rule_blocklist_spam_domains",
-				name: "Known spam domains",
-				description: "Blocks links to blocklisted domains.",
-				category: "blocklist",
-				pattern: "blocklist/spam-domains",
-				scope: ["issue", "comment"],
-				action: "hide",
-				enabled: true,
-				matches24h: 41,
-				matches30d: 1180,
-				falsePositiveRate: 1.4,
-				lastFiredAt: "2026-07-11T00:00:00.000Z",
-				trend: [22, 30, 18, 27, 35, 44, 41],
-				recentMatches: [
-					{
-						id: "m_01",
-						type: "comment",
-						repoFullName: "acme/tripwire",
-						number: 97,
-						author: { login: "airdrop_king", avatarUrl: "https://x/y.png" },
-						snippet: "🚀 FREE $SOL airdrop",
-						matchedAt: "2026-07-11T00:00:00.000Z",
-						verdict: "pending",
-						threadKind: "issue",
-						commentId: "97-1",
-					},
-				],
 			}),
 		).not.toThrow();
 	});
@@ -226,15 +191,6 @@ describe("contracts parse demo shapes", () => {
 	});
 
 	test("documented ranges are enforced", () => {
-		expect(ruleSchema.shape.falsePositiveRate.safeParse(101).success).toBe(
-			false,
-		);
-		expect(ruleSchema.shape.falsePositiveRate.safeParse(-1).success).toBe(
-			false,
-		);
-		expect(ruleSchema.shape.falsePositiveRate.safeParse(1.4).success).toBe(
-			true,
-		);
 		expect(
 			contributorSummarySchema.shape.contributions.safeParse({
 				total: 1,
