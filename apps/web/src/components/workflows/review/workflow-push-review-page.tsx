@@ -1,7 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { WORKFLOW_PUSH_STATUS_LABELS } from "@tripwire/contracts";
+import { AgentBoundary } from "@tripwire/ui/agent-policy";
+import { Alert, AlertDescription, AlertTitle } from "@tripwire/ui/alert";
+import { Badge } from "@tripwire/ui/badge";
+import { Button } from "@tripwire/ui/button";
+import { RelativeTime } from "@tripwire/ui/relative-time";
+import { Status, type StatusValue } from "@tripwire/ui/status";
+import { PageTitle } from "@tripwire/ui/typography";
 import { TripwireCodeDiff } from "#/components/code";
+import {
+	EmptyState,
+	EmptyStateContent,
+	EmptyStateDescription,
+	EmptyStateHeader,
+} from "#/components/common/empty-state";
 import {
 	HistoryBackControl,
 	useCanGoBack,
@@ -16,18 +29,6 @@ import {
 } from "#/components/layouts/section";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { ReviewSkeleton } from "#/components/workflows/review/workflow-push-review-page-skeleton";
-import { Alert, AlertDescription, AlertTitle } from "#/design-system/ui/alert";
-import { Badge } from "#/design-system/ui/badge";
-import { Button } from "#/design-system/ui/button";
-import {
-	Empty,
-	EmptyContent,
-	EmptyDescription,
-	EmptyHeader,
-} from "#/design-system/ui/empty-state";
-import { RelativeTime } from "#/design-system/ui/relative-time";
-import { Status, type StatusValue } from "#/design-system/ui/status";
-import { PageTitle } from "#/design-system/ui/typography";
 import {
 	canAccept,
 	canDecide,
@@ -44,6 +45,7 @@ import {
 	workflowPushReviewQueryOptions,
 } from "#/lib/workflow-pushes.query";
 import { workflowsQueryKeys } from "#/lib/workflows.query";
+import "./workflow-push-review-page.css";
 
 const routeApi = getRouteApi("/$org/$repo/workflows/review/$pushId");
 
@@ -105,24 +107,26 @@ export function WorkflowPushReviewPage() {
 function ReviewNotFound({ org, repo }: { org: string; repo: string }) {
 	return (
 		<div data-layout-role="workflow-review-not-found">
-			<Empty art={<MascotArt mood="workflow-not-found" />} reason="no-results">
-				<EmptyHeader>
+			<EmptyState
+				art={<MascotArt mood="workflow-not-found" />}
+				reason="no-results"
+			>
+				<EmptyStateHeader>
 					<PageTitle>Push not found</PageTitle>
-					<EmptyDescription>
+					<EmptyStateDescription>
 						The link is wrong, or your role cannot change workflows here.
-					</EmptyDescription>
-				</EmptyHeader>
-				<EmptyContent>
+					</EmptyStateDescription>
+				</EmptyStateHeader>
+				<EmptyStateContent>
 					<Button
-						nativeButton={false}
-						render={<Link params={{ org, repo }} to="/$org/$repo/workflows" />}
-						size="sm"
+						href={`/${org}/${repo}/workflows`}
+						size="small"
 						variant="secondary"
 					>
 						View workflows
 					</Button>
-				</EmptyContent>
-			</Empty>
+				</EmptyStateContent>
+			</EmptyState>
 		</div>
 	);
 }
@@ -165,31 +169,34 @@ function ReviewBody({ data, busy, failure, onDecide }: ReviewBodyProps) {
 					<WorkflowSection key={workflow.id} workflow={workflow} />
 				))}
 				{failure ? (
-					<Alert status="fail">
+					<Alert role="alert" status="danger">
 						<AlertDescription>{failure}</AlertDescription>
 					</Alert>
 				) : null}
 				{canDecide(state) ? (
 					<footer data-layout-role="workflow-review-actions">
 						<p>
-							Expires <RelativeTime date={data.expiresAt} format="long" />
+							Expires <RelativeTime date={data.expiresAt} />
 						</p>
 						<div>
-							<Button
-								disabled={busy}
-								onClick={() => onDecide("reject")}
-								size="sm"
-								variant="secondary"
-							>
-								Decline
-							</Button>
-							<Button
-								disabled={busy || !canAccept(state)}
-								onClick={() => onDecide("accept")}
-								size="sm"
-							>
-								Accept changes
-							</Button>
+							<AgentBoundary visibility="hidden">
+								<Button
+									disabled={busy}
+									onAction={() => onDecide("reject")}
+									size="small"
+									variant="secondary"
+								>
+									Decline
+								</Button>
+								<Button
+									disabled={busy || !canAccept(state)}
+									onAction={() => onDecide("accept")}
+									size="small"
+									variant="primary"
+								>
+									Accept changes
+								</Button>
+							</AgentBoundary>
 						</div>
 					</footer>
 				) : null}
@@ -209,7 +216,7 @@ function StateNote({ data, state, org, repo }: StateNoteProps) {
 	switch (state) {
 		case "blocked":
 			return (
-				<Alert announce={false} status="fail">
+				<Alert status="danger">
 					<AlertTitle>A workflow that is on would break</AlertTitle>
 					<AlertDescription>
 						Fix tripwire.ts and push again, or decline this push.
@@ -218,7 +225,7 @@ function StateNote({ data, state, org, repo }: StateNoteProps) {
 			);
 		case "stale":
 			return (
-				<Alert announce={false} status="warn">
+				<Alert status="warning">
 					<AlertTitle>The workflows changed after this push</AlertTitle>
 					<AlertDescription>
 						Run tripwire workflows diff, then push again.
@@ -227,14 +234,14 @@ function StateNote({ data, state, org, repo }: StateNoteProps) {
 			);
 		case "expired":
 			return (
-				<Alert announce={false}>
+				<Alert variant="notice">
 					<AlertTitle>This push expired</AlertTitle>
 					<AlertDescription>Nothing was saved. Push again.</AlertDescription>
 				</Alert>
 			);
 		case "rejected":
 			return (
-				<Alert announce={false}>
+				<Alert variant="notice">
 					<AlertTitle>
 						Declined{data.decidedByName ? ` by ${data.decidedByName}` : ""}
 					</AlertTitle>
@@ -243,7 +250,7 @@ function StateNote({ data, state, org, repo }: StateNoteProps) {
 			);
 		case "accepted":
 			return (
-				<Alert announce={false} status="ok">
+				<Alert status="success" variant="notice">
 					<AlertTitle>
 						Accepted{data.decidedByName ? ` by ${data.decidedByName}` : ""}
 					</AlertTitle>
@@ -276,12 +283,12 @@ function WorkflowSection({ workflow }: { workflow: PushReviewWorkflow }) {
 			<SectionHeader
 				actions={
 					<>
-						<Badge variant={workflow.change === "new" ? "ok" : "neutral"}>
+						<Badge tone={workflow.change === "new" ? "success" : "neutral"}>
 							{workflow.change === "new" ? "New" : "Changed"}
 						</Badge>
 						{workflow.enabled ? <Badge variant="outline">On</Badge> : null}
 						{workflow.stale ? (
-							<Badge variant="warn">Changed since push</Badge>
+							<Badge tone="warning">Changed since push</Badge>
 						) : null}
 					</>
 				}

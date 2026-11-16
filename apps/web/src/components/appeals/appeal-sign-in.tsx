@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
-import { Button } from "#/design-system/ui/button";
-import { SupportingText } from "#/design-system/ui/typography";
+import { Button } from "@tripwire/ui/button";
+import { SupportingText } from "@tripwire/ui/typography";
 import { authClient } from "#/lib/auth-client";
 
 export function AppealSignIn({
@@ -26,13 +26,16 @@ export function AppealSignIn({
 					? "Sign in with the GitHub account you’re appealing for."
 					: "Sign in with the GitHub account that opened the issue or pull request."}
 			</SupportingText>
-			<Button
-				className="self-start"
-				onClick={() => signIn.mutate()}
-				pending={signIn.isPending}
-			>
-				Sign in with GitHub
-			</Button>
+			<div className="self-start">
+				<Button
+					onAction={() => signIn.mutate()}
+					pending={signIn.isPending}
+					reservePendingWidth
+					variant="primary"
+				>
+					Sign in with GitHub
+				</Button>
+			</div>
 			{signIn.isError && (
 				<SupportingText role="alert">
 					GitHub sign-in failed. Try again.

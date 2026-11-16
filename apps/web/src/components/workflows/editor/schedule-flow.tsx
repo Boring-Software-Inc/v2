@@ -13,6 +13,9 @@ import {
 	missingScheduleSteps,
 	NEW_SCHEDULE_DRAFT,
 } from "@tripwire/contracts";
+import { Checkbox } from "@tripwire/ui/checkbox";
+import { Field, FieldLabel } from "@tripwire/ui/field";
+import { SegmentedControl } from "@tripwire/ui/radio-group";
 import { type ReactNode, useId, useRef, useState } from "react";
 import {
 	LabelPicker,
@@ -23,12 +26,6 @@ import {
 	useScheduleDraft,
 } from "#/components/workflows/editor/node-issues";
 import { ScheduleTextField } from "#/components/workflows/editor/schedule-input";
-import { Checkbox } from "#/design-system/ui/checkbox";
-import { Field, FieldLabel, FieldTitle, Label } from "#/design-system/ui/field";
-import {
-	SegmentedControl,
-	SegmentedControlItem,
-} from "#/design-system/ui/segmented-control";
 import { useTimezones } from "#/hooks/use-timezones";
 import { UNIT_LABEL } from "#/lib/schedule-summary";
 import {
@@ -103,13 +100,9 @@ function StepTitle({
 	children: ReactNode;
 }) {
 	return (
-		<FieldTitle
-			data-layout-role="trigger-step-title"
-			data-status={status}
-			id={id}
-		>
+		<h3 data-layout-role="trigger-step-title" data-status={status} id={id}>
 			{children}
-		</FieldTitle>
+		</h3>
 	);
 }
 
@@ -229,14 +222,16 @@ function CheckList<Value extends string>({
 			data-row={row || undefined}
 		>
 			{options.map((option) => (
-				<Label data-layout-role="trigger-check-option" key={option.value}>
+				<div data-layout-role="trigger-check-option" key={option.value}>
 					<Checkbox
 						checked={chosen.includes(option.value)}
 						disabled={readOnly}
-						onCheckedChange={(checked) => onToggle(option.value, checked)}
+						label={option.label}
+						onCheckedChange={(checked) =>
+							onToggle(option.value, checked === true)
+						}
 					/>
-					{option.label}
-				</Label>
+				</div>
 			))}
 		</fieldset>
 	);
@@ -337,23 +332,16 @@ function ScheduleSteps({
 							Status
 						</StepTitle>
 						<SegmentedControl
-							aria-labelledby={stateTitleId}
+							ariaLabelledBy={stateTitleId}
 							disabled={readOnly}
-							onValueChange={(next) =>
-								setMatch({ state: next as ScheduleState }, "state")
-							}
+							onValueChange={(next) => {
+								if (next) {
+									setMatch({ state: next as ScheduleState }, "state");
+								}
+							}}
+							options={STATE_OPTIONS}
 							value={draft.match.state ?? ""}
-						>
-							{STATE_OPTIONS.map((option) => (
-								<SegmentedControlItem
-									data-layout-role="trigger-state-option"
-									key={option.value}
-									value={option.value}
-								>
-									{option.label}
-								</SegmentedControlItem>
-							))}
-						</SegmentedControl>
+						/>
 					</div>
 					<div
 						data-layout-role="trigger-match-inactivity"
@@ -412,14 +400,16 @@ function ScheduleSteps({
 						value={draft.match.excludeLabels ?? []}
 					/>
 				</Field>
-				<Label data-layout-role="trigger-check-option">
+				<div data-layout-role="trigger-check-option">
 					<Checkbox
 						checked={draft.match.skipLocked !== false}
 						disabled={readOnly}
-						onCheckedChange={(checked) => setMatch({ skipLocked: checked })}
+						label="Skip locked"
+						onCheckedChange={(checked) =>
+							setMatch({ skipLocked: checked === true })
+						}
 					/>
-					Skip locked
-				</Label>
+				</div>
 			</div>
 		</>
 	);
@@ -488,22 +478,12 @@ export function TriggerFlow({
 					Run
 				</StepTitle>
 				<SegmentedControl
-					aria-labelledby={runTitleId}
+					ariaLabelledBy={runTitleId}
 					disabled={readOnly}
-					fill
-					onValueChange={(next) => choosePath(next as TriggerPath)}
+					onValueChange={(next) => next && choosePath(next as TriggerPath)}
+					options={PATH_OPTIONS}
 					value={path}
-				>
-					{PATH_OPTIONS.map((option) => (
-						<SegmentedControlItem
-							data-layout-role="trigger-path-option"
-							key={option.value}
-							value={option.value}
-						>
-							{option.label}
-						</SegmentedControlItem>
-					))}
-				</SegmentedControl>
+				/>
 			</Step>
 			{path === "event" ? (
 				<Step status={whenStatus} step="kinds">

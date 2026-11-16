@@ -1,3 +1,6 @@
+import { Card, CardContent, CardFooter, CardHeader } from "@tripwire/ui/card";
+import { Skeleton, SkeletonText } from "@tripwire/ui/skeleton";
+import { Label, SectionHeading } from "@tripwire/ui/typography";
 import type { ReactNode } from "react";
 import {
 	HistoryBackControl,
@@ -9,9 +12,7 @@ import {
 	SectionBody,
 	SectionHeader,
 } from "#/components/layouts/section";
-import { SidebarNav, sidebarNavItemClass } from "#/design-system/ui/sidebar";
-import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
-import { Label } from "#/design-system/ui/typography";
+import { SidebarNav, sidebarNavItemClass } from "#/components/layouts/sidebar";
 
 export function SettingsFrame({
 	nav,
@@ -77,6 +78,34 @@ export function SettingsSection({
 	);
 }
 
+export function SettingsPanel({
+	id,
+	title,
+	danger = false,
+	flush = false,
+	footer,
+	children,
+}: {
+	id: string;
+	title: string;
+	danger?: boolean;
+	flush?: boolean;
+	footer?: ReactNode;
+	children: ReactNode;
+}) {
+	return (
+		<Section id={id}>
+			<Card data-layout-role="settings-panel" data-danger={danger || undefined}>
+				<CardHeader>
+					<SectionHeading id={`${id}-heading`}>{title}</SectionHeading>
+				</CardHeader>
+				<CardContent flush={flush}>{children}</CardContent>
+				{footer ? <CardFooter wrap>{footer}</CardFooter> : null}
+			</Card>
+		</Section>
+	);
+}
+
 export function SettingsCard({ children }: { children: ReactNode }) {
 	return <div data-layout-role="settings-card">{children}</div>;
 }
@@ -95,9 +124,17 @@ export function SettingsNavSkeleton({
 			<SidebarNav aria-hidden>
 				{SETTINGS_NAV_SLOTS.map((slot) => (
 					<div className={sidebarNavItemClass({ collapsed })} key={slot}>
-						<Skeleton className="size-4 rounded-tag" />
+						<span
+							data-skeleton-box=""
+							aria-hidden
+							className="size-4 rounded-tag"
+						>
+							<Skeleton fill />
+						</span>
 						{collapsed ? null : (
-							<SkeletonText data-layout-size="medium" type="label" />
+							<span data-skeleton-line="" aria-hidden data-layout-size="medium">
+								<SkeletonText type="label" />
+							</span>
 						)}
 					</div>
 				))}
@@ -108,7 +145,9 @@ export function SettingsNavSkeleton({
 		<div aria-hidden data-layout-role="settings-nav-skeleton">
 			{SETTINGS_NAV_SLOTS.map((slot) => (
 				<div data-layout-role="settings-nav-skeleton-item" key={slot}>
-					<SkeletonText data-layout-size="medium" type="label" />
+					<span data-skeleton-line="" aria-hidden data-layout-size="medium">
+						<SkeletonText type="label" />
+					</span>
 				</div>
 			))}
 		</div>
@@ -119,7 +158,9 @@ export function SettingsContentSkeleton() {
 	return (
 		<div aria-hidden data-layout-role="settings-page">
 			<div data-layout-role="settings-content-skeleton-heading">
-				<SkeletonText data-layout-size="wide" type="heading" />
+				<span data-skeleton-line="" aria-hidden data-layout-size="wide">
+					<SkeletonText type="heading" />
+				</span>
 			</div>
 			<div data-layout-role="settings-content-skeleton-card">
 				<Skeleton />

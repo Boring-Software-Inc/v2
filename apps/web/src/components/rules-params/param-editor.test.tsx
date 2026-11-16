@@ -92,9 +92,29 @@ describe("ParamEditor presentation parsing", () => {
 				'<option value="a" selected="">',
 			);
 		}
-		for (const value of ["", "not-an-option"]) {
-			expect(renderEditor(ENUM_PARAM, value)).not.toContain('selected=""');
-		}
+		expect(renderEditor(ENUM_PARAM, "")).toContain(
+			'<option value="" selected="">Select Mode</option>',
+		);
+		expect(renderEditor(ENUM_PARAM, "not-an-option")).not.toContain(
+			'selected=""',
+		);
+	});
+
+	test("enum editors reserve the empty value for the nullable placeholder", () => {
+		const html = renderEditor(
+			{
+				key: "mode",
+				label: "Mode",
+				kind: "enum",
+				options: ["", "a"],
+				default: "",
+			},
+			"",
+		);
+
+		expect(html).toContain("Select Mode");
+		expect(html.match(/<option value=""/g)).toHaveLength(1);
+		expect(html).toContain('<option value="a">a</option>');
 	});
 
 	test("initializing an editor never saves or cancels an invalid draft", () => {

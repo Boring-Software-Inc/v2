@@ -1,14 +1,8 @@
-import { type ComponentProps, type ReactNode, useState } from "react";
-import { type GlazeIcon, Icon } from "#/design-system/icon";
-import { cn } from "#/design-system/lib/utils";
-import { Button } from "#/design-system/ui/button";
-import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleGroup,
-	CollapsibleTrigger,
-} from "#/design-system/ui/collapsible";
-import { Input } from "#/design-system/ui/input";
+import { Button } from "@tripwire/ui/button";
+import { Accordion } from "@tripwire/ui/collapsible";
+import { Input } from "@tripwire/ui/field";
+import { Icon, type IconGlyph, Search } from "@tripwire/ui/icon";
+import type { InteractionDetails } from "@tripwire/ui/interaction";
 import {
 	Item,
 	ItemActions,
@@ -16,12 +10,14 @@ import {
 	ItemDescription,
 	ItemMedia,
 	ItemTitle,
-} from "#/design-system/ui/item";
+} from "@tripwire/ui/item";
+import { type ComponentProps, type ReactNode, useState } from "react";
+import { cn } from "#/lib/utils";
 
 export interface PickerGroup<T> {
 	key: string;
 	title: string;
-	icon: GlazeIcon;
+	icon: IconGlyph;
 	items: T[];
 }
 
@@ -32,6 +28,8 @@ export interface GroupedPickerProps<T> {
 	defaultOpen: string[];
 	forceOpen?: boolean;
 	autoFocus?: boolean;
+	presentation?: "default" | "panel" | "disclosure";
+	searchAppearance?: "compact-search";
 	renderItem: (item: T) => ReactNode;
 	renderFooter?: (group: PickerGroup<T>, allOpen: boolean) => ReactNode;
 }
@@ -43,6 +41,8 @@ export function GroupedPicker<T>({
 	defaultOpen,
 	forceOpen = false,
 	autoFocus,
+	presentation = "default",
+	searchAppearance,
 	renderItem,
 	renderFooter,
 }: GroupedPickerProps<T>) {
@@ -60,61 +60,80 @@ export function GroupedPicker<T>({
 		: groups;
 	const allOpen = searching || forceOpen;
 	const label = `Search ${noun}`;
+	const panel = presentation === "panel";
+	const appearance = panel ? "compact-search" : searchAppearance;
 
 	return (
-		<>
-			<div className="flex shrink-0 items-center gap-1 border-line-faint border-b p-2">
-				<Input
-					aria-label={label}
-					autoFocus={autoFocus}
-					className="min-w-0 flex-1"
-					mode="search"
-					onValueChange={setQuery}
-					placeholder={label}
-					size="sm"
-					value={query}
-				/>
+		<div data-layout-role="grouped-picker" data-presentation={presentation}>
+			<div
+				className="flex shrink-0 items-center composition-gap-small tone-border-faint border-b"
+				data-layout-role="grouped-picker-search"
+			>
+				<div className="min-w-0 flex-1">
+					<Input
+						appearance={appearance}
+						ariaLabel={label}
+						autoFocus={autoFocus}
+						leadingIcon={
+							appearance ? <Icon icon={Search} size={12} /> : undefined
+						}
+						onValueChange={setQuery}
+						placeholder={label}
+						type="search"
+						value={query}
+					/>
+				</div>
 			</div>
-			<div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+			<div
+				className="min-h-0 flex-1 overflow-y-auto composition-bottom-standard"
+				data-layout-role="grouped-picker-items"
+			>
 				{visible.length === 0 ? (
-					<p className="px-1 py-3 type-body-sm text-text-2">
+					<p
+						className="content-body-small tone-content-secondary"
+						data-layout-role="grouped-picker-empty"
+					>
 						No {noun} match “{query.trim()}”.
 					</p>
 				) : (
-					<CollapsibleGroup
-						multiple
-						onValueChange={(next) => setOpen(next as string[])}
-						value={allOpen ? visible.map((group) => group.key) : open}
-						variant="plain"
-					>
-						{visible.map((group) => (
-							<Collapsible key={group.key} value={group.key}>
-								<CollapsibleTrigger summary={String(group.items.length)}>
-									<span className="inline-flex items-center gap-2">
-										<Icon icon={group.icon} />
-										{group.title}
-									</span>
-								</CollapsibleTrigger>
-								<CollapsibleContent className="max-w-none pe-0 pb-2 group-data-[variant=plain]/collapsible-group:ps-2">
-									<div className="flex flex-col">
-										{group.items.map((item) => renderItem(item))}
-									</div>
+					<Accordion
+						items={visible.map((group) => ({
+							content: (
+								<div
+									className="flex flex-col composition-bottom-standard"
+									data-layout-role="grouped-picker-rows"
+								>
+									{group.items.map((item) => renderItem(item))}
 									{renderFooter?.(group, allOpen)}
-								</CollapsibleContent>
-							</Collapsible>
-						))}
-					</CollapsibleGroup>
+								</div>
+							),
+							count: panel ? undefined : group.items.length,
+							icon: group.icon,
+							label: group.title,
+							value: group.key,
+						}))}
+						multiple
+						onValueChange={setOpen}
+						value={allOpen ? visible.map((group) => group.key) : open}
+						variant={
+							panel
+								? "sections"
+								: presentation === "disclosure"
+									? "disclosure"
+									: "picker"
+						}
+					/>
 				)}
 			</div>
-		</>
+		</div>
 	);
 }
 
 export type PickerRowProps = Omit<
 	ComponentProps<typeof Item>,
-	"children" | "size"
+	"children" | "density"
 > & {
-	icon: GlazeIcon;
+	icon: IconGlyph;
 	name: string;
 	description?: string;
 	muted?: boolean;
@@ -130,12 +149,9 @@ export function PickerRow({
 	...props
 }: PickerRowProps) {
 	return (
-		<Item size="sm" {...props}>
+		<Item density="compact" {...props}>
 			<ItemMedia>
-				<Icon
-					className={muted ? "text-text-disabled" : "text-text-2"}
-					icon={icon}
-				/>
+				<Icon icon={icon} tone={muted ? "disabled" : "secondary"} />
 			</ItemMedia>
 			<ItemContent>
 				<ItemTitle>
@@ -144,48 +160,44 @@ export function PickerRow({
 				{description ? <ItemDescription>{description}</ItemDescription> : null}
 			</ItemContent>
 			{action ? (
-				<ItemActions className="static -me-3">{action}</ItemActions>
+				<ItemActions data-layout-role="picker-row-actions">
+					{action}
+				</ItemActions>
 			) : null}
 		</Item>
 	);
 }
 
-export type PickerRowActionProps = Omit<
-	ComponentProps<typeof Button>,
-	"children" | "size" | "variant"
-> & {
-	glyph: GlazeIcon;
+export interface PickerRowActionProps {
+	ariaLabel: string;
+	disabled?: boolean;
+	glyph: IconGlyph;
+	onAction?: (details: InteractionDetails) => unknown;
+	pending?: boolean;
 	reveal: "hover" | "touch" | "always" | "never";
-};
+}
 
 export function PickerRowAction({
 	glyph,
 	reveal,
-	className,
 	...props
 }: PickerRowActionProps) {
 	return (
-		<Button
-			className={cn(
-				"static after:absolute after:inset-0 after:content-['']",
-				className,
-			)}
-			data-slot="item-link"
-			size="icon-sm"
-			variant="ghost"
-			{...props}
-		>
-			<Icon
-				className={cn(
-					"transition-opacity duration-(--dur-state)",
-					reveal !== "always" && "opacity-0",
-					(reveal === "hover" || reveal === "touch") &&
-						"pointer-coarse:opacity-100",
-					reveal === "hover" &&
-						"group-hover/item:opacity-100 group-has-[[data-slot=item-link]:focus-visible]/item:opacity-100",
-				)}
-				icon={glyph}
-			/>
-		</Button>
+		<span data-layout-role="picker-row-action">
+			<Button size="small" variant="ghost" {...props}>
+				<span
+					className={cn(
+						"transition-opacity duration-(--dur-state)",
+						reveal !== "always" && "opacity-0",
+						(reveal === "hover" || reveal === "touch") &&
+							"pointer-coarse:opacity-100",
+						reveal === "hover" &&
+							"group-hover/item:opacity-100 picker-focus-visible",
+					)}
+				>
+					<Icon icon={glyph} />
+				</span>
+			</Button>
+		</span>
 	);
 }

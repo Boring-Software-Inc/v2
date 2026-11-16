@@ -5,6 +5,25 @@ import {
 	type OrganizationAppealType,
 	organizationAppealTypeSchema,
 } from "@tripwire/contracts";
+import { Button } from "@tripwire/ui/button";
+import { Card, CardContent } from "@tripwire/ui/card";
+import { Dialog } from "@tripwire/ui/dialog";
+import { Field, FieldLabel, Textarea } from "@tripwire/ui/field";
+import { External, Icon } from "@tripwire/ui/icon";
+import {
+	Item,
+	ItemActions,
+	ItemContent,
+	ItemDescription,
+	ItemGroup,
+	ItemTitle,
+} from "@tripwire/ui/item";
+import { Select } from "@tripwire/ui/select";
+import {
+	PageTitle,
+	SectionHeading,
+	SupportingText,
+} from "@tripwire/ui/typography";
 import { useState } from "react";
 import { AppealAdminPortal } from "#/components/appeals/appeal-admin-portal";
 import { AppealPageSkeleton } from "#/components/appeals/appeal-page-skeleton";
@@ -13,40 +32,13 @@ import { ConfirmDestructiveDialog } from "#/components/common/confirm-destructiv
 import { ContributionAppealLayout } from "#/components/layouts/contribution-appeal-layout";
 import { FormActions } from "#/components/layouts/section";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
-import { External, Icon } from "#/design-system/icon";
-import { Button, buttonVariants } from "#/design-system/ui/button";
-import { Card, CardContent } from "#/design-system/ui/card";
-import {
-	Dialog,
-	DialogBody,
-	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
-	DialogTrigger,
-} from "#/design-system/ui/dialog";
-import { Field, FieldLabel } from "#/design-system/ui/field";
-import {
-	Item,
-	ItemActions,
-	ItemContent,
-	ItemDescription,
-	ItemGroup,
-	ItemTitle,
-} from "#/design-system/ui/item";
-import { NativeSelect } from "#/design-system/ui/select";
-import { Textarea } from "#/design-system/ui/textarea";
-import {
-	PageTitle,
-	SectionHeading,
-	SupportingText,
-} from "#/design-system/ui/typography";
 import { useSignOut } from "#/hooks/use-sign-out";
 import {
 	type getContributionAppealPortal,
 	submitOrganizationAppeal,
 } from "#/lib/contribution-appeals.functions";
 import { contributionAppealPortalOptions } from "#/lib/contribution-appeals.query";
+import "./appeal-portal-page.css";
 
 const caseLabels = {
 	pending: "Awaiting review",
@@ -78,12 +70,9 @@ function AppealDecision({
 			</ItemContent>
 			<ItemActions>
 				<Button
-					aria-label={`${label} ${title} in ${decision.repoName}`}
-					nativeButton={false}
-					render={
-						<Link params={{ target: decision.runId }} to="/appeals/$target" />
-					}
-					size="sm"
+					ariaLabel={`${label} ${title} in ${decision.repoName}`}
+					href={`/appeals/${decision.runId}`}
+					size="small"
 					variant="secondary"
 				>
 					{label}
@@ -96,7 +85,7 @@ function AppealDecision({
 function NewAppeal({ org, disabled }: { org: string; disabled: boolean }) {
 	const client = useQueryClient();
 	const [open, setOpen] = useState(false);
-	const [type, setType] = useState<OrganizationAppealType | "">("");
+	const [type, setType] = useState<OrganizationAppealType | null>(null);
 	const [reason, setReason] = useState("");
 	const submit = useMutation({
 		mutationFn: (selected: OrganizationAppealType) =>
@@ -114,92 +103,81 @@ function NewAppeal({ org, disabled }: { org: string; disabled: boolean }) {
 
 	return (
 		<Dialog
+			description="Send an appeal to this organization’s moderators."
 			open={open}
 			onOpenChange={(next) => {
 				if (submit.isPending) return;
 				setOpen(next);
 				if (next) {
-					setType("");
+					setType(null);
 					setReason("");
 					submit.reset();
 				}
 			}}
+			showFooter={false}
+			title="New appeal"
+			trigger={<Button disabled={disabled}>New appeal</Button>}
 		>
-			<DialogTrigger
-				render={<Button disabled={disabled} className="shrink-0" />}
+			<form
+				className="contents"
+				onSubmit={(event) => {
+					event.preventDefault();
+					if (type && reason.trim() && !submit.isPending) submit.mutate(type);
+				}}
 			>
-				New appeal
-			</DialogTrigger>
-			<DialogContent>
-				<DialogHeader>
-					<DialogTitle>New appeal</DialogTitle>
-					<DialogDescription>
-						Send an appeal to this organization’s moderators.
-					</DialogDescription>
-				</DialogHeader>
-				<form
-					className="contents"
-					onSubmit={(event) => {
-						event.preventDefault();
-						if (type && reason.trim() && !submit.isPending) submit.mutate(type);
-					}}
-				>
-					<DialogBody>
-						<Field>
-							<FieldLabel htmlFor="organization-appeal-type">
-								Appeal type
-							</FieldLabel>
-							<NativeSelect
-								id="organization-appeal-type"
-								value={type}
-								required
-								onChange={(event) => {
-									const selected = organizationAppealTypeSchema.safeParse(
-										event.currentTarget.value,
-									);
-									setType(selected.success ? selected.data : "");
-								}}
-							>
-								<option value="">Select a type</option>
-								<option value="issue">Issue moderation</option>
-								<option value="pull-request">Pull request moderation</option>
-								<option value="other">Other</option>
-							</NativeSelect>
-						</Field>
-						<Field>
-							<FieldLabel htmlFor="organization-appeal-reason">
-								Why are you appealing?
-							</FieldLabel>
-							<Textarea
-								id="organization-appeal-reason"
-								maxLength={2000}
-								onChange={(event) => setReason(event.currentTarget.value)}
-								required
-								rows={5}
-								value={reason}
-							/>
-						</Field>
-						{unavailable || submit.isError ? (
-							<SupportingText role="alert">
-								{unavailable
-									? "Connect a GitHub account before submitting an appeal."
-									: "Tripwire couldn’t submit the appeal. Try again."}
-							</SupportingText>
-						) : null}
-						<FormActions
-							primary={
-								<Button
-									type="submit"
-									pending={submit.isPending}
-									disabled={!type || !reason.trim()}
-								>
-									Submit appeal
-								</Button>
-							}
+				<div>
+					<Field>
+						<FieldLabel>Appeal type</FieldLabel>
+						<Select
+							ariaLabel="Appeal type"
+							id="organization-appeal-type"
+							mode="native"
+							onValueChange={(next) => {
+								const selected = organizationAppealTypeSchema.safeParse(next);
+								setType(selected.success ? selected.data : null);
+							}}
+							options={[
+								{ label: "Issue moderation", value: "issue" },
+								{ label: "Pull request moderation", value: "pull-request" },
+								{ label: "Other", value: "other" },
+							]}
+							placeholder="Select a type"
+							required
+							value={type}
 						/>
-					</DialogBody>
-				</form>
-			</DialogContent>
+					</Field>
+					<Field>
+						<FieldLabel>Why are you appealing?</FieldLabel>
+						<Textarea
+							ariaLabel="Why are you appealing?"
+							id="organization-appeal-reason"
+							maxLength={2000}
+							onValueChange={setReason}
+							required
+							rows={5}
+							value={reason}
+						/>
+					</Field>
+					{unavailable || submit.isError ? (
+						<SupportingText role="alert">
+							{unavailable
+								? "Connect a GitHub account before submitting an appeal."
+								: "Tripwire couldn’t submit the appeal. Try again."}
+						</SupportingText>
+					) : null}
+					<FormActions
+						primary={
+							<Button
+								type="submit"
+								pending={submit.isPending}
+								disabled={!type || !reason.trim()}
+							>
+								Submit appeal
+							</Button>
+						}
+					/>
+				</div>
+			</form>
 		</Dialog>
 	);
 }
@@ -234,26 +212,21 @@ export function AppealPortalPage({
 				wide
 				headerAction={
 					<div data-layout-role="appeal-header-actions">
-						<a
-							className={buttonVariants({ size: "sm", variant: "secondary" })}
-							href={previewUrl}
-							rel="noreferrer"
-							target="_blank"
-						>
-							Preview portal
-							<Icon icon={External} size={12} />
-						</a>
 						<Button
-							nativeButton={false}
-							render={<Link params={{ org }} to="/$org/home" />}
-							size="sm"
+							href={previewUrl}
+							openInNewTab
+							size="small"
+							trailingIcon={<Icon icon={External} size={12} />}
 							variant="secondary"
 						>
+							Preview portal
+						</Button>
+						<Button href={`/${org}/home`} size="small" variant="secondary">
 							Dashboard
 						</Button>
 						<Button
-							onClick={() => setSignOutOpen(true)}
-							size="sm"
+							onAction={() => setSignOutOpen(true)}
+							size="small"
 							variant="ghost"
 						>
 							Sign out of Tripwire
@@ -262,7 +235,7 @@ export function AppealPortalPage({
 				}
 			>
 				<ConfirmDestructiveDialog
-					actionLabel="Sign out of Tripwire"
+					confirmLabel="Sign out of Tripwire"
 					description="This signs you out of Tripwire on this device, including the dashboard and appeal portal."
 					onConfirm={() => signOut.mutateAsync()}
 					onOpenChange={setSignOutOpen}
@@ -288,8 +261,8 @@ export function AppealPortalPage({
 				portal?.state === "signed-in" &&
 				!preview && (
 					<Button
-						onClick={() => setSignOutOpen(true)}
-						size="sm"
+						onAction={() => setSignOutOpen(true)}
+						size="small"
 						variant="ghost"
 					>
 						Sign out of Tripwire
@@ -298,7 +271,7 @@ export function AppealPortalPage({
 			}
 		>
 			<ConfirmDestructiveDialog
-				actionLabel="Sign out of Tripwire"
+				confirmLabel="Sign out of Tripwire"
 				description="This signs you out of Tripwire on this device, including the dashboard and appeal portal."
 				onConfirm={() => signOut.mutateAsync()}
 				onOpenChange={setSignOutOpen}
@@ -313,7 +286,7 @@ export function AppealPortalPage({
 							decorative={false}
 							hue={portal?.avatarHue}
 							name={portal?.orgName ?? org}
-							size="lg"
+							size="default"
 						/>
 						<div data-layout-role="appeal-portal-identity-copy">
 							<SupportingText>{portal?.orgName ?? org}</SupportingText>
@@ -334,12 +307,12 @@ export function AppealPortalPage({
 					<SupportingText>
 						Tripwire couldn’t load your decisions.
 					</SupportingText>
-					<Button className="self-start" onClick={() => void query.refetch()}>
-						Try again
-					</Button>
+					<div className="self-start">
+						<Button onAction={() => void query.refetch()}>Try again</Button>
+					</div>
 				</>
 			) : portal?.state === "signed-out" || preview ? (
-				<Card>
+				<Card data-layout-role="appeal-portal-sign-in">
 					<CardContent>
 						<SectionHeading>Sign in to continue</SectionHeading>
 						<AppealSignIn organization returnTo={returnTo} />
@@ -369,7 +342,7 @@ export function AppealPortalPage({
 										<Item key={request.id}>
 											<ItemContent>
 												<ItemTitle>Organization appeal</ItemTitle>
-												<ItemDescription className="break-all">
+												<ItemDescription data-layout-role="appeal-case-id">
 													Case {request.id}
 												</ItemDescription>
 											</ItemContent>

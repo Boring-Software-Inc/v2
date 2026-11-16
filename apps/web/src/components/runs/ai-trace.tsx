@@ -1,9 +1,5 @@
 import type { AiReviewTrace } from "@tripwire/contracts";
-import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from "#/design-system/ui/collapsible";
+import { Collapsible } from "@tripwire/ui/collapsible";
 import { formatDuration } from "#/lib/run-chain";
 
 const count = new Intl.NumberFormat("en-US");
@@ -25,14 +21,12 @@ export function AiTraceMeta({
 				{duration ? <span>{duration}</span> : null}
 			</div>
 			{trace.steps.length > 0 ? (
-				<Collapsible data-layout-role="ai-trace-reasoning">
-					<CollapsibleTrigger
-						size="sm"
+				<div data-layout-role="ai-trace-reasoning">
+					<Collapsible
+						hiddenUntilFound
 						summary={`${trace.stepsUsed} of ${trace.maxSteps} steps`}
+						trigger="Reasoning"
 					>
-						Reasoning
-					</CollapsibleTrigger>
-					<CollapsibleContent hiddenUntilFound>
 						<ol className="rounded-tag well" data-layout-role="ai-trace-steps">
 							{trace.trimmed ? (
 								<li
@@ -67,8 +61,8 @@ export function AiTraceMeta({
 								</li>
 							))}
 						</ol>
-					</CollapsibleContent>
-				</Collapsible>
+					</Collapsible>
+				</div>
 			) : null}
 		</div>
 	);

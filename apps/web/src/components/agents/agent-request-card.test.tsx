@@ -35,8 +35,8 @@ function allowDisabled(html: string): boolean {
 }
 
 function checkedOrgs(html: string): string[] {
-	return [...html.matchAll(/<input id="agent-org-([^"]+)"[^>]*>/g)]
-		.filter((match) => match[0].includes('checked=""'))
+	return [...html.matchAll(/<button[^>]*id="agent-org-([^"]+)"[^>]*>/g)]
+		.filter((match) => match[0].includes('aria-checked="true"'))
 		.map((match) => match[1] ?? "");
 }
 
@@ -66,6 +66,25 @@ describe("AgentRequestCard", () => {
 		const html = render(ORGS, "tripwire");
 		expect(checkedOrgs(html)).toEqual(["tripwire"]);
 		expect(allowDisabled(html)).toBe(false);
+	});
+
+	test("keeps workspace selection and both decisions behind the agent boundary", () => {
+		const controls: string[] = [];
+		const html = render(ORGS, "tripwire");
+		new HTMLRewriter()
+			.on("[data-agent-hidden] button", {
+				element(button) {
+					controls.push(button.getAttribute("aria-label") ?? "decision");
+				},
+			})
+			.transform(html);
+		expect(controls).toEqual([
+			"Include comp",
+			"Include opengit",
+			"Include tripwire",
+			"decision",
+			"decision",
+		]);
 	});
 
 	test("only organization names receive the flexible text role", () => {

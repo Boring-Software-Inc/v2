@@ -1,12 +1,8 @@
 import { Link } from "@tanstack/react-router";
+import { RelativeTime } from "@tripwire/ui/relative-time";
+import { Body, SectionHeading, SupportingText } from "@tripwire/ui/typography";
 import type { ReactNode } from "react";
 import { formatStaffDate } from "#/components/admin/user-sheet/format";
-import { RelativeTime } from "#/design-system/ui/relative-time";
-import {
-	Body,
-	SectionHeading,
-	SupportingText,
-} from "#/design-system/ui/typography";
 import { providerLabel } from "#/lib/admin-user-sheet";
 import type { AdminUserView } from "#/lib/staff-users.functions";
 

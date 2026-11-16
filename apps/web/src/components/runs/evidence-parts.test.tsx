@@ -52,9 +52,9 @@ describe("evidence-parts", () => {
 		expect(await elements(html, "b")).toEqual([]);
 		expect(renderBackticks("``")).toEqual(["``"]);
 		expect(renderBackticks("")).toEqual([""]);
-		expect(
-			renderToStaticMarkup(<>{renderBackticks("`one\ntwo`")}</>),
-		).toContain("one\ntwo</code>");
+		expect(renderToStaticMarkup(renderBackticks("`one\ntwo`"))).toContain(
+			"one\ntwo</code>",
+		);
 	});
 
 	test("FilePath retains the inline span split at the last slash", async () => {

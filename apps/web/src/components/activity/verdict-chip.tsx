@@ -6,7 +6,7 @@ import {
 	type RunResult,
 	runResult,
 } from "@tripwire/contracts";
-import { Status, type StatusValue } from "#/design-system/ui/status";
+import { Status, type StatusValue } from "@tripwire/ui/status";
 
 interface OutcomeLabel {
 	status: StatusValue;
@@ -69,17 +69,15 @@ export function groupOutcome(group: ActivityGroup): OutcomeLabel | undefined {
 export function VerdictChip({
 	outcome,
 	size = "sm",
-	className,
 }: {
 	outcome: OutcomeLabel | undefined;
 	size?: "sm" | "default";
-	className?: string;
 }) {
 	if (!outcome) {
 		return null;
 	}
 	return (
-		<Status className={className} size={size} status={outcome.status}>
+		<Status size={size === "sm" ? "small" : "default"} status={outcome.status}>
 			{outcome.label}
 		</Status>
 	);

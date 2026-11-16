@@ -1,10 +1,10 @@
-import type { ReactNode } from "react";
 import {
 	Caption,
 	SectionHeading,
 	Subheading,
 	SupportingText,
-} from "#/design-system/ui/typography";
+} from "@tripwire/ui/typography";
+import type { ReactNode } from "react";
 
 export function SheetSectionBlock({
 	id,

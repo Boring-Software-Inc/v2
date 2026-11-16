@@ -1,5 +1,6 @@
 import { Button } from "#/components/glaze/ui/button";
 import { Card } from "../glaze/ui/card";
+import { Switch } from "@ui-sdk/react/switch";
 
 export * from "#/lib/glaze/theme";
 export { Input } from "@/components/quartz/input";
@@ -7,6 +8,8 @@ export { Input } from "@/components/quartz/input";
 export async function DirectImportFixture() {
 	const module = await import(`#/components/quartz/card`);
 	return (
-		<Button>{module.Card ? <Card>Direct import</Card> : "Missing"}</Button>
+		<Button>
+			{module.Card ? <Card>Direct import</Card> : <Switch>Missing</Switch>}
+		</Button>
 	);
 }

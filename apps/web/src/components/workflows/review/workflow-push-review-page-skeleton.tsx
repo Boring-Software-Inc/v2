@@ -1,6 +1,6 @@
+import { Skeleton, SkeletonText } from "@tripwire/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { Page, PageBody, PageHeader } from "#/components/layouts/page";
-import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 
 export function WorkflowPushReviewPageSkeleton() {
 	return (
@@ -15,19 +15,25 @@ export function ReviewSkeleton() {
 		<Page>
 			<PageHeader
 				metadata={
-					<SkeletonText
+					<span
+						data-skeleton-line=""
+						aria-hidden
 						data-layout-role="workflow-review-skeleton-metadata"
-						type="body-sm"
-					/>
+					>
+						<SkeletonText type="body-sm" />
+					</span>
 				}
 				title="Review push"
 			/>
 			<PageBody>
 				<div aria-hidden data-layout-role="workflow-review-skeleton-section">
-					<SkeletonText
+					<span
+						data-skeleton-line=""
+						aria-hidden
 						data-layout-role="workflow-review-skeleton-title"
-						type="heading-sm"
-					/>
+					>
+						<SkeletonText type="heading-sm" />
+					</span>
 					<div data-layout-role="workflow-review-skeleton-diff">
 						<Skeleton />
 					</div>

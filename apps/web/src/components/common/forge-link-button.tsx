@@ -1,12 +1,8 @@
 import type { ForgeId } from "@tripwire/contracts";
+import { Button } from "@tripwire/ui/button";
+import { External, Icon } from "@tripwire/ui/icon";
+import { Tooltip } from "@tripwire/ui/tooltip";
 import { ForgeMark } from "#/components/common/forge-marks";
-import { External, Icon } from "#/design-system/icon";
-import { buttonVariants } from "#/design-system/ui/button";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/design-system/ui/tooltip";
 import type { ForgeLink } from "#/lib/activity-links";
 
 export function ForgeLinkButton({
@@ -17,22 +13,21 @@ export function ForgeLinkButton({
 	link: ForgeLink;
 }) {
 	return (
-		<Tooltip>
-			<TooltipTrigger
-				render={
-					<a
-						aria-label={link.label}
-						className={buttonVariants({ variant: "ghost", size: "sm" })}
-						href={link.href}
-						rel="noreferrer"
-						target="_blank"
-					>
-						<ForgeMark forge={forge} />
-						<Icon icon={External} size={12} />
-					</a>
-				}
-			/>
-			<TooltipContent>{link.label}</TooltipContent>
+		<Tooltip
+			trigger={
+				<Button
+					ariaLabel={link.label}
+					href={link.href}
+					openInNewTab
+					size="small"
+					variant="ghost"
+				>
+					<ForgeMark forge={forge} />
+					<Icon icon={External} size={12} />
+				</Button>
+			}
+		>
+			{link.label}
 		</Tooltip>
 	);
 }

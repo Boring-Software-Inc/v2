@@ -8,26 +8,10 @@ import {
 	type OrgScopeLevels,
 	orgRoleScopesSchema,
 } from "@tripwire/contracts";
-import { useState } from "react";
-import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
-import {
-	SettingsCard,
-	SettingsHeader,
-} from "#/components/settings/settings-frame";
-import { Badge } from "#/design-system/ui/badge";
-import { Button } from "#/design-system/ui/button";
-import {
-	Dialog,
-	DialogAction,
-	DialogBody,
-	DialogClose,
-	DialogContent,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/design-system/ui/dialog";
-import { Field, FieldError, FieldLabel } from "#/design-system/ui/field";
-import { Input } from "#/design-system/ui/input";
+import { Badge } from "@tripwire/ui/badge";
+import { Button } from "@tripwire/ui/button";
+import { Dialog, type DialogProps } from "@tripwire/ui/dialog";
+import { Field, FieldError, FieldLabel, Input } from "@tripwire/ui/field";
 import {
 	Item,
 	ItemActions,
@@ -35,16 +19,16 @@ import {
 	ItemDescription,
 	ItemGroup,
 	ItemTitle,
-} from "#/design-system/ui/item";
+} from "@tripwire/ui/item";
+import { Select } from "@tripwire/ui/select";
+import { SkeletonText } from "@tripwire/ui/skeleton";
+import { notify } from "@tripwire/ui/toast";
+import { useState } from "react";
+import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/design-system/ui/select";
-import { SkeletonText } from "#/design-system/ui/skeleton";
-import { toast } from "#/design-system/ui/toast";
+	SettingsCard,
+	SettingsHeader,
+} from "#/components/settings/settings-frame";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import type { OrgRoleView } from "#/lib/org.functions";
 import {
@@ -87,13 +71,15 @@ export function OrgRolesPage({ org }: { org: string }) {
 	const rolesQuery = useQuery(orgRolesQueryOptions(org));
 	const canManage = useOrgPermission(org, "members:manage");
 	const isPersonal = orgContext?.isPersonal ?? true;
-	const [creating, setCreating] = useState(false);
 
 	return (
 		<>
 			<SettingsHeader title="Roles">
 				{canManage && !isPersonal ? (
-					<Button onClick={() => setCreating(true)}>Create role</Button>
+					<RoleDialog
+						org={org}
+						trigger={<Button variant="primary">Create role</Button>}
+					/>
 				) : null}
 			</SettingsHeader>
 			<SettingsCard>
@@ -121,8 +107,12 @@ export function OrgRolesPage({ org }: { org: string }) {
 					{rolesQuery.isPending ? (
 						<Item aria-hidden>
 							<ItemContent>
-								<SkeletonText className="w-28" type="label" />
-								<SkeletonText className="w-56" type="body-sm" />
+								<span data-skeleton-line="" aria-hidden className="w-28">
+									<SkeletonText type="label" />
+								</span>
+								<span data-skeleton-line="" aria-hidden className="w-56">
+									<SkeletonText type="body-sm" />
+								</span>
 							</ItemContent>
 						</Item>
 					) : null}
@@ -137,12 +127,9 @@ export function OrgRolesPage({ org }: { org: string }) {
 				</ItemGroup>
 			</SettingsCard>
 			{rolesQuery.isError ? (
-				<p className="type-body-sm text-fail-text">
+				<p className="content-body-small tone-danger">
 					Tripwire couldn't load the roles. Reload to try again.
 				</p>
-			) : null}
-			{creating ? (
-				<RoleDialog onOpenChange={setCreating} open org={org} />
 			) : null}
 		</>
 	);
@@ -158,7 +145,6 @@ function CustomRoleRow({
 	canManage: boolean;
 }) {
 	const queryClient = useQueryClient();
-	const [editing, setEditing] = useState(false);
 	const [confirmDelete, setConfirmDelete] = useState(false);
 	const deleteMutation = useMutation({
 		mutationFn: async () => {
@@ -167,17 +153,18 @@ function CustomRoleRow({
 				throw new Error(result.error);
 			}
 		},
-		onSuccess: () => toast.success(`Deleted the ${role.name} role`),
+		onSuccess: () =>
+			notify.show({ title: `Deleted the ${role.name} role` }, "success"),
 		onSettled: () =>
 			queryClient.invalidateQueries({ queryKey: orgQueryKeys.roles(org) }),
 	});
 
 	return (
-		<Item className="flex-wrap">
+		<Item data-layout-role="org-custom-role">
 			<ItemContent>
 				<ItemTitle>
 					<span>{role.name}</span>
-					<Badge size="sm">
+					<Badge size="small">
 						<span className="tabular-nums">{role.memberCount}</span>{" "}
 						{role.memberCount === 1 ? "member" : "members"}
 					</Badge>
@@ -185,34 +172,30 @@ function CustomRoleRow({
 				<ItemDescription>{scopeSummary(role.scopes)}</ItemDescription>
 			</ItemContent>
 			{canManage ? (
-				<ItemActions className="gap-2">
+				<ItemActions>
+					<RoleDialog
+						initial={role}
+						org={org}
+						trigger={
+							<Button
+								ariaLabel={`Edit the ${role.name} role`}
+								size="small"
+								variant="secondary"
+							>
+								Edit
+							</Button>
+						}
+					/>
 					<Button
-						aria-label={`Edit the ${role.name} role`}
-						onClick={() => setEditing(true)}
-						size="sm"
+						ariaLabel={`Delete the ${role.name} role`}
+						onAction={() => setConfirmDelete(true)}
+						size="small"
 						variant="secondary"
-					>
-						Edit
-					</Button>
-					<Button
-						aria-label={`Delete the ${role.name} role`}
-						confirmation={false}
-						onClick={() => setConfirmDelete(true)}
-						size="sm"
-						variant="destructive"
 					>
 						Delete
 					</Button>
-					{editing ? (
-						<RoleDialog
-							initial={role}
-							onOpenChange={setEditing}
-							open
-							org={org}
-						/>
-					) : null}
 					<ConfirmDeleteDialog
-						actionLabel="Delete role"
+						confirmLabel="Delete role"
 						description="Give its members another role first."
 						onConfirm={() => deleteMutation.mutateAsync()}
 						onOpenChange={setConfirmDelete}
@@ -227,13 +210,11 @@ function CustomRoleRow({
 
 function RoleDialog({
 	org,
-	open,
-	onOpenChange,
+	trigger,
 	initial,
 }: {
 	org: string;
-	open: boolean;
-	onOpenChange: (open: boolean) => void;
+	trigger: NonNullable<DialogProps["trigger"]>;
 	initial?: OrgRoleView;
 }) {
 	const queryClient = useQueryClient();
@@ -260,10 +241,13 @@ function RoleDialog({
 			}
 		},
 		onSuccess: () =>
-			toast.success(
-				initial
-					? `Saved the ${initial.name} role`
-					: `Created the ${name.trim().toLowerCase()} role`,
+			notify.show(
+				{
+					title: initial
+						? `Saved the ${initial.name} role`
+						: `Created the ${name.trim().toLowerCase()} role`,
+				},
+				"success",
 			),
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: orgQueryKeys.roles(org) });
@@ -281,68 +265,55 @@ function RoleDialog({
 	};
 
 	return (
-		<Dialog onOpenChange={onOpenChange} open={open}>
-			<DialogContent>
-				<DialogHeader>
-					<DialogTitle>
-						{initial ? `Edit the ${initial.name} role` : "Create role"}
-					</DialogTitle>
-				</DialogHeader>
-				<DialogBody>
-					{initial ? null : (
-						<Field invalid={nameError !== null}>
-							<FieldLabel>Name</FieldLabel>
-							<Input
-								autoComplete="off"
-								onChange={(event) => setName(event.target.value)}
-								placeholder="moderator"
-								value={name}
-							/>
-							{nameError ? <FieldError>{nameError}</FieldError> : null}
-						</Field>
-					)}
-					<div className="flex flex-col gap-2">
-						{ORG_REGIONS.map((region) => (
-							<div
-								className="flex items-center justify-between gap-3"
-								key={region}
-							>
-								<span className="type-label">{ORG_REGION_LABELS[region]}</span>
+		<Dialog
+			action={{
+				disabled: !nameResult.success || !scopesResult.success,
+				label: initial ? "Save role" : "Create role",
+				onAction: () => saveMutation.mutateAsync(),
+				pendingLabel: "Saving",
+			}}
+			onOpenChange={(open) => {
+				if (open) {
+					setName(initial?.name ?? "");
+					setScopes(initial?.scopes ?? {});
+				}
+			}}
+			title={initial ? `Edit the ${initial.name} role` : "Create role"}
+			trigger={trigger}
+		>
+			<div>
+				{initial ? null : (
+					<Field invalid={nameError !== null}>
+						<FieldLabel>Name</FieldLabel>
+						<Input
+							autoComplete="off"
+							labelledByField
+							onValueChange={setName}
+							placeholder="moderator"
+							value={name}
+						/>
+						{nameError ? <FieldError>{nameError}</FieldError> : null}
+					</Field>
+				)}
+				<div className="flex flex-col composition-gap-standard">
+					{ORG_REGIONS.map((region) => (
+						<div
+							className="flex items-center justify-between composition-gap-section"
+							key={region}
+						>
+							<span className="content-label">{ORG_REGION_LABELS[region]}</span>
+							<div className="w-32">
 								<Select
-									items={levelItems(region)}
+									ariaLabel={`${ORG_REGION_LABELS[region]} access`}
 									onValueChange={(value) => setLevel(region, value)}
+									options={levelItems(region)}
 									value={scopes[region] ?? "none"}
-								>
-									<SelectTrigger
-										aria-label={`${ORG_REGION_LABELS[region]} access`}
-										className="w-32"
-										size="sm"
-									>
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent size="sm">
-										{levelItems(region).map((item) => (
-											<SelectItem key={item.value} value={item.value}>
-												{item.label}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
+								/>
 							</div>
-						))}
-					</div>
-				</DialogBody>
-				<DialogFooter>
-					<DialogClose>Cancel</DialogClose>
-					<DialogAction
-						disabled={!nameResult.success || !scopesResult.success}
-						onAction={() => saveMutation.mutateAsync()}
-						pendingLabel="Saving"
-					>
-						{initial ? "Save role" : "Create role"}
-					</DialogAction>
-				</DialogFooter>
-			</DialogContent>
+						</div>
+					))}
+				</div>
+			</div>
 		</Dialog>
 	);
 }

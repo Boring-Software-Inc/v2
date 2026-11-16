@@ -7,6 +7,12 @@ import {
 	valuePlaceholder,
 	verbsForSignal,
 } from "@tripwire/contracts";
+import { Combobox } from "@tripwire/ui/combobox";
+import { Dialog } from "@tripwire/ui/dialog";
+import { Field, FieldLabel, Input } from "@tripwire/ui/field";
+import { Check, Icon, type IconGlyph } from "@tripwire/ui/icon";
+import { Menu } from "@tripwire/ui/menu";
+import { Popover } from "@tripwire/ui/popover";
 import { type ReactNode, useMemo, useState } from "react";
 import {
 	GroupedPicker,
@@ -18,33 +24,8 @@ import {
 	CONDITION_GROUP_ICON,
 	conditionIcon,
 } from "#/components/rules/condition-icons";
-import { Check, type GlazeIcon, Icon } from "#/design-system/icon";
-import { cn } from "#/design-system/lib/utils";
-import { ComboboxField } from "#/design-system/ui/combobox";
-import {
-	Dialog,
-	DialogAction,
-	DialogBody,
-	DialogClose,
-	DialogContent,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/design-system/ui/dialog";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "#/design-system/ui/dropdown-menu";
-import { Field, FieldLabel } from "#/design-system/ui/field";
-import { Input } from "#/design-system/ui/input";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "#/design-system/ui/popover";
 import { repoSuggestionsQueryOptions } from "#/lib/rules.query";
+import { cn } from "#/lib/utils";
 
 /**
  * The rule builder: a sentence with blanks, not a form. The rule reads as
@@ -334,191 +315,190 @@ export function CustomRuleBuilder({
 		state.signal?.kind === "text" ? conditionIcon(state.signal) : null;
 
 	return (
-		<Dialog onOpenChange={(next) => !next && onClose()} open={open}>
-			<DialogContent>
-				<DialogHeader>
-					<DialogTitle>Create rule</DialogTitle>
-				</DialogHeader>
-				<DialogBody className="flex flex-col gap-4">
-					<div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-2 type-body text-text-1">
-						<span>Require that</span>
-						<SignalWord
-							onPick={(signal) =>
-								set({
-									area: signal.group,
-									signal,
-									window: null,
-									verb: null,
-									...VALUE_RESET,
-								})
-							}
-							signal={state.signal}
-						/>
-						{needsWindow ? (
-							<>
-								<span>in the last</span>
-								<DropdownMenu>
-									<DropdownMenuTrigger className={wordClass(!windowLabel)}>
+		<Dialog
+			action={{
+				disabled: !draft,
+				label: "Save rule",
+				onAction: save,
+				pendingLabel: "Saving",
+			}}
+			onOpenChange={(next) => !next && onClose()}
+			open={open}
+			title="Create rule"
+		>
+			<div className="flex flex-col composition-gap-group">
+				<div className="flex flex-wrap items-baseline composition-column-gap-control composition-row-gap-standard content-body tone-content-primary">
+					<span>Require that</span>
+					<SignalWord
+						onPick={(signal) =>
+							set({
+								area: signal.group,
+								signal,
+								window: null,
+								verb: null,
+								...VALUE_RESET,
+							})
+						}
+						signal={state.signal}
+					/>
+					{needsWindow ? (
+						<>
+							<span>in the last</span>
+							<Menu
+								align="start"
+								ariaLabel="Time window"
+								items={WINDOWS.filter(
+									(w) =>
+										!state.signal?.maxWindowHours ||
+										windowHours(w.window) <= state.signal.maxWindowHours,
+								).map((window) => ({
+									label: window.label,
+									onAction: () => set({ window: window.window }),
+									value: window.window,
+								}))}
+								trigger={
+									<button className={wordClass(!windowLabel)} type="button">
 										{windowLabel ?? "time window"}
-									</DropdownMenuTrigger>
-									<DropdownMenuContent align="start" size="sm">
-										{WINDOWS.filter(
-											(w) =>
-												!state.signal?.maxWindowHours ||
-												windowHours(w.window) <= state.signal.maxWindowHours,
-										).map((w) => (
-											<DropdownMenuItem
-												key={w.window}
-												onClick={() => set({ window: w.window })}
-											>
-												{w.label}
-											</DropdownMenuItem>
-										))}
-									</DropdownMenuContent>
-								</DropdownMenu>
-							</>
-						) : null}
-						{state.signal && (!needsWindow || state.window) ? (
-							<DropdownMenu>
-								<DropdownMenuTrigger className={wordClass(!verbLabel)}>
+									</button>
+								}
+							/>
+						</>
+					) : null}
+					{state.signal && (!needsWindow || state.window) ? (
+						<Menu
+							align="start"
+							ariaLabel="Comparison"
+							items={verbs.map((verb) => ({
+								label: verb.label,
+								onAction: () => set({ verb, ...VALUE_RESET }),
+								value: verb.kind + verb.label,
+							}))}
+							trigger={
+								<button className={wordClass(!verbLabel)} type="button">
 									{verbLabel ?? "comparison"}
-								</DropdownMenuTrigger>
-								<DropdownMenuContent align="start" size="sm">
-									{verbs.map((verb) => (
-										<DropdownMenuItem
-											key={verb.kind + verb.label}
-											onClick={() => set({ verb, ...VALUE_RESET })}
-										>
-											{verb.label}
-										</DropdownMenuItem>
-									))}
-								</DropdownMenuContent>
-							</DropdownMenu>
-						) : null}
-						{state.verb && needsValue && state.signal ? (
-							isListVerb(state.verb.kind) ? (
-								<ValueWord empty={!listValue} label={listValue || "values"}>
-									<ComboboxField
-										aria-label="Values"
-										className="w-full"
-										creatable
-										items={suggestions ?? []}
-										multiple
-										onValueChange={(next) =>
-											set({ values: Array.isArray(next) ? next : [] })
-										}
-										placeholder={valuePlaceholder(
-											state.signal,
-											state.verb.kind,
-										)}
-										value={state.values}
+								</button>
+							}
+						/>
+					) : null}
+					{state.verb && needsValue && state.signal ? (
+						isListVerb(state.verb.kind) ? (
+							<ValueWord empty={!listValue} label={listValue || "values"}>
+								<Combobox<string>
+									allowCustomValue
+									ariaLabel="Values"
+									createLabel={(query) => `Add ${query}`}
+									multiple
+									onCreate={(query) =>
+										set({ values: [...state.values, query] })
+									}
+									onValueChange={(next) => set({ values: next })}
+									options={(suggestions ?? []).map((value) => ({
+										label: value,
+										value,
+									}))}
+									placeholder={valuePlaceholder(state.signal, state.verb.kind)}
+									value={state.values}
+								/>
+							</ValueWord>
+						) : state.verb.kind === "between" ? (
+							<>
+								<ValueWord empty={!state.value} label={state.value || "low"}>
+									<Input
+										aria-invalid={valueMessage !== null}
+										ariaLabel="Low"
+										autoFocus
+										inputMode="numeric"
+										max={isPercentSignal ? 100 : undefined}
+										min={isPercentSignal ? 0 : undefined}
+										onChange={(e) => set({ value: e.target.value })}
+										placeholder="Low"
+										type="number"
+										value={state.value}
 									/>
 								</ValueWord>
-							) : state.verb.kind === "between" ? (
-								<>
-									<ValueWord empty={!state.value} label={state.value || "low"}>
+								<span>and</span>
+								<ValueWord empty={!state.high} label={state.high || "high"}>
+									<Input
+										aria-invalid={valueMessage !== null}
+										ariaLabel="High"
+										autoFocus
+										inputMode="numeric"
+										max={isPercentSignal ? 100 : undefined}
+										min={isPercentSignal ? 0 : undefined}
+										onChange={(e) => set({ high: e.target.value })}
+										placeholder="High"
+										type="number"
+										value={state.high}
+									/>
+								</ValueWord>
+							</>
+						) : (
+							<ValueWord
+								empty={!state.value}
+								label={
+									state.value
+										? `${state.value}${isPercentSignal ? "%" : ""}`
+										: "value"
+								}
+								render={(close) => (
+									<>
 										<Input
 											aria-invalid={valueMessage !== null}
-											aria-label="Low"
+											ariaLabel="Value"
 											autoFocus
-											inputMode="numeric"
-											max={isPercentSignal ? 100 : undefined}
-											min={isPercentSignal ? 0 : undefined}
+											inputMode={numericInput ? "numeric" : undefined}
+											max={percentInput ? 100 : undefined}
+											min={percentInput ? 0 : undefined}
 											onChange={(e) => set({ value: e.target.value })}
-											placeholder="Low"
-											type="number"
+											placeholder={scalarPlaceholder}
+											type={numericInput ? "number" : "text"}
 											value={state.value}
 										/>
-									</ValueWord>
-									<span>and</span>
-									<ValueWord empty={!state.high} label={state.high || "high"}>
-										<Input
-											aria-invalid={valueMessage !== null}
-											aria-label="High"
-											autoFocus
-											inputMode="numeric"
-											max={isPercentSignal ? 100 : undefined}
-											min={isPercentSignal ? 0 : undefined}
-											onChange={(e) => set({ high: e.target.value })}
-											placeholder="High"
-											type="number"
-											value={state.high}
-										/>
-									</ValueWord>
-								</>
-							) : (
-								<ValueWord
-									empty={!state.value}
-									label={
-										state.value
-											? `${state.value}${isPercentSignal ? "%" : ""}`
-											: "value"
-									}
-									render={(close) => (
-										<>
-											<Input
-												aria-invalid={valueMessage !== null}
-												aria-label="Value"
-												autoFocus
-												inputMode={numericInput ? "numeric" : undefined}
-												max={percentInput ? 100 : undefined}
-												min={percentInput ? 0 : undefined}
-												onChange={(e) => set({ value: e.target.value })}
-												placeholder={scalarPlaceholder}
-												type={numericInput ? "number" : "text"}
-												value={state.value}
+										{textSignalIcon ? (
+											<SuggestedValues
+												icon={textSignalIcon}
+												onPick={(value) => {
+													set({ value });
+													close();
+												}}
+												query={state.value}
+												values={suggestions ?? []}
 											/>
-											{textSignalIcon ? (
-												<SuggestedValues
-													icon={textSignalIcon}
-													onPick={(value) => {
-														set({ value });
-														close();
-													}}
-													query={state.value}
-													values={suggestions ?? []}
-												/>
-											) : null}
-										</>
-									)}
-								/>
-							)
-						) : null}
-					</div>
-					{valueMessage ? (
-						<output className="type-body-sm text-fail-text">
-							{valueMessage}
-						</output>
-					) : null}
-					{state.verb ? (
-						<Field>
-							<FieldLabel>Rule name</FieldLabel>
-							<Input
-								maxLength={80}
-								onChange={(e) => set({ name: e.target.value })}
-								placeholder={namePlaceholder}
-								value={state.name}
+										) : null}
+									</>
+								)}
 							/>
-						</Field>
+						)
 					) : null}
-				</DialogBody>
-				<DialogFooter>
-					<DialogClose>Cancel</DialogClose>
-					<DialogAction disabled={!draft} onAction={save} pendingLabel="Saving">
-						Save rule
-					</DialogAction>
-				</DialogFooter>
-			</DialogContent>
+				</div>
+				{valueMessage ? (
+					<output className="content-body-small tone-danger">
+						{valueMessage}
+					</output>
+				) : null}
+				{state.verb ? (
+					<Field>
+						<FieldLabel>Rule name</FieldLabel>
+						<Input
+							labelledByField
+							maxLength={80}
+							onChange={(e) => set({ name: e.target.value })}
+							placeholder={namePlaceholder}
+							value={state.name}
+						/>
+					</Field>
+				) : null}
+			</div>
 		</Dialog>
 	);
 }
 
-const DOWN = { side: "none", align: "shift" } as const;
-
 function wordClass(empty: boolean): string {
 	return cn(
-		"-mx-1 rounded-tag px-1 type-body font-medium underline decoration-dotted decoration-line-strong underline-offset-4 transition-colors duration-(--dur-state) ease-out hover:bg-hover data-popup-open:bg-hover data-popup-open:no-underline",
-		empty ? "bg-hover text-text-3 no-underline" : "text-text-1",
+		"-mx-1 rounded-tag px-1 content-body font-medium underline decoration-dotted decoration-line-strong underline-offset-4 transition-colors duration-(--dur-state) ease-out hover:bg-hover data-popup-open:bg-hover data-popup-open:no-underline",
+		empty
+			? "bg-hover tone-content-tertiary no-underline"
+			: "tone-content-primary",
 	);
 }
 
@@ -535,22 +515,26 @@ function SignalWord({
 }) {
 	const [open, setOpen] = useState(false);
 	return (
-		<Popover onOpenChange={setOpen} open={open}>
-			<PopoverTrigger className={wordClass(!signal)}>
-				{signal ? (
-					<Icon
-						className="me-1 inline align-text-bottom text-text-2"
-						icon={conditionIcon(signal)}
-					/>
-				) : null}
-				{signal ? signal.label.toLowerCase() : "what to check"}
-			</PopoverTrigger>
-			<PopoverContent
-				align="start"
+		<Popover
+			align="start"
+			onOpenChange={setOpen}
+			open={open}
+			placement="bottom"
+			trigger={
+				<button className={wordClass(!signal)} type="button">
+					{signal ? (
+						<span className="composition-icon-end inline-block align-text-bottom">
+							<Icon icon={conditionIcon(signal)} tone="secondary" />
+						</span>
+					) : null}
+					{signal ? signal.label.toLowerCase() : "what to check"}
+				</button>
+			}
+			triggerLabel="Choose what to check"
+		>
+			<fieldset
 				aria-label="What to check"
-				className="max-h-[min(--spacing(96),var(--available-height))] w-75 gap-0 overflow-hidden p-0"
-				collisionAvoidance={DOWN}
-				side="bottom"
+				data-layout-role="rule-condition-picker"
 			>
 				<GroupedPicker
 					autoFocus
@@ -565,7 +549,7 @@ function SignalWord({
 								action={
 									<PickerRowAction
 										aria-current={picked || undefined}
-										aria-label={s.label}
+										ariaLabel={s.label}
 										glyph={Check}
 										reveal={picked ? "always" : "never"}
 									/>
@@ -583,7 +567,7 @@ function SignalWord({
 						);
 					}}
 				/>
-			</PopoverContent>
+			</fieldset>
 		</Popover>
 	);
 }
@@ -598,7 +582,7 @@ function SuggestedValues({
 }: {
 	values: readonly string[];
 	query: string;
-	icon: GlazeIcon;
+	icon: IconGlyph;
 	onPick: (value: string) => void;
 }) {
 	const needle = query.trim().toLowerCase();
@@ -615,7 +599,7 @@ function SuggestedValues({
 					action={
 						<PickerRowAction
 							aria-current={value === query || undefined}
-							aria-label={value}
+							ariaLabel={value}
 							glyph={Check}
 							reveal={value === query ? "always" : "never"}
 						/>
@@ -647,18 +631,26 @@ function ValueWord({
 	const [open, setOpen] = useState(false);
 	const close = () => setOpen(false);
 	return (
-		<Popover onOpenChange={setOpen} open={open}>
-			<PopoverTrigger className={wordClass(empty)}>{label}</PopoverTrigger>
-			<PopoverContent align="start" collisionAvoidance={DOWN} side="bottom">
-				<form
-					onSubmit={(event) => {
-						event.preventDefault();
-						close();
-					}}
-				>
-					{render ? render(close) : children}
-				</form>
-			</PopoverContent>
+		<Popover
+			align="start"
+			onOpenChange={setOpen}
+			open={open}
+			placement="bottom"
+			trigger={
+				<button className={wordClass(empty)} type="button">
+					{label}
+				</button>
+			}
+			triggerLabel={label}
+		>
+			<form
+				onSubmit={(event) => {
+					event.preventDefault();
+					close();
+				}}
+			>
+				{render ? render(close) : children}
+			</form>
 		</Popover>
 	);
 }

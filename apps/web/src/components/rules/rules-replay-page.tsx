@@ -6,7 +6,16 @@ import {
 	ruleDisplayName,
 	ruleSetLabel,
 } from "@tripwire/contracts";
-import { useState } from "react";
+import { Button } from "@tripwire/ui/button";
+import { Card, CardContent, CardFooter, CardMeta } from "@tripwire/ui/card";
+import { Status } from "@tripwire/ui/status";
+import { type Ref, useCallback, useRef, useState } from "react";
+import {
+	EmptyState,
+	EmptyStateHeader,
+	EmptyStateRetry,
+	EmptyStateTitle,
+} from "#/components/common/empty-state";
 import {
 	HistoryBackControl,
 	useCanGoBack,
@@ -15,23 +24,10 @@ import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { replayRuleIds, turnableRuleIds } from "#/components/rules/rule-packs";
 import { ReplayListSkeleton } from "#/components/rules/rules-replay-page-skeleton";
 import { useSetupInstallRules } from "#/components/setup/use-repo-setup";
-import { Button } from "#/design-system/ui/button";
-import {
-	Card,
-	CardContent,
-	CardFooter,
-	CardMeta,
-} from "#/design-system/ui/card";
-import {
-	Empty,
-	EmptyHeader,
-	EmptyRetry,
-	EmptyTitle,
-} from "#/design-system/ui/empty-state";
-import { Status } from "#/design-system/ui/status";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { orgRepoQueryOptions } from "#/lib/org.query";
 import {
+	RULE_PREVIEW_FETCH_LIMIT,
 	ruleConfigsQueryOptions,
 	ruleLibraryQueryOptions,
 	rulesQueryKeys,
@@ -41,10 +37,20 @@ const routeApi = getRouteApi("/$org/$repo/moderation_/replay");
 
 const SHOWN_ROWS = 5;
 
-function ReplayRowView({ row }: { row: ReplayRow }) {
+function ReplayRowView({
+	row,
+	revealFocus,
+}: {
+	row: ReplayRow;
+	revealFocus?: Ref<HTMLLIElement>;
+}) {
 	const rule = row.ruleId ? ruleDisplayName(row.ruleId) : null;
 	return (
-		<li className="grid grid-cols-[--spacing(12)_minmax(0,1fr)_auto] items-center gap-x-3 px-3 py-3 not-first:border-line-faint not-first:border-t sm:grid-cols-[--spacing(12)_minmax(0,1fr)_--spacing(28)_--spacing(32)]">
+		<li
+			data-layout-role="rules-replay-row"
+			ref={revealFocus}
+			tabIndex={revealFocus ? -1 : undefined}
+		>
 			<span className="type-body-sm text-text-2 tabular-nums">
 				#{row.number}
 			</span>
@@ -75,10 +81,20 @@ export function RulesReplayPage() {
 	const { data: repo } = useQuery(orgRepoQueryOptions(org, repoName));
 	const repoId = repo?.id ?? "";
 	const rulesQuery = useQuery(ruleConfigsQueryOptions(org, repoId));
-	const libraryQuery = useQuery(ruleLibraryQueryOptions(org, repoId));
+	const libraryQuery = useQuery({
+		...ruleLibraryQueryOptions(org, repoId),
+		notifyOnChangeProps: ["data", "dataUpdatedAt", "status"],
+	});
 	const canEdit = useOrgPermission(org, "rules:manage");
 	const queryClient = useQueryClient();
 	const [showAll, setShowAll] = useState(false);
+	const focusOnReveal = useRef(false);
+	const focusFirstNewRow = useCallback((node: HTMLLIElement | null) => {
+		if (node && focusOnReveal.current) {
+			focusOnReveal.current = false;
+			node.focus();
+		}
+	}, []);
 	const { install, pending } = useSetupInstallRules({
 		org,
 		repo: repoName,
@@ -98,7 +114,7 @@ export function RulesReplayPage() {
 		libraryQuery.isPending ||
 		(preview === null &&
 			(queryClient.getQueryState(rulesQueryKeys.library(org, repoId))
-				?.dataUpdateCount ?? 0) < 12);
+				?.dataUpdateCount ?? 0) < RULE_PREVIEW_FETCH_LIMIT);
 	const failed = rulesQuery.isError || libraryQuery.isError;
 	const rows = replay
 		? showAll
@@ -127,7 +143,7 @@ export function RulesReplayPage() {
 						{replay && turnable.length > 0 ? (
 							<Button
 								disabled={!canEdit || pending !== null}
-								onClick={() => install("replay", label, turnable)}
+								onAction={() => install("replay", label, turnable)}
 								pending={pending === "replay"}
 								pendingLabel="Installing"
 							>
@@ -137,11 +153,11 @@ export function RulesReplayPage() {
 					</header>
 
 					{failed ? (
-						<Empty reason="error">
-							<EmptyHeader>
-								<EmptyTitle>Could not load rule replay</EmptyTitle>
-							</EmptyHeader>
-							<EmptyRetry
+						<EmptyState reason="error">
+							<EmptyStateHeader>
+								<EmptyStateTitle>Could not load rule replay</EmptyStateTitle>
+							</EmptyStateHeader>
+							<EmptyStateRetry
 								onRetry={async () => {
 									await Promise.all([
 										rulesQuery.refetch({ throwOnError: true }),
@@ -149,13 +165,19 @@ export function RulesReplayPage() {
 									]);
 								}}
 							/>
-						</Empty>
+						</EmptyState>
 					) : replay ? (
-						<Card>
+						<Card data-layout-role="rules-replay-results">
 							<CardContent flush>
 								<ul aria-label="Change requests">
-									{rows.map((row) => (
-										<ReplayRowView key={row.number} row={row} />
+									{rows.map((row, index) => (
+										<ReplayRowView
+											key={row.number}
+											row={row}
+											revealFocus={
+												index === SHOWN_ROWS ? focusFirstNewRow : undefined
+											}
+										/>
 									))}
 								</ul>
 							</CardContent>
@@ -166,8 +188,12 @@ export function RulesReplayPage() {
 								</CardMeta>
 								{replay.rows.length > SHOWN_ROWS && !showAll ? (
 									<Button
-										onClick={() => setShowAll(true)}
-										size="sm"
+										onAction={({ source }) => {
+											focusOnReveal.current =
+												source === "keyboard" || source === "virtual";
+											setShowAll(true);
+										}}
+										size="small"
 										variant="secondary"
 									>
 										Show all {replay.rows.length}
@@ -178,11 +204,11 @@ export function RulesReplayPage() {
 					) : loading ? (
 						<ReplayListSkeleton />
 					) : (
-						<Empty>
-							<EmptyHeader>
-								<EmptyTitle>Nothing to replay yet</EmptyTitle>
-							</EmptyHeader>
-						</Empty>
+						<EmptyState>
+							<EmptyStateHeader>
+								<EmptyStateTitle>Nothing to replay yet</EmptyStateTitle>
+							</EmptyStateHeader>
+						</EmptyState>
 					)}
 				</div>
 			</div>

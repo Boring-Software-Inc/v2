@@ -1,6 +1,18 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import type { SetupSearch } from "@tripwire/contracts";
+import { Alert, AlertTitle } from "@tripwire/ui/alert";
+import { Button } from "@tripwire/ui/button";
+import { Card, CardContent } from "@tripwire/ui/card";
+import {
+	Item,
+	ItemActions,
+	ItemContent,
+	ItemDescription,
+	ItemGroup,
+	ItemMedia,
+	ItemTitle,
+} from "@tripwire/ui/item";
 import { useState } from "react";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { GitCafeConnectionProgress } from "#/components/organizations/gitcafe-connection-progress";
@@ -10,18 +22,6 @@ import {
 	InstallSetupShell,
 } from "#/components/organizations/install-setup-shell";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
-import { Alert, AlertTitle } from "#/design-system/ui/alert";
-import { Button } from "#/design-system/ui/button";
-import { Card, CardContent } from "#/design-system/ui/card";
-import {
-	Item,
-	ItemActions,
-	ItemContent,
-	ItemDescription,
-	ItemGroup,
-	ItemMedia,
-	ItemTitle,
-} from "#/design-system/ui/item";
 import {
 	confirmGitCafeConnection,
 	startGitCafeConnection,
@@ -36,11 +36,7 @@ export function GitCafeInstallSetup({ search }: { search: SetupSearch }) {
 					title="Choose a GitCafe installation"
 					body="Open Connect repos in your Tripwire org and install the app on GitCafe. GitCafe must return the installation ID before you can connect it."
 				/>
-				<Button
-					nativeButton={false}
-					render={<Link to="/" />}
-					variant="secondary"
-				>
+				<Button href="/" variant="secondary">
 					Back home
 				</Button>
 			</InstallSetupShell>
@@ -72,7 +68,7 @@ function GitCafeSetupFlow({
 					title="Couldn't load your orgs"
 					body="Your session or org access may have changed. Check your connection and try again."
 				/>
-				<Button onClick={() => void setup.refetch()}>Try again</Button>
+				<Button onAction={() => void setup.refetch()}>Try again</Button>
 			</InstallSetupShell>
 		);
 	if (!setup.data) return <InstallSetupPageSkeleton />;
@@ -108,9 +104,9 @@ function GitCafeSetupFlow({
 								</ItemContent>
 								<ItemActions>
 									<Button
-										aria-label={`Choose ${org.name}`}
-										onClick={() => setChosenOrg(org.slug)}
-										size="sm"
+										ariaLabel={`Choose ${org.name}`}
+										onAction={() => setChosenOrg(org.slug)}
+										size="small"
 										variant="secondary"
 									>
 										Choose
@@ -224,20 +220,20 @@ function GitCafeConfirmation({
 			<div className="flex flex-wrap justify-end gap-2">
 				<Button
 					disabled={start.isPending || confirm.isPending}
-					onClick={onChangeOrg}
+					onAction={onChangeOrg}
 					variant="secondary"
 				>
 					Choose a different org
 				</Button>
 				{proofHandle && !refused ? (
 					<Button
-						onClick={() => confirm.mutate()}
+						onAction={() => confirm.mutate()}
 						pending={confirm.isPending}
 						pendingLabel="Confirming"
 					>{`Connect to ${org.name}`}</Button>
 				) : (
 					<Button
-						onClick={() => start.mutate()}
+						onAction={() => start.mutate()}
 						pending={start.isPending}
 						pendingLabel="Opening GitCafe"
 					>
@@ -248,7 +244,7 @@ function GitCafeConfirmation({
 				)}
 			</div>
 			{refused ? (
-				<Alert status="fail">
+				<Alert role="alert" status="danger">
 					<AlertTitle>
 						Connection wasn't confirmed. Authorize again to retry with your
 						current GitCafe and Tripwire access.
@@ -256,14 +252,14 @@ function GitCafeConfirmation({
 				</Alert>
 			) : null}
 			{search.connect_error ? (
-				<Alert status="fail">
+				<Alert role="alert" status="danger">
 					<AlertTitle>
 						GitCafe authorization wasn't completed. You can try again.
 					</AlertTitle>
 				</Alert>
 			) : null}
 			{error ? (
-				<Alert status="fail">
+				<Alert role="alert" status="danger">
 					<AlertTitle>
 						{error.message || "Couldn't authorize this connection. Try again."}
 					</AlertTitle>

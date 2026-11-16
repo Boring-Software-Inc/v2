@@ -18,11 +18,12 @@ const temporaryRoot = resolve(root, "apps/web/src/__design-system-fixtures__");
 const temporaryConfig = resolve(root, ".oxlint-design-system-fixtures.json");
 const fixtures = [
 	{ rule: "no-arbitrary-tailwind-values", diagnostics: 3 },
-	{ rule: "no-direct-implementation-imports", diagnostics: 5 },
+	{ rule: "no-direct-implementation-imports", diagnostics: 6 },
 	{ rule: "no-inline-visual-styles", diagnostics: 2 },
 	{ rule: "no-raw-color", diagnostics: 5 },
 	{ rule: "no-raw-spacing", diagnostics: 3 },
 	{ rule: "no-raw-typography", diagnostics: 4 },
+	{ rule: "no-ui-chrome-props", diagnostics: 6 },
 ] as const;
 
 await mkdir(temporaryRoot, { recursive: true });

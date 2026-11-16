@@ -1,11 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
+import { Accordion, Collapsible } from "@tripwire/ui/collapsible";
 import { availableForgeLabels } from "@tripwire/utils/forge-sign-in";
-import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleGroup,
-	CollapsibleTrigger,
-} from "#/design-system/ui/collapsible";
 import { providerAvailabilityQueryOptions } from "#/lib/auth.query";
 import { LIVE_FORGES } from "#/lib/forge-copy";
 
@@ -43,24 +38,22 @@ export function LoginFaq() {
 				? `You can sign in with ${forges}; the others are not available for sign-in yet.`
 				: "No sign-in providers are configured on this Tripwire server.";
 	return (
-		<Collapsible>
-			<CollapsibleTrigger size="sm">Not sure which to pick?</CollapsibleTrigger>
-			<CollapsibleContent>
-				<CollapsibleGroup className="login-faq-group" variant="plain">
-					{FAQ.map((item) => (
-						<Collapsible key={item.id} value={item.id}>
-							<CollapsibleTrigger>{item.question}</CollapsibleTrigger>
-							<CollapsibleContent>
-								<p data-layout-role="login-faq-answer">
-									{item.id === "which-supported"
-										? `Tripwire watches ${LIVE_FORGES} today. ${signInCopy}`
-										: item.answer}
-								</p>
-							</CollapsibleContent>
-						</Collapsible>
-					))}
-				</CollapsibleGroup>
-			</CollapsibleContent>
+		<Collapsible trigger="Not sure which to pick?" variant="compact">
+			<div className="login-faq-group">
+				<Accordion
+					items={FAQ.map((item) => ({
+						content: (
+							<p data-layout-role="login-faq-answer">
+								{item.id === "which-supported"
+									? `Tripwire watches ${LIVE_FORGES} today. ${signInCopy}`
+									: item.answer}
+							</p>
+						),
+						label: item.question,
+						value: item.id,
+					}))}
+				/>
+			</div>
 		</Collapsible>
 	);
 }

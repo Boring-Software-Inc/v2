@@ -1,0 +1,112 @@
+[data-system="tripwire"],
+.tripwire {
+	background: var(--page);
+	color: var(--text-1);
+	font: var(--type-body);
+	letter-spacing: var(--tracking-body);
+	text-wrap: pretty;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	color-scheme: light;
+}
+
+[data-system="tripwire"][data-theme="dark"],
+.tripwire[data-theme="dark"],
+[data-theme="dark"] [data-system="tripwire"],
+[data-theme="dark"] .tripwire {
+	color-scheme: dark;
+}
+
+@layer base {
+	.tripwire :where(*, ::before, ::after),
+	[data-system="tripwire"] :where(*, ::before, ::after) {
+		box-sizing: border-box;
+		border: 0 solid var(--line-faint);
+		margin: 0;
+		padding: 0;
+	}
+	.tripwire :where(h1, h2, h3, h4, h5, h6, p, figure, blockquote, dl, dd, pre) {
+		margin: 0;
+		font: inherit;
+	}
+	.tripwire :where(ul, ol) { list-style: none; }
+	.tripwire :where(a) { color: inherit; text-decoration: inherit; }
+	.tripwire :where(button, input, select, textarea) {
+		font: inherit;
+		letter-spacing: inherit;
+		color: inherit;
+		background: transparent;
+	}
+	.tripwire :where(button, [role="button"]) { cursor: pointer; }
+	.tripwire :where(button:disabled, [aria-disabled="true"]) { cursor: not-allowed; }
+	.tripwire :where(img, video, canvas, svg) { display: block; max-width: 100%; }
+	.tripwire :where(table) { border-collapse: collapse; }
+	.tripwire :where(code, kbd, samp) {
+		font-family: var(--font-mono);
+		font-size: calc(1em * var(--mono-scale));
+		letter-spacing: 0;
+	}
+	.tripwire :where(pre) { font-family: var(--font-mono); }
+	.tripwire :where(td, th, time, data, output) { font-variant-numeric: tabular-nums; }
+	.tripwire :where(a, button, summary, input, select, textarea, label, [role="button"], [role="tab"], [role="menuitem"], [role="option"], [role="switch"], [role="checkbox"], [role="radio"]) {
+		transition-property: color, background-color, border-color, opacity;
+		transition-duration: var(--dur-state);
+		transition-timing-function: var(--ease-out);
+	}
+	.tripwire :where(*, ::before, ::after),
+	[data-system="tripwire"] :where(*, ::before, ::after) {
+		outline-color: var(--focus);
+	}
+}
+
+.tripwire ::selection { background: var(--ink-15); color: var(--text-1); }
+.tripwire :where(*):is(:focus-visible, [data-force-focus-visible]) {
+	outline: var(--focus-width) solid var(--focus);
+	outline-offset: var(--focus-offset);
+}
+
+@supports selector(::-webkit-scrollbar) {
+	@layer base {
+		.tripwire,
+		.tripwire *,
+		[data-system="tripwire"],
+		[data-system="tripwire"] * { scrollbar-color: auto; }
+	}
+}
+.tripwire ::-webkit-scrollbar,
+.tripwire::-webkit-scrollbar,
+[data-system="tripwire"] ::-webkit-scrollbar {
+	width: var(--scrollbar-size);
+	height: var(--scrollbar-size);
+	background: transparent;
+}
+.tripwire ::-webkit-scrollbar-thumb,
+.tripwire::-webkit-scrollbar-thumb,
+[data-system="tripwire"] ::-webkit-scrollbar-thumb {
+	background-color: var(--scrollbar-thumb);
+	background-clip: padding-box;
+	border: var(--scrollbar-gap) solid transparent;
+	border-radius: var(--radius-pill);
+}
+.tripwire ::-webkit-scrollbar-track,
+.tripwire ::-webkit-scrollbar-corner,
+[data-system="tripwire"] ::-webkit-scrollbar-track,
+[data-system="tripwire"] ::-webkit-scrollbar-corner { background: transparent; }
+.tripwire ::-webkit-scrollbar-button,
+[data-system="tripwire"] ::-webkit-scrollbar-button { display: none; }
+
+@supports not selector(::-webkit-scrollbar) {
+	.tripwire,
+	.tripwire *,
+	[data-system="tripwire"],
+	[data-system="tripwire"] * {
+		scrollbar-width: thin;
+		scrollbar-color: var(--scrollbar-thumb) transparent;
+	}
+}
+
+@media (pointer: coarse) {
+	.tripwire input:not([type="checkbox"], [type="radio"], [type="range"], [type="button"], [type="submit"], [type="file"]),
+	.tripwire textarea,
+	.tripwire select { font-size: max(16px, 1em); }
+}

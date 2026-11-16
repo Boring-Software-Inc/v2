@@ -1,5 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { getRouteApi, Link } from "@tanstack/react-router";
+import { getRouteApi } from "@tanstack/react-router";
+import { Button } from "@tripwire/ui/button";
+import { ItemGroup } from "@tripwire/ui/item";
+import { SkeletonSwap } from "@tripwire/ui/skeleton";
 import { useMemo } from "react";
 import { ActivityFilters } from "#/components/activity/activity-filters";
 import { ActivityHistory } from "#/components/activity/activity-history";
@@ -9,20 +12,17 @@ import { ActivityStack } from "#/components/activity/activity-stack";
 import { groupResult } from "#/components/activity/verdict-chip";
 import { ArmCallout } from "#/components/arming/arm-callout";
 import { BackfillProgress } from "#/components/arming/backfill-progress";
+import {
+	EmptyState,
+	EmptyStateCode,
+	EmptyStateContent,
+	EmptyStateDescription,
+	EmptyStateHeader,
+	EmptyStateTitle,
+} from "#/components/common/empty-state";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { Page, PageBody, PageHeader } from "#/components/layouts/page";
 import { MascotArt } from "#/components/mascot/mascot-art";
-import { Button } from "#/design-system/ui/button";
-import {
-	Empty,
-	EmptyCode,
-	EmptyContent,
-	EmptyDescription,
-	EmptyHeader,
-	EmptyTitle,
-} from "#/design-system/ui/empty-state";
-import { ItemGroup } from "#/design-system/ui/item";
-import { SkeletonSwap } from "#/design-system/ui/skeleton";
 import type {
 	ActivityFeedItem,
 	ActivityGroup,
@@ -146,24 +146,24 @@ function CurrentActivityPage() {
 			)}
 
 			{error ? (
-				<Empty art={<MascotArt mood="activity-error" />} reason="error">
-					<EmptyHeader>
-						<EmptyTitle>Tripwire could not load activity</EmptyTitle>
-						<EmptyDescription>
+				<EmptyState art={<MascotArt mood="activity-error" />} reason="error">
+					<EmptyStateHeader>
+						<EmptyStateTitle>Tripwire could not load activity</EmptyStateTitle>
+						<EmptyStateDescription>
 							Tripwire keeps trying in the background. If the list does not come
 							back, reload the page.
-						</EmptyDescription>
-					</EmptyHeader>
-					<EmptyContent>
+						</EmptyStateDescription>
+					</EmptyStateHeader>
+					<EmptyStateContent>
 						<Button
-							onClick={() => window.location.reload()}
-							size="sm"
+							onAction={() => window.location.reload()}
+							size="small"
 							variant="secondary"
 						>
 							Reload page
 						</Button>
-					</EmptyContent>
-				</Empty>
+					</EmptyStateContent>
+				</EmptyState>
 			) : (
 				<SkeletonSwap
 					fallback={<ActivityListSkeleton />}
@@ -172,55 +172,51 @@ function CurrentActivityPage() {
 				>
 					{isSuccess && segments.length === 0 ? (
 						filter === "all" ? (
-							<Empty art={<MascotArt mood="activity-empty" />}>
-								<EmptyHeader>
-									<EmptyTitle>No activity yet</EmptyTitle>
-									<EmptyDescription>
+							<EmptyState art={<MascotArt mood="activity-empty" />}>
+								<EmptyStateHeader>
+									<EmptyStateTitle>No activity yet</EmptyStateTitle>
+									<EmptyStateDescription>
 										{unarmed
 											? "Tripwire is off for this repo. Turn it on to check new change requests and show them here."
 											: "Tripwire is watching this repo. When a change request opens, its timeline and verdict show up here."}
-									</EmptyDescription>
-								</EmptyHeader>
-								<EmptyContent>
+									</EmptyStateDescription>
+								</EmptyStateHeader>
+								<EmptyStateContent>
 									<Button
-										nativeButton={false}
-										render={
-											<Link
-												params={{ org, repo: repoName }}
-												to="/$org/$repo/rules"
-											/>
-										}
-										size="sm"
+										href={`/${org}/${repoName}/rules`}
+										size="small"
 										variant="secondary"
 									>
 										Review rules
 									</Button>
-								</EmptyContent>
-							</Empty>
+								</EmptyStateContent>
+							</EmptyState>
 						) : (
-							<Empty
+							<EmptyState
 								art={<MascotArt mood="activity-no-matches" />}
 								reason="no-results"
 							>
-								<EmptyHeader>
-									<EmptyTitle>
+								<EmptyStateHeader>
+									<EmptyStateTitle>
 										Nothing matches{" "}
-										<EmptyCode>{ACTIVITY_VERDICT_LABELS[filter]}</EmptyCode>
-									</EmptyTitle>
-									<EmptyDescription>
+										<EmptyStateCode>
+											{ACTIVITY_VERDICT_LABELS[filter]}
+										</EmptyStateCode>
+									</EmptyStateTitle>
+									<EmptyStateDescription>
 										No activity on this repo matches this filter.
-									</EmptyDescription>
-								</EmptyHeader>
-								<EmptyContent>
+									</EmptyStateDescription>
+								</EmptyStateHeader>
+								<EmptyStateContent>
 									<Button
-										onClick={() => setFilter("all")}
-										size="sm"
+										onAction={() => setFilter("all")}
+										size="small"
 										variant="secondary"
 									>
 										Show all activity
 									</Button>
-								</EmptyContent>
-							</Empty>
+								</EmptyStateContent>
+							</EmptyState>
 						)
 					) : (
 						<div className="flex flex-col gap-3">

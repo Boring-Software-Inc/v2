@@ -1,10 +1,10 @@
 import { Link, useNavigate } from "@tanstack/react-router";
+import { Button } from "@tripwire/ui/button";
+import { Close, Folder, Icon } from "@tripwire/ui/icon";
 import { useRepoTabTarget } from "#/components/tabs/repo-tab-target";
 import { useRepoTabs } from "#/components/tabs/repo-tabs-provider";
 import type { RepoTab } from "#/components/tabs/repo-tabs-state";
-import { Close, Folder, Icon } from "#/design-system/icon";
-import { cn } from "#/design-system/lib/utils";
-import { Button } from "#/design-system/ui/button";
+import { cn } from "#/lib/utils";
 
 export function RepoTabBar({
 	className,
@@ -94,19 +94,22 @@ function RepoTabItem({
 					{column ? tab.id.split("/").at(-1) : tab.id}
 				</span>
 			</Link>
-			<Button
-				aria-label={`Close ${tab.id} tab`}
+			<span
 				className={cn(
 					active
 						? "opacity-100"
 						: "opacity-0 focus-visible:opacity-100 group-hover/tab:opacity-100 pointer-coarse:opacity-100",
 				)}
-				onClick={onClose}
-				size="icon-sm"
-				variant="ghost"
 			>
-				<Icon icon={Close} />
-			</Button>
+				<Button
+					ariaLabel={`Close ${tab.id} tab`}
+					onAction={onClose}
+					size="small"
+					variant="ghost"
+				>
+					<Icon icon={Close} />
+				</Button>
+			</span>
 		</div>
 	);
 }

@@ -1,14 +1,9 @@
+import { Button } from "@tripwire/ui/button";
+import { Field, FieldLabel, Input } from "@tripwire/ui/field";
+import { Calendar, Check, Icon } from "@tripwire/ui/icon";
+import { Popover } from "@tripwire/ui/popover";
 import { useState } from "react";
-import { Calendar, Check, Icon } from "#/design-system/icon";
-import { Button } from "#/design-system/ui/button";
-import { Field, FieldLabel } from "#/design-system/ui/field";
-import { FilterBarButton } from "#/design-system/ui/filter-bar";
-import { Input } from "#/design-system/ui/input";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "#/design-system/ui/popover";
+import { FilterBarButton } from "#/components/common/filter-bar";
 import { type DateRange, isoDay, lastDays, rangeLabel } from "#/lib/date-range";
 
 const PRESETS = [
@@ -46,6 +41,7 @@ export function DateRangeFilter({
 
 	return (
 		<Popover
+			align="end"
 			onOpenChange={(next) => {
 				setOpen(next);
 				if (next) {
@@ -53,46 +49,46 @@ export function DateRangeFilter({
 				}
 			}}
 			open={open}
+			trigger={
+				<FilterBarButton active={value !== null} aria-label={`Date: ${label}`}>
+					<Icon icon={Calendar} size={12} />
+					{label}
+				</FilterBarButton>
+			}
+			triggerLabel={`Date: ${label}`}
 		>
-			<PopoverTrigger
-				render={
-					<FilterBarButton
-						active={value !== null}
-						aria-label={`Date: ${label}`}
-					/>
-				}
-			>
-				<Icon icon={Calendar} />
-				{label}
-			</PopoverTrigger>
-			<PopoverContent align="end" className="gap-3">
+			<div className="flex flex-col composition-gap-section">
 				<div className="flex flex-col">
-					<Button
-						className="justify-start"
-						onClick={() => pick(null)}
-						size="sm"
-						variant="ghost"
-					>
-						Any date
-						{value ? null : <Icon className="ms-auto" icon={Check} />}
-					</Button>
-					{PRESETS.map((option) => (
-						<Button
-							className="justify-start"
-							key={option.days}
-							onClick={() => pick(lastDays(option.days))}
-							size="sm"
-							variant="ghost"
-						>
-							{option.label}
-							{preset === option ? (
-								<Icon className="ms-auto" icon={Check} />
-							) : null}
+					<div className="flex justify-start">
+						<Button onAction={() => pick(null)} size="small" variant="ghost">
+							Any date
+							{value ? null : (
+								<span className="composition-push-end">
+									<Icon icon={Check} />
+								</span>
+							)}
 						</Button>
+					</div>
+					{PRESETS.map((option) => (
+						<div className="flex justify-start" key={option.days}>
+							<Button
+								onAction={() => pick(lastDays(option.days))}
+								size="small"
+								variant="ghost"
+							>
+								{option.label}
+								{preset === option ? (
+									<span className="composition-push-end">
+										<Icon icon={Check} />
+									</span>
+								) : null}
+							</Button>
+						</div>
 					))}
 				</div>
 				<form
-					className="flex flex-col gap-3 border-line-faint border-t pt-3"
+					className="flex flex-col composition-gap-section tone-border-faint border-t"
+					data-layout-role="date-range-form"
 					onSubmit={(event) => {
 						event.preventDefault();
 						if (valid) {
@@ -100,13 +96,13 @@ export function DateRangeFilter({
 						}
 					}}
 				>
-					<div className="grid grid-cols-2 gap-2 pointer-coarse:grid-cols-1">
+					<div className="grid grid-cols-2 composition-gap-standard pointer-coarse:grid-cols-1">
 						<Field>
 							<FieldLabel>From</FieldLabel>
 							<Input
+								labelledByField
 								max={draft.to || isoDay(new Date())}
 								onValueChange={(from) => setDraft((d) => ({ ...d, from }))}
-								size="sm"
 								type="date"
 								value={draft.from}
 							/>
@@ -114,20 +110,25 @@ export function DateRangeFilter({
 						<Field>
 							<FieldLabel>To</FieldLabel>
 							<Input
+								labelledByField
 								max={isoDay(new Date())}
 								min={draft.from}
 								onValueChange={(to) => setDraft((d) => ({ ...d, to }))}
-								size="sm"
 								type="date"
 								value={draft.to}
 							/>
 						</Field>
 					</div>
-					<Button disabled={!valid} size="sm" type="submit" variant="secondary">
+					<Button
+						disabled={!valid}
+						size="small"
+						type="submit"
+						variant="secondary"
+					>
 						Apply range
 					</Button>
 				</form>
-			</PopoverContent>
+			</div>
 		</Popover>
 	);
 }

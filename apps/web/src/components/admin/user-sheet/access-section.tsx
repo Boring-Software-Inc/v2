@@ -1,3 +1,7 @@
+import { AgentBoundary } from "@tripwire/ui/agent-policy";
+import { Avatar } from "@tripwire/ui/avatar";
+import { Button } from "@tripwire/ui/button";
+import { External, Icon } from "@tripwire/ui/icon";
 import { formatStaffDateTime } from "#/components/admin/user-sheet/format";
 import {
 	FieldRow,
@@ -5,9 +9,6 @@ import {
 	SheetSectionBlock,
 } from "#/components/admin/user-sheet/sheet-parts";
 import { useStaffAction } from "#/components/admin/user-sheet/use-staff-action";
-import { External, Icon } from "#/design-system/icon";
-import { Avatar } from "#/design-system/ui/avatar";
-import { Button } from "#/design-system/ui/button";
 import { reviewUserAccess } from "#/lib/admin.functions";
 import { formatWait } from "#/lib/admin-user-sheet";
 import type { AdminUserView } from "#/lib/staff-users.functions";
@@ -38,23 +39,27 @@ export function AccessSection({
 	const pending = user.accessStatus === "pending";
 	const action =
 		user.accessStatus === "approved" ? (
-			<Button
-				disabled={review.isPending}
-				onClick={() => review.mutate("reject")}
-				size="sm"
-				variant="secondary"
-			>
-				Decline
-			</Button>
+			<AgentBoundary visibility="hidden">
+				<Button
+					disabled={review.isPending}
+					onAction={() => review.mutate("reject")}
+					size="small"
+					variant="secondary"
+				>
+					Decline
+				</Button>
+			</AgentBoundary>
 		) : user.accessStatus === "rejected" ? (
-			<Button
-				disabled={review.isPending}
-				onClick={() => review.mutate("approve")}
-				size="sm"
-				variant="secondary"
-			>
-				Approve
-			</Button>
+			<AgentBoundary visibility="hidden">
+				<Button
+					disabled={review.isPending}
+					onAction={() => review.mutate("approve")}
+					size="small"
+					variant="secondary"
+				>
+					Approve
+				</Button>
+			</AgentBoundary>
 		) : null;
 	return (
 		<SheetSectionBlock action={action} id="access" title="Access">

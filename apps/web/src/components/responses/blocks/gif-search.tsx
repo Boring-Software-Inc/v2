@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { CloseGif, GiphyPageRecord } from "@tripwire/contracts";
+import { Input } from "@tripwire/ui/field";
 import {
 	type KeyboardEvent,
 	lazy,
@@ -7,8 +8,6 @@ import {
 	type SyntheticEvent,
 	useState,
 } from "react";
-import { Input } from "#/design-system/ui/input";
-import { PopoverTitle } from "#/design-system/ui/popover";
 import { useDebouncedValue } from "#/hooks/use-debounced-value";
 import { closeGifFrom, type GiphyGif } from "#/lib/giphy-gif";
 import { closeGifsQueryOptions } from "#/lib/response.query";
@@ -71,17 +70,17 @@ export function GifSearch({ org, onPick }: GifSearchProps) {
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col gap-3">
-			<PopoverTitle className="sr-only">Pick a GIF</PopoverTitle>
-			<Input
-				aria-label="Search GIPHY"
-				autoFocus
-				className="shrink-0"
-				clearLabel="Clear search"
-				mode="search"
-				onValueChange={setText}
-				placeholder="Search GIPHY"
-				value={text}
-			/>
+			<h2 className="sr-only">Pick a GIF</h2>
+			<div className="shrink-0">
+				<Input
+					ariaLabel="Search GIPHY"
+					autoFocus
+					onValueChange={setText}
+					placeholder="Search GIPHY"
+					type="search"
+					value={text}
+				/>
+			</div>
 			{status !== "ok" ? (
 				<output className="type-body-sm text-text-2">
 					{STATUS_COPY[status]}

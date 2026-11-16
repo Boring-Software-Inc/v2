@@ -5,6 +5,7 @@ import {
 	TEXT_PARTS_MAX,
 	VARIABLE_HIDDEN_AT,
 } from "@tripwire/contracts";
+import { Hide, Icon } from "@tripwire/ui/icon";
 import { type ClipboardEvent, type KeyboardEvent, useRef } from "react";
 import {
 	INSERTABLE_VARIABLES,
@@ -20,7 +21,6 @@ import {
 	VARIABLE_CHIP_CLASS,
 	VariableChip,
 } from "#/components/responses/blocks/variable-chip";
-import { Hide, Icon } from "#/design-system/icon";
 
 type TextBlock = Extract<ResponseBlock, { type: "text" }>;
 
@@ -163,11 +163,9 @@ export function TextBlockEditor({
 			data-rules-hidden={rulesHidden || undefined}
 		>
 			<span hidden ref={icon}>
-				<Icon
-					className="hidden text-text-3 group-data-rules-hidden/editor:block"
-					icon={Hide}
-					size={12}
-				/>
+				<span className="hidden group-data-rules-hidden/editor:block">
+					<Icon icon={Hide} size={12} tone="tertiary" />
+				</span>
 			</span>
 			{/* biome-ignore lint/a11y/useSemanticElements: a textarea cannot hold variable chips */}
 			<div

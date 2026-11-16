@@ -1,3 +1,5 @@
+import { CopyButton } from "@tripwire/ui/copy-button";
+import { Copy, Icon } from "@tripwire/ui/icon";
 import { lazy, type ReactNode, Suspense, useCallback, useState } from "react";
 import { useCodeDark, WrapToggle } from "#/components/code/code-controls";
 import { CodeHeader } from "#/components/code/code-header";
@@ -7,8 +9,7 @@ import {
 	parseLineAnchor,
 } from "#/components/code/line-anchor";
 import { PlainCode } from "#/components/code/plain-code";
-import { cn } from "#/design-system/lib/utils";
-import { CopyButton } from "#/design-system/ui/copy-button";
+import { cn } from "#/lib/utils";
 
 const PierreFile = lazy(() =>
 	import("#/components/code/pierre-code").then(
@@ -62,7 +63,14 @@ export function TripwireCodeFile({
 			<CodeHeader name={name}>
 				{actions}
 				<WrapToggle onWrapChange={setWrap} wrap={wrap} />
-				<CopyButton label={name} showLabel value={code} variant="secondary" />
+				<CopyButton
+					ariaLabel={`Copy ${name}`}
+					copyLabel="Copy"
+					icon={<Icon icon={Copy} />}
+					size="small"
+					text={code}
+					variant="secondary"
+				/>
 			</CodeHeader>
 			{mounted ? (
 				<Suspense fallback={plain}>

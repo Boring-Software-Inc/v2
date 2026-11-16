@@ -1,5 +1,5 @@
+import { Skeleton, SkeletonText } from "@tripwire/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 
 const SIDEBAR_SLOTS = [
 	{ key: "trigger", size: "narrow" },
@@ -31,23 +31,37 @@ function SkeletonBlock({
 function NodeCardSkeleton({ nameSize }: { nameSize: string }) {
 	return (
 		<div data-layout-role="workflow-editor-skeleton-node">
-			<SkeletonText
+			<span
+				data-skeleton-line=""
+				aria-hidden
 				data-layout-role="workflow-editor-skeleton-node-name"
 				data-layout-size={nameSize}
-				type="label"
-			/>
-			<SkeletonText
+			>
+				<SkeletonText type="label" />
+			</span>
+			<span
+				data-skeleton-line=""
+				aria-hidden
 				data-layout-role="workflow-editor-skeleton-node-code"
-				type="code-sm"
-			/>
+			>
+				<SkeletonText type="code-sm" />
+			</span>
 			<div data-layout-role="workflow-editor-skeleton-node-meta">
 				<div>
-					<SkeletonText data-layout-size="medium" type="caption" />
-					<SkeletonText data-layout-size="short" type="caption" />
+					<span data-skeleton-line="" aria-hidden data-layout-size="medium">
+						<SkeletonText type="caption" />
+					</span>
+					<span data-skeleton-line="" aria-hidden data-layout-size="short">
+						<SkeletonText type="caption" />
+					</span>
 				</div>
 				<div>
-					<SkeletonText data-layout-size="narrow" type="caption" />
-					<SkeletonText data-layout-size="small" type="caption" />
+					<span data-skeleton-line="" aria-hidden data-layout-size="narrow">
+						<SkeletonText type="caption" />
+					</span>
+					<span data-skeleton-line="" aria-hidden data-layout-size="small">
+						<SkeletonText type="caption" />
+					</span>
 				</div>
 			</div>
 		</div>
@@ -85,7 +99,13 @@ export function EditorFrameSkeleton() {
 					<div data-layout-role="workflow-editor-skeleton-palette">
 						{SIDEBAR_SLOTS.map((slot) => (
 							<div key={slot.key}>
-								<SkeletonText data-layout-size={slot.size} type="label" />
+								<span
+									data-skeleton-line=""
+									aria-hidden
+									data-layout-size={slot.size}
+								>
+									<SkeletonText type="label" />
+								</span>
 								<SkeletonText lines={2} type="body-sm" />
 							</div>
 						))}

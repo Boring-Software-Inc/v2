@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { notify } from "@tripwire/ui/toast";
 import { availableForges } from "@tripwire/utils/forge-sign-in";
 import { useState } from "react";
 import {
@@ -6,7 +7,6 @@ import {
 	ForgeCell,
 	type ForgeCellState,
 } from "#/components/forges/forge-cell";
-import { toast } from "#/design-system/ui/toast";
 import { providerAvailabilityQueryOptions } from "#/lib/auth.query";
 import { authClient } from "#/lib/auth-client";
 
@@ -33,9 +33,9 @@ export function ForgeGrid({ redirect }: { redirect: string | undefined }) {
 			if (!error) {
 				return;
 			}
-			toast.fail(error.message ?? fallback);
+			notify.show({ title: error.message ?? fallback }, "error");
 		} catch {
-			toast.fail(fallback);
+			notify.show({ title: fallback }, "error");
 		}
 		setSigningIn(null);
 	}
@@ -64,7 +64,7 @@ export function ForgeGrid({ redirect }: { redirect: string | undefined }) {
 	}
 
 	return (
-		<div className={FORGE_GRID}>
+		<div className={FORGE_GRID} data-layout-role="forge-sign-in-grid">
 			{availableForges(providers.data).map((forge) => (
 				<ForgeCell
 					id={forge.id}

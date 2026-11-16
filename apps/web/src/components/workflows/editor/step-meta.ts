@@ -26,7 +26,7 @@ import {
 	FailedMark,
 	Files,
 	Gauge,
-	type GlazeIcon,
+	type IconGlyph,
 	Inbox,
 	Information,
 	Invite,
@@ -47,7 +47,7 @@ import {
 	Waiting,
 	Wallet,
 	Webhook,
-} from "#/design-system/icon";
+} from "@tripwire/ui/icon";
 
 export type StepKind = WorkflowNode["type"];
 
@@ -56,7 +56,7 @@ export const KIND_ICON = {
 	rule: Protected,
 	gate: Tree,
 	action: Play,
-} satisfies Record<StepKind, GlazeIcon>;
+} satisfies Record<StepKind, IconGlyph>;
 
 export const KIND_LABEL = {
 	trigger: "Trigger",
@@ -65,7 +65,7 @@ export const KIND_LABEL = {
 	action: "Action",
 } satisfies Record<StepKind, string>;
 
-type TriggerIconMap = Partial<Record<EventKind, GlazeIcon>>;
+type TriggerIconMap = Partial<Record<EventKind, IconGlyph>>;
 const TRIGGER_ICON: TriggerIconMap = {
 	"change-request.opened": ChangeRequest,
 	"change-request.updated": Commit,
@@ -76,7 +76,7 @@ const TRIGGER_ICON: TriggerIconMap = {
 	"schedule.matched": Time,
 };
 
-type RuleIconMap = Record<string, GlazeIcon>;
+type RuleIconMap = Record<string, IconGlyph>;
 const RULE_ICON: RuleIconMap = {
 	"account-age": Waiting,
 	"min-merged-prs": Merge,
@@ -94,7 +94,7 @@ const GATE_ICON = {
 	"any-of": Converge,
 	not: Negate,
 	unless: Except,
-} satisfies Record<GateMode, GlazeIcon>;
+} satisfies Record<GateMode, IconGlyph>;
 
 const ACTION_ICON = {
 	block: Blocked,
@@ -110,26 +110,26 @@ const ACTION_ICON = {
 	"post-comment": Comment,
 	"request-fix": Tool,
 	note: Information,
-} satisfies Record<WorkflowActionKind, GlazeIcon>;
+} satisfies Record<WorkflowActionKind, IconGlyph>;
 
-export function triggerIcon(kind: EventKind): GlazeIcon {
+export function triggerIcon(kind: EventKind): IconGlyph {
 	return TRIGGER_ICON[kind] ?? Lightning;
 }
 
-export function ruleIcon(ref: string): GlazeIcon {
+export function ruleIcon(ref: string): IconGlyph {
 	const [ruleId = ""] = ref.split("@");
 	return RULE_ICON[ruleId] ?? Protected;
 }
 
-export function gateIcon(mode: GateMode): GlazeIcon {
+export function gateIcon(mode: GateMode): IconGlyph {
 	return GATE_ICON[mode];
 }
 
-export function actionIcon(action: WorkflowActionKind): GlazeIcon {
+export function actionIcon(action: WorkflowActionKind): IconGlyph {
 	return ACTION_ICON[action];
 }
 
-export function stepIcon(node: WorkflowNode): GlazeIcon {
+export function stepIcon(node: WorkflowNode): IconGlyph {
 	switch (node.type) {
 		case "trigger":
 			return isScheduleTrigger(node) ? Time : KIND_ICON.trigger;

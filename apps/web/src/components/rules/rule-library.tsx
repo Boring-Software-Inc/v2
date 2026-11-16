@@ -3,17 +3,9 @@ import {
 	type RulePreview,
 	ruleUiSchema,
 } from "@tripwire/contracts";
-import type { ReactNode } from "react";
-import { CaughtCount, caughtLabel } from "#/components/rules/caught-count";
-import { rulesCaught, turnableRuleIds } from "#/components/rules/rule-packs";
-import { ParamSentence } from "#/components/rules-params/param-sentence";
-import { Button } from "#/design-system/ui/button";
-import { Card, CardContent } from "#/design-system/ui/card";
-import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from "#/design-system/ui/collapsible";
+import { Button } from "@tripwire/ui/button";
+import { Card, CardContent } from "@tripwire/ui/card";
+import { Collapsible } from "@tripwire/ui/collapsible";
 import {
 	Item,
 	ItemActions,
@@ -22,7 +14,11 @@ import {
 	ItemGroup,
 	ItemMeta,
 	ItemTitle,
-} from "#/design-system/ui/item";
+} from "@tripwire/ui/item";
+import type { ReactNode } from "react";
+import { CaughtCount, caughtLabel } from "#/components/rules/caught-count";
+import { rulesCaught, turnableRuleIds } from "#/components/rules/rule-packs";
+import { ParamSentence } from "#/components/rules-params/param-sentence";
 import type { RuleConfigView } from "#/lib/rules.functions";
 
 export function libraryRules(
@@ -69,9 +65,12 @@ export function RuleLibrary({
 	return (
 		<div className="flex flex-col gap-6">
 			{groups.map((group) => (
-				<section className="flex flex-col gap-3" key={group.title}>
+				<section
+					className="flex flex-col composition-gap-section"
+					key={group.title}
+				>
 					<h2 className="type-heading-sm">{group.title}</h2>
-					<Card>
+					<Card data-layout-role="rule-library-frame">
 						<CardContent flush>
 							<ul>
 								{group.extra}
@@ -120,10 +119,15 @@ function LibraryRow({
 	const expandable = count !== null && count > 0 && examples.length > 0;
 
 	const row = (
-		<Item className="gap-4 py-3">
+		<Item
+			data-layout-role="rule-library-row"
+			data-parameters={!blocked && hasParams ? "" : undefined}
+		>
 			<ItemContent>
 				<ItemTitle>
-					<h3 className="type-label">{rule.name}</h3>
+					<h3 className="truncate content-label" title={rule.name}>
+						{rule.name}
+					</h3>
 				</ItemTitle>
 				{blocked ? (
 					<ItemDescription>{blocked}</ItemDescription>
@@ -136,31 +140,28 @@ function LibraryRow({
 						ruleId={rule.ruleId}
 					/>
 				) : (
-					<ItemDescription className="first-letter:uppercase">
+					<ItemDescription data-layout-role="rule-library-description">
 						{rule.blurb}
 					</ItemDescription>
 				)}
 			</ItemContent>
-			{expandable ? (
-				<CollapsibleTrigger className="max-sm:hidden" size="sm">
-					{caughtLabel(count)}
-				</CollapsibleTrigger>
-			) : (
+			{expandable ? null : (
 				<CaughtCount className="max-sm:hidden" count={count} />
 			)}
-			<ItemActions className="me-0">
+			<ItemActions data-layout-role="rule-library-action">
 				<Button
-					aria-label={`Install ${rule.name}`}
+					ariaLabel={`Install ${rule.name}`}
 					disabled={
 						!canEdit ||
 						blocked !== null ||
 						turnableRuleIds(rules, [rule.ruleId]).length === 0 ||
 						(pending !== null && pending !== key)
 					}
-					onClick={() => onInstall(key, rule.name, [rule.ruleId])}
+					onAction={() => onInstall(key, rule.name, [rule.ruleId])}
 					pending={pending === key}
 					pendingLabel="Installing"
-					size="sm"
+					reservePendingWidth
+					size="small"
 					variant="secondary"
 				>
 					Install
@@ -173,18 +174,25 @@ function LibraryRow({
 		return <li className="rule-row">{row}</li>;
 	}
 	return (
-		<Collapsible className="rule-row" render={<li />}>
-			{row}
-			<CollapsibleContent className="px-3 pb-3">
+		<Collapsible
+			as="li"
+			header={{
+				content: row,
+				trigger: caughtLabel(count),
+				triggerPosition: "after-content",
+			}}
+			triggerTone="quiet"
+		>
+			<div className="composition-inline-inset composition-bottom-section">
 				<ItemGroup
 					aria-label={`Change requests ${rule.name} would have caught`}
 				>
 					{examples.map((example) => (
-						<Item key={example.number} size="sm">
+						<Item key={example.number} density="compact">
 							<ItemContent>
 								<ItemTitle>
-									<span className="flex min-w-0 gap-3">
-										<span className="shrink-0 text-text-2 tabular-nums">
+									<span className="flex min-w-0 composition-gap-section">
+										<span className="shrink-0 tone-content-secondary tabular-nums">
 											#{example.number}
 										</span>
 										<span className="min-w-0 truncate">{example.title}</span>
@@ -193,14 +201,14 @@ function LibraryRow({
 							</ItemContent>
 							<ItemMeta>{example.author}</ItemMeta>
 							{example.reason ? (
-								<ItemMeta className="max-w-60 truncate">
+								<ItemMeta data-layout-role="rule-example-reason">
 									{example.reason}
 								</ItemMeta>
 							) : null}
 						</Item>
 					))}
 				</ItemGroup>
-			</CollapsibleContent>
+			</div>
 		</Collapsible>
 	);
 }

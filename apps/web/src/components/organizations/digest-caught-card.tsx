@@ -1,6 +1,5 @@
 import type { HomeDigest } from "@tripwire/contracts";
-import { useSetupInstallRules } from "#/components/setup/use-repo-setup";
-import { Button } from "#/design-system/ui/button";
+import { Button } from "@tripwire/ui/button";
 import {
 	Card,
 	CardDescription,
@@ -8,7 +7,8 @@ import {
 	CardHeader,
 	CardMeta,
 	CardTitle,
-} from "#/design-system/ui/card";
+} from "@tripwire/ui/card";
+import { useSetupInstallRules } from "#/components/setup/use-repo-setup";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 
 interface DigestCaughtCardProps {
@@ -43,32 +43,26 @@ export function DigestCaughtCard({ org, caught }: DigestCaughtCardProps) {
 					</CardDescription>
 				) : null}
 			</CardHeader>
-			<CardFooter className="flex-wrap">
-				<CardMeta className="basis-full sm:basis-auto">{caught.title}</CardMeta>
+			<CardFooter wrap>
+				<CardMeta data-layout-role="digest-caught-meta">
+					{caught.title}
+				</CardMeta>
 				<Button
-					nativeButton={false}
-					render={
-						<a
-							aria-label={`Open #${caught.number}`}
-							href={caught.url}
-							rel="noreferrer"
-							target="_blank"
-						>
-							Open #{caught.number}
-						</a>
-					}
-					size="sm"
+					ariaLabel={`Open #${caught.number}`}
+					href={caught.url}
+					openInNewTab
+					size="small"
 					variant="secondary"
 				>
 					Open #{caught.number}
 				</Button>
 				{canInstall && (caught.armed || canActivate) ? (
 					<Button
-						onClick={() =>
+						onAction={() =>
 							install(caught.ruleId, caught.ruleName, [caught.ruleId])
 						}
 						pending={pending !== null}
-						size="sm"
+						size="small"
 					>
 						{caught.armed ? "Install" : "Turn on Tripwire and install"}{" "}
 						{caught.ruleName}

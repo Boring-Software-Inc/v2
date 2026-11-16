@@ -17,6 +17,11 @@ coverage/
 !/docs/research/
 /docs/research/*
 !/docs/research/workflow-authoring-sdk-cli.md
+!/docs/research/ui-sdk-migration-repair-spec.md
+!/docs/research/ui-sdk-migration-audit-scores.md
+!/docs/research/ui-sdk-migration-route-verification.md
+!/docs/research/ui-sdk-migration-todo.md
+!/docs/research/ui-sdk-notra-settings-composition.md
 !/docs/releases/
 /repo_docs
 /plans/

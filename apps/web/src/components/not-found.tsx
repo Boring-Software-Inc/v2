@@ -1,15 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { ActionLink } from "@tripwire/ui/button";
 import { lazy, Suspense } from "react";
-import { MascotArt } from "#/components/mascot/mascot-art";
-import { Button } from "#/design-system/ui/button";
 import {
-	Empty,
-	EmptyContent,
-	EmptyDescription,
-	EmptyHeader,
-	EmptyTitle,
-} from "#/design-system/ui/empty-state";
+	EmptyState,
+	EmptyStateContent,
+	EmptyStateDescription,
+	EmptyStateHeader,
+	EmptyStateTitle,
+} from "#/components/common/empty-state";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
 
 const NotFoundInShell = lazy(() =>
@@ -20,24 +19,25 @@ const NotFoundInShell = lazy(() =>
 
 export function NotFoundBody({ signedIn }: { signedIn: boolean }) {
 	return (
-		<Empty
+		<EmptyState
 			art={<MascotArt mood="not-found" />}
 			className="max-w-sm"
+			data-layout-role="public-empty-state"
 			reason="no-results"
 		>
-			<EmptyHeader>
-				<EmptyTitle>Page not found</EmptyTitle>
-				<EmptyDescription>
+			<EmptyStateHeader>
+				<EmptyStateTitle>Page not found</EmptyStateTitle>
+				<EmptyStateDescription>
 					Nothing is at this address. Check the link, or go back to your home
 					page.
-				</EmptyDescription>
-			</EmptyHeader>
-			<EmptyContent>
-				<Button nativeButton={false} render={<Link to="/" />} size="sm">
+				</EmptyStateDescription>
+			</EmptyStateHeader>
+			<EmptyStateContent>
+				<ActionLink href="/" size="small" variant="primary">
 					{signedIn ? "Go to home" : "Sign in"}
-				</Button>
-			</EmptyContent>
-		</Empty>
+				</ActionLink>
+			</EmptyStateContent>
+		</EmptyState>
 	);
 }
 

@@ -36,6 +36,15 @@ jobs:
       - name: Boundary check
         run: bun run check:boundaries
 
+      - name: UI boundary check
+        run: bun run check:ui-boundaries
+
+      - name: Install component-state browser
+        run: bun x playwright-core install --with-deps chromium
+
+      - name: Component state check
+        run: bun run check:component-states
+
       # Gate NEW code only: anti-slop runs over the lines this PR ADDED, not the
       # whole tree and not whole touched files. The 471 legacy violations are
       # burned down separately and never block an unrelated PR.

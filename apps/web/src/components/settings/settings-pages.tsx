@@ -2,6 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { AccountPage } from "#/components/account/account-page";
 import { ConnectedAgentsPage } from "#/components/agents/connected-agents-page";
+import {
+	EmptyState,
+	EmptyStateHeader,
+	EmptyStateTitle,
+} from "#/components/common/empty-state";
 import { ConnectionsPage } from "#/components/forges/connections-page";
 import { OrgBillingPage } from "#/components/organizations/org-billing-page";
 import { OrgGeneralSettingsPage } from "#/components/organizations/org-general-settings-page";
@@ -9,7 +14,6 @@ import { OrgMembersPage } from "#/components/organizations/org-members-page";
 import { OrgRedactionPage } from "#/components/organizations/org-redaction-page";
 import { OrgRolesPage } from "#/components/organizations/org-roles-page";
 import { SettingsSectionSkeleton } from "#/components/settings/settings-layout-skeleton";
-import { Empty, EmptyHeader, EmptyTitle } from "#/design-system/ui/empty-state";
 import { currentUserQueryOptions } from "#/lib/auth.query";
 
 const orgRoute = getRouteApi("/$org");
@@ -54,11 +58,11 @@ export function AccountSettingsPage() {
 	}
 	if (!user) {
 		return (
-			<Empty variant="plain">
-				<EmptyHeader>
-					<EmptyTitle>Sign in to see your account</EmptyTitle>
-				</EmptyHeader>
-			</Empty>
+			<EmptyState variant="plain">
+				<EmptyStateHeader>
+					<EmptyStateTitle>Sign in to see your account</EmptyStateTitle>
+				</EmptyStateHeader>
+			</EmptyState>
 		);
 	}
 	return <AccountPage org={org} user={user} />;

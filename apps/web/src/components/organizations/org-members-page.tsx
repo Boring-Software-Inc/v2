@@ -1,81 +1,49 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { OrgRole } from "@tripwire/contracts";
-import { useId, useState } from "react";
-import { Collection } from "#/components/collection/collection";
-import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
+import { AgentBoundary } from "@tripwire/ui/agent-policy";
+import { Avatar } from "@tripwire/ui/avatar";
 import {
-	CollectionRow,
-	InviteRowActions,
-	InviteRowsSkeleton,
-	MemberActionMenuSlot,
-	MemberRoleSelectTrigger,
-	MemberRowActions,
-	MemberRowsSkeleton,
-} from "#/components/layouts/collection-row";
+	Button,
+	DestructiveDialogLauncher,
+	IconButton,
+} from "@tripwire/ui/button";
+import { Field, FieldError, FieldLabel, Input } from "@tripwire/ui/field";
+import { Icon, More } from "@tripwire/ui/icon";
+import { Menu } from "@tripwire/ui/menu";
+import { NumberInput } from "@tripwire/ui/number-input";
+import { Popover } from "@tripwire/ui/popover";
+import { SegmentedControl } from "@tripwire/ui/radio-group";
+import { Select } from "@tripwire/ui/select";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableEmpty,
+	TableHead,
+	TableHeader,
+	TableLoading,
+	TableRow,
+} from "@tripwire/ui/table";
+import { Tabs } from "@tripwire/ui/tabs";
+import { notify } from "@tripwire/ui/toast";
+import { Caption, Label, SupportingText } from "@tripwire/ui/typography";
+import { type ReactNode, useState } from "react";
+import { CollectionControls } from "#/components/collection/collection";
+import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
+import { EmptyStateRetry } from "#/components/common/empty-state";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import {
 	INVITES_COLLECTION,
 	MEMBERS_COLLECTION,
 } from "#/components/organizations/org-members-collection";
 import {
-	SettingsCard,
 	SettingsDangerRow,
 	SettingsHeader,
 } from "#/components/settings/settings-frame";
-import { Icon, More } from "#/design-system/icon";
-import { Avatar } from "#/design-system/ui/avatar";
-import { Button } from "#/design-system/ui/button";
 import {
-	Dialog,
-	DialogAction,
-	DialogBody,
-	DialogClose,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-	DialogTrigger,
-} from "#/design-system/ui/dialog";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "#/design-system/ui/dropdown-menu";
-import {
-	Empty,
-	EmptyDescription,
-	EmptyHeader,
-	EmptyTitle,
-} from "#/design-system/ui/empty-state";
-import { Field, FieldError, FieldLabel } from "#/design-system/ui/field";
-import { Input } from "#/design-system/ui/input";
-import {
-	ItemContent,
-	ItemDescription,
-	ItemGroup,
-	ItemMedia,
-	ItemTitle,
-} from "#/design-system/ui/item";
-import { NumberInput } from "#/design-system/ui/number-input";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/design-system/ui/select";
-import {
-	Tabs,
-	TabsContent,
-	TabsCount,
-	TabsList,
-	TabsTrigger,
-} from "#/design-system/ui/tabs";
-import { toast } from "#/design-system/ui/toast";
-import { Caption, SupportingText } from "#/design-system/ui/typography";
-import { useCollection } from "#/hooks/use-collection";
+	type CollectionController,
+	useCollection,
+} from "#/hooks/use-collection";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
 import type { InviteLinkView, OrgMemberView } from "#/lib/org.functions";
@@ -175,65 +143,38 @@ export function OrgMembersPage({ org }: { org: string }) {
 			<SettingsHeader
 				description="Manage who can access this workspace and what they can do."
 				title="Members"
-			/>
-			<Tabs
-				onValueChange={(value) => {
-					if (value === "members" || value === "pending") {
-						setActiveTab(value);
-					}
-				}}
-				value={activeTab}
 			>
-				<div className="flex flex-wrap items-center justify-between gap-3">
-					<TabsList aria-label="Workspace access" size="sm">
-						<TabsTrigger value="members">
-							Members
-							{membersQuery.data ? (
-								<TabsCount>{membersQuery.data.length}</TabsCount>
-							) : null}
-						</TabsTrigger>
-						{canInvite ? (
-							<TabsTrigger value="pending">Pending</TabsTrigger>
-						) : null}
-					</TabsList>
-					{canInvite ? (
-						<Dialog onOpenChange={setInviting} open={inviting}>
-							<DialogTrigger render={<Button size="sm" />}>
-								Invite member
-							</DialogTrigger>
-							<DialogContent size="sm">
-								<DialogHeader>
-									<DialogTitle>Create an invite link</DialogTitle>
-									<DialogDescription>
-										Choose who can use the link and when it expires.
-									</DialogDescription>
-								</DialogHeader>
-								<InviteForm
-									onCreated={(token) => {
-										setCreatedToken(token);
-										setActiveTab("pending");
-										setInviting(false);
-									}}
-									org={org}
-								/>
-							</DialogContent>
-						</Dialog>
-					) : null}
-				</div>
-				<TabsContent value="members">
-					<Collection
-						collection={members}
-						empty={null}
-						error={membersQuery.isError}
-						onRetry={async () => {
-							await membersQuery.refetch({ throwOnError: true });
+				{canInvite ? (
+					<InviteForm
+						onCreated={(token) => {
+							setCreatedToken(token);
+							setActiveTab("pending");
+							setInviting(false);
 						}}
-						skeleton={<MemberRowsSkeleton />}
-					>
-						{(rows) => (
-							<SettingsCard>
-								<ItemGroup aria-label="Members">
-									{rows.map((member) => (
+						onOpenChange={setInviting}
+						open={inviting}
+						org={org}
+					/>
+				) : null}
+			</SettingsHeader>
+			<Tabs
+				ariaLabel="Workspace access"
+				items={[
+					{
+						content: (
+							<SettingsCollectionTable
+								collection={members}
+								columns={
+									isAdmin ? ["Member", "Role", "Actions"] : ["Member", "Role"]
+								}
+								empty={{ title: "No members" }}
+								error={membersQuery.isError}
+								onRetry={() => membersQuery.refetch({ throwOnError: true })}
+								rowCount={3}
+								scrollLabel="Members table"
+							>
+								{(rows) =>
+									rows.map((member) => (
 										<MemberRow
 											callerUserId={callerUserId}
 											isAdmin={isAdmin}
@@ -242,18 +183,31 @@ export function OrgMembersPage({ org }: { org: string }) {
 											org={org}
 											roleItems={roleItems}
 										/>
-									))}
-								</ItemGroup>
-							</SettingsCard>
-						)}
-					</Collection>
-				</TabsContent>
-				{canInvite ? (
-					<TabsContent value="pending">
-						<PendingInvitesPanel createdToken={createdToken} org={org} />
-					</TabsContent>
-				) : null}
-			</Tabs>
+									))
+								}
+							</SettingsCollectionTable>
+						),
+						count: membersQuery.data?.length,
+						label: "Members",
+						value: "members",
+					},
+					{
+						content: (
+							<PendingInvitesPanel createdToken={createdToken} org={org} />
+						),
+						hidden: !canInvite,
+						label: "Pending",
+						value: "pending",
+					},
+				]}
+				onValueChange={(value) => {
+					if (value === "members" || value === "pending") {
+						setActiveTab(value);
+					}
+				}}
+				size="small"
+				value={activeTab}
+			/>
 
 			{isPersonal || !orgContext || !canResolveAdminExit || onlyAdmin ? null : (
 				<LeaveOrgRow
@@ -263,6 +217,110 @@ export function OrgMembersPage({ org }: { org: string }) {
 				/>
 			)}
 		</>
+	);
+}
+
+function SettingsCollectionTable<Row>({
+	collection,
+	columns,
+	rowCount,
+	scrollLabel,
+	empty,
+	error,
+	onRetry,
+	children,
+}: {
+	collection: CollectionController<Row>;
+	columns: readonly string[];
+	rowCount: number;
+	scrollLabel: string;
+	empty: { title: string; description?: string };
+	error: boolean;
+	onRetry: () => Promise<unknown>;
+	children: (rows: Row[]) => ReactNode;
+}) {
+	const { definition, loading, total, rows } = collection;
+	const emptyArt = (
+		<MascotArt
+			mood={definition.id === "invites" ? "invites-empty" : "empty"}
+			size="compact"
+		/>
+	);
+
+	function renderRows() {
+		if (error && loading) {
+			return (
+				<TableEmpty
+					action={
+						<EmptyStateRetry
+							onRetry={async () => {
+								await onRetry();
+							}}
+						>
+							Try again
+						</EmptyStateRetry>
+					}
+					art={emptyArt}
+					colSpan={columns.length}
+					reason="error"
+					title="Couldn’t load this list"
+				/>
+			);
+		}
+		if (loading) {
+			return <TableLoading columns={columns.length} rows={rowCount} />;
+		}
+		if (total === 0) {
+			return <TableEmpty art={emptyArt} colSpan={columns.length} {...empty} />;
+		}
+		if (rows.length === 0) {
+			return (
+				<TableEmpty
+					action={
+						collection.filtered ? (
+							<Button
+								onAction={collection.clear}
+								size="small"
+								variant="secondary"
+							>
+								Clear filters
+							</Button>
+						) : null
+					}
+					art={emptyArt}
+					colSpan={columns.length}
+					reason="no-results"
+					title={`No matching ${definition.noun}`}
+				/>
+			);
+		}
+		return children(rows);
+	}
+
+	return (
+		<div data-layout-role="settings-collection-table">
+			<CollectionControls collection={collection} compact />
+			<Table
+				aria-busy={loading && !error}
+				aria-label={definition.noun}
+				density="compact"
+				scrollLabel={scrollLabel}
+			>
+				<TableHeader>
+					<TableRow>
+						{columns.map((column) => (
+							<TableHead
+								data-settings-action-cell={column === "Actions" || undefined}
+								key={column}
+							>
+								{column}
+							</TableHead>
+						))}
+					</TableRow>
+				</TableHeader>
+				<TableBody>{renderRows()}</TableBody>
+			</Table>
+		</div>
 	);
 }
 
@@ -281,20 +339,26 @@ function MemberRow({
 }) {
 	const queryClient = useQueryClient();
 	const isSelf = callerUserId !== null && member.userId === callerUserId;
-	const [confirmRemove, setConfirmRemove] = useState(false);
 
 	const roleMutation = useMutation({
 		mutationFn: (role: string) =>
 			updateOrgMemberRole({ data: { org, memberId: member.memberId, role } }),
 		onSuccess: (result, role) => {
 			if (!result.ok) {
-				toast.fail(
-					result.error ??
-						`Tripwire couldn't change the role for ${member.name}. Try again.`,
+				notify.show(
+					{
+						title:
+							result.error ??
+							`Tripwire couldn't change the role for ${member.name}. Try again.`,
+					},
+					"error",
 				);
 				return;
 			}
-			toast.success(`${member.name} is now ${roleLabel(role).toLowerCase()}`);
+			notify.show(
+				{ title: `${member.name} is now ${roleLabel(role).toLowerCase()}` },
+				"success",
+			);
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: orgQueryKeys.members(org) });
@@ -315,7 +379,7 @@ function MemberRow({
 			return result;
 		},
 		onSuccess: () => {
-			toast.success(`Removed ${member.name} from the org`);
+			notify.show({ title: `Removed ${member.name} from the org` }, "success");
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: orgQueryKeys.members(org) });
@@ -325,91 +389,73 @@ function MemberRow({
 	const manage = isAdmin && !isSelf;
 
 	return (
-		<CollectionRow
-			actions={
-				<MemberRowActions>
-					{isSelf ? <SupportingText as="span">You</SupportingText> : null}
-					{manage ? (
-						<Select
-							disabled={roleMutation.isPending}
-							items={roleItems}
-							onValueChange={(value) => {
-								if (value && value !== member.role) {
-									roleMutation.mutate(value);
-								}
-							}}
-							value={member.role}
-						>
-							<MemberRoleSelectTrigger aria-label={`Role for ${member.name}`}>
-								<SelectValue />
-							</MemberRoleSelectTrigger>
-							<SelectContent size="sm">
-								{roleItems.map((item) => (
-									<SelectItem key={item.value} value={item.value}>
-										{item.label}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					) : (
-						<SupportingText as="span">{roleLabel(member.role)}</SupportingText>
-					)}
-					{isAdmin ? (
-						<MemberActionMenuSlot>
-							{manage ? (
-								<DropdownMenu>
-									<DropdownMenuTrigger
-										render={
-											<Button
-												aria-label={`Actions for ${member.name}`}
-												size="icon-sm"
-												variant="ghost"
-											/>
-										}
-									>
-										<Icon icon={More} />
-									</DropdownMenuTrigger>
-									<DropdownMenuContent align="end" size="sm">
-										<DropdownMenuItem
-											onClick={() => setConfirmRemove(true)}
-											variant="destructive"
-										>
-											Remove
-										</DropdownMenuItem>
-									</DropdownMenuContent>
-								</DropdownMenu>
-							) : null}
-						</MemberActionMenuSlot>
-					) : null}
-				</MemberRowActions>
-			}
-			content={
-				<ItemContent>
-					<ItemTitle>{member.name}</ItemTitle>
-					<ItemDescription>{member.email}</ItemDescription>
-				</ItemContent>
-			}
-			media={
-				<ItemMedia>
+		<TableRow>
+			<TableCell>
+				<div data-layout-role="settings-member-identity">
 					<Avatar
 						decorative
 						name={member.name}
 						size="lg"
 						src={member.image ?? undefined}
 					/>
-				</ItemMedia>
-			}
-			overlay={
-				<ConfirmDeleteDialog
-					actionLabel="Remove"
-					onConfirm={() => removeMutation.mutateAsync()}
-					onOpenChange={setConfirmRemove}
-					open={confirmRemove}
-					pendingLabel="Removing"
-					title={`Remove ${member.name}?`}
-				/>
-			}
-		/>
+					<div>
+						<Label>{member.name}</Label>
+						{isSelf ? <SupportingText as="span"> (you)</SupportingText> : null}
+						<SupportingText>{member.email}</SupportingText>
+					</div>
+				</div>
+			</TableCell>
+			<TableCell>
+				{manage ? (
+					<AgentBoundary visibility="hidden">
+						<Select
+							ariaLabel={`Role for ${member.name}`}
+							disabled={roleMutation.isPending}
+							options={roleItems}
+							onValueChange={(value) => {
+								if (value && value !== member.role) {
+									roleMutation.mutate(value);
+								}
+							}}
+							value={member.role}
+						/>
+					</AgentBoundary>
+				) : (
+					<SupportingText as="span">{roleLabel(member.role)}</SupportingText>
+				)}
+			</TableCell>
+			{isAdmin ? (
+				<TableCell data-settings-action-cell>
+					{manage ? (
+						<Menu
+							align="end"
+							ariaLabel={`Actions for ${member.name}`}
+							items={[
+								{
+									confirmation: {
+										confirmLabel: "Remove",
+										description: `${member.name} will lose access to this organization.`,
+										title: `Remove ${member.name}?`,
+									},
+									label: "Remove",
+									onAction: () => removeMutation.mutateAsync(),
+									tone: "destructive",
+									value: "remove-member",
+								},
+							]}
+							trigger={
+								<IconButton
+									icon={<Icon icon={More} />}
+									label={`Actions for ${member.name}`}
+									size="small"
+									variant="ghost"
+								/>
+							}
+						/>
+					) : null}
+				</TableCell>
+			) : null}
+		</TableRow>
 	);
 }
 
@@ -447,19 +493,16 @@ function LeaveOrgRow({
 	return (
 		<SettingsDangerRow
 			action={
-				<Button
-					confirmation={false}
-					onClick={() => setOpen(true)}
-					size="sm"
-					variant="destructive"
-				>
-					Leave org
-				</Button>
+				<AgentBoundary visibility="hidden">
+					<DestructiveDialogLauncher onOpenChange={setOpen} size="small">
+						Leave org
+					</DestructiveDialogLauncher>
+				</AgentBoundary>
 			}
 			label={`Leave ${name}`}
 		>
 			<ConfirmDeleteDialog
-				actionLabel="Leave org"
+				confirmLabel="Leave org"
 				confirmText={name}
 				description={
 					isAdmin
@@ -491,57 +534,25 @@ function PendingInvitesPanel({
 	return (
 		<div className="flex flex-col gap-4">
 			{createdToken ? <FreshInviteLink token={createdToken} /> : null}
-			<Collection
+			<SettingsCollectionTable
 				collection={invites}
-				empty={
-					<SettingsCard>
-						<Empty
-							art={<MascotArt mood="invites-empty" size="compact" />}
-							size="sm"
-							variant="plain"
-						>
-							<EmptyHeader>
-								<EmptyTitle>No pending invitations</EmptyTitle>
-								<EmptyDescription>
-									Invite links appear here until they're used, expire, or are
-									revoked.
-								</EmptyDescription>
-							</EmptyHeader>
-						</Empty>
-					</SettingsCard>
-				}
-				error={invitesQuery.isError}
-				noResults={
-					invites.filtered ? undefined : (
-						<SettingsCard>
-							<Empty
-								art={<MascotArt mood="invites-empty" size="compact" />}
-								reason="no-results"
-								size="sm"
-								variant="plain"
-							>
-								<EmptyHeader>
-									<EmptyTitle>No matching invitations</EmptyTitle>
-								</EmptyHeader>
-							</Empty>
-						</SettingsCard>
-					)
-				}
-				onRetry={async () => {
-					await invitesQuery.refetch({ throwOnError: true });
+				columns={["Invite link", "Usage", "Expires", "Actions"]}
+				empty={{
+					title: "No pending invitations",
+					description:
+						"Invite links appear here until they're used, expire, or are revoked.",
 				}}
-				skeleton={<InviteRowsSkeleton />}
+				error={invitesQuery.isError}
+				onRetry={() => invitesQuery.refetch({ throwOnError: true })}
+				rowCount={2}
+				scrollLabel="Invite links table"
 			>
-				{(rows) => (
-					<SettingsCard>
-						<ItemGroup aria-label="Invite links">
-							{rows.map((invite) => (
-								<InviteLinkRow invite={invite} key={invite.id} org={org} />
-							))}
-						</ItemGroup>
-					</SettingsCard>
-				)}
-			</Collection>
+				{(rows) =>
+					rows.map((invite) => (
+						<InviteLinkRow invite={invite} key={invite.id} org={org} />
+					))
+				}
+			</SettingsCollectionTable>
 		</div>
 	);
 }
@@ -549,12 +560,15 @@ function PendingInvitesPanel({
 function InviteForm({
 	org,
 	onCreated,
+	onOpenChange,
+	open,
 }: {
 	org: string;
 	onCreated: (token: string) => void;
+	onOpenChange: (open: boolean) => void;
+	open: boolean;
 }) {
 	const queryClient = useQueryClient();
-	const formId = useId();
 	const [role, setRole] = useState<OrgRole>("member");
 	const [maxUses, setMaxUses] = useState(1);
 	const [expiresInDays, setExpiresInDays] = useState(7);
@@ -566,11 +580,21 @@ function InviteForm({
 			if (result.token) {
 				onCreated(result.token);
 			} else {
-				toast.fail(
-					result.error ??
-						"Tripwire couldn't create the invite link. Try again.",
+				notify.show(
+					{
+						title:
+							result.error ??
+							"Tripwire couldn't create the invite link. Try again.",
+					},
+					"error",
 				);
 			}
+		},
+		onError: () => {
+			notify.show(
+				{ title: "Tripwire couldn't create the invite link. Try again." },
+				"error",
+			);
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: orgQueryKeys.invites(org) });
@@ -582,79 +606,83 @@ function InviteForm({
 	const inputsValid = maxUsesValid && expiryValid;
 
 	return (
-		<>
-			<DialogBody>
-				<form
-					className="flex flex-col"
-					data-layout-role="invite-dialog-form"
-					id={formId}
-					onSubmit={(event) => {
-						event.preventDefault();
-						if (inputsValid) {
-							createMutation.mutate();
-						}
-					}}
-				>
-					<Field>
-						<FieldLabel>Role</FieldLabel>
-						<Select
-							items={ROLE_ITEMS}
-							onValueChange={(value) => {
-								if (isOrgRole(value)) {
-									setRole(value);
-								}
-							}}
-							value={role}
-						>
-							<SelectTrigger>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{ROLE_ITEMS.map((item) => (
-									<SelectItem key={item.value} value={item.value}>
-										{item.label}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</Field>
-					<Field invalid={!maxUsesValid}>
-						<FieldLabel>Use limit</FieldLabel>
-						<NumberInput
-							max={1000}
-							min={1}
-							onValueChange={(value) => setMaxUses(value ?? 0)}
-							value={maxUses}
-						/>
-						{maxUsesValid ? null : <FieldError>Enter 1 to 1000.</FieldError>}
-					</Field>
-					<Field invalid={!expiryValid}>
-						<FieldLabel>Expires in</FieldLabel>
-						<NumberInput
-							max={90}
-							min={1}
-							onValueChange={(value) => setExpiresInDays(value ?? 0)}
-							unit="days"
-							value={expiresInDays}
-						/>
-						{expiryValid ? null : <FieldError>Enter 1 to 90 days.</FieldError>}
-					</Field>
-				</form>
-			</DialogBody>
-			<DialogFooter>
-				<DialogClose>Cancel</DialogClose>
-				<DialogAction
-					close={false}
-					disabled={!inputsValid}
-					form={formId}
-					pending={createMutation.isPending}
-					pendingLabel="Creating"
-					type="submit"
-				>
-					Create invite link
-				</DialogAction>
-			</DialogFooter>
-		</>
+		<Popover
+			align="end"
+			description="Create a link you can share with a new member."
+			focusMode="trap"
+			onOpenChange={onOpenChange}
+			open={open}
+			title="Invite member"
+			trigger={<Button size="small">Invite member</Button>}
+			triggerLabel="Invite member"
+		>
+			<form
+				className="flex flex-col composition-gap-group"
+				onSubmit={(event) => {
+					event.preventDefault();
+					if (inputsValid && !createMutation.isPending) {
+						createMutation.mutate();
+					}
+				}}
+			>
+				<Field>
+					<FieldLabel>Role</FieldLabel>
+					<SegmentedControl
+						ariaLabel="Role"
+						fill
+						options={ROLE_ITEMS}
+						onValueChange={(value) => {
+							if (isOrgRole(value)) {
+								setRole(value);
+							}
+						}}
+						value={role}
+					/>
+				</Field>
+				<Field invalid={!maxUsesValid}>
+					<FieldLabel>Use limit</FieldLabel>
+					<NumberInput
+						ariaLabel="Use limit"
+						max={1000}
+						min={1}
+						onValueChange={(value) => setMaxUses(value ?? 0)}
+						value={maxUses}
+					/>
+					{maxUsesValid ? null : <FieldError>Enter 1 to 1000.</FieldError>}
+				</Field>
+				<Field invalid={!expiryValid}>
+					<FieldLabel>Expires in</FieldLabel>
+					<NumberInput
+						ariaLabel="Expiration in days"
+						max={90}
+						min={1}
+						onValueChange={(value) => setExpiresInDays(value ?? 0)}
+						unit="days"
+						value={expiresInDays}
+					/>
+					{expiryValid ? null : <FieldError>Enter 1 to 90 days.</FieldError>}
+				</Field>
+				<div className="flex flex-wrap justify-end composition-gap-standard">
+					<Button
+						onAction={() => onOpenChange(false)}
+						size="small"
+						type="button"
+					>
+						Cancel
+					</Button>
+					<Button
+						disabled={!inputsValid}
+						pending={createMutation.isPending}
+						pendingLabel="Creating"
+						size="small"
+						type="submit"
+						variant="primary"
+					>
+						Create link
+					</Button>
+				</div>
+			</form>
+		</Popover>
 	);
 }
 
@@ -663,7 +691,11 @@ function FreshInviteLink({ token }: { token: string }) {
 	return (
 		<Field>
 			<FieldLabel>New invite link, shown once</FieldLabel>
-			<Input mode="copy" noun="invite link" value={url} />
+			<Input
+				copy={{ label: "Copy invite link", value: url }}
+				labelledByField
+				value={url}
+			/>
 		</Field>
 	);
 }
@@ -691,7 +723,7 @@ function InviteLinkRow({
 			return result;
 		},
 		onSuccess: () => {
-			toast.success("Invite link revoked");
+			notify.show({ title: "Invite link revoked" }, "success");
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: orgQueryKeys.invites(org) });
@@ -701,43 +733,39 @@ function InviteLinkRow({
 	const revoked = invite.revokedAt !== null;
 
 	return (
-		<CollectionRow
-			actions={
-				<InviteRowActions>
-					<Caption>
-						{invite.uses} of {invite.maxUses} used
-					</Caption>
-					<Caption>
-						{revoked ? "Revoked" : inviteExpiryLabel(invite.expiresAt)}
-					</Caption>
-					{revoked ? null : (
-						<Button
-							aria-label={`Revoke ${roleName} invite link`}
-							confirmation={false}
-							onClick={() => setConfirmRevoke(true)}
-							size="sm"
-							variant="destructive"
+		<TableRow>
+			<TableCell>{ROLE_LABEL[invite.role]} invite</TableCell>
+			<TableCell>
+				<Caption>
+					{invite.uses} of {invite.maxUses} used
+				</Caption>
+			</TableCell>
+			<TableCell>
+				<Caption>
+					{revoked ? "Revoked" : inviteExpiryLabel(invite.expiresAt)}
+				</Caption>
+			</TableCell>
+			<TableCell data-settings-action-cell>
+				{revoked ? null : (
+					<AgentBoundary visibility="hidden">
+						<DestructiveDialogLauncher
+							ariaLabel={`Revoke ${roleName} invite link`}
+							onOpenChange={setConfirmRevoke}
+							size="small"
 						>
 							Revoke
-						</Button>
-					)}
-				</InviteRowActions>
-			}
-			content={
-				<ItemContent>
-					<ItemTitle>{ROLE_LABEL[invite.role]} invite</ItemTitle>
-				</ItemContent>
-			}
-			overlay={
+						</DestructiveDialogLauncher>
+					</AgentBoundary>
+				)}
 				<ConfirmDeleteDialog
-					actionLabel="Revoke"
+					confirmLabel="Revoke"
 					onConfirm={() => revokeMutation.mutateAsync()}
 					onOpenChange={setConfirmRevoke}
 					open={confirmRevoke}
 					pendingLabel="Revoking"
 					title="Revoke this invite link?"
 				/>
-			}
-		/>
+			</TableCell>
+		</TableRow>
 	);
 }

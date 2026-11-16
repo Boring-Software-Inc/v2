@@ -1,5 +1,5 @@
 import type { WorkflowDefinition } from "@tripwire/contracts";
-import { CopyButton } from "#/design-system/ui/copy-button";
+import { CopyButton } from "@tripwire/ui/copy-button";
 import {
 	type CustomRuleDisplay,
 	workflowToMarkdown,
@@ -19,11 +19,14 @@ export function CopyWorkflowButton({
 	customRules: readonly CustomRuleDisplay[];
 }) {
 	return (
-		<CopyButton
-			className="shrink-0"
-			label="workflow as Markdown"
-			size="icon-sm"
-			value={() => workflowToMarkdown(definition, customRules)}
-		/>
+		<span className="shrink-0">
+			<CopyButton
+				label="workflow as Markdown"
+				showLabel={false}
+				variant="ghost"
+				size="small"
+				value={() => workflowToMarkdown(definition, customRules)}
+			/>
+		</span>
 	);
 }

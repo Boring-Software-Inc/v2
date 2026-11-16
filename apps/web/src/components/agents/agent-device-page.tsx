@@ -1,5 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
+import { AgentBoundary } from "@tripwire/ui/agent-policy";
+import { Button } from "@tripwire/ui/button";
+import { Card, CardContent } from "@tripwire/ui/card";
+import { Icon, Success } from "@tripwire/ui/icon";
+import { notify } from "@tripwire/ui/toast";
 import { useState } from "react";
 import { AgentClientLogo } from "#/components/agents/agent-client-logo";
 import { CodeBoxes, CodeInput } from "#/components/agents/agent-code-boxes";
@@ -14,10 +19,6 @@ import {
 	formatCode,
 	isComplete,
 } from "#/components/agents/device-code";
-import { Icon, Success } from "#/design-system/icon";
-import { Button } from "#/design-system/ui/button";
-import { Card, CardContent } from "#/design-system/ui/card";
-import { toast } from "#/design-system/ui/toast";
 import { answerDevice } from "#/lib/agent-auth-endpoints";
 import type { AgentRequestOrg } from "#/lib/agents.functions";
 import { grantDeviceOrgs } from "#/lib/agents.functions";
@@ -61,7 +62,7 @@ function EnterCode() {
 						}}
 					>
 						<CodeInput cells={cells} onChange={setCells} />
-						<Button disabled={!complete} type="submit">
+						<Button disabled={!complete} type="submit" variant="primary">
 							Continue
 						</Button>
 					</form>
@@ -108,12 +109,7 @@ function SignedIn({
 								Signed in to {orgPhrase(orgs)} for 30 days
 							</span>
 						</div>
-						<Icon
-							className="agent-request-success"
-							icon={Success}
-							size={20}
-							weight="fill"
-						/>
+						<Icon icon={Success} size={20} tone="success" weight="fill" />
 					</div>
 				</CardContent>
 			</Card>
@@ -151,7 +147,11 @@ function DeviceRequest({ userCode }: { userCode: string }) {
 	}
 	return (
 		<AgentRequestCard
-			lead={<CodeBoxes code={userCode} />}
+			lead={
+				<AgentBoundary visibility="hidden">
+					<CodeBoxes code={userCode} />
+				</AgentBoundary>
+			}
 			onDecide={async (accept, orgIds) => {
 				try {
 					if (accept) {
@@ -167,10 +167,14 @@ function DeviceRequest({ userCode }: { userCode: string }) {
 							: { kind: "denied" },
 					);
 				} catch (error) {
-					toast.fail(
-						error instanceof Error
-							? error.message
-							: "Tripwire could not save your answer. Try again.",
+					notify.show(
+						{
+							title:
+								error instanceof Error
+									? error.message
+									: "Tripwire could not save your answer. Try again.",
+						},
+						"error",
 					);
 				}
 			}}

@@ -1,4 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
+import { Button } from "@tripwire/ui/button";
+import { Sheet } from "@tripwire/ui/drawer";
+import { ChevronDown, ChevronUp, Close, Icon } from "@tripwire/ui/icon";
+import { Caption, Subheading } from "@tripwire/ui/typography";
 import { useRef, useState } from "react";
 import { AccessSection } from "#/components/admin/user-sheet/access-section";
 import { AccountSection } from "#/components/admin/user-sheet/account-section";
@@ -14,15 +18,6 @@ import { QuietLine } from "#/components/admin/user-sheet/sheet-parts";
 import { useActiveSection } from "#/components/admin/user-sheet/use-active-section";
 import { UserSheetHeader } from "#/components/admin/user-sheet/user-sheet-header";
 import { UserSheetSkeleton } from "#/components/admin/user-sheet/user-sheet-skeleton";
-import { ChevronDown, ChevronUp, Close, Icon } from "#/design-system/icon";
-import { Button } from "#/design-system/ui/button";
-import {
-	Sheet,
-	SheetClose,
-	SheetContent,
-	SheetTitle,
-} from "#/design-system/ui/sheet";
-import { Caption } from "#/design-system/ui/typography";
 import {
 	SHEET_SECTIONS,
 	type SheetPosition,
@@ -112,25 +107,34 @@ function SheetSections({
 	);
 }
 
-function SheetBodyFor({
-	userId,
+function useUserSheetQuery(userId: string | undefined) {
+	return useQuery({
+		...adminUserQueryOptions(userId ?? ""),
+		enabled: userId !== undefined,
+	});
+}
+
+function SheetBody({
 	onClose,
+	query,
 }: {
-	userId: string;
 	onClose: () => void;
+	query: ReturnType<typeof useUserSheetQuery>;
 }) {
-	const { data, isLoading, error, refetch } = useQuery(
-		adminUserQueryOptions(userId),
-	);
+	const { data, isLoading, error, refetch } = query;
 	if (isLoading) {
 		return <UserSheetSkeleton />;
 	}
 	if (error) {
 		return (
 			<div data-layout-role="user-sheet-state">
-				<SheetTitle>Tripwire couldn't load this user</SheetTitle>
+				<Subheading>Tripwire couldn't load this user</Subheading>
 				<QuietLine>{error.message}</QuietLine>
-				<Button onClick={() => void refetch()} size="sm" variant="secondary">
+				<Button
+					onAction={() => void refetch()}
+					size="small"
+					variant="secondary"
+				>
 					Load user again
 				</Button>
 			</div>
@@ -139,7 +143,7 @@ function SheetBodyFor({
 	if (!data) {
 		return (
 			<div data-layout-role="user-sheet-state">
-				<SheetTitle>This user no longer exists</SheetTitle>
+				<Subheading>This user no longer exists</Subheading>
 				<QuietLine>They may have deleted their account.</QuietLine>
 			</div>
 		);
@@ -162,47 +166,55 @@ export function UserSheet({
 	if (userId && userId !== shown) {
 		setShown(userId);
 	}
+	const details = useUserSheetQuery(userId ?? shown);
 	return (
 		<Sheet
+			bodyInset="content"
 			onOpenChange={(open) => {
 				if (!open) {
 					onClose();
 				}
 			}}
 			open={userId !== undefined}
+			showFooter={false}
+			showHeader={false}
+			title={details.data?.user.name ?? "User details"}
+			width="large"
 		>
-			<SheetContent data-layout-role="user-sheet" showCloseButton={false}>
+			<div data-layout-role="user-sheet">
 				<div data-layout-role="user-sheet-toolbar">
 					<div data-layout-role="user-sheet-stepper">
 						<Button
-							aria-label="Previous user"
+							ariaLabel="Previous user"
 							disabled={!position.prev}
-							onClick={() => onStep(position.prev)}
-							size="icon-sm"
+							onAction={() => onStep(position.prev)}
+							size="small"
 							variant="secondary"
 						>
 							<Icon icon={ChevronUp} />
 						</Button>
 						<Button
-							aria-label="Next user"
+							ariaLabel="Next user"
 							disabled={!position.next}
-							onClick={() => onStep(position.next)}
-							size="icon-sm"
+							onAction={() => onStep(position.next)}
+							size="small"
 							variant="secondary"
 						>
 							<Icon icon={ChevronDown} />
 						</Button>
 						<Caption>{position.label}</Caption>
 					</div>
-					<SheetClose
-						aria-label="Close"
-						render={<Button size="icon-sm" variant="ghost" />}
+					<Button
+						ariaLabel="Close"
+						onAction={onClose}
+						size="small"
+						variant="ghost"
 					>
 						<Icon icon={Close} />
-					</SheetClose>
+					</Button>
 				</div>
-				{shown ? <SheetBodyFor onClose={onClose} userId={shown} /> : null}
-			</SheetContent>
+				{shown ? <SheetBody onClose={onClose} query={details} /> : null}
+			</div>
 		</Sheet>
 	);
 }

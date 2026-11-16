@@ -1,0 +1,19 @@
+[data-layout-role="workflow-review-actions"]
+	[data-slot="button"][data-size="small"] {
+	padding-inline: calc(var(--space-2) + var(--space-0-5));
+	border: 0;
+	letter-spacing: var(--tracking-label);
+}
+
+[data-layout-role="workflow-review-actions"]
+	[data-slot="button"][data-variant="secondary"] {
+	box-shadow: 0 0 0 var(--line-width) var(--flat-ring);
+}
+
+@media (forced-colors: active) {
+	[data-layout-role="workflow-review-actions"]
+		[data-slot="button"][data-size="small"] {
+		border: var(--line-width) solid ButtonText;
+		box-shadow: none;
+	}
+}

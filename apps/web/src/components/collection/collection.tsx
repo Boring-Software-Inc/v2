@@ -1,13 +1,15 @@
+import { Button } from "@tripwire/ui/button";
+import { SegmentedControl } from "@tripwire/ui/radio-group";
+import { SkeletonSwap } from "@tripwire/ui/skeleton";
 import type { ReactNode } from "react";
-import { Button } from "#/design-system/ui/button";
 import {
-	Empty,
-	EmptyContent,
-	EmptyDescription,
-	EmptyHeader,
-	EmptyRetry,
-	EmptyTitle,
-} from "#/design-system/ui/empty-state";
+	EmptyState,
+	EmptyStateContent,
+	EmptyStateDescription,
+	EmptyStateHeader,
+	EmptyStateRetry,
+	EmptyStateTitle,
+} from "#/components/common/empty-state";
 import {
 	FilterBar,
 	FilterBarClear,
@@ -15,12 +17,7 @@ import {
 	FilterBarSearch,
 	FilterBarSelect,
 	FilterToggle,
-} from "#/design-system/ui/filter-bar";
-import {
-	SegmentedControl,
-	SegmentedControlItem,
-} from "#/design-system/ui/segmented-control";
-import { SkeletonSwap } from "#/design-system/ui/skeleton";
+} from "#/components/common/filter-bar";
 import type { CollectionController } from "#/hooks/use-collection";
 import {
 	type CollectionFilter,
@@ -60,26 +57,28 @@ export function Collection<Row>({
 
 	if (failed) {
 		return (
-			<Empty
+			<EmptyState
 				reason="error"
 				size={variant === "plain" ? "sm" : "default"}
 				variant={variant}
 			>
-				<EmptyHeader>
-					<EmptyTitle>{capitalize(definition.noun)} did not load</EmptyTitle>
-					<EmptyDescription>
+				<EmptyStateHeader>
+					<EmptyStateTitle>
+						{capitalize(definition.noun)} did not load
+					</EmptyStateTitle>
+					<EmptyStateDescription>
 						Tripwire could not load {definition.noun}. Check your connection,
 						then try again.
-					</EmptyDescription>
-				</EmptyHeader>
+					</EmptyStateDescription>
+				</EmptyStateHeader>
 				{onRetry ? (
-					<EmptyContent>
-						<EmptyRetry onRetry={onRetry}>
+					<EmptyStateContent>
+						<EmptyStateRetry onRetry={onRetry}>
 							Load {definition.noun} again
-						</EmptyRetry>
-					</EmptyContent>
+						</EmptyStateRetry>
+					</EmptyStateContent>
 				) : null}
-			</Empty>
+			</EmptyState>
 		);
 	}
 
@@ -118,35 +117,38 @@ function CollectionNoResults<Row>({
 	variant: "panel" | "plain";
 }) {
 	return (
-		<Empty
+		<EmptyState
 			reason="no-results"
 			size={variant === "plain" ? "sm" : "default"}
 			variant={variant}
 		>
-			<EmptyHeader>
-				<EmptyTitle>No {collection.definition.noun} match</EmptyTitle>
-			</EmptyHeader>
+			<EmptyStateHeader>
+				<EmptyStateTitle>No {collection.definition.noun} match</EmptyStateTitle>
+			</EmptyStateHeader>
 			{collection.filtered ? (
-				<EmptyContent>
-					<Button onClick={collection.clear} size="sm" variant="secondary">
+				<EmptyStateContent>
+					<Button onAction={collection.clear} size="small" variant="secondary">
 						Clear filters
 					</Button>
-				</EmptyContent>
+				</EmptyStateContent>
 			) : null}
-		</Empty>
+		</EmptyState>
 	);
 }
 
-function CollectionControls<Row>({
+export function CollectionControls<Row>({
 	collection,
+	compact = false,
 }: {
 	collection: CollectionController<Row>;
+	compact?: boolean;
 }) {
 	const { definition, state } = collection;
 	const filters = definition.filters ?? [];
 	const sorts = definition.sort ?? [];
 	const segments = filters.filter(
 		(filter) =>
+			!compact &&
 			filter.kind === "segment" &&
 			(collection.options[filter.key]?.length ?? 0) +
 				(filter.allLabel ? 1 : 0) <=
@@ -223,31 +225,30 @@ function CollectionSegment<Row>({
 	const allLabel = filter.kind === "toggle" ? undefined : filter.allLabel;
 	return (
 		<SegmentedControl
-			aria-label={filter.label}
-			size="sm"
-			onValueChange={(next) =>
-				collection.setFilter(filter.key, next === ALL ? [] : [next])
-			}
+			ariaLabel={filter.label}
+			onValueChange={(next) => {
+				if (next) {
+					collection.setFilter(filter.key, next === ALL ? [] : [next]);
+				}
+			}}
+			options={[
+				...(allLabel
+					? [
+							{
+								count: collection.allCounts[filter.key],
+								label: allLabel,
+								value: ALL,
+							},
+						]
+					: []),
+				...options.map((option) => ({
+					count: counts[option.value] ?? 0,
+					label: option.label,
+					value: option.value,
+				})),
+			]}
 			value={value}
-		>
-			{allLabel ? (
-				<SegmentedControlItem
-					count={collection.allCounts[filter.key]}
-					value={ALL}
-				>
-					{allLabel}
-				</SegmentedControlItem>
-			) : null}
-			{options.map((option) => (
-				<SegmentedControlItem
-					count={counts[option.value] ?? 0}
-					key={option.value}
-					value={option.value}
-				>
-					{option.label}
-				</SegmentedControlItem>
-			))}
-		</SegmentedControl>
+		/>
 	);
 }
 
@@ -303,6 +304,7 @@ function CollectionChip<Row>({
 			}
 			options={options}
 			showAllOption={filter.defaultValue === undefined}
+			sinkEmpty={filter.kind === "segment" ? false : undefined}
 			value={chosen[0] ?? null}
 		/>
 	);

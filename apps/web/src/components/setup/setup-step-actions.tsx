@@ -1,11 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import type { Forge } from "@tripwire/contracts";
+import { Button } from "@tripwire/ui/button";
 import {
 	useKeepResponseDefaults,
 	useRunFirstCheck,
 } from "#/components/setup/use-repo-setup";
-import { Button } from "#/design-system/ui/button";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { orgInstallUrlQueryOptions } from "#/lib/onboarding.query";
 import type { SetupStepKey } from "#/lib/repo-setup";
@@ -33,10 +32,9 @@ export function InstallAction({
 	if (forge === "gitcafe")
 		return (
 			<Button
-				nativeButton={false}
-				render={<Link params={{ org }} to="/$org/settings/connections" />}
+				href={`/${org}/settings/connections`}
 				disabled={!canInstall}
-				size="sm"
+				size="small"
 			>
 				Manage GitCafe connection
 			</Button>
@@ -45,7 +43,7 @@ export function InstallAction({
 	return (
 		<Button
 			disabled={!url}
-			onClick={() => {
+			onAction={() => {
 				if (!url) {
 					return;
 				}
@@ -53,7 +51,7 @@ export function InstallAction({
 				window.location.assign(url);
 			}}
 			pending={canInstall && install.isPending}
-			size="sm"
+			size="small"
 		>
 			Choose repos on GitHub
 		</Button>
@@ -74,21 +72,18 @@ export function FirstCheckAction({
 			{number !== null ? (
 				<Button
 					disabled={!canRun}
-					onClick={() => run.mutate(number)}
+					onAction={() => run.mutate(number)}
 					pending={run.isPending}
 					pendingLabel={`Running rules on #${number}`}
-					size="sm"
+					size="small"
 				>
 					Run rules on #{number}
 				</Button>
 			) : null}
 			{replayLink ? (
 				<Button
-					nativeButton={false}
-					render={
-						<Link params={{ org, repo }} to="/$org/$repo/moderation/replay" />
-					}
-					size="sm"
+					href={`/${org}/${repo}/moderation/replay`}
+					size="small"
 					variant={number === null ? "primary" : "ghost"}
 				>
 					View rule replay
@@ -105,19 +100,15 @@ export function ResponsesAction({ org, repo, state }: StepActionProps) {
 		<div data-layout-role="setup-step-actions">
 			<Button
 				disabled={!canManage}
-				onClick={() => keep.mutate()}
+				onAction={() => keep.mutate()}
 				pending={keep.isPending}
 				pendingLabel="Saving"
-				size="sm"
+				size="small"
 				variant="secondary"
 			>
 				Keep defaults
 			</Button>
-			<Button
-				nativeButton={false}
-				render={<Link params={{ org, repo }} to="/$org/$repo/responses" />}
-				size="sm"
-			>
+			<Button href={`/${org}/${repo}/responses`} size="small">
 				Open responses
 			</Button>
 		</div>
@@ -126,11 +117,7 @@ export function ResponsesAction({ org, repo, state }: StepActionProps) {
 
 export function RulesLinkAction({ org, repo }: { org: string; repo: string }) {
 	return (
-		<Button
-			nativeButton={false}
-			render={<Link params={{ org, repo }} to="/$org/$repo/rules" />}
-			size="sm"
-		>
+		<Button href={`/${org}/${repo}/rules`} size="small">
 			Install rules
 		</Button>
 	);

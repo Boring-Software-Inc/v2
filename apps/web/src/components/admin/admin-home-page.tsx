@@ -1,5 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import {
+	Alert,
+	AlertAction,
+	AlertDescription,
+	AlertTitle,
+} from "@tripwire/ui/alert";
+import { Button } from "@tripwire/ui/button";
+import {
+	Item,
+	ItemContent,
+	ItemDescription,
+	ItemGroup,
+	ItemTitle,
+} from "@tripwire/ui/item";
 import { AdminOverviewStats } from "#/components/admin/admin-overview-stats";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { Page, PageBody, PageHeader } from "#/components/layouts/page";
@@ -8,20 +22,6 @@ import {
 	SectionBody,
 	SectionHeader,
 } from "#/components/layouts/section";
-import {
-	Alert,
-	AlertAction,
-	AlertDescription,
-	AlertTitle,
-} from "#/design-system/ui/alert";
-import { Button } from "#/design-system/ui/button";
-import {
-	Item,
-	ItemContent,
-	ItemDescription,
-	ItemGroup,
-	ItemTitle,
-} from "#/design-system/ui/item";
 import { adminOverviewQueryOptions } from "#/lib/admin.query";
 
 const SECTIONS = [
@@ -71,14 +71,14 @@ export function AdminHomePage() {
 				/>
 				<PageBody>
 					{error ? (
-						<Alert status="fail">
+						<Alert role="alert" status="danger">
 							<AlertTitle>Tripwire couldn't load the admin summary</AlertTitle>
 							<AlertDescription>{error.message}</AlertDescription>
 							<AlertAction>
 								<Button
 									disabled={isFetching}
-									onClick={() => void refetch()}
-									size="sm"
+									onAction={() => void refetch()}
+									size="small"
 									variant="secondary"
 								>
 									Load summary again
@@ -98,7 +98,7 @@ export function AdminHomePage() {
 						<SectionHeader title="Staff tools" />
 						<SectionBody>
 							<nav aria-label="Admin sections">
-								<ItemGroup>
+								<ItemGroup data-layout-role="admin-dashboard-list">
 									{SECTIONS.map((section) => (
 										<Item key={section.to}>
 											<ItemContent>

@@ -3,16 +3,16 @@ import {
 	type DigestHistoryInput,
 	RUN_RESULT_LABELS,
 } from "@tripwire/contracts";
-import { EntityCard } from "#/components/common/entity-card";
-import { ItemRouterLink } from "#/components/common/router-links";
-import { ZonedTime } from "#/components/timezones/zoned-time";
 import {
 	Item,
 	ItemContent,
 	ItemDescription,
 	ItemGroup,
 	ItemTitle,
-} from "#/design-system/ui/item";
+} from "@tripwire/ui/item";
+import { EntityCard } from "#/components/common/entity-card";
+import { ItemRouterLink } from "#/components/common/router-links";
+import { ZonedTime } from "#/components/timezones/zoned-time";
 import { digestHistoryQueryOptions } from "#/lib/home-digest.query";
 
 const HISTORY_LABELS = { ...RUN_RESULT_LABELS, needs_review: "Human review" };

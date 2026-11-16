@@ -54,13 +54,16 @@ export const repoSuggestionsQueryOptions = (
 		enabled: repoId !== "" && kind !== "",
 	});
 
+export const RULE_PREVIEW_FETCH_LIMIT = 12;
+
 export const ruleLibraryQueryOptions = (org: string, repoId: string) =>
 	queryOptions({
 		queryKey: rulesQueryKeys.library(org, repoId),
 		queryFn: ({ signal }) => getRuleLibrary({ data: { org, repoId }, signal }),
 		staleTime: 60_000,
 		refetchInterval: (query) =>
-			query.state.data?.preview === null && query.state.dataUpdateCount < 12
+			query.state.data?.preview === null &&
+			query.state.dataUpdateCount < RULE_PREVIEW_FETCH_LIMIT
 				? 5_000
 				: false,
 		enabled: repoId !== "",

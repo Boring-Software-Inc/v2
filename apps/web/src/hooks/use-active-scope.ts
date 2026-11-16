@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMatch, useParams } from "@tanstack/react-router";
+import type { ForgeId } from "@tripwire/contracts";
 import type { OrgWithRole } from "@tripwire/db";
 import { resolveActiveScope } from "#/lib/active-scope";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
@@ -8,6 +9,8 @@ import { myOrgsQueryOptions, orgRepoQueryOptions } from "#/lib/org.query";
 export interface ActiveScope {
 	org: OrgWithRole | null;
 	repo: string | null;
+	repoCandidate: string | null;
+	repoForge: ForgeId | null;
 }
 
 export function useActiveScope(): ActiveScope {
@@ -28,11 +31,16 @@ export function useActiveScope(): ActiveScope {
 		defaultOrgSlug: session?.defaultOrgSlug,
 	});
 
-	const { isSuccess: repoResolved } = useQuery({
+	const { data: resolvedRepo, isSuccess: repoResolved } = useQuery({
 		...orgRepoQueryOptions(org?.slug ?? "", repoCandidate ?? ""),
 		enabled: Boolean(org && repoCandidate),
 		retry: false,
 	});
 
-	return { org, repo: repoCandidate && repoResolved ? repoCandidate : null };
+	return {
+		org,
+		repo: repoCandidate && repoResolved ? repoCandidate : null,
+		repoCandidate,
+		repoForge: resolvedRepo?.forge ?? null,
+	};
 }

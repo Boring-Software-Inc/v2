@@ -1,44 +1,35 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { allowlistLoginSchema } from "@tripwire/contracts";
-import { ActionRow } from "@tripwire/ui/layouts";
-import { motion, useReducedMotion } from "motion/react";
-import { useId, useRef, useState } from "react";
-import { MascotArt } from "#/components/mascot/mascot-art";
 import {
 	Avatar,
 	AvatarFallback,
 	AvatarImage,
 	initialsOf,
-} from "#/design-system/ui/avatar";
-import { Button } from "#/design-system/ui/button";
-import {
-	Empty,
-	EmptyDescription,
-	EmptyHeader,
-	EmptyTitle,
-} from "#/design-system/ui/empty-state";
-import {
-	Field,
-	FieldError,
-	FieldLegend,
-	FieldSet,
-} from "#/design-system/ui/field";
-import { Input } from "#/design-system/ui/input";
+} from "@tripwire/ui/avatar";
+import { Button } from "@tripwire/ui/button";
+import { Field, FieldError, FieldSet, Input } from "@tripwire/ui/field";
 import {
 	Item,
 	ItemActions,
 	ItemContent,
 	ItemGroup,
 	ItemTitle,
-} from "#/design-system/ui/item";
-import { toast } from "#/design-system/ui/toast";
+} from "@tripwire/ui/item";
+import { ActionRow } from "@tripwire/ui/layouts";
+import { notify } from "@tripwire/ui/toast";
+import { useId, useRef, useState } from "react";
+import {
+	EmptyState,
+	EmptyStateDescription,
+	EmptyStateHeader,
+	EmptyStateTitle,
+} from "#/components/common/empty-state";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import {
 	addRepoAllowlistLogin,
 	removeRepoAllowlistAccount,
 } from "#/lib/moderation-policy.functions";
 import { repoModerationQueryOptions } from "#/lib/moderation-policy.query";
-
-const RemoveButton = motion.create(Button);
 
 export function RepoAllowlist({
 	org,
@@ -53,11 +44,8 @@ export function RepoAllowlist({
 }) {
 	const fieldId = useId();
 	const inputRef = useRef<HTMLInputElement>(null);
-	const confirmRef = useRef<HTMLButtonElement>(null);
 	const [login, setLogin] = useState("");
 	const [error, setError] = useState<string | null>(null);
-	const [confirming, setConfirming] = useState<string | null>(null);
-	const reduceMotion = useReducedMotion();
 	const client = useQueryClient();
 	const { queryKey } = repoModerationQueryOptions(org, repo);
 	const refresh = () => client.invalidateQueries({ queryKey });
@@ -79,15 +67,17 @@ export function RepoAllowlist({
 			removeRepoAllowlistAccount({ data: { org, repo, accountId } }),
 		onSuccess: async () => {
 			await refresh();
-			setConfirming(null);
 			inputRef.current?.focus();
 		},
-		onError: () => toast.fail("Couldn’t remove the account. Try again."),
+		onError: () =>
+			notify.show(
+				{ title: "Couldn’t remove the account. Try again." },
+				"error",
+			),
 	});
 
 	return (
-		<FieldSet>
-			<FieldLegend variant="label">Approved GitHub accounts</FieldLegend>
+		<FieldSet legend="Approved GitHub accounts">
 			{canManage && (
 				<form
 					onSubmit={(event) => {
@@ -106,36 +96,36 @@ export function RepoAllowlist({
 				>
 					<ActionRow
 						secondary={
-							<Field className="min-w-36 flex-1" invalid={Boolean(error)}>
-								<Input
-									aria-label="GitHub username"
-									data-layout-role="allowlist-username"
-									placeholder="GitHub username"
-									aria-describedby={error ? `${fieldId}-error` : undefined}
-									autoComplete="off"
-									disabled={add.isPending}
-									id={fieldId}
-									onChange={(event) => {
-										setLogin(event.target.value);
-										setError(null);
-									}}
-									ref={inputRef}
-									value={login}
-								/>
-								{error && (
-									<FieldError id={`${fieldId}-error`}>{error}</FieldError>
-								)}
-							</Field>
+							<div className="min-w-36 flex-1">
+								<Field invalid={Boolean(error)}>
+									<Input
+										ariaLabel="GitHub username"
+										data-layout-role="allowlist-username"
+										placeholder="GitHub username"
+										autoComplete="off"
+										disabled={add.isPending}
+										id={fieldId}
+										onChange={(event) => {
+											setLogin(event.target.value);
+											setError(null);
+										}}
+										ref={inputRef}
+										value={login}
+									/>
+									{error ? <FieldError>{error}</FieldError> : null}
+								</Field>
+							</div>
 						}
 						primary={
-							<Button
-								className="self-end"
-								disabled={!login.trim() || add.isPending}
-								type="submit"
-								variant="secondary"
-							>
-								{add.isPending ? "Adding…" : "Add account"}
-							</Button>
+							<div className="self-end">
+								<Button
+									disabled={!login.trim() || add.isPending}
+									type="submit"
+									variant="secondary"
+								>
+									{add.isPending ? "Adding…" : "Add account"}
+								</Button>
+							</div>
 						}
 					/>
 				</form>
@@ -143,9 +133,8 @@ export function RepoAllowlist({
 			{entries.length > 0 ? (
 				<ItemGroup aria-label="Approved GitHub accounts">
 					{entries.map(({ accountId, login: username }) => {
-						const confirm = confirming === accountId;
 						return (
-							<Item key={accountId} size="sm">
+							<Item key={accountId} density="compact">
 								<Avatar decorative name={username} size="sm">
 									<AvatarImage
 										alt=""
@@ -163,50 +152,21 @@ export function RepoAllowlist({
 								</ItemContent>
 								{canManage && (
 									<ItemActions>
-										{confirm && (
-											<Button
-												aria-label={`Cancel removal of @${username}`}
-												disabled={remove.isPending}
-												onClick={() => {
-													confirmRef.current?.focus();
-													setConfirming(null);
-												}}
-												size="sm"
-												variant="ghost"
-											>
-												Cancel
-											</Button>
-										)}
-										<RemoveButton
-											animate={{
-												scale: confirm && !reduceMotion ? [1, 1.06, 1] : 1,
+										<Button
+											ariaLabel={`Remove @${username} from the allowlist`}
+											confirmation={{
+												confirmLabel: "Remove account",
+												description: `@${username} will no longer be approved for this repository.`,
+												title: `Remove @${username}?`,
 											}}
-											aria-label={
-												(confirm ? "Confirm removal of @" : "Remove @") +
-												username +
-												" from the allowlist"
-											}
 											disabled={remove.isPending}
-											onClick={() =>
-												confirm
-													? remove.mutate(accountId)
-													: setConfirming(accountId)
-											}
-											onKeyDown={(event) => {
-												if (
-													event.key === "Escape" &&
-													confirm &&
-													!remove.isPending
-												)
-													setConfirming(null);
-											}}
-											size="sm"
-											ref={confirm ? confirmRef : undefined}
-											transition={{ duration: 0.18 }}
-											variant={confirm ? "destructive" : "ghost"}
+											onAction={() => remove.mutate(accountId)}
+											pending={remove.isPending}
+											size="small"
+											variant="destructive"
 										>
-											{confirm ? "Confirm removal" : "Remove"}
-										</RemoveButton>
+											Remove
+										</Button>
 									</ItemActions>
 								)}
 							</Item>
@@ -214,14 +174,14 @@ export function RepoAllowlist({
 					})}
 				</ItemGroup>
 			) : (
-				<Empty art={<MascotArt mood="rules-empty" />}>
-					<EmptyHeader>
-						<EmptyTitle>No approved accounts</EmptyTitle>
-						<EmptyDescription>
+				<EmptyState art={<MascotArt mood="rules-empty" />}>
+					<EmptyStateHeader>
+						<EmptyStateTitle>No approved accounts</EmptyStateTitle>
+						<EmptyStateDescription>
 							Every author fails this check until you add an account.
-						</EmptyDescription>
-					</EmptyHeader>
-				</Empty>
+						</EmptyStateDescription>
+					</EmptyStateHeader>
+				</EmptyState>
 			)}
 		</FieldSet>
 	);

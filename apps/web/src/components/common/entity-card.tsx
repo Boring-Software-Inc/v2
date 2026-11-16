@@ -1,5 +1,3 @@
-import type { ReactNode } from "react";
-import { cn } from "#/design-system/lib/utils";
 import {
 	Card,
 	CardAction,
@@ -9,7 +7,8 @@ import {
 	CardHeader,
 	CardMeta,
 	CardTitle,
-} from "#/design-system/ui/card";
+} from "@tripwire/ui/card";
+import type { ReactNode } from "react";
 
 export interface EntityCardProps {
 	title: ReactNode;
@@ -21,7 +20,7 @@ export interface EntityCardProps {
 	footerActions?: ReactNode;
 	selected?: boolean;
 	flush?: boolean;
-	className?: string;
+	footerLayout?: "default" | "workflow";
 	feedbackName?: string;
 }
 
@@ -35,16 +34,13 @@ export function EntityCard({
 	footerActions,
 	selected,
 	flush,
-	className,
+	footerLayout = "default",
 	feedbackName = "EntityCard",
 }: EntityCardProps) {
 	return (
 		<Card
-			className={cn(
-				"flex h-full flex-col [&>[data-slot=card-panel]]:flex-1",
-				className,
-			)}
 			data-entity-card=""
+			data-footer-layout={footerLayout}
 			data-feedback-name={feedbackName}
 			data-selected={selected ? "" : undefined}
 		>
@@ -56,15 +52,11 @@ export function EntityCard({
 						{badges}
 					</div>
 				) : null}
-				{status ? <CardAction className="gap-3">{status}</CardAction> : null}
+				{status ? <CardAction>{status}</CardAction> : null}
 			</CardHeader>
-			{children ? (
-				<CardContent className="flex-1" flush={flush}>
-					{children}
-				</CardContent>
-			) : null}
+			{children ? <CardContent flush={flush}>{children}</CardContent> : null}
 			{footerMeta || footerActions ? (
-				<CardFooter>
+				<CardFooter wrap={footerLayout === "workflow"}>
 					{footerMeta ? <CardMeta>{footerMeta}</CardMeta> : null}
 					{footerActions}
 				</CardFooter>

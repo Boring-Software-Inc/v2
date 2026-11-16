@@ -1,12 +1,6 @@
-import { Link } from "@tanstack/react-router";
-import { ChevronDown, Icon } from "#/design-system/icon";
-import { Button } from "#/design-system/ui/button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuLinkItem,
-	DropdownMenuTrigger,
-} from "#/design-system/ui/dropdown-menu";
+import { Button } from "@tripwire/ui/button";
+import { ChevronDown, Icon } from "@tripwire/ui/icon";
+import { Menu } from "@tripwire/ui/menu";
 
 export function usedInLabel(count: number): string {
 	return `Used in ${count} ${count === 1 ? "workflow" : "workflows"}`;
@@ -37,34 +31,25 @@ export function RuleUsedIn({
 }) {
 	const label = usedInLabel(workflows.length);
 	return (
-		<DropdownMenu>
-			<DropdownMenuTrigger
-				render={
-					<Button
-						aria-label={`${ruleName}: ${label}`}
-						size="sm"
-						variant="ghost"
-					/>
-				}
-			>
-				{label}
-				<Icon icon={ChevronDown} />
-			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end" size="sm">
-				{usedInLinks(org, repo, workflows).map((link) => (
-					<DropdownMenuLinkItem
-						key={link.key}
-						render={
-							<Link
-								params={link.params}
-								to="/$org/$repo/workflows/$workflowId"
-							/>
-						}
-					>
-						{link.name}
-					</DropdownMenuLinkItem>
-				))}
-			</DropdownMenuContent>
-		</DropdownMenu>
+		<Menu
+			align="end"
+			ariaLabel={`${ruleName}: ${label}`}
+			items={usedInLinks(org, repo, workflows).map((link) => ({
+				href: `/${org}/${repo}/workflows/${link.key}`,
+				label: link.name,
+				type: "link" as const,
+				value: link.key,
+			}))}
+			trigger={
+				<Button
+					ariaLabel={`${ruleName}: ${label}`}
+					size="small"
+					variant="ghost"
+				>
+					{label}
+					<Icon icon={ChevronDown} />
+				</Button>
+			}
+		/>
 	);
 }

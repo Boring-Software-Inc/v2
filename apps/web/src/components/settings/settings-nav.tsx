@@ -6,23 +6,23 @@ import {
 	useNavigate,
 	useRouter,
 } from "@tanstack/react-router";
-import type { ReactNode } from "react";
-import { settingsReturnDelta } from "#/components/settings/settings-return-history";
 import {
 	ArrowLeft,
 	Billing,
 	Bot,
 	Connection,
 	Customize,
-	type GlazeIcon,
 	Hide,
+	Icon,
+	type IconGlyph,
 	Key,
 	Members,
 	Organization,
 	Settings,
 	UserAvatar,
 	UserCheck,
-} from "#/design-system/icon";
+} from "@tripwire/ui/icon";
+import { type ReactNode, useLayoutEffect, useRef } from "react";
 import {
 	runSidebarTransition,
 	SidebarNav,
@@ -31,7 +31,9 @@ import {
 	SidebarNavSectionLabel,
 	SidebarNavTooltip,
 	sidebarNavItemClass,
-} from "#/design-system/ui/sidebar";
+} from "#/components/layouts/sidebar";
+import { settingsReturnDelta } from "#/components/settings/settings-return-history";
+import { useHasMounted } from "#/hooks/use-has-mounted";
 import { orgContextQueryOptions } from "#/lib/org.query";
 import {
 	ACCOUNT_SECTION_LABELS,
@@ -53,14 +55,14 @@ const ORG_SETTINGS_ICONS = {
 	connections: Connection,
 	agents: Bot,
 	billing: Billing,
-} satisfies Record<OrgSettingsSection, GlazeIcon>;
+} satisfies Record<OrgSettingsSection, IconGlyph>;
 
 const ACCOUNT_SETTINGS_ICONS = {
 	profile: UserAvatar,
 	"sign-in": Key,
 	preferences: Customize,
 	orgs: Organization,
-} satisfies Record<AccountSection, GlazeIcon>;
+} satisfies Record<AccountSection, IconGlyph>;
 
 export function SettingsNav({
 	org,
@@ -78,11 +80,44 @@ export function SettingsNav({
 	const permissions = (orgContext ?? resolved).permissions;
 	const pathname = useLocation({ select: (location) => location.pathname });
 	const hash = useLocation({ select: (location) => location.hash });
+	const hasMounted = useHasMounted();
 	const onAccount = pathname.endsWith("/settings/account");
 	const current: AccountSection | null = onAccount
-		? activeAccountSection(hash)
+		? activeAccountSection(variant === "mobile" && !hasMounted ? "" : hash)
 		: null;
 	const sections = visibleSettingsSections(permissions);
+	const router = useRouter();
+	const mobileNavRef = useRef<HTMLElement>(null);
+	const activeHref = current ? [pathname, current].join("#") : pathname;
+	useLayoutEffect(() => {
+		const nav = mobileNavRef.current;
+		const active = Array.from(nav?.querySelectorAll("a") ?? []).find(
+			(link) => link.pathname + link.hash === activeHref,
+		);
+		if (!nav || !active) return;
+
+		const revealActiveTab = () => {
+			if (nav.clientWidth === 0) return;
+			const navBounds = nav.getBoundingClientRect();
+			const tabBounds = active.getBoundingClientRect();
+			const { paddingLeft, paddingRight } = getComputedStyle(nav);
+			const left = tabBounds.left - navBounds.left - parseFloat(paddingLeft);
+			const right =
+				tabBounds.right - navBounds.right + parseFloat(paddingRight);
+			const delta = left < 0 ? left : Math.max(0, right);
+			if (delta !== 0) nav.scrollBy({ left: delta, behavior: "instant" });
+		};
+
+		revealActiveTab();
+		const unsubscribe = router.subscribe("onRendered", revealActiveTab);
+		const resize = new ResizeObserver(revealActiveTab);
+		resize.observe(nav);
+		for (const group of nav.children) resize.observe(group);
+		return () => {
+			unsubscribe();
+			resize.disconnect();
+		};
+	}, [activeHref, router]);
 	const organizationSections = sections.filter(
 		(section) => section !== "billing",
 	);
@@ -90,7 +125,11 @@ export function SettingsNav({
 
 	if (variant === "mobile") {
 		return (
-			<nav aria-label="Settings" data-layout-role="settings-nav">
+			<nav
+				aria-label="Settings"
+				data-layout-role="settings-nav"
+				ref={mobileNavRef}
+			>
 				<MobileNavGroup>
 					{sections.map((section) => (
 						<Link
@@ -131,6 +170,7 @@ export function SettingsNav({
 	return (
 		<SidebarNav
 			aria-label="Settings"
+			className={collapsed ? "items-center" : undefined}
 			data-layout-role={collapsed ? undefined : "settings-sidebar-nav"}
 		>
 			<SidebarNavGroup data-layout-role="settings-sidebar-back-group">
@@ -219,7 +259,7 @@ function SettingsBack({ org, collapsed }: { org: string; collapsed: boolean }) {
 		>
 			<SidebarNavItemContent
 				collapsed={collapsed}
-				icon={ArrowLeft}
+				icon={<Icon icon={ArrowLeft} />}
 				label="Back"
 			/>
 		</button>
@@ -239,7 +279,7 @@ function OrgSettingsLink({
 	section,
 }: {
 	collapsed: boolean;
-	icon: GlazeIcon;
+	icon: IconGlyph;
 	label: string;
 	org: string;
 	section: OrgSettingsSection;
@@ -251,7 +291,11 @@ function OrgSettingsLink({
 			params={{ org }}
 			to={`/$org/settings/${section}`}
 		>
-			<SidebarNavItemContent collapsed={collapsed} icon={icon} label={label} />
+			<SidebarNavItemContent
+				collapsed={collapsed}
+				icon={<Icon icon={icon} />}
+				label={label}
+			/>
 		</Link>
 	);
 	return (
@@ -271,7 +315,7 @@ function AccountSettingsLink({
 }: {
 	active: boolean;
 	collapsed: boolean;
-	icon: GlazeIcon;
+	icon: IconGlyph;
 	label: string;
 	org: string;
 	section: AccountSection;
@@ -285,7 +329,11 @@ function AccountSettingsLink({
 			params={{ org }}
 			to="/$org/settings/account"
 		>
-			<SidebarNavItemContent collapsed={collapsed} icon={icon} label={label} />
+			<SidebarNavItemContent
+				collapsed={collapsed}
+				icon={<Icon icon={icon} />}
+				label={label}
+			/>
 		</Link>
 	);
 	return (

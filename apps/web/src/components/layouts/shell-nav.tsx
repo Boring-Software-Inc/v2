@@ -1,29 +1,30 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useParams } from "@tanstack/react-router";
 import type { OrgRegion } from "@tripwire/contracts";
-import { motion, useReducedMotion } from "motion/react";
-import { type RefObject, useEffect, useRef } from "react";
 import {
 	Activity,
 	Analytics,
 	Customize,
-	type GlazeIcon,
 	Home,
+	Icon,
+	type IconGlyph,
 	Moderation,
 	Rules,
 	Settings,
 	Workflow,
-} from "#/design-system/icon";
-import { cn } from "#/design-system/lib/utils";
+} from "@tripwire/ui/icon";
+import { motion, useReducedMotion } from "motion/react";
+import { type RefObject, useEffect, useRef } from "react";
 import {
 	prepareSidebarTransition,
 	SidebarNav,
 	SidebarNavItemContent,
 	SidebarNavTooltip,
 	sidebarNavItemClass,
-} from "#/design-system/ui/sidebar";
+} from "#/components/layouts/sidebar";
 import type { RouteScope } from "#/lib/active-scope";
 import { orgContextQueryOptions, orgHomeQueryOptions } from "#/lib/org.query";
+import { cn } from "#/lib/utils";
 
 type NavVariant = "tabs" | "rail";
 
@@ -116,7 +117,7 @@ export function ShellNav({
 		return variant === "rail" ? (
 			<SidebarNav
 				aria-label="Org"
-				className={collapsed ? undefined : "px-1"}
+				className={collapsed ? "items-center" : "px-1"}
 				ref={navRef}
 			>
 				{items}
@@ -137,7 +138,7 @@ export function ShellNav({
 	const repoLink = (
 		parent: NestedNavItem["parent"],
 		label: string,
-		icon: GlazeIcon,
+		icon: IconGlyph,
 		value?: number,
 	) => {
 		if (!reads(parent)) return null;
@@ -209,7 +210,7 @@ export function ShellNav({
 	return variant === "rail" ? (
 		<SidebarNav
 			aria-label="Repo"
-			className={collapsed ? undefined : "px-1"}
+			className={collapsed ? "items-center" : "px-1"}
 			data-feedback-name="ShellNav"
 			ref={navRef}
 		>
@@ -276,7 +277,7 @@ function NavLink({
 }: {
 	to: string;
 	label: string;
-	icon: GlazeIcon;
+	icon: IconGlyph;
 	value?: number;
 	exact?: boolean;
 	active?: boolean;
@@ -304,7 +305,7 @@ function NavLink({
 			{variant === "rail" ? (
 				<SidebarNavItemContent
 					collapsed={collapsed}
-					icon={icon}
+					icon={<Icon icon={icon} />}
 					label={label}
 					nested={nested}
 					value={value}

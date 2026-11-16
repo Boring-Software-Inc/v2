@@ -8,8 +8,8 @@ import { forgeInstallationSettingsUrl } from "@tripwire/utils/forge-sign-in";
 import { providerAvailabilityQueryOptions } from "#/lib/auth.query";
 import { startGitCafeConnection } from "#/lib/gitcafe-connection.functions";
 
-import { Alert, AlertTitle } from "#/design-system/ui/alert";
-import { Button } from "#/design-system/ui/button";
+import { Alert, AlertTitle } from "@tripwire/ui/alert";
+import { Button } from "@tripwire/ui/button";
 
 /** Selection changes reuse the person-bound connection proof and complete worker discovery. */
 export function GitCafeRepositorySelection({
@@ -74,25 +74,14 @@ export function GitCafeRepositorySelection({
 								</span>
 							) : null}
 						</span>
+						<Button href={href} openInNewTab variant="secondary">
+							Manage repositories on GitCafe
+						</Button>
 						<Button
-							nativeButton={false}
-							render={
-								<a
-									aria-label={`Manage repositories for ${label} on GitCafe (opens in a new tab)`}
-									href={href}
-									target="_blank"
-									rel="noopener noreferrer"
-								>
-									Manage repositories on GitCafe
-								</a>
-							}
-							variant="secondary"
-						/>
-						<Button
-							aria-describedby={availabilityReason ? reasonId : undefined}
-							aria-label={`Sync GitCafe repositories for ${label}`}
+							ariaLabel={`Sync GitCafe repositories for ${label}`}
+							describedBy={availabilityReason ? reasonId : undefined}
 							disabled={availabilityReason !== null || sync.isPending}
-							onClick={() => sync.mutate(installation.installationId)}
+							onAction={() => sync.mutate(installation.installationId)}
 							pending={
 								sync.isPending && sync.variables === installation.installationId
 							}
@@ -109,7 +98,7 @@ export function GitCafeRepositorySelection({
 				</output>
 			) : null}
 			{sync.isError ? (
-				<Alert status="fail">
+				<Alert role="alert" status="danger">
 					<AlertTitle>
 						Couldn't start repository sync. Check your connection and try again.
 					</AlertTitle>

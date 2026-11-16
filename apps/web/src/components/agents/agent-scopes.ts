@@ -1,15 +1,15 @@
 import {
 	Connection,
 	Customize,
-	type GlazeIcon,
+	type IconGlyph,
 	Protected,
 	Show,
-} from "#/design-system/icon";
+} from "@tripwire/ui/icon";
 
 export interface AgentPermission {
 	scope: string;
 	label: string;
-	icon: GlazeIcon;
+	icon: IconGlyph;
 }
 
 const AGENT_PERMISSIONS: AgentPermission[] = [

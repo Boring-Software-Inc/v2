@@ -1,7 +1,7 @@
+import { Button } from "@tripwire/ui/button";
+import { Kbd } from "@tripwire/ui/kbd";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Button } from "#/design-system/ui/button";
-import { Kbd } from "#/design-system/ui/kbd";
 import { useFeedback } from "./feedback-context";
 import { PickOutline, useViewportBox } from "./feedback-outline";
 import {
@@ -66,7 +66,6 @@ function Picker() {
 	const [hovered, setHovered] = useState<PickTarget<HTMLElement> | null>(null);
 	const [announcement, setAnnouncement] = useState("");
 	const barRef = useRef<HTMLDivElement>(null);
-	const skipRef = useRef<HTMLButtonElement>(null);
 	const hoveredRef = useRef(hovered);
 	hoveredRef.current = hovered;
 	const indexRef = useRef(-1);
@@ -77,6 +76,7 @@ function Picker() {
 
 	useEffect(() => {
 		const root = document.documentElement;
+		const skipButton = () => barRef.current?.querySelector("button");
 		root.classList.add(PICKING_CLASS);
 		barRef.current?.focus({ preventScroll: true });
 
@@ -138,7 +138,7 @@ function Picker() {
 			if (!el) {
 				setHovered(null);
 				setAnnouncement("");
-				skipRef.current?.focus({ preventScroll: true });
+				skipButton()?.focus({ preventScroll: true });
 				return;
 			}
 			const target = resolvePick(el);
@@ -163,7 +163,7 @@ function Picker() {
 				step(e.shiftKey);
 				return;
 			}
-			if (document.activeElement === skipRef.current) {
+			if (document.activeElement === skipButton()) {
 				return;
 			}
 			if (e.key === "Enter" || e.key === " ") {
@@ -209,9 +209,8 @@ function Picker() {
 					{announcement}
 				</span>
 				<Button
-					onClick={() => latest.current.pick(null)}
-					ref={skipRef}
-					size="sm"
+					onAction={() => latest.current.pick(null)}
+					size="small"
 					variant="ghost"
 				>
 					Skip

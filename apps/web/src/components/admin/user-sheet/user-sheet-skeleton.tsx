@@ -1,17 +1,27 @@
-import { SheetTitle } from "#/design-system/ui/sheet";
-import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
+import { Skeleton, SkeletonText } from "@tripwire/ui/skeleton";
+import { Subheading } from "@tripwire/ui/typography";
 
 export function UserSheetSkeleton() {
 	return (
 		<div data-layout-role="user-sheet-skeleton">
-			<SheetTitle data-layout-role="user-sheet-skeleton-title">
+			<Subheading data-layout-role="user-sheet-skeleton-title">
 				Loading user details
-			</SheetTitle>
+			</Subheading>
 			<div data-layout-role="user-sheet-skeleton-identity">
-				<Skeleton data-layout-role="user-sheet-skeleton-avatar" />
+				<span
+					data-skeleton-box=""
+					aria-hidden
+					data-layout-role="user-sheet-skeleton-avatar"
+				>
+					<Skeleton fill />
+				</span>
 				<div data-layout-role="user-sheet-skeleton-copy">
-					<SkeletonText data-layout-size="user-name" type="heading-sm" />
-					<SkeletonText data-layout-size="user-email" type="body-sm" />
+					<span data-skeleton-line="" aria-hidden data-layout-size="user-name">
+						<SkeletonText type="heading-sm" />
+					</span>
+					<span data-skeleton-line="" aria-hidden data-layout-size="user-email">
+						<SkeletonText type="body-sm" />
+					</span>
 				</div>
 			</div>
 			<div data-layout-role="user-sheet-skeleton-body">

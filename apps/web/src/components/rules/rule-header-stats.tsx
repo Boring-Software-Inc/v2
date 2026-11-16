@@ -1,13 +1,8 @@
 import { Link, useParams } from "@tanstack/react-router";
-import { ArrowUpRight, Icon } from "#/design-system/icon";
-import {
-	Card,
-	CardContent,
-	CardFooter,
-	CardMeta,
-} from "#/design-system/ui/card";
-import { Sparkline } from "#/design-system/ui/chart";
-import { SkeletonText } from "#/design-system/ui/skeleton";
+import { Card, CardContent, CardFooter, CardMeta } from "@tripwire/ui/card";
+import { ArrowUpRight, Icon } from "@tripwire/ui/icon";
+import { SkeletonText } from "@tripwire/ui/skeleton";
+import { Sparkline } from "#/components/common/chart";
 import type { AnalyticsMetricKey } from "#/lib/repo-search";
 import type { RulesHeaderStats } from "#/lib/rules.functions";
 
@@ -17,11 +12,12 @@ export function RuleHeaderStats({
 	stats: RulesHeaderStats | undefined;
 }) {
 	return (
-		<Card aria-label="Rule activity" role="group">
-			<CardContent
-				className="grid grid-cols-2 divide-x divide-line-faint"
-				flush
-			>
+		<Card
+			aria-label="Rule activity"
+			data-layout-role="rule-stats-frame"
+			role="group"
+		>
+			<CardContent data-layout-role="rule-header-stats" flush>
 				<StatCell
 					label="Matches"
 					series={stats?.matches24h.series}
@@ -34,7 +30,7 @@ export function RuleHeaderStats({
 					value={stats?.actioned24h.value}
 				/>
 			</CardContent>
-			<CardFooter>
+			<CardFooter data-layout-role="rule-stats-footer">
 				<CardMeta>Last 24 hours</CardMeta>
 			</CardFooter>
 		</Card>
@@ -54,33 +50,35 @@ function StatCell({
 }) {
 	const { org, repo } = useParams({ strict: false });
 	return (
-		<div className="group/stat relative flex min-w-0 flex-col gap-1 p-3">
+		<div className="group/stat relative flex min-w-0 flex-col composition-gap-small rule-stat-inset">
 			{org && repo ? (
 				<Link
-					className="flex items-center gap-1 self-start type-label-sm text-text-2 decoration-line-strong underline-offset-3 transition-colors duration-(--dur-state) ease-out after:absolute after:inset-0 after:content-[''] group-hover/stat:text-text-1 group-hover/stat:underline group-focus-within/stat:text-text-1 group-focus-within/stat:underline"
+					className="flex items-center composition-gap-small self-start content-label-small tone-content-secondary decoration-line-strong underline-offset-3 transition-colors duration-(--dur-state) ease-out rule-stat-link group-hover/stat:tone-content-primary group-hover/stat:underline group-focus-within/stat:tone-content-primary group-focus-within/stat:underline"
 					params={{ org, repo }}
 					search={metric ? { metric } : {}}
 					to="/$org/$repo/analytics"
 				>
 					{label}
-					<Icon
-						className="-translate-x-0.5 translate-y-0.5 opacity-0 transition-[opacity,translate] duration-(--dur-state) ease-out group-hover/stat:translate-0 group-hover/stat:opacity-100 group-focus-within/stat:translate-0 group-focus-within/stat:opacity-100 motion-reduce:transition-none"
-						icon={ArrowUpRight}
-						size={12}
-					/>
+					<span className="-translate-x-0.5 translate-y-0.5 opacity-0 transition-opacity-translate duration-(--dur-state) ease-out group-hover/stat:translate-0 group-hover/stat:opacity-100 group-focus-within/stat:translate-0 group-focus-within/stat:opacity-100 motion-reduce:transition-none">
+						<Icon icon={ArrowUpRight} size={12} />
+					</span>
 				</Link>
 			) : (
-				<span className="type-label-sm text-text-2">{label}</span>
+				<span className="content-label-small tone-content-secondary">
+					{label}
+				</span>
 			)}
-			<div className="flex items-center justify-between gap-3">
+			<div className="flex items-center justify-between composition-gap-section">
 				{value === undefined ? (
-					<SkeletonText className="w-10" type="heading" />
+					<span data-skeleton-line="" aria-hidden className="w-10">
+						<SkeletonText type="heading" />
+					</span>
 				) : (
 					<span className="type-heading tabular-nums">{value}</span>
 				)}
 				{series?.some((v) => v > 0) ? (
 					<Sparkline
-						className="w-20 shrink-0 text-text-3 transition-colors duration-(--dur-state) ease-out group-hover/stat:text-text-1"
+						data-layout-role="rule-activity-trend"
 						data={series}
 						end={false}
 						label={`${label} per hour, last 24 hours`}

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { notify } from "@tripwire/ui/toast";
 import { useEffect } from "react";
 import { useInstallRules } from "#/components/rules/use-install-rules";
-import { toast } from "#/design-system/ui/toast";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { rerunChangeRequest } from "#/lib/activity.functions";
 import { armRepo } from "#/lib/arm.functions";
@@ -75,22 +75,30 @@ export function useRunFirstCheck(org: string, repo: string) {
 			rerunChangeRequest({ data: { org, repo, number } }),
 		onSuccess: (result, number) => {
 			if (result.status === "queued") {
-				toast(`Running rules on #${number}`);
+				notify.show({ title: `Running rules on #${number}` });
 				return;
 			}
 			if (result.status === "cooldown") {
-				toast(
-					`You can run rules on #${number} again in about ${Math.max(1, Math.ceil(result.retryInSeconds / 60))} min`,
-				);
+				notify.show({
+					title: `You can run rules on #${number} again in about ${Math.max(1, Math.ceil(result.retryInSeconds / 60))} min`,
+				});
 				return;
 			}
-			toast.fail(
-				result.status === "no-event"
-					? `Tripwire has nothing to check on #${number} yet.`
-					: "Install rules first.",
+			notify.show(
+				{
+					title:
+						result.status === "no-event"
+							? `Tripwire has nothing to check on #${number} yet.`
+							: "Install rules first.",
+				},
+				"error",
 			);
 		},
-		onError: () => toast.fail("Tripwire could not run rules. Try again."),
+		onError: () =>
+			notify.show(
+				{ title: "Tripwire could not run rules. Try again." },
+				"error",
+			),
 		onSettled: invalidate,
 	});
 }
@@ -104,7 +112,8 @@ export function useKeepResponseDefaults(
 	const invalidate = useInvalidateRepoSetup(org, repo);
 	return useMutation({
 		mutationFn: () => keepResponseDefaults({ data: { org, repoId } }),
-		onError: () => toast.fail("Tripwire could not save. Try again."),
+		onError: () =>
+			notify.show({ title: "Tripwire could not save. Try again." }, "error"),
 		onSettled: async () => {
 			await Promise.all([
 				invalidate(),
@@ -120,7 +129,11 @@ export function useTakeOver(org: string, repo: string) {
 	const invalidate = useInvalidateRepoSetup(org, repo);
 	return useMutation({
 		mutationFn: (code: string) => takeOverAgentSetup({ data: { org, code } }),
-		onError: () => toast.fail("Tripwire could not take over. Try again."),
+		onError: () =>
+			notify.show(
+				{ title: "Tripwire could not take over. Try again." },
+				"error",
+			),
 		onSettled: invalidate,
 	});
 }

@@ -1,5 +1,5 @@
 import { useHydrated, useRouter, useRouterState } from "@tanstack/react-router";
-import { ArrowLeft, Icon } from "#/design-system/icon";
+import { ArrowLeft, Icon } from "@tripwire/ui/icon";
 
 interface HistoryBackControlProps {
 	label?: string;

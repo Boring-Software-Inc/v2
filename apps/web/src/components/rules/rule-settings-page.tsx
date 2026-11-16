@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getRouteApi, Link } from "@tanstack/react-router";
+import { getRouteApi } from "@tanstack/react-router";
 import {
 	CONTRIBUTOR_ALLOWLIST_RULE_ID,
 	customRuleRef,
@@ -10,7 +10,13 @@ import {
 	ruleUiSchema,
 	SHARED_BLOCKLIST_RULE_ID,
 } from "@tripwire/contracts";
+import { Button } from "@tripwire/ui/button";
+import { Card, CardContent } from "@tripwire/ui/card";
+import { Field, FieldLabel, FieldSet } from "@tripwire/ui/field";
 import { ActionRow } from "@tripwire/ui/layouts";
+import { Skeleton } from "@tripwire/ui/skeleton";
+import { notify } from "@tripwire/ui/toast";
+import { SupportingText } from "@tripwire/ui/typography";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { Page, PageBody, PageHeader } from "#/components/layouts/page";
 import { RepoAllowlist } from "#/components/rules/repo-allowlist";
@@ -23,18 +29,6 @@ import {
 	useSaveQueue,
 } from "#/components/save-queue";
 import { ModerationOutcomePicker } from "#/components/settings/moderation-outcome-picker";
-import { Button } from "#/design-system/ui/button";
-import { Card, CardContent } from "#/design-system/ui/card";
-import {
-	Field,
-	FieldGroup,
-	FieldLabel,
-	FieldLegend,
-	FieldSet,
-} from "#/design-system/ui/field";
-import { Skeleton } from "#/design-system/ui/skeleton";
-import { toast } from "#/design-system/ui/toast";
-import { SupportingText } from "#/design-system/ui/typography";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { saveRepoModerationPolicy } from "#/lib/moderation-policy.functions";
 import { repoModerationQueryOptions } from "#/lib/moderation-policy.query";
@@ -65,7 +59,11 @@ export function RuleSettingsPage() {
 		mutationFn: (patch: RepoModerationPolicyPatch) =>
 			saveRepoModerationPolicy({ data: { org, repo, patch } }),
 		onSuccess: () => client.invalidateQueries({ queryKey: options.queryKey }),
-		onError: () => toast.fail("Couldn’t save the rule outcome. Try again."),
+		onError: () =>
+			notify.show(
+				{ title: "Couldn’t save the rule outcome. Try again." },
+				"error",
+			),
 	});
 	const data = settings.data;
 	const policyRuleId =
@@ -80,11 +78,7 @@ export function RuleSettingsPage() {
 			<Page purpose="task">
 				<PageHeader
 					actions={
-						<Button
-							nativeButton={false}
-							render={<Link params={{ org, repo }} to="/$org/$repo/rules" />}
-							variant="secondary"
-						>
+						<Button href={`/${org}/${repo}/rules`} variant="secondary">
 							Back to Rules
 						</Button>
 					}
@@ -101,14 +95,14 @@ export function RuleSettingsPage() {
 							}
 							primary={
 								<Button
-									onClick={() =>
+									onAction={() =>
 										void (repository.isError
 											? repository.refetch()
 											: rules.isError
 												? rules.refetch()
 												: settings.refetch())
 									}
-									size="sm"
+									size="small"
 									variant="secondary"
 								>
 									Retry
@@ -116,10 +110,13 @@ export function RuleSettingsPage() {
 							}
 						/>
 					) : !rules.data || (rule && github && !data) ? (
-						<Skeleton
+						<output
+							data-skeleton-box=""
 							aria-label="Loading rule settings"
 							className="h-36 w-full"
-						/>
+						>
+							<Skeleton fill />
+						</output>
 					) : !rule ? (
 						<SupportingText>
 							This rule isn’t available on this repository.
@@ -149,14 +146,13 @@ export function RuleSettingsPage() {
 							)}
 							<Card>
 								<CardContent>
-									<FieldSet>
-										<FieldLegend variant="label">Rule outcomes</FieldLegend>
+									<FieldSet legend="Rule outcomes">
 										{rule.management === "managed" ? (
 											<SupportingText>
 												The workflow controls what happens when this rule fails.
 											</SupportingText>
 										) : github && data ? (
-											<FieldGroup className="sm:grid sm:grid-cols-2">
+											<div data-layout-role="rule-outcome-fields">
 												{SUBJECTS.map(({ id, label }) => {
 													const fallback =
 														data.policy.defaults[id] ?? data.orgDefaults[id];
@@ -197,7 +193,7 @@ export function RuleSettingsPage() {
 														/>
 													);
 												})}
-											</FieldGroup>
+											</div>
 										) : (
 											<SupportingText>
 												Rule outcomes are available for GitHub repositories.
@@ -256,13 +252,13 @@ function RuleParameters({
 			},
 		});
 		if ("error" in result) {
-			toast.fail(result.error);
+			notify.show({ title: result.error }, "error");
 			return { error: result.error };
 		}
 		await client.invalidateQueries({
 			queryKey: ruleConfigsQueryOptions(org, repoId).queryKey,
 		});
-		toast.success("Rule settings saved");
+		notify.show({ title: "Rule settings saved" }, "success");
 		return { ok: true };
 	};
 
@@ -293,34 +289,31 @@ function ParameterFields({
 }) {
 	const { setField, valueFor, isCommitting } = useSaveQueue();
 	return (
-		<FieldSet>
-			<FieldLegend variant="label">Rule parameters</FieldLegend>
-			<FieldGroup>
-				{params.map((param) => {
-					const value = valueFor(param.key) ?? config[param.key];
-					return (
-						<Field key={param.key}>
-							<FieldLabel render={<span />}>{param.label}</FieldLabel>
-							{canEdit && !isCommitting ? (
-								<ParamEditor
-									autoFocus={false}
-									key={
-										param.kind === "string-list"
-											? param.key
-											: JSON.stringify(value)
-									}
-									onCancel={() => undefined}
-									onSave={(next) => setField(param.key, next)}
-									param={param}
-									value={value}
-								/>
-							) : (
-								<ParamValue param={param} value={value} />
-							)}
-						</Field>
-					);
-				})}
-			</FieldGroup>
+		<FieldSet legend="Rule parameters">
+			{params.map((param) => {
+				const value = valueFor(param.key) ?? config[param.key];
+				return (
+					<Field key={param.key}>
+						<FieldLabel>{param.label}</FieldLabel>
+						{canEdit && !isCommitting ? (
+							<ParamEditor
+								autoFocus={false}
+								key={
+									param.kind === "string-list"
+										? param.key
+										: JSON.stringify(value)
+								}
+								onCancel={() => undefined}
+								onSave={(next) => setField(param.key, next)}
+								param={param}
+								value={value}
+							/>
+						) : (
+							<ParamValue param={param} value={value} />
+						)}
+					</Field>
+				);
+			})}
 		</FieldSet>
 	);
 }

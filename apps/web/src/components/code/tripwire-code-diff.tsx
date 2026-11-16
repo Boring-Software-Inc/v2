@@ -1,16 +1,14 @@
+import { IconButton } from "@tripwire/ui/button";
+import { CopyButton } from "@tripwire/ui/copy-button";
+import { ChevronDown, ChevronRight, Copy, Icon } from "@tripwire/ui/icon";
+import { SegmentedControl } from "@tripwire/ui/radio-group";
 import { lazy, type ReactNode, Suspense, useId, useState } from "react";
 import { useCodeDark, WrapToggle } from "#/components/code/code-controls";
 import { CodeHeader, type DiffStats } from "#/components/code/code-header";
 import { PlainCode } from "#/components/code/plain-code";
-import { ChevronDown, ChevronRight, Icon } from "#/design-system/icon";
-import { cn } from "#/design-system/lib/utils";
-import { Button } from "#/design-system/ui/button";
-import { CopyButton } from "#/design-system/ui/copy-button";
-import {
-	SegmentedControl,
-	SegmentedControlItem,
-} from "#/design-system/ui/segmented-control";
 import { useMediaQuery } from "#/hooks/use-media-query";
+import { cn } from "#/lib/utils";
+import "./tripwire-code-diff.css";
 
 const PierreDiff = lazy(() =>
 	import("#/components/code/pierre-code").then((module) => ({
@@ -50,39 +48,49 @@ export function TripwireCodeDiff({
 			className={review ? "sticky top-0 z-10 bg-code-surface" : undefined}
 			leading={
 				review ? (
-					<Button
+					<IconButton
 						aria-controls={contentId}
 						aria-expanded={expanded}
-						aria-label={`${expanded ? "Collapse" : "Expand"} ${name} diff`}
-						onClick={() => setExpanded(!expanded)}
-						size="icon-sm"
+						icon={<Icon icon={expanded ? ChevronDown : ChevronRight} />}
+						label={`${expanded ? "Collapse" : "Expand"} ${name} diff`}
+						onAction={() => setExpanded(!expanded)}
+						size="small"
 						type="button"
 						variant="ghost"
-					>
-						<Icon icon={expanded ? ChevronDown : ChevronRight} />
-					</Button>
+					/>
 				) : undefined
 			}
 			name={name}
 			stats={stats}
 		>
 			{actions}
-			<SegmentedControl
-				aria-label="Diff layout"
-				className="max-sm:hidden"
-				onValueChange={(next) => {
-					if (next === "unified" || next === "split") {
-						setShown(next);
-					}
-				}}
-				size="sm"
-				value={shown}
-			>
-				<SegmentedControlItem value="unified">Unified</SegmentedControlItem>
-				<SegmentedControlItem value="split">Split</SegmentedControlItem>
-			</SegmentedControl>
+			<div className="max-sm:hidden">
+				<SegmentedControl
+					ariaLabel="Diff layout"
+					onValueChange={(next) => {
+						if (next === "unified" || next === "split") {
+							setShown(next);
+						}
+					}}
+					options={[
+						{ label: "Unified", value: "unified" },
+						{ label: "Split", value: "split" },
+					]}
+					size="small"
+					value={shown}
+				/>
+			</div>
 			<WrapToggle onWrapChange={setWrap} wrap={wrap} />
-			<CopyButton label={name} showLabel value={after} variant="secondary" />
+			<span data-layout-role="code-diff-copy">
+				<CopyButton
+					ariaLabel={`Copy ${name}`}
+					copyLabel="Copy"
+					icon={<Icon icon={Copy} />}
+					size="small"
+					text={after}
+					variant="secondary"
+				/>
+			</span>
 		</CodeHeader>
 	);
 	const plain = (

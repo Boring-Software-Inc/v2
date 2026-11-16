@@ -3,8 +3,6 @@ import type {
 	HomeDigest,
 	Verdict,
 } from "@tripwire/contracts";
-import { ItemRouterLink } from "#/components/common/router-links";
-import { DigestActivityMenu } from "#/components/organizations/digest-activity-button";
 import {
 	Blocked,
 	FailedMark,
@@ -12,20 +10,21 @@ import {
 	Icon,
 	Success,
 	Time,
-} from "#/design-system/icon";
-import { DropdownMenuTrigger } from "#/design-system/ui/dropdown-menu";
-import { Item, ItemContent, ItemTitle } from "#/design-system/ui/item";
+} from "@tripwire/ui/icon";
+import { Item, ItemContent, ItemTitle } from "@tripwire/ui/item";
+import { ItemRouterLink } from "#/components/common/router-links";
+import { DigestActivityMenu } from "#/components/organizations/digest-activity-button";
 
 const VERDICTS = {
-	block: { label: "Blocked", icon: FailedMark, color: "text-text-1" },
+	block: { label: "Blocked", icon: FailedMark, tone: "primary" },
 	changes_required: {
 		label: "Changes needed",
 		icon: FollowUp,
-		color: "text-warn",
+		tone: "warning",
 	},
-	needs_review: { label: "Human review", icon: Time, color: "text-warn" },
-	pass: { label: "Passed", icon: Success, color: "text-ok" },
-	close: { label: "Closed", icon: Blocked, color: "text-text-1" },
+	needs_review: { label: "Human review", icon: Time, tone: "warning" },
+	pass: { label: "Passed", icon: Success, tone: "success" },
+	close: { label: "Closed", icon: Blocked, tone: "primary" },
 } as const;
 
 interface DigestVerdictRowProps {
@@ -43,7 +42,7 @@ export function DigestVerdictRow({
 	count,
 	period,
 }: DigestVerdictRowProps) {
-	const { label, icon, color } = VERDICTS[verdict];
+	const { label, icon, tone } = VERDICTS[verdict];
 	const repo = repos[0];
 	const title = !repo ? (
 		label
@@ -62,17 +61,18 @@ export function DigestVerdictRow({
 			repos={repos}
 			verdict={verdict}
 		>
-			<DropdownMenuTrigger
+			<button
+				type="button"
 				className="min-w-0 text-start hover:underline after:absolute after:inset-0 after:content-['']"
 				data-slot="item-link"
 			>
 				{label}
-			</DropdownMenuTrigger>
+			</button>
 		</DigestActivityMenu>
 	);
 	return (
-		<Item className="min-h-11 gap-2 px-2" inset>
-			<Icon className={color} icon={icon} />
+		<Item data-layout-role="digest-verdict-row" inset>
+			<Icon icon={icon} tone={tone} />
 			<ItemContent>
 				<ItemTitle>{title}</ItemTitle>
 			</ItemContent>

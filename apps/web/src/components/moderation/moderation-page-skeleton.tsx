@@ -1,19 +1,14 @@
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { ModerationPageFrame } from "#/components/moderation/moderation-page-frame";
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from "#/design-system/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@tripwire/ui/card";
 import {
 	Item,
 	ItemActions,
 	ItemContent,
 	ItemGroup,
 	ItemMedia,
-} from "#/design-system/ui/item";
-import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
+} from "@tripwire/ui/item";
+import { Skeleton, SkeletonText } from "@tripwire/ui/skeleton";
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { ModerationPageFrame } from "#/components/moderation/moderation-page-frame";
 
 const QUEUE_SLOTS = ["a", "b", "c", "d", "e", "f"];
 
@@ -22,7 +17,9 @@ export function QueueSkeleton() {
 		<Card aria-hidden>
 			<CardHeader>
 				<CardTitle>
-					<SkeletonText className="w-32" type="label" />
+					<span data-skeleton-line="" aria-hidden className="w-32">
+						<SkeletonText type="label" />
+					</span>
 				</CardTitle>
 			</CardHeader>
 			<CardContent flush>
@@ -30,15 +27,37 @@ export function QueueSkeleton() {
 					{QUEUE_SLOTS.map((slot) => (
 						<Item key={slot}>
 							<ItemMedia variant="icon">
-								<Skeleton className="size-(--icon) rounded-tag" />
+								<span
+									data-skeleton-box=""
+									aria-hidden
+									className="size-(--icon) rounded-tag"
+								>
+									<Skeleton fill />
+								</span>
 							</ItemMedia>
 							<ItemContent>
-								<SkeletonText className="w-2/3" type="label" />
-								<SkeletonText className="w-1/2" type="body-sm" />
+								<span data-skeleton-line="" aria-hidden className="w-2/3">
+									<SkeletonText type="label" />
+								</span>
+								<span data-skeleton-line="" aria-hidden className="w-1/2">
+									<SkeletonText type="body-sm" />
+								</span>
 							</ItemContent>
-							<ItemActions className="me-0 gap-2">
-								<Skeleton className="h-(--control-sm) w-16 rounded-pill" />
-								<Skeleton className="h-(--control-sm) w-22 rounded-pill" />
+							<ItemActions data-layout-role="moderation-skeleton-actions">
+								<span
+									data-skeleton-box=""
+									aria-hidden
+									className="h-(--control-sm) w-16 rounded-pill"
+								>
+									<Skeleton fill />
+								</span>
+								<span
+									data-skeleton-box=""
+									aria-hidden
+									className="h-(--control-sm) w-22 rounded-pill"
+								>
+									<Skeleton fill />
+								</span>
 							</ItemActions>
 						</Item>
 					))}
@@ -53,8 +72,12 @@ export function ModerationPageSkeleton() {
 		<DashboardLayout counts={{}}>
 			<ModerationPageFrame>
 				<header data-layout-role="moderation-header">
-					<SkeletonText className="w-36" type="heading" />
-					<SkeletonText className="w-80" type="body" />
+					<span data-skeleton-line="" aria-hidden className="w-36">
+						<SkeletonText type="heading" />
+					</span>
+					<span data-skeleton-line="" aria-hidden className="w-80">
+						<SkeletonText type="body" />
+					</span>
 				</header>
 				<div data-layout-role="moderation-workspace">
 					<div data-layout-role="moderation-primary">

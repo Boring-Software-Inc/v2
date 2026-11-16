@@ -5,30 +5,30 @@ body {
 	margin: 0;
 }
 
-.glaze [data-preview-root] [data-dim] {
+.tripwire [data-preview-root] [data-dim] {
 	transition: opacity var(--dur-state) var(--ease-out);
 }
 
-.glaze [data-preview-root][data-highlight] [data-dim] {
+.tripwire [data-preview-root][data-highlight] [data-dim] {
 	opacity: var(--stale);
 }
 
-.glaze [data-preview-root] [data-region-active] [data-dim],
-.glaze [data-preview-root] [data-dim][data-region-active] {
+.tripwire [data-preview-root] [data-region-active] [data-dim],
+.tripwire [data-preview-root] [data-dim][data-region-active] {
 	opacity: 1;
 }
 
-.glaze [data-preview-root] [data-region] {
+.tripwire [data-preview-root] [data-region] {
 	outline: var(--line-width) solid transparent;
 	outline-offset: var(--space-1);
 	transition: outline-color var(--dur-state) var(--ease-out);
 }
 
-.glaze [data-preview-root] [data-region-active] {
+.tripwire [data-preview-root] [data-region-active] {
 	outline-color: var(--line-focus);
 }
 
-.glaze [data-fillet="start"] {
+.tripwire [data-fillet="start"] {
 	mask-image: radial-gradient(
 		circle var(--radius-shell) at top right,
 		transparent calc(var(--radius-shell) - var(--line-width)),
@@ -36,7 +36,7 @@ body {
 	);
 }
 
-.glaze [data-fillet="end"] {
+.tripwire [data-fillet="end"] {
 	mask-image: radial-gradient(
 		circle var(--radius-shell) at top left,
 		transparent calc(var(--radius-shell) - var(--line-width)),
@@ -44,12 +44,12 @@ body {
 	);
 }
 
-.glaze [data-entity-card] [data-slot="card-panel"] {
+.tripwire [data-entity-card] [data-slot="card-panel"] {
 	position: relative;
 	isolation: isolate;
 }
 
-.glaze
+.tripwire
 	[data-entity-card]:has([data-slot="card-link"])
 	[data-slot="card-content"]
 	:is(a, button, [role="button"]) {
@@ -57,7 +57,7 @@ body {
 	z-index: var(--z-raised);
 }
 
-.glaze [data-entity-card] [data-slot="card-panel"]::after {
+.tripwire [data-entity-card] [data-slot="card-panel"]::after {
 	content: "";
 	position: absolute;
 	inset: 0;
@@ -70,22 +70,22 @@ body {
 }
 
 @media (hover: hover) {
-	.glaze
+	.tripwire
 		[data-entity-card]:has([data-slot="card-link"]:hover)
 		[data-slot="card-panel"]::after {
 		opacity: 1;
 	}
 }
 
-.glaze
+.tripwire
 	[data-entity-card]:has([data-slot="card-link"]:active)
 	[data-slot="card-panel"]::after,
-.glaze [data-entity-card][data-selected] [data-slot="card-panel"]::after {
+.tripwire [data-entity-card][data-selected] [data-slot="card-panel"]::after {
 	background-color: var(--pressed);
 	opacity: 1;
 }
 
-.glaze {
+.tripwire {
 	--brand-antigravity: #3186ff;
 	--brand-claude: #d97757;
 	--brand-gemini: #8e75b2;
@@ -101,39 +101,39 @@ body {
 	--density-tab-x: var(--space-4);
 }
 
-.glaze [data-slot="table-cell"] {
+.tripwire [data-slot="table-cell"] {
 	height: var(--density-row);
 	padding-block: var(--space-2);
 	padding-inline: var(--density-cell-x);
 }
 
-.glaze [data-slot="table-head"] {
+.tripwire [data-slot="table-head"] {
 	height: var(--density-head);
 	padding-inline: var(--density-cell-x);
 }
 
-.glaze [data-slot="tabs-trigger"],
-.glaze [data-density="tab"] {
+.tripwire [data-slot="tabs-tab"],
+.tripwire [data-density="tab"] {
 	height: var(--density-tab);
 	padding-inline: var(--density-tab-x);
 }
 
-.glaze [data-slot="tabs-list"] {
+.tripwire [data-slot="tabs-list"] {
 	max-width: 100%;
 	overflow-x: auto;
 }
 
-.glaze {
+.tripwire {
 	--sheet-fade: 160ms;
 }
 
-.glaze [data-slot="dialog-content"][data-side="sheet"] {
+.tripwire [data-slot="dialog-content"][data-side="sheet"] {
 	transition-property: translate, opacity;
 	transition-duration: var(--sheet-rise, var(--dur-overlay));
 	transition-timing-function: var(--sheet-spring, var(--ease-out));
 }
 
-.glaze
+.tripwire
 	[data-slot="dialog-content"][data-side="sheet"]:is(
 		[data-starting-style],
 		[data-ending-style]
@@ -142,19 +142,19 @@ body {
 	translate: -50% 100%;
 }
 
-.glaze [data-slot="dialog-content"][data-side="sheet"][data-ending-style] {
+.tripwire [data-slot="dialog-content"][data-side="sheet"][data-ending-style] {
 	transition-duration: var(--dur-overlay);
 	transition-timing-function: var(--ease-in);
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.glaze [data-slot="dialog-content"][data-side="sheet"] {
+	.tripwire [data-slot="dialog-content"][data-side="sheet"] {
 		transition-property: opacity;
 		transition-duration: var(--sheet-fade);
 		transition-timing-function: var(--ease-out);
 	}
 
-	.glaze
+	.tripwire
 		[data-slot="dialog-content"][data-side="sheet"]:is(
 			[data-starting-style],
 			[data-ending-style]
@@ -163,12 +163,12 @@ body {
 		translate: -50% 0;
 	}
 
-	.glaze [data-slot="dialog-content"][data-side="sheet"][data-ending-style] {
+	.tripwire [data-slot="dialog-content"][data-side="sheet"][data-ending-style] {
 		transition-duration: var(--sheet-fade);
 	}
 }
 
-.glaze [data-shader-mask="edges"] {
+.tripwire [data-shader-mask="edges"] {
 	mask-image: radial-gradient(
 		ellipse at center,
 		var(--ink) 0%,
@@ -176,7 +176,7 @@ body {
 	);
 }
 
-.glaze [data-shader-mask="sides"] {
+.tripwire [data-shader-mask="sides"] {
 	mask-image: linear-gradient(
 		to right,
 		var(--ink) 0%,
@@ -186,20 +186,20 @@ body {
 	);
 }
 
-.glaze [data-shader-mask="bottom"] {
+.tripwire [data-shader-mask="bottom"] {
 	mask-image: linear-gradient(to top, var(--ink) 0%, transparent 100%);
 }
 
-.glaze [data-shader-mask="top"] {
+.tripwire [data-shader-mask="top"] {
 	mask-image: linear-gradient(to bottom, var(--ink) 0%, transparent 100%);
 }
 
-.glaze [data-chart-rest] [data-slot="chart-frame-body"] {
+.tripwire [data-chart-rest] [data-slot="chart-frame-body"] {
 	opacity: var(--stale);
 	pointer-events: none;
 }
 
-.glaze [data-slot="avatar-eyes"] [data-pupil] {
+.tripwire [data-slot="avatar-eyes"] [data-pupil] {
 	transform: translate(
 		calc(var(--gaze-x, 0) * 1px),
 		calc(var(--gaze-y, 0) * 1px)
@@ -207,42 +207,42 @@ body {
 	transition: transform var(--dur-overlay) var(--ease-out);
 }
 
-.glaze [data-slot="avatar-eyes"] [data-eye] {
+.tripwire [data-slot="avatar-eyes"] [data-eye] {
 	transform-box: fill-box;
 	transform-origin: center;
 	transition: transform var(--dur-press) var(--ease-out);
 }
 
-.glaze [data-slot="avatar-eyes"][data-blink] [data-eye] {
+.tripwire [data-slot="avatar-eyes"][data-blink] [data-eye] {
 	transform: scaleY(0.15);
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.glaze [data-slot="avatar-eyes"] [data-pupil] {
+	.tripwire [data-slot="avatar-eyes"] [data-pupil] {
 		transform: none;
 	}
 }
 
-.glaze [data-slot="control-hit-area"] {
+.tripwire [data-slot="control-hit-area"] {
 	display: none;
 }
 
 @media (pointer: coarse) {
-	html .glaze {
+	html .tripwire {
 		--row: 44px;
 	}
 
-	.glaze :is([data-slot="filter-bar-button"], [data-slot="filter-bar-select"], [data-slot="select-trigger"], [data-slot="segmented-control-item"]) {
+	.tripwire :is([data-slot="filter-bar-button"], [data-slot="filter-bar-select"], [data-slot="select-trigger"], [data-slot="segmented-control-item"]) {
 		position: relative;
 		min-width: 44px;
 	}
 
-	.glaze :is([data-slot="filter-bar-button"], [data-slot="filter-bar-select"], [data-slot="select-trigger"], [data-slot="segmented-control-item"])::after {
+	.tripwire :is([data-slot="filter-bar-button"], [data-slot="filter-bar-select"], [data-slot="select-trigger"], [data-slot="segmented-control-item"])::after {
 		content: "";
 	}
 
-	.glaze [data-slot="control-hit-area"],
-	.glaze :is([data-slot="filter-bar-button"], [data-slot="filter-bar-select"], [data-slot="select-trigger"], [data-slot="segmented-control-item"])::after {
+	.tripwire [data-slot="control-hit-area"],
+	.tripwire :is([data-slot="filter-bar-button"], [data-slot="filter-bar-select"], [data-slot="select-trigger"], [data-slot="segmented-control-item"])::after {
 		display: block;
 		position: absolute;
 		left: 50%;
@@ -253,53 +253,53 @@ body {
 		transform: translate(-50%, -50%);
 	}
 
-	.glaze [data-slot="button"] {
+	.tripwire :is([data-slot="button"], [data-slot="toggle"][data-icon-toggle]) {
 		min-width: 44px;
 	}
 
-	.glaze [data-slot="button-group"] > button {
+	.tripwire [data-slot="button-group"] > button {
 		min-width: 44px;
 	}
 
-	.glaze [data-slot="filter-bar"] {
+	.tripwire [data-slot="filter-bar"] {
 		row-gap: calc(44px - var(--control-sm) + var(--space-1));
 	}
 
-	.glaze [data-slot="card-footer"]:has([data-slot="button"]) {
+	.tripwire [data-slot="card-footer"]:has([data-slot="button"]) {
 		min-height: 44px;
 	}
 }
 
-.glaze .react-flow__edges svg {
+.tripwire .react-flow__edges svg {
 	max-width: none;
 }
 
-.glaze [data-port-shape] {
+.tripwire [data-port-shape] {
 	--port-color: var(--ink-60);
 	--port-size: var(--space-3);
 	--port-turn: 0deg;
 	--port-radius: var(--radius-pill);
 }
 
-.glaze [data-port-tone="ok"] {
+.tripwire [data-port-tone="ok"] {
 	--port-color: var(--ok);
 }
 
-.glaze [data-port-tone="fail"] {
+.tripwire [data-port-tone="fail"] {
 	--port-color: var(--fail);
 }
 
-.glaze [data-port-shape="result"] {
+.tripwire [data-port-shape="result"] {
 	--port-radius: var(--space-0-5);
 }
 
-.glaze [data-port-shape="decision"] {
+.tripwire [data-port-shape="decision"] {
 	--port-radius: var(--space-0-5);
 	--port-turn: 45deg;
 	--port-size: calc(var(--space-3) - var(--space-0-5));
 }
 
-.glaze .react-flow__handle[data-port-shape] {
+.tripwire .react-flow__handle[data-port-shape] {
 	display: grid;
 	place-items: center;
 	width: var(--space-3);
@@ -313,30 +313,30 @@ body {
 	transform: none;
 }
 
-.glaze .react-flow__handle[data-port-shape]::before {
+.tripwire .react-flow__handle[data-port-shape]::before {
 	content: "";
 	position: absolute;
 	inset: calc(var(--space-1-5) * -1);
 }
 
-.glaze .react-flow__handle[data-port-io="in"] {
+.tripwire .react-flow__handle[data-port-io="in"] {
 	left: calc(var(--space-1-5) * -1);
 	right: auto;
 	justify-items: end;
 }
 
-.glaze .react-flow__handle[data-port-io="out"] {
+.tripwire .react-flow__handle[data-port-io="out"] {
 	right: calc(var(--space-1-5) * -1);
 	left: auto;
 }
 
-.glaze .react-flow__handle[data-port-slot="corner"] {
+.tripwire .react-flow__handle[data-port-slot="corner"] {
 	top: auto;
 	bottom: calc(var(--space-4) - var(--space-1-5));
 }
 
-.glaze .react-flow__handle[data-port-shape]::after,
-.glaze [data-port-glyph] {
+.tripwire .react-flow__handle[data-port-shape]::after,
+.tripwire [data-port-glyph] {
 	content: "";
 	box-sizing: border-box;
 	display: inline-block;
@@ -355,129 +355,129 @@ body {
 	outline-offset: var(--focus-offset);
 }
 
-.glaze .react-flow__handle[data-port-io="in"]::after,
-.glaze [data-port-glyph][data-port-io="in"] {
+.tripwire .react-flow__handle[data-port-io="in"]::after,
+.tripwire [data-port-glyph][data-port-io="in"] {
 	background-color: var(--paper);
 }
 
-.glaze .react-flow__handle[data-port-io="in"]:where([data-port-linked])::after {
+.tripwire .react-flow__handle[data-port-io="in"]:where([data-port-linked])::after {
 	background-color: var(--port-color);
 }
 
-.glaze .react-flow__handle:where([data-port-io="out"]:not([data-port-linked])) {
+.tripwire .react-flow__handle:where([data-port-io="out"]:not([data-port-linked])) {
 	--port-color: var(--line-strong);
 	--port-size: var(--space-2);
 }
 
-.glaze .react-flow__handle[data-port-shape]:where([data-port-io="out"]:not([data-port-linked]))::after {
+.tripwire .react-flow__handle[data-port-shape]:where([data-port-io="out"]:not([data-port-linked]))::after {
 	background-color: var(--paper);
 }
 
-.glaze .react-flow__handle[data-port-shape="decision"]:where([data-port-io="out"]:not([data-port-linked])) {
+.tripwire .react-flow__handle[data-port-shape="decision"]:where([data-port-io="out"]:not([data-port-linked])) {
 	--port-size: calc(var(--space-2) - var(--space-0-5));
 }
 
-.glaze [data-drag-tone] {
+.tripwire [data-drag-tone] {
 	--drag-color: var(--ink-60);
 }
 
-.glaze [data-drag-tone="ok"] {
+.tripwire [data-drag-tone="ok"] {
 	--drag-color: var(--ok);
 }
 
-.glaze [data-drag-tone="fail"] {
+.tripwire [data-drag-tone="fail"] {
 	--drag-color: var(--fail);
 }
 
-.glaze .react-flow__handle[data-drop="open"] {
+.tripwire .react-flow__handle[data-drop="open"] {
 	--port-size: calc(var(--space-3) + var(--space-0-5));
 }
 
-.glaze .react-flow__handle[data-drop="open"]::after {
+.tripwire .react-flow__handle[data-drop="open"]::after {
 	border-color: var(--drag-color, var(--port-color));
 	background-color: var(--drag-color, var(--port-color));
 	outline-color: var(--drag-color, var(--port-color));
 }
 
-.glaze .react-flow__handle[data-drop="open"].connectingto::after {
+.tripwire .react-flow__handle[data-drop="open"].connectingto::after {
 	--port-size: var(--space-4);
 }
 
-.glaze .react-flow__handle[data-port-io="in"][data-drop="open"]::after {
+.tripwire .react-flow__handle[data-port-io="in"][data-drop="open"]::after {
 	outline-color: transparent;
 }
 
-.glaze .react-flow__handle[data-drop="closed"]::after {
+.tripwire .react-flow__handle[data-drop="closed"]::after {
 	border-color: var(--line-strong);
 	background-color: var(--paper);
 	opacity: var(--stale);
 }
 
-.glaze [data-drop-node] {
+.tripwire [data-drop-node] {
 	transition-property: opacity, border-color;
 	transition-duration: var(--dur-state);
 	transition-timing-function: var(--ease-out);
 }
 
-.glaze [data-drop-node="closed"] {
+.tripwire [data-drop-node="closed"] {
 	opacity: var(--stale);
 }
 
-.glaze [data-drop-node="open"] {
+.tripwire [data-drop-node="open"] {
 	border-color: var(--line-strong);
 }
 
-.glaze .react-flow__edge-path[data-edge-tone] {
+.tripwire .react-flow__edge-path[data-edge-tone] {
 	--edge-color: var(--ink-32);
 	stroke: var(--edge-color);
 	stroke-width: var(--focus-width-sm);
 	transition: stroke-width var(--dur-state) var(--ease-out);
 }
 
-.glaze .react-flow__edge-path[data-edge-tone="ok"] {
+.tripwire .react-flow__edge-path[data-edge-tone="ok"] {
 	--edge-color: var(--ok);
 }
 
-.glaze .react-flow__edge-path[data-edge-tone="fail"] {
+.tripwire .react-flow__edge-path[data-edge-tone="fail"] {
 	--edge-color: var(--fail);
 }
 
-.glaze .react-flow__edgelabel-renderer {
+.tripwire .react-flow__edgelabel-renderer {
 	z-index: var(--z-raised);
 }
 
-.glaze .react-flow__edge.selected .react-flow__edge-path[data-edge-tone] {
+.tripwire .react-flow__edge.selected .react-flow__edge-path[data-edge-tone] {
 	stroke-width: calc(var(--focus-width) + var(--line-width));
 }
 
-.glaze .react-flow__connection-path[data-line-tone] {
+.tripwire .react-flow__connection-path[data-line-tone] {
 	--line-color: var(--ink-45);
 	stroke: var(--line-color);
 	stroke-width: var(--focus-width);
 	transition: stroke var(--dur-state) var(--ease-out);
 }
 
-.glaze .react-flow__connection-path[data-line-tone="ok"] {
+.tripwire .react-flow__connection-path[data-line-tone="ok"] {
 	--line-color: var(--ok);
 }
 
-.glaze .react-flow__connection-path[data-line-tone="fail"] {
+.tripwire .react-flow__connection-path[data-line-tone="fail"] {
 	--line-color: var(--fail);
 }
 
-.glaze .react-flow__connection-path[data-line-status="invalid"] {
+.tripwire .react-flow__connection-path[data-line-status="invalid"] {
 	--line-color: var(--fail);
 }
 
-.glaze [data-pending-port] > * {
+.tripwire [data-pending-port] > * {
 	translate: -50% -50%;
 }
 
-.glaze [data-drop-hint] {
+.tripwire [data-drop-hint] {
 	z-index: var(--z-raised);
 }
 
-.glaze [data-drop-hint] > * {
+.tripwire [data-drop-hint] > * {
 	translate: calc(var(--space-3) * -1) calc(-100% - var(--space-4));
 	animation: drop-hint-in var(--dur-state) var(--ease-out);
 }
@@ -489,84 +489,77 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.glaze .react-flow__handle[data-port-shape]::after,
-	.glaze [data-drop-node],
-	.glaze .react-flow__edge-path[data-edge-tone],
-	.glaze .react-flow__connection-path[data-line-tone] {
+	.tripwire .react-flow__handle[data-port-shape]::after,
+	.tripwire [data-drop-node],
+	.tripwire .react-flow__edge-path[data-edge-tone],
+	.tripwire .react-flow__connection-path[data-line-tone] {
 		transition-duration: 0s;
 	}
 
-	.glaze [data-drop-hint] > * {
+	.tripwire [data-drop-hint] > * {
 		animation: none;
 	}
 
 }
 
-.glaze [data-agent-rain] > span {
+.tripwire [data-label-swatch-ring] {
+	stroke: var(--line-faint);
+}
+
+.tripwire [data-agent-rain] {
+	gap: var(--line-width);
+}
+
+.tripwire [data-agent-rain] > span {
+	background-color: var(--agent);
 	opacity: 0.7;
 }
 
-.glaze [data-agent-rain="full"] > span {
-	animation-name: agent-rain;
-	animation-timing-function: ease-in-out;
-	animation-iteration-count: infinite;
-	animation-direction: alternate;
-}
-
-@keyframes agent-rain {
-	from {
-		opacity: 0.2;
-	}
-	to {
-		opacity: 1;
-	}
-}
-
-.glaze [data-agent-motion="full"] .react-flow__node {
+.tripwire [data-agent-motion="full"] .react-flow__node {
 	transition: transform var(--agent-move) var(--ease-out);
 }
 
-.glaze [data-agent-motion="full"] .react-flow__node.agent-enter > :not([data-agent-dissolve]) {
+.tripwire [data-agent-motion="full"] .react-flow__node.agent-enter > :not([data-agent-dissolve]) {
 	animation:
 		agent-node-fade var(--agent-duration) linear var(--agent-delay) both,
 		agent-node-land var(--agent-duration) var(--ease-step) var(--agent-delay) both;
 }
 
-.glaze [data-agent-motion="full"] .react-flow__node-laneHead > * {
+.tripwire [data-agent-motion="full"] .react-flow__node-laneHead > * {
 	animation: lane-head-in var(--dur-overlay) var(--ease-out) var(--agent-move) both;
 }
 
-.glaze [data-agent-motion="full"] .react-flow__node.agent-pulse-a > *,
-.glaze [data-agent-motion="full"] .react-flow__node.agent-pulse-b > * {
+.tripwire [data-agent-motion="full"] .react-flow__node.agent-pulse-a > *,
+.tripwire [data-agent-motion="full"] .react-flow__node.agent-pulse-b > * {
 	animation: agent-node-pulse var(--agent-duration) var(--ease-out) both;
 }
 
-.glaze [data-agent-motion="full"] .react-flow__node.agent-pulse-b > * {
+.tripwire [data-agent-motion="full"] .react-flow__node.agent-pulse-b > * {
 	animation-name: agent-node-pulse-b;
 }
 
-.glaze .react-flow__node.agent-leave {
+.tripwire .react-flow__node.agent-leave {
 	pointer-events: none;
 }
 
-.glaze [data-agent-motion="full"] .react-flow__node.agent-leave > * {
+.tripwire [data-agent-motion="full"] .react-flow__node.agent-leave > * {
 	animation: agent-node-out var(--agent-duration) ease-out both;
 }
 
-.glaze [data-agent-motion="reduced"] .react-flow__node.agent-leave > * {
+.tripwire [data-agent-motion="reduced"] .react-flow__node.agent-leave > * {
 	opacity: 0;
 }
 
-.glaze [data-agent-motion="full"] .react-flow__edge.agent-trail .react-flow__edge-path {
+.tripwire [data-agent-motion="full"] .react-flow__edge.agent-trail .react-flow__edge-path {
 	stroke-dasharray: 1;
 	animation: agent-trail-draw var(--agent-duration) ease-out var(--agent-delay) both;
 }
 
-.glaze [data-agent-motion="full"] .react-flow__edge.agent-trail-out .react-flow__edge-path {
+.tripwire [data-agent-motion="full"] .react-flow__edge.agent-trail-out .react-flow__edge-path {
 	animation: agent-trail-out var(--agent-duration) ease-out both;
 }
 
-.glaze [data-agent-motion="reduced"] .react-flow__edge.agent-trail-out {
+.tripwire [data-agent-motion="reduced"] .react-flow__edge.agent-trail-out {
 	opacity: 0;
 }
 
@@ -643,13 +636,12 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.glaze [data-agent-rain] > span,
-	.glaze .react-flow__node > *,
-	.glaze .react-flow__edge-path {
+	.tripwire .react-flow__node > *,
+	.tripwire .react-flow__edge-path {
 		animation: none;
 	}
 
-	.glaze [data-agent-motion] .react-flow__node {
+	.tripwire [data-agent-motion] .react-flow__node {
 		transition: none;
 	}
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import type { MouseEvent, ReactNode } from "react";
-import { Chart } from "#/design-system/ui/chart";
+import { Chart } from "#/components/common/chart";
 import { hoursAgo } from "#/lib/analytics";
 
 function hourLabel(index: number, length: number): string {

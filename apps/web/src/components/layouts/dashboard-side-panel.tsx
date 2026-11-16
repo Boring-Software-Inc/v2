@@ -1,3 +1,5 @@
+import { Button } from "@tripwire/ui/button";
+import { ChevronLeft, ChevronRight, Icon } from "@tripwire/ui/icon";
 import {
 	createContext,
 	type ReactNode,
@@ -5,8 +7,6 @@ import {
 	useContext,
 	useState,
 } from "react";
-import { ChevronLeft, ChevronRight, Icon } from "#/design-system/icon";
-import { Button } from "#/design-system/ui/button";
 
 type SidePanelState = {
 	content: ReactNode | null;
@@ -62,14 +62,15 @@ export function SidePanelToggle() {
 	if (!content) return null;
 
 	return (
-		<Button
-			aria-label={collapsed ? "Show details" : "Hide details"}
-			className="absolute end-1 top-1/2 hidden -translate-y-1/2 md:inline-flex"
-			onClick={toggle}
-			size="icon-sm"
-			variant="ghost"
-		>
-			<Icon icon={collapsed ? ChevronLeft : ChevronRight} />
-		</Button>
+		<span className="absolute end-1 top-1/2 hidden -translate-y-1/2 md:inline-flex">
+			<Button
+				ariaLabel={collapsed ? "Show details" : "Hide details"}
+				onAction={toggle}
+				size="small"
+				variant="ghost"
+			>
+				<Icon icon={collapsed ? ChevronLeft : ChevronRight} />
+			</Button>
+		</span>
 	);
 }

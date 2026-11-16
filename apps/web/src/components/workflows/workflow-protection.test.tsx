@@ -15,7 +15,6 @@ import { RepoTabsProvider } from "#/components/tabs/repo-tabs-provider";
 import { EditorHeader } from "#/components/workflows/editor/editor-header";
 import { WorkflowEditorPage } from "#/components/workflows/editor/workflow-editor-page";
 import { WorkflowsGridPage } from "#/components/workflows/workflows-grid-page";
-import { GlazePortalProvider } from "#/design-system/lib/portal";
 import { orgContextQueryOptions, orgRepoQueryOptions } from "#/lib/org.query";
 import { ruleConfigsQueryOptions } from "#/lib/rules.query";
 import { workflowEditorSearchSchema } from "#/lib/workflow-editor-search";
@@ -95,9 +94,7 @@ async function renderWorkflowPage({
 			<QueryClientProvider client={client}>
 				<FlagsProvider clientId="synthetic">
 					<RepoTabsProvider>
-						<GlazePortalProvider>
-							<Outlet />
-						</GlazePortalProvider>
+						<Outlet />
 					</RepoTabsProvider>
 				</FlagsProvider>
 			</QueryClientProvider>

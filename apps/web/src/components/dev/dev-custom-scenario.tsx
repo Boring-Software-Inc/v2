@@ -1,18 +1,8 @@
+import { Button } from "@tripwire/ui/button";
+import { Collapsible } from "@tripwire/ui/collapsible";
+import { Field, FieldLabel } from "@tripwire/ui/field";
+import { Select, type SelectOption } from "@tripwire/ui/select";
 import { DEV_CUSTOM_KEY } from "#/components/dev/use-dev-actions";
-import { Button } from "#/design-system/ui/button";
-import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from "#/design-system/ui/collapsible";
-import { Field, FieldLabel } from "#/design-system/ui/field";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/design-system/ui/select";
 import {
 	blockedReason,
 	DEV_AXES,
@@ -26,7 +16,7 @@ import {
 	type DevScenario,
 } from "#/lib/dev/scenarios";
 
-const LABEL_CLASS = "w-20 flex-none type-caption text-text-2";
+const LABEL_CLASS = "w-20 flex-none content-caption tone-content-secondary";
 
 interface DevAxisSelectProps<A extends DevAxis> {
 	axis: A;
@@ -41,45 +31,29 @@ function DevAxisSelect<A extends DevAxis>({
 }: DevAxisSelectProps<A>) {
 	const options: readonly DevScenario[A][] = DEV_OPTIONS[axis];
 	const labels: Record<DevScenario[A], string> = DEV_OPTION_LABELS[axis];
-	const items = options.map((option) => ({
+	const items: SelectOption<DevScenario[A]>[] = options.map((option) => ({
 		value: option,
 		label: labels[option],
+		description: blockedReason(scenario, axis, option) ?? undefined,
+		disabled: blockedReason(scenario, axis, option) !== null,
 	}));
 	return (
 		<Field orientation="horizontal">
-			<FieldLabel className={LABEL_CLASS}>{DEV_AXIS_LABELS[axis]}</FieldLabel>
-			<Select
-				items={items}
-				onValueChange={(value) => {
-					const next = options.find((option) => option === value);
-					if (next !== undefined) {
-						onChange(axis, next);
-					}
-				}}
-				value={scenario[axis]}
-			>
-				<SelectTrigger className="min-w-0 flex-1" size="sm">
-					<SelectValue />
-				</SelectTrigger>
-				<SelectContent size="sm">
-					{options.map((option) => {
-						const reason = blockedReason(scenario, axis, option);
-						return (
-							<SelectItem
-								className={reason ? "py-1" : undefined}
-								disabled={reason !== null}
-								key={option}
-								value={option}
-							>
-								<span className="block truncate">{labels[option]}</span>
-								{reason ? (
-									<span className="block truncate type-caption">{reason}</span>
-								) : null}
-							</SelectItem>
-						);
-					})}
-				</SelectContent>
-			</Select>
+			<span className={LABEL_CLASS}>
+				<FieldLabel>{DEV_AXIS_LABELS[axis]}</FieldLabel>
+			</span>
+			<span className="min-w-0 flex-1">
+				<Select
+					ariaLabel={DEV_AXIS_LABELS[axis]}
+					options={items}
+					onValueChange={(next) => {
+						if (next !== null) {
+							onChange(axis, next);
+						}
+					}}
+					value={scenario[axis]}
+				/>
+			</span>
 		</Field>
 	);
 }
@@ -107,59 +81,52 @@ export function DevCustomScenario({
 	scenario,
 }: DevCustomScenarioProps) {
 	return (
-		<Collapsible
-			className="shrink-0 border-t border-line-faint p-1"
-			onKeyDown={(event) => event.stopPropagation()}
-		>
-			<CollapsibleTrigger className="w-full self-stretch" size="sm">
-				Custom
-			</CollapsibleTrigger>
-			<CollapsibleContent className="flex flex-col gap-1.5 px-2 pt-1 pb-1.5">
-				{DEV_AXES.map((axis) => (
-					<DevAxisSelect
-						axis={axis}
-						key={axis}
-						onChange={onAxisChange}
-						scenario={scenario}
-					/>
-				))}
-				<Field orientation="horizontal">
-					<FieldLabel className={LABEL_CLASS}>Latency</FieldLabel>
-					<Select
-						items={LATENCY_ITEMS}
-						onValueChange={(value) => {
-							const next = DEV_LATENCIES.find(
-								(option) => String(option) === value,
-							);
-							if (next !== undefined) {
-								onLatencyChange(next);
-							}
-						}}
-						value={String(latency)}
-					>
-						<SelectTrigger className="min-w-0 flex-1" size="sm">
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent size="sm">
-							{LATENCY_ITEMS.map((item) => (
-								<SelectItem key={item.value} value={item.value}>
-									{item.label}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-				</Field>
-				<Button
-					className="self-end"
-					disabled={busy !== null && busy !== DEV_CUSTOM_KEY}
-					onClick={onApply}
-					pending={busy === DEV_CUSTOM_KEY}
-					size="sm"
-					variant="secondary"
-				>
-					Apply
-				</Button>
-			</CollapsibleContent>
-		</Collapsible>
+		<div className="shrink-0 border-t tone-border-faint composition-inset-small">
+			<div>
+				<Collapsible trigger="Custom">
+					<div data-layout-role="dev-custom-scenario-fields">
+						{DEV_AXES.map((axis) => (
+							<DevAxisSelect
+								axis={axis}
+								key={axis}
+								onChange={onAxisChange}
+								scenario={scenario}
+							/>
+						))}
+						<Field orientation="horizontal">
+							<span className={LABEL_CLASS}>
+								<FieldLabel>Latency</FieldLabel>
+							</span>
+							<span className="min-w-0 flex-1">
+								<Select
+									ariaLabel="Latency"
+									options={LATENCY_ITEMS}
+									onValueChange={(value) => {
+										const next = DEV_LATENCIES.find(
+											(option) => String(option) === value,
+										);
+										if (next !== undefined) {
+											onLatencyChange(next);
+										}
+									}}
+									value={String(latency)}
+								/>
+							</span>
+						</Field>
+						<div className="flex justify-end">
+							<Button
+								disabled={busy !== null && busy !== DEV_CUSTOM_KEY}
+								onAction={onApply}
+								pending={busy === DEV_CUSTOM_KEY}
+								size="small"
+								variant="secondary"
+							>
+								Apply
+							</Button>
+						</div>
+					</div>
+				</Collapsible>
+			</div>
+		</div>
 	);
 }

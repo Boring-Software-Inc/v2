@@ -1,4 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
+import { Button } from "@tripwire/ui/button";
+import {
+	Card,
+	CardAction,
+	CardDescription,
+	CardFooter,
+	CardHeader,
+	CardMeta,
+	CardTitle,
+} from "@tripwire/ui/card";
+import { StatusMark } from "@tripwire/ui/status";
 import type { ReactNode } from "react";
 import { GitCafeMirrorNotice } from "#/components/forges/gitcafe-mirror-notice";
 import { RulePacks } from "#/components/rules/rule-packs";
@@ -13,18 +24,6 @@ import {
 	useSetupInstallRules,
 	useTakeOver,
 } from "#/components/setup/use-repo-setup";
-import { cn } from "#/design-system/lib/utils";
-import { Button } from "#/design-system/ui/button";
-import {
-	Card,
-	CardAction,
-	CardDescription,
-	CardFooter,
-	CardHeader,
-	CardMeta,
-	CardTitle,
-} from "#/design-system/ui/card";
-import { StatusMark } from "#/design-system/ui/status";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { useTimezones } from "#/hooks/use-timezones";
 import {
@@ -39,6 +38,7 @@ import {
 	ruleConfigsQueryOptions,
 	ruleLibraryQueryOptions,
 } from "#/lib/rules.query";
+import { cn } from "#/lib/utils";
 
 interface ChecklistProps {
 	org: string;
@@ -214,10 +214,10 @@ function AgentChecklist({ org, repo, state, progress }: ChecklistProps) {
 					<CardMeta>Started {formatStepTime(agent.startedAt, zone)}</CardMeta>
 					<Button
 						disabled={!canTakeOver}
-						onClick={() => takeOver.mutate(agent.code)}
+						onAction={() => takeOver.mutate(agent.code)}
 						pending={takeOver.isPending}
 						pendingLabel="Taking over"
-						size="sm"
+						size="small"
 						variant="secondary"
 					>
 						Take over

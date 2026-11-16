@@ -899,3 +899,34 @@ levels. Read grants access to the organization appeal inbox. Manage grants the
 ability to resolve appeals and edit the public portal title and introduction.
 Opening an organization portal as a member with appeal access shows this admin
 view; non-members see the contributor portal.
+
+## 2026-11-12 | UI SDK beneath the Tripwire design system
+
+Tripwire's application-facing design system lives in `@tripwire/ui`. The package
+uses `@ui-sdk/core` and `@ui-sdk/react` for accessible behavior while retaining
+Tripwire's semantic props, tokens, component styling, and agent policy. Apps do
+not import UI SDK directly and do not receive its raw `className`, `style`,
+`render`, or polymorphic rendering controls.
+
+This replaces Base UI and the app-owned Glaze implementation. Base UI provides
+accessible primitives, but it does not provide the shared framework-free
+behavior and agent metadata layer required for one enforceable interface
+contract. Keeping Glaze in the app would also leave component behavior outside
+the dependency boundary that agents are expected to follow.
+
+Both UI SDK packages are pinned to `0.1.0-beta.1`. The beta may advance only
+after package contract tests, keyboard behavior, form behavior, popup focus,
+and light and dark visual regression checks pass. Experimental UI SDK components
+are not part of this decision; Tripwire composes stable behavior instead. If UI
+SDK regresses those contracts, `@tripwire/ui` remains the replacement seam and
+may change its private behavior implementation without changing app callers.
+
+UI SDK is unstyled. Tripwire owns stable `data-slot` hooks and package CSS so the
+existing visual language survives the behavior swap. Popup behavior uses the
+browser top layer rather than app portals. Popup call sites must therefore avoid
+nesting inside interactive ancestors whose events should not observe popup
+interaction.
+
+Shared component agent policy and semantic metadata belong in `@tripwire/ui`.
+Page-level agent permissions, WebMCP operations, data access, and product policy
+remain in the consuming app.
