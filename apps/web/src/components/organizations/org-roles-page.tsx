@@ -76,7 +76,10 @@ export function OrgRolesPage({ org }: { org: string }) {
 		<>
 			<SettingsHeader title="Roles">
 				{canManage && !isPersonal ? (
-					<RoleDialog org={org} trigger={<Button>Create role</Button>} />
+					<RoleDialog
+						org={org}
+						trigger={<Button variant="primary">Create role</Button>}
+					/>
 				) : null}
 			</SettingsHeader>
 			<SettingsCard>

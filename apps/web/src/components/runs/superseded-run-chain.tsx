@@ -1,13 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Collapsible } from "@tripwire/ui/collapsible";
-import {
-	Check,
-	ChevronDown,
-	Close,
-	Icon,
-	Pending,
-	Undo,
-} from "@tripwire/ui/icon";
+import { Check, Close, Icon, Pending, Undo } from "@tripwire/ui/icon";
 import { ZonedTime } from "#/components/timezones/zoned-time";
 import type { RunLinkView } from "#/lib/runs.functions";
 import { cn } from "#/lib/utils";
@@ -125,21 +118,16 @@ export function SupersededRunChain({
 						{replaces ? (
 							<>
 								Replaces the run from
-								<span className="tone-content-primary underline decoration-1 underline-offset-4">
-									<ZonedTime at={replaces.createdAt} format="clock" />
-								</span>
+								<ZonedTime at={replaces.createdAt} format="clock" />
 							</>
 						) : (
 							`${runs.length} runs in chain`
 						)}
-						<span className="tone-muted-legacy transition-transform duration-(--dur-state) ease-out group-data-panel-open/collapsible-trigger:rotate-180 motion-reduce:transition-none">
-							<Icon icon={ChevronDown} size={12} />
-						</span>
 					</span>
 				}
-				triggerTone="quiet"
+				variant="compact"
 			>
-				<div className="relative w-full max-w-80 overflow-visible">
+				<div className="relative w-full max-w-80 overflow-visible composition-top-small">
 					<span
 						aria-hidden
 						className="pointer-events-none absolute top-0 -left-7 z-0 chain-glyph-height chain-mark-width chain-elbow chain-border"
@@ -166,7 +154,7 @@ export function SupersededRunChain({
 										className={cn(
 											"shrink-0 chain-system-type chain-text-size content-leading-standard underline decoration-1 chain-link-offset",
 											selected
-												? "chain-link-selected tone-content-inverse"
+												? "chain-link-selected tone-content-primary"
 												: "chain-copy-tone",
 										)}
 										params={{ runId: run.id }}

@@ -99,7 +99,9 @@ function RecoverInstallation({ state }: { state: string | undefined }) {
 	if (claimable.length === 0) {
 		return (
 			<SetupShell>
-				<MascotArt className="self-center" mood="install-nothing" />
+				<div data-layout-role="install-recovery-mascot">
+					<MascotArt mood="install-nothing" />
+				</div>
 				<SetupHeader
 					body="Tripwire has no new installations to connect. If you installed Tripwire a moment ago, refresh this page in a minute while it loads your repos. Repos you already connected are in their org."
 					title="Nothing to connect yet"

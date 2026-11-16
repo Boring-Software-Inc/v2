@@ -8,7 +8,9 @@ import {
 	type ComponentPropsWithRef,
 	lazy,
 	Suspense,
+	useCallback,
 	useEffect,
+	useRef,
 	useState,
 } from "react";
 
@@ -38,15 +40,31 @@ function pageOwnsSlash(): boolean {
 export function CommandPaletteLauncher() {
 	const [open, setOpen] = useState(false);
 	const [loaded, setLoaded] = useState(false);
+	const [query, setQuery] = useState("");
+	const opener = useRef<HTMLElement | null>(null);
+	const close = useCallback(() => {
+		setQuery("");
+		setOpen(false);
+	}, []);
 	if (open && !loaded) {
 		setLoaded(true);
 	}
 
 	useEffect(() => {
+		const onOpen = () => {
+			if (open) return;
+			const active = document.activeElement;
+			opener.current =
+				active instanceof HTMLElement && active !== document.body
+					? active
+					: null;
+			setOpen(true);
+		};
 		const onKey = (event: KeyboardEvent) => {
 			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
 				event.preventDefault();
-				setOpen((value) => !value);
+				if (open) close();
+				else onOpen();
 				return;
 			}
 			if (
@@ -57,21 +75,26 @@ export function CommandPaletteLauncher() {
 				!pageOwnsSlash()
 			) {
 				event.preventDefault();
-				setOpen(true);
+				onOpen();
 			}
 		};
-		const onOpen = () => setOpen(true);
 		window.addEventListener("keydown", onKey);
 		window.addEventListener(OPEN_EVENT, onOpen);
 		return () => {
 			window.removeEventListener("keydown", onKey);
 			window.removeEventListener(OPEN_EVENT, onOpen);
 		};
-	}, [open]);
+	}, [close, open]);
 
 	return loaded ? (
 		<Suspense fallback={null}>
-			<CommandPalette onClose={() => setOpen(false)} open={open} />
+			<CommandPalette
+				finalFocus={() => (opener.current?.isConnected ? opener.current : null)}
+				onClose={close}
+				onQueryChange={setQuery}
+				open={open}
+				query={query}
+			/>
 		</Suspense>
 	) : null;
 }

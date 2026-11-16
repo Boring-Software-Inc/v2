@@ -23,10 +23,50 @@
 	letter-spacing: var(--tracking-heading);
 }
 
-[data-layout-role="digest-repo-link"] {
+[data-layout-role="repo-card-header-link"] {
+	display: block;
+	border-radius: var(--radius-panel);
+	text-decoration: none;
+}
+
+[data-layout-role="repo-card-header-link"]:focus-visible {
+	outline: var(--focus-width) solid var(--tw-boundary-focus);
+	outline-offset: calc(-1 * var(--focus-width));
+}
+
+@media (hover: hover) {
+	[data-layout-role="repo-card-header-link"]:hover {
+		background-color: var(--tw-interaction-row-hover);
+	}
+}
+
+[data-layout-role="repo-card-title"] {
 	display: inline-flex;
 	min-inline-size: 0;
 	align-items: flex-start;
+	gap: var(--space-1-5);
+}
+
+[data-layout-role="repo-card-title"] > svg {
+	inline-size: var(--icon);
+	block-size: var(--icon);
+	flex-shrink: 0;
+	margin-block-start: var(--space-0-5);
+}
+
+[data-layout-role="repo-card-badges"] {
+	display: flex;
+	flex-wrap: wrap;
+	grid-column-start: 1;
+	align-items: center;
+	gap: var(--space-1);
+}
+
+[data-layout-role="repo-card-shortcuts"] {
+	display: flex;
+	min-inline-size: 0;
+	flex: 1;
+	flex-wrap: wrap;
 	gap: var(--space-1-5);
 }
 
@@ -166,6 +206,68 @@
 [data-layout-role="run-parallel-branch"]
 	> [data-layout-role="run-branch-card"] {
 	inline-size: 100%;
+}
+
+[data-layout-role="run-branch-card"][data-private] {
+	border: var(--line-width) solid var(--tw-boundary-subtle);
+	background: var(--shell);
+}
+
+[data-layout-role="run-branch-card"][data-private] [data-slot="card-content"] {
+	border-block-start: var(--line-width) solid var(--tw-boundary-subtle);
+}
+
+[data-layout-role="private-run-passed-fold"]:has(
+		> [data-slot="collapsible"][data-closed]
+	) {
+	padding-block-end: var(--space-4);
+}
+
+[data-layout-role="private-run-passed-fold"] .branch-passed-list-inset {
+	padding-block-start: var(--space-2);
+}
+
+[data-layout-role="private-run-branch-row"] {
+	padding: var(--space-1);
+	border: var(--line-width) solid var(--tw-boundary-subtle);
+	background: var(--shell);
+}
+
+[data-layout-role="private-run-branch-row"]
+	> [data-slot="card-panel"]
+	> [data-slot="collapsible"]
+	> [data-slot="collapsible-summary"]
+	> [data-slot="collapsible-trigger"] {
+	flex: 1;
+	min-block-size: var(--row);
+	border-radius: calc(var(--radius-panel) - var(--space-1));
+}
+
+[data-layout-role="private-run-branch-row"]
+	[data-slot="collapsible-closed-summary"] {
+	max-inline-size: 50%;
+}
+
+[data-layout-role="private-run-branch-row"]
+	> [data-slot="card-panel"]
+	> [data-slot="collapsible"]
+	> [data-slot="collapsible-panel"]
+	> div {
+	padding-inline: var(--space-2);
+	border-block-start: var(--line-width) solid var(--tw-boundary-subtle);
+}
+
+[data-layout-role="private-run-branch-row"]
+	[data-layout-role="run-rule-reason"] {
+	color: var(--tw-content-secondary);
+}
+
+[data-layout-role="run-branch-card"][data-private]
+	[data-slot="collapsible"][data-variant="compact"]
+	> [data-slot="collapsible-summary"]
+	> [data-slot="collapsible-trigger"] {
+	padding-inline-end: calc(var(--space-2) + var(--space-0-5));
+	letter-spacing: var(--tracking-label);
 }
 
 [data-layout-role="run-branch-title"] {

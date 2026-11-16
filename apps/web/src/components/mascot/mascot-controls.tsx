@@ -134,7 +134,7 @@ export function MascotControls({
 
 	return (
 		<aside
-			className="flex w-full flex-col gap-4 lg:w-96 lg:shrink-0"
+			className="flex w-full flex-col lg:w-96 lg:shrink-0"
 			data-layout-role="mascot-controls"
 		>
 			<Card>

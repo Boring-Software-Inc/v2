@@ -35,7 +35,7 @@ export function OrganizationConnectionsPage({ org }: { org: string }) {
 		<>
 			<SettingsHeader title="Connections">
 				{canManage ? (
-					<Button onAction={() => setConnecting(true)}>
+					<Button onAction={() => setConnecting(true)} variant="primary">
 						<Icon icon={Add} />
 						Connect repos
 					</Button>

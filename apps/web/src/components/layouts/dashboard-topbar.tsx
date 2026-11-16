@@ -19,7 +19,7 @@ import {
 	OrgSwitcher,
 	RepoSwitcher,
 } from "#/components/layouts/scope-switchers";
-import { SetupPill } from "#/components/setup/setup-pill";
+import { SetupProgress } from "#/components/setup/setup-progress";
 import { useActiveScope } from "#/hooks/use-active-scope";
 import { useHasMounted } from "#/hooks/use-has-mounted";
 import { useSignOut } from "#/hooks/use-sign-out";
@@ -47,7 +47,9 @@ export function DashboardTopbar({ user }: DashboardTopbarProps) {
 				<>
 					<Slash />
 					<RepoSwitcher />
-					{scope.repo ? <SetupPill /> : null}
+					{scope.repo ? (
+						<SetupProgress placement="mobile" userId={user?.id} />
+					) : null}
 				</>
 			) : null}
 			<div className="composition-push-end flex min-w-0 items-center composition-gap-small sm:composition-gap-standard">

@@ -2,7 +2,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { OrgRole } from "@tripwire/contracts";
 import { AgentBoundary } from "@tripwire/ui/agent-policy";
 import { Avatar } from "@tripwire/ui/avatar";
-import { Button, IconButton } from "@tripwire/ui/button";
+import {
+	Button,
+	DestructiveDialogLauncher,
+	IconButton,
+} from "@tripwire/ui/button";
 import { Dialog } from "@tripwire/ui/dialog";
 import { Field, FieldError, FieldLabel, Input } from "@tripwire/ui/field";
 import { Icon, More } from "@tripwire/ui/icon";
@@ -498,9 +502,11 @@ function LeaveOrgRow({
 	return (
 		<SettingsDangerRow
 			action={
-				<Button onAction={() => setOpen(true)} size="small" variant="secondary">
-					Leave org
-				</Button>
+				<AgentBoundary visibility="hidden">
+					<DestructiveDialogLauncher onOpenChange={setOpen} size="small">
+						Leave org
+					</DestructiveDialogLauncher>
+				</AgentBoundary>
 			}
 			label={`Leave ${name}`}
 		>
@@ -730,14 +736,15 @@ function InviteLinkRow({
 			</TableCell>
 			<TableCell data-settings-action-cell>
 				{revoked ? null : (
-					<Button
-						ariaLabel={`Revoke ${roleName} invite link`}
-						onAction={() => setConfirmRevoke(true)}
-						size="small"
-						variant="secondary"
-					>
-						Revoke
-					</Button>
+					<AgentBoundary visibility="hidden">
+						<DestructiveDialogLauncher
+							ariaLabel={`Revoke ${roleName} invite link`}
+							onOpenChange={setConfirmRevoke}
+							size="small"
+						>
+							Revoke
+						</DestructiveDialogLauncher>
+					</AgentBoundary>
 				)}
 				<ConfirmDeleteDialog
 					confirmLabel="Revoke"

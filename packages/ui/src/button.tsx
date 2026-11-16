@@ -384,13 +384,16 @@ export function Button(props: ButtonProps) {
 }
 
 export function DestructiveDialogLauncher({
+	ariaLabel,
 	children,
 	describedBy,
 	onOpenChange,
 	ref,
-}: {
-	children: ReactNode;
-	describedBy?: string;
+	size = "medium",
+}: Pick<
+	ButtonCommonProps,
+	"ariaLabel" | "children" | "describedBy" | "size"
+> & {
 	onOpenChange: (open: true) => void;
 	ref?: Ref<HTMLButtonElement>;
 }) {
@@ -398,8 +401,9 @@ export function DestructiveDialogLauncher({
 		<BehaviorButton
 			aria-describedby={describedBy}
 			aria-haspopup="dialog"
+			aria-label={ariaLabel}
 			className={BUTTON_GLASS.destructive}
-			data-size="medium"
+			data-size={size}
 			data-slot="button"
 			data-variant="destructive"
 			onClick={() => onOpenChange(true)}

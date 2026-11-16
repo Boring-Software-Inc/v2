@@ -35,8 +35,16 @@ function PassedFold({
 	rules: ChainRule[];
 	context: BranchContext;
 }) {
+	const disclosure = context.maintainer
+		? { variant: "compact" as const }
+		: { variant: "default" as const };
 	return (
-		<div className="rule-row composition-gap-standard composition-inline-inset branch-rule-row-inset">
+		<div
+			className="rule-row composition-gap-standard composition-inline-inset branch-rule-row-inset"
+			data-layout-role={
+				context.maintainer ? "private-run-passed-fold" : undefined
+			}
+		>
 			<Collapsible
 				hiddenUntilFound
 				trigger={
@@ -45,7 +53,8 @@ function PassedFold({
 						<span className="tone-success">{`${rules.length} passed`}</span>
 					</span>
 				}
-				triggerTone="quiet"
+				triggerTone={context.maintainer ? "default" : "quiet"}
+				{...disclosure}
 			>
 				<ul className="flex flex-col composition-gap-small branch-passed-list-inset">
 					{rules.map((rule) => {
@@ -115,7 +124,10 @@ function FlaggedRule({
 					) : null}
 				</div>
 				{reason ? (
-					<p className="content-body tone-content-primary content-break-anywhere">
+					<p
+						data-layout-role="run-rule-reason"
+						className="content-body tone-content-primary content-break-anywhere"
+					>
 						{reason}
 					</p>
 				) : null}
@@ -264,7 +276,11 @@ export function BranchCard({
 	showOutcome: boolean;
 }) {
 	return (
-		<Card data-feedback-name="BranchCard" data-layout-role="run-branch-card">
+		<Card
+			data-feedback-name="BranchCard"
+			data-layout-role="run-branch-card"
+			data-private={context.maintainer || undefined}
+		>
 			<CardHeader>
 				<CardTitle data-layout-role="run-branch-title" title={branch.name}>
 					{branch.name}
@@ -286,6 +302,40 @@ export function BranchRow({
 	context: BranchContext;
 }) {
 	const summary = branchSummary(branch);
+	const mark = (
+		<ChainMark glyph={summary.glyph} size={12} tone={summary.tone} />
+	);
+	const summaryLabel = (
+		<span
+			className={cn(
+				"block truncate content-caption",
+				summary.tone === "fail" ? "tone-danger" : "tone-content-secondary",
+			)}
+			title={summary.text}
+		>
+			{summary.text}
+		</span>
+	);
+	if (context.maintainer) {
+		return (
+			<Card data-layout-role="private-run-branch-row">
+				<Collapsible
+					closedSummary={summaryLabel}
+					trigger={
+						<span className="flex min-w-0 items-center composition-gap-control">
+							{mark}
+							<span className="min-w-0 truncate" title={branch.name}>
+								{branch.name}
+							</span>
+						</span>
+					}
+					variant="compact"
+				>
+					<BranchBody branch={branch} context={context} />
+				</Collapsible>
+			</Card>
+		);
+	}
 	return (
 		<Card>
 			<div className="composition-inline-inset branch-rule-row-inset">
@@ -293,7 +343,7 @@ export function BranchRow({
 					panelVariant="bordered"
 					trigger={
 						<span className="flex min-w-0 items-baseline composition-gap-control">
-							<ChainMark glyph={summary.glyph} size={12} tone={summary.tone} />
+							{mark}
 							<span className="min-w-0 truncate" title={branch.name}>
 								{branch.name}
 							</span>

@@ -91,6 +91,7 @@ export function ResponsesPreview({
 							ariaLabel="Surface"
 							onValueChange={(value) => value && setTab(value)}
 							options={tabs}
+							size="small"
 							value={view.tab}
 						/>
 					</div>

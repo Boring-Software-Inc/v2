@@ -175,7 +175,7 @@ function AccountConnectionsPage() {
 	return (
 		<>
 			<SettingsHeader title="Connections">
-				<Button onAction={() => setConnecting(true)}>
+				<Button onAction={() => setConnecting(true)} variant="primary">
 					<Icon icon={Add} />
 					Connect repos
 				</Button>

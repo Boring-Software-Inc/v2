@@ -24,9 +24,10 @@ describe("Tripwire empty-state contract", () => {
 		expect(nestedTitle).toContain('<h3 data-slot="empty-state-title">');
 	});
 
-	test("keeps the runner minigame exclusive to the 404 surface", () => {
+	test("shows the ghost on the 404 surface with the runner disabled", () => {
 		const html = renderToStaticMarkup(<NotFoundBody signedIn />);
 
-		expect(html).toContain('data-minigame=""');
+		expect(html).toContain('data-slot="empty-art"');
+		expect(html).not.toContain("data-minigame");
 	});
 });

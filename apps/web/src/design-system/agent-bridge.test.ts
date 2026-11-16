@@ -4,7 +4,6 @@ import {
 	type ConfirmAgentAction,
 	createTripwireAgentPermission,
 	isStructurallyAllowedAgentAction,
-	shouldDelegateConfirmationToPrimitive,
 } from "#/design-system/agent-bridge";
 
 function action(
@@ -82,15 +81,25 @@ describe("Tripwire browser agent policy", () => {
 		).toBe(true);
 	});
 
-	test("allows command presses so the primitive can present its confirmation", () => {
+	test("requires approval before pressing a confirmed command", async () => {
 		const step = action({
-			action: "press",
 			component: "command",
 			confirm: "Sign out of Tripwire?",
 		});
-		expect(isStructurallyAllowedAgentAction(step)).toBe(true);
-		expect(shouldDelegateConfirmationToPrimitive(step)).toBe(true);
-		expect(shouldDelegateConfirmationToPrimitive(action())).toBe(false);
+		const signal = new AbortController().signal;
+		const rejected = createTripwireAgentPermission(
+			async (summary, receivedSignal) => {
+				expect(summary).toBe(step.confirm);
+				expect(receivedSignal).toBe(signal);
+				return false;
+			},
+		);
+		const approved = createTripwireAgentPermission(async () => true);
+		expect(await rejected(step, { signal })).toBe(false);
+		expect(await approved(step, { signal })).toBe(true);
+		expect(await rejected(action({ component: "command" }), { signal })).toBe(
+			true,
+		);
 	});
 
 	test("requires a non-empty confirmation summary for other actions", () => {

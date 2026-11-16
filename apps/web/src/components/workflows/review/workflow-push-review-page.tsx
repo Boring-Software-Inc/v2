@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { WORKFLOW_PUSH_STATUS_LABELS } from "@tripwire/contracts";
+import { AgentBoundary } from "@tripwire/ui/agent-policy";
 import { Alert, AlertDescription, AlertTitle } from "@tripwire/ui/alert";
 import { Badge } from "@tripwire/ui/badge";
 import { Button } from "@tripwire/ui/button";
@@ -178,22 +179,24 @@ function ReviewBody({ data, busy, failure, onDecide }: ReviewBodyProps) {
 							Expires <RelativeTime date={data.expiresAt} />
 						</p>
 						<div>
-							<Button
-								disabled={busy}
-								onAction={() => onDecide("reject")}
-								size="small"
-								variant="secondary"
-							>
-								Decline
-							</Button>
-							<Button
-								disabled={busy || !canAccept(state)}
-								onAction={() => onDecide("accept")}
-								size="small"
-								variant="primary"
-							>
-								Accept changes
-							</Button>
+							<AgentBoundary visibility="hidden">
+								<Button
+									disabled={busy}
+									onAction={() => onDecide("reject")}
+									size="small"
+									variant="secondary"
+								>
+									Decline
+								</Button>
+								<Button
+									disabled={busy || !canAccept(state)}
+									onAction={() => onDecide("accept")}
+									size="small"
+									variant="primary"
+								>
+									Accept changes
+								</Button>
+							</AgentBoundary>
 						</div>
 					</footer>
 				) : null}

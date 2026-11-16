@@ -4,9 +4,10 @@ import { BACKFILL_RUN_LABEL, FORGE_BY_ID } from "@tripwire/contracts";
 import { Button } from "@tripwire/ui/button";
 import { CopyButton } from "@tripwire/ui/copy-button";
 import { Dialog } from "@tripwire/ui/dialog";
-import { GithubMark, Icon, Retry, Workflow } from "@tripwire/ui/icon";
+import { Copy, GithubMark, Icon, Retry, Workflow } from "@tripwire/ui/icon";
+import { RelativeTime } from "@tripwire/ui/relative-time";
 import { notify } from "@tripwire/ui/toast";
-import { PageTitle } from "@tripwire/ui/typography";
+import { Caption, PageTitle } from "@tripwire/ui/typography";
 import { useMemo, useState } from "react";
 import {
 	EmptyState,
@@ -146,14 +147,17 @@ function RunBody({ run }: { run: RunView }) {
 					actions={
 						<>
 							{run.access !== "public" ? (
-								<CopyButton
-									label="run as Markdown"
-									showLabel
-									value={() =>
-										runToMarkdown(run, formatRelativeTime(run.createdAt))
-									}
-									variant="ghost"
-								/>
+								<span data-layout-role="run-copy-action">
+									<CopyButton
+										icon={<Icon icon={Copy} size={12} />}
+										label="run as Markdown"
+										size="small"
+										value={() =>
+											runToMarkdown(run, formatRelativeTime(run.createdAt))
+										}
+										variant="ghost"
+									/>
+								</span>
 							) : null}
 							{run.access === "full" && orgSlug && repoName
 								? run.workflowEditorLinks?.map(({ id, name }) => (
@@ -185,7 +189,13 @@ function RunBody({ run }: { run: RunView }) {
 							{run.access === "public" ? <span>Public view</span> : null}
 							{run.backfill ? <span>{BACKFILL_RUN_LABEL}</span> : null}
 							<span>{run.repoFullName}</span>
-							<span>{formatRelativeTime(run.createdAt)}</span>
+							{run.access === "public" ? (
+								<span>{formatRelativeTime(run.createdAt)}</span>
+							) : (
+								<Caption data-layout-role="run-timestamp">
+									<RelativeTime date={run.createdAt} />
+								</Caption>
+							)}
 						</MetaRow>
 					}
 					title={run.subjectNumber ? `Run on #${run.subjectNumber}` : "Run"}

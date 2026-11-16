@@ -85,6 +85,25 @@ counts do not appear as audit scores.
 
 | Workflow Review terminal notices | 100/100 scoped | Accepted, Declined, and Expired matched Glaze geometry, fill, icons, and copy in 12 settled pairs at 390px and 1280px in both themes. One reference capture came from the earlier audit on the same fixture. Keyboard navigation verified for the accepted outcome link. |
 
+| Codebase composition, frozen final audit | 92/100 | Primitive contracts 23/25, product components 19/20, routes 19/20, adoption 17/20, enforcement 14/15. Reviewed all 56 route modules. Seven styled primitive families still accept styling overrides. |
+| App-wide cohesion, frozen final audit | 76/100 | Geometry 16/20, spacing 9/15, typography and icons 12/15, color and contrast 9/15, hierarchy 12/15, interaction and motion 8/10, responsive 5/5, keyboard and accessibility 5/5. Below the 95-point threshold. The score covers inspected states, including 504 paired route and viewport cases. Some captures were loading states. The largest deductions were in private Runs, Settings actions, the Admin pilot form, and the dark 404. |
+
+| Sidebar setup progress card | 100/100 scoped | Independent Chromium audit of the 3-of-4 fixture. Desktop light and dark align with Settings. Dismissal restores focus and persists through reload. Tested rail heights from 560px to 820px, collapsed rail, mobile popover, and the Moderation and Settings routes. Before and after captures are in sidebar-setup-progress. |
+
+| Activity inset sections and setup timeline | 98 → 100/100 scoped | Six independent Chromium cases from 320px to 1313px. Verified separate internal and external link targets, short rail scrolling, mobile setup popover, and persistent keyboard dismissal. Follow-up corrected the first and last run row focus corners. Evidence in activity-inset-setup-timeline. |
+
+| Private run details spacing | 96/100 scoped | Rules height, evidence control geometry, and verdict position match Glaze in 16 paired states at 390px and 1280px in both themes. Keyboard disclosure and Markdown clipboard checks passed. The desktop Copy control sits 3.23px farther right and is 0.45px narrower. Evidence in private-run-details-spacing. |
+
+| Private run branch disclosures and timestamps | 96/100 scoped | Independent Chromium audit in light and dark at 390px and 1324px. Verified keyboard disclosures, successor navigation, and complete local and UTC hints. The longer shared date wraps to a second metadata line, growing the header metadata by 16px. Evidence in private-run-disclosures. |
+
+| Account theme preview transition | 98/100 scoped | Eight independent Chromium cases verified the exact preview bounds and radius, 300ms ease-in-out, keyboard focus, and viewport coverage at 390px and 1324px. OS and account reduced motion and the no-API fallback applied the theme immediately. The native root snapshot pauses pointer hit testing during the reveal. Evidence in theme-card-reveal. |
+
+| Command palette spacing and focus | 100/100 scoped | The independent browser audit measured a 143px single-result dialog and a 123px empty dialog, down from 432px. Verified short-viewport scrolling, coarse pointer, focus restoration, query reset, and the destructive confirmation. Evidence in pilot-form-command-palette. |
+| Admin Pilot form | 97/100 scoped | The independent audit matched field edges in both themes at 390px and 1280px. Publish held 121.91px while queueing. Shared field typography differs slightly from Glaze. Chromium intercepted valid submissions to exercise the response states. Evidence in pilot-form-command-palette. |
+
+| 404 recovery panel | 97/100 scoped | Chromium verified HTTP 404, exact Glaze panel geometry and fill at 390px and 1280px in both themes, working keyboard recovery, and the ghost with the runner disabled. Title and action text widths differ slightly. Matched evidence and independent report in not-found-repo-header. |
+| Connected repo header link | 100/100 scoped | All four resting captures matched the before files. The title, metadata, timestamp, and padding open the repo, and the footer shortcuts remain separate. Keyboard focus covers the full linked header. Matched evidence and independent report in not-found-repo-header. |
+
 The final review should report the latest independent score and evidence for
 each in-scope round, unresolved findings, a fresh composition score, and the
 app-wide cohesion score from the [repair spec](ui-sdk-migration-repair-spec.md).

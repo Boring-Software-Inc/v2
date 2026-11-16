@@ -8,7 +8,7 @@ import {
 	motion,
 	useReducedMotion,
 } from "motion/react";
-import type { ReactNode } from "react";
+import { type ReactNode, useRef } from "react";
 import { TripwireWordmark } from "#/components/common/tripwire-wordmark";
 import { AccountMenu } from "#/components/layouts/account-menu";
 import {
@@ -17,7 +17,7 @@ import {
 	ShellSettingsLink,
 } from "#/components/layouts/shell-nav";
 import { SidebarSwap } from "#/components/layouts/sidebar";
-import { SetupPill } from "#/components/setup/setup-pill";
+import { SetupProgress } from "#/components/setup/setup-progress";
 import { useActiveScope } from "#/hooks/use-active-scope";
 import type { RouteScope } from "#/lib/active-scope";
 import type { CurrentUser } from "#/lib/auth.functions";
@@ -42,6 +42,7 @@ export function DashboardRail({
 	onCollapsedChange: (collapsed: boolean) => void;
 }) {
 	const scope = useActiveScope();
+	const settingsRef = useRef<HTMLDivElement>(null);
 	const reduceMotion = useReducedMotion();
 	const homeOrg = scope.org?.slug ?? navScope?.org;
 	const settingsMode = Boolean(settingsNav);
@@ -58,7 +59,7 @@ export function DashboardRail({
 						: "flex [--sidebar-nested-indent:--spacing(8)] shrink-0 flex-col gap-4 overflow-x-hidden overflow-y-auto px-1 py-2"
 				}
 			>
-				<div className="flex w-full items-center justify-between">
+				<div className="flex w-full shrink-0 items-center justify-between">
 					<div
 						className="relative size-(--sidebar-brand-hit-area) shrink-0"
 						data-layout-role="sidebar-brand-slot"
@@ -146,7 +147,6 @@ export function DashboardRail({
 										}
 									>
 										<RepoSwitcher appearance="rail" />
-										{scope.repo ? <SetupPill appearance="rail" /> : null}
 									</motion.div>
 								)}
 							</AnimatePresence>
@@ -164,14 +164,23 @@ export function DashboardRail({
 				<div
 					className={
 						collapsed
-							? "mt-auto flex flex-col items-center gap-px"
-							: "mt-auto flex flex-col gap-px px-1"
+							? "mt-auto flex shrink-0 flex-col items-center gap-px"
+							: "mt-auto flex shrink-0 flex-col gap-px px-1"
 					}
 				>
-					<ShellSettingsLink
-						collapsed={collapsed}
-						org={scope.org?.slug ?? navScope?.org}
-					/>
+					{!collapsed && !settingsMode && scope.repo ? (
+						<SetupProgress
+							onDismiss={() => settingsRef.current?.querySelector("a")?.focus()}
+							placement="sidebar"
+							userId={user?.id}
+						/>
+					) : null}
+					<div ref={settingsRef}>
+						<ShellSettingsLink
+							collapsed={collapsed}
+							org={scope.org?.slug ?? navScope?.org}
+						/>
+					</div>
 					<AccountMenu collapsed={collapsed} user={user} />
 				</div>
 			</nav>

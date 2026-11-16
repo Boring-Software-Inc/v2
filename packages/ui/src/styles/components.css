@@ -29,7 +29,7 @@
 [data-slot="action-link"][data-size="small"] {
 	--glass-h: var(--control-sm);
 	min-block-size: var(--control-sm);
-	padding-inline: var(--space-2);
+	padding-inline: calc(var(--space-2) + var(--space-0-5));
 	font: var(--type-label-sm);
 }
 
@@ -3472,6 +3472,10 @@
 	outline: 0;
 }
 
+[data-slot="command-input"]::placeholder {
+	color: var(--tw-content-secondary);
+}
+
 [data-slot="combobox-anchor"],
 [data-slot="combobox-chips"] {
 	display: flex;
@@ -3613,8 +3617,10 @@
 [data-command-dialog] {
 	inset-block-start: 20dvh;
 	inline-size: min(var(--overlay-lg), calc(100vw - var(--space-6)));
-	block-size: min(calc(var(--row) * 12), calc(80dvh - var(--space-8)));
-	max-block-size: calc(80dvh - var(--space-8));
+	max-block-size: min(calc(var(--row) * 12), calc(80dvh - var(--space-8)));
+	padding: var(--shell-inset);
+	background: var(--shell);
+	border-radius: var(--radius-shell);
 	transform: translate(-50%, 0) scale(1);
 }
 
@@ -3753,12 +3759,26 @@
 	min-block-size: 0;
 }
 
+[data-slot="command-panel"] {
+	display: contents;
+}
+
 [data-command-dialog] > [data-slot="command"] {
-	flex: 1;
+	min-block-size: 0;
+}
+
+[data-command-dialog] [data-slot="command-panel"] {
+	display: flex;
+	flex-direction: column;
+	min-block-size: 0;
 	overflow: hidden;
+	background: var(--tw-surface-overlay);
+	border: var(--line-width) solid var(--tw-boundary-subtle);
+	border-radius: var(--radius-panel);
 }
 
 [data-command-dialog] [data-slot="command-input-wrapper"] {
+	flex: none;
 	border-block-end: var(--line-width) solid var(--tw-boundary-subtle);
 }
 
@@ -3770,21 +3790,35 @@
 }
 
 [data-command-dialog] [data-slot="command-list"] {
-	flex: 1;
 	max-block-size: none;
+	overflow-x: hidden;
+	overscroll-behavior: contain;
+	scroll-padding-block: var(--space-1);
 }
 
-[data-command-dialog] [data-slot="command-empty"] {
-	display: flex;
-	flex: 1;
-	align-items: center;
-	justify-content: center;
+[data-command-dialog] [data-slot="command-list"]:empty,
+[data-command-dialog] [data-slot="command-status"]:not([data-loading]) {
+	padding: 0;
+}
+
+[data-command-dialog] [data-slot="command-empty"]:not([data-empty]) {
+	display: none;
+}
+
+[data-command-dialog] [data-slot="command-empty"][data-empty]:not([hidden]) {
+	display: grid;
+	place-items: center;
+	min-block-size: var(--space-12);
 }
 
 [data-slot="command-group-label"] {
 	padding: var(--space-2);
 	color: var(--tw-content-secondary);
 	font: var(--type-caption);
+}
+
+[data-command-dialog] [data-slot="command-group-label"] {
+	padding-block: var(--space-1);
 }
 
 [data-slot="command-separator"] {
@@ -3828,11 +3862,30 @@
 
 [data-slot="command-footer"] {
 	display: flex;
-	gap: var(--space-3);
+	flex: none;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--space-2) var(--space-3);
 	padding: var(--space-2);
 	border-block-start: var(--line-width) solid var(--tw-boundary-subtle);
 	color: var(--tw-content-secondary);
 	font: var(--type-caption);
+}
+
+[data-command-dialog] [data-slot="command-footer"] {
+	padding-block: var(--space-1-5);
+	padding-inline: var(--space-3);
+	border-block-start: 0;
+}
+
+[data-slot="command-footer-count"] {
+	margin-inline-start: auto;
+}
+
+@media (pointer: coarse) {
+	[data-command-dialog] [data-slot="command-footer"] {
+		display: none;
+	}
 }
 
 [data-slot="command-footer-hint"] {

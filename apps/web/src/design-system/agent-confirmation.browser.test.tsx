@@ -13,7 +13,9 @@ interface AgentConfirmationFixtureWindow extends Window {
 		act(input: {
 			steps: Array<{ action: string; args: unknown[]; ref: string }>;
 		}): Promise<{ ok: boolean }>;
-		snapshot(input: object): Array<{ label?: string; ref: string }>;
+		snapshot(
+			input: Record<string, never>,
+		): Array<{ label?: string; ref: string }>;
 		query(input: {
 			text: string;
 		}): Promise<Array<{ label?: string; ref: string }>>;
@@ -33,6 +35,7 @@ test("registered browser agent tools respect Tripwire permission and approval ga
 			import { createRoot } from ${JSON.stringify(join(root, "node_modules/react-dom/client.js"))};
 			import { AgentBoundary } from ${JSON.stringify(join(root, "packages/ui/src/agent-policy.tsx"))};
 			import { Button } from ${JSON.stringify(join(root, "packages/ui/src/button.tsx"))};
+			import { Command } from ${JSON.stringify(join(root, "packages/ui/src/command.tsx"))};
 			import { Combobox } from ${JSON.stringify(join(root, "packages/ui/src/combobox.tsx"))};
 			import { OverlayHost } from ${JSON.stringify(join(root, "packages/ui/src/overlays.tsx"))};
 			import { AgentBridgeProvider } from ${JSON.stringify(fileURLToPath(new URL("./agent-bridge-provider.tsx", import.meta.url)))};
@@ -56,6 +59,16 @@ test("registered browser agent tools respect Tripwire permission and approval ga
 				onAction: () => { window.actionCount += 1; },
 				variant: "destructive",
 			}, "Delete workspace");
+			const accountCommands = createElement(Command, {
+				ariaLabel: "Account commands",
+				items: [{
+					confirmation: { title: "Sign out of Tripwire?" },
+					label: "Sign out",
+					onAction: () => { window.actionCount += 1; },
+					tone: "destructive",
+					value: "sign-out",
+				}],
+			});
 			const restrictedAction = createElement(AgentBoundary, { visibility: "hidden" },
 				createElement(Button, {
 					onAction: () => { window.actionCount += 1; },
@@ -66,6 +79,7 @@ test("registered browser agent tools respect Tripwire permission and approval ga
 					createElement(AgentBridgeProvider, null,
 						deleteWorkspace,
 						restrictedAction,
+						accountCommands,
 						timezone,
 						createElement(OverlayHost),
 					),
@@ -89,12 +103,13 @@ test("registered browser agent tools respect Tripwire permission and approval ga
 		try {
 			const context = await browser.newContext();
 			await context.addInitScript(() => {
-				const agentTools: Record<string, unknown> = {};
+				type AgentTools = AgentConfirmationFixtureWindow["agentTools"];
+				const agentTools: Partial<AgentTools> = {};
 				Object.assign(window, { agentTools });
 				Object.defineProperty(document, "modelContext", {
 					value: {
-						registerTool: async (
-							tool: { name: string; execute: unknown },
+						registerTool: async <Name extends keyof AgentTools>(
+							tool: { name: Name; execute: AgentTools[Name] },
 							{ signal }: { signal: AbortSignal },
 						) => {
 							agentTools[tool.name] = tool.execute;
@@ -186,20 +201,23 @@ test("registered browser agent tools respect Tripwire permission and approval ga
 			await page.getByRole("option", { name: "London" }).waitFor();
 			expect((await act("Timezone", "setOpen", [false])).ok).toBe(true);
 			expect(await actionCount()).toBe(0);
-			const startPress = () =>
-				page.evaluate((ref) => {
-					const fixtureWindow =
-						window as unknown as AgentConfirmationFixtureWindow;
-					fixtureWindow.result = fixtureWindow.agentTools.act({
-						steps: [{ action: "press", args: [], ref }],
-					});
-				}, button.ref);
+			const startPress = (ref: string, args: string[] = []) =>
+				page.evaluate(
+					({ ref, args }) => {
+						const fixtureWindow =
+							window as unknown as AgentConfirmationFixtureWindow;
+						fixtureWindow.result = fixtureWindow.agentTools.act({
+							steps: [{ action: "press", args, ref }],
+						});
+					},
+					{ ref, args },
+				);
 			const result = () =>
 				page.evaluate(
 					() => (window as unknown as AgentConfirmationFixtureWindow).result,
 				);
 
-			await startPress();
+			await startPress(button.ref);
 			await approval.waitFor();
 			expect(await approval.getByText("Delete workspace?").count()).toBe(1);
 			expect(await actionCount()).toBe(0);
@@ -217,12 +235,29 @@ test("registered browser agent tools respect Tripwire permission and approval ga
 			expect((await result())?.ok).toBe(false);
 			expect(await actionCount()).toBe(0);
 
-			await startPress();
+			await startPress(button.ref);
 			await approval.waitFor();
 			expect(await actionCount()).toBe(0);
 			await approval.getByRole("button", { name: "Allow" }).click();
 			expect((await result())?.ok).toBe(true);
 			expect(await actionCount()).toBe(1);
+
+			const [command] = await query("Account commands");
+			if (!command) throw new Error("Command was not exposed to the agent");
+			await startPress(command.ref, ["Sign out"]);
+			await approval.waitFor();
+			expect(await approval.getByText("Sign out of Tripwire?").count()).toBe(1);
+			expect(await actionCount()).toBe(1);
+			await approval.getByRole("button", { name: "Cancel" }).click();
+			expect((await result())?.ok).toBe(false);
+			expect(await actionCount()).toBe(1);
+
+			await startPress(command.ref, ["Sign out"]);
+			await approval.waitFor();
+			expect(await actionCount()).toBe(1);
+			await approval.getByRole("button", { name: "Allow" }).click();
+			expect((await result())?.ok).toBe(true);
+			expect(await actionCount()).toBe(2);
 		} finally {
 			await browser.close();
 		}

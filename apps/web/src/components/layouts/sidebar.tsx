@@ -254,14 +254,14 @@ export function SidebarSwap({
 	}, []);
 	return (
 		<div
-			className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
+			className="relative flex shrink-0 grow flex-col overflow-hidden"
 			data-sidebar-swap=""
 			ref={swapRef}
 		>
 			<AnimatePresence initial={false} mode="popLayout">
 				<motion.div
 					animate={{ x: 0 }}
-					className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto"
+					className="flex grow flex-col gap-4"
 					exit={{ x: reduceMotion ? 0 : outgoing }}
 					initial={{ x: reduceMotion ? 0 : incoming }}
 					key={activeKey}

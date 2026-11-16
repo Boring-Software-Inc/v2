@@ -62,7 +62,7 @@ function EnterCode() {
 						}}
 					>
 						<CodeInput cells={cells} onChange={setCells} />
-						<Button disabled={!complete} type="submit">
+						<Button disabled={!complete} type="submit" variant="primary">
 							Continue
 						</Button>
 					</form>

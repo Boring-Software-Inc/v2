@@ -1074,7 +1074,104 @@ After each step:
   recorded 1,008 route cases across both builds with no horizontal overflow
   in measured cases. Retakes loaded Home, public Appeals, Admin, Workflow
   Editor, and the Workflow Grid on both builds. The callback and queue
-  redirected to the same destinations. Full OAuth sign-in and the remaining
-  write paths stay open. Evidence is in app-wide-5500.
-- [ ] Reconcile the app-wide matrix and remaining write paths on a frozen
-  revision, then record the independent score and CI result.
+  redirected to the same destinations. Evidence is in app-wide-5500.
+- [x] Complete a real GitHub OAuth sign-in on the frozen candidate. The
+  provider callback created a Tripwire account and session in disposable
+  Postgres, and the same browser authenticated with that session.
+- [x] Exercise the remaining identified server writes against disposable
+  Postgres. Verified state changes for orgs, roles, membership, invite
+  redemption and revocation, rules, appeals, responses, installation
+  ownership, and staff cooldown. The browser account deletion flow rejected
+  incorrect confirmation, accepted the exact value, redirected to sign-in,
+  and left the fixture user and its sessions deleted.
+- [x] Record the frozen independent audit at revision 2c56455c. Source
+  composition scored 92/100. App-wide visual cohesion scored 76/100 for
+  inspected states. The targeted OAuth and write suite passed 104 tests.
+  Evidence is in app-wide-final-independent and oauth-and-write-closeout.
+- [ ] Clear the visual gate. Recheck populated states where the route sweep
+  captured loading UI, and confirm CI on the release revision. See the
+  [audit scores](ui-sdk-migration-audit-scores.md) for the largest deductions.
+
+## Sidebar onboarding progress
+
+- [x] Move the expanded sidebar checklist into a persistent progress card
+  above Settings. Verify dismissal, keyboard focus, and short-window scroll.
+  The independent Chromium audit scored 100/100 on the three-of-four fixture.
+  Matched light and dark desktop and mobile captures are in sidebar-setup-progress.
+
+## Activity inset sections and setup timeline
+
+- [x] Move title, metadata, verdict, and the forge link into the Activity
+  group header. Keep the run timeline in a separate inset panel. Preserve
+  existing internal and external link targets.
+- [x] Connect the sidebar setup steps, replace the filled replay action
+  with a text link, and use a minimize icon for dismissal. Verify keyboard
+  navigation, browser-local persistence per account and repository, and
+  access to Settings in a short window.
+- [x] Capture matched light and dark desktop and mobile before and after
+  states in activity-inset-setup-timeline. The replay-specific browser
+  fixture confirmed Enter opens Replay from the first check step.
+
+## Private run details spacing
+
+- [x] Restore the inset Rules frame, compact evidence disclosures, and Copy
+  sizing. Keep closed timestamp hints out of the run timeline layout.
+- [x] Verify closed Rules, expanded passed rules, and expanded account and
+  file evidence at 390px and 1280px in light and dark themes. The independent
+  Chromium audit scored 96/100. Matched captures and independent measurements
+  are in private-run-details-spacing.
+
+## Private run branch disclosures and timestamps
+
+- [x] Use the shared relative timestamp on the private run header and mark
+  exact-time hints with dotted underlines. Restore themed text for the current
+  run in the superseded chain.
+- [x] Remove the extra borders from the branch and chain disclosures. Match
+  branch hover corners to the inset, and show carets for branch and Evidence
+  controls.
+- [x] Capture closed, hover, open, chain, evidence, and timestamp views at
+  390px and 1324px in both themes. The private-run-disclosures evidence comes
+  from an isolated copy of the reported run.
+- [x] Independently verify pointer and keyboard disclosures, successor
+  navigation, and both exact timestamp values. Score 96/100. The spelled-out
+  timestamp wraps onto a second line in the tested header.
+
+## Account theme preview transition
+
+- [x] Reveal Light, Dark, and System theme changes from the selected preview
+  bounds and corner radius using a native View Transition. Keep every viewport
+  surface inside the same mask.
+- [x] Save desktop and mobile before and after captures, midpoint frames, and
+  a browser recording in theme-card-reveal.
+- [x] Independently verify System theme resolution, keyboard, reduced motion,
+  and the no-API fallback. Score 98/100. Native pointer hit testing resumes
+  once the 300ms reveal completes.
+
+## Command palette spacing and Admin Pilot form
+
+- [x] Fit the command dialog to its results. Keep the input and keyboard
+  footer outside the scrolling list and collapse inactive status regions.
+- [x] Align the Admin Pilot username, reason, and date with the shared field
+  contract. Restore the primary publish treatment and retain the standard
+  multiline textarea.
+- [x] Save settled desktop and mobile light and dark before and after
+  captures in pilot-form-command-palette. Include one, many, and zero
+  command results and the Glaze form reference.
+- [x] Independently verify palette focus and reset on Escape and the keyboard
+  shortcut, and scrolling on a short viewport. Score 100/100.
+- [x] Verify Pilot validation and queue response states with intercepted
+  submissions. Score 97/100. Shared field typography differs from Glaze.
+
+## 404 recovery panel and connected repo header
+
+- [x] Restore the Glaze recovery panel and its inset in both themes. Keep
+  the ghost interactive and omit the runner opt-in on the 404.
+- [x] Make the full connected repo header a native link with a visible
+  keyboard focus ring. Keep the footer shortcuts as independent links.
+- [x] Capture signed-in desktop and mobile light and dark before and after
+  states and the repo header focus state in not-found-repo-header.
+- [x] Independently verify 404 status, ghost interaction without the runner,
+  and keyboard recovery. Score 97/100. Title and action text widths differ
+  slightly from Glaze.
+- [x] Independently exercise repo header padding, title, metadata, timestamp,
+  and footer shortcuts. Score 100/100 with identical resting captures.

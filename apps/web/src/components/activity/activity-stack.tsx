@@ -2,6 +2,15 @@ import type { NormalizedEvent } from "@tripwire/contracts";
 import { Badge } from "@tripwire/ui/badge";
 import { Button } from "@tripwire/ui/button";
 import {
+	Card,
+	CardAction,
+	CardDescription,
+	CardFooter,
+	CardHeader,
+	CardMeta,
+	CardTitle,
+} from "@tripwire/ui/card";
+import {
 	Item,
 	ItemActions,
 	ItemContent,
@@ -9,6 +18,7 @@ import {
 	ItemMeta,
 	ItemTitle,
 } from "@tripwire/ui/item";
+import { Panel } from "@tripwire/ui/panel";
 import { Status, StatusMark, type StatusValue } from "@tripwire/ui/status";
 import { useState } from "react";
 import {
@@ -16,7 +26,6 @@ import {
 	runOutcome,
 	VerdictChip,
 } from "#/components/activity/verdict-chip";
-import { EntityCard } from "#/components/common/entity-card";
 import { ForgeLinkButton } from "#/components/common/forge-link-button";
 import { MetaRow } from "#/components/common/meta-row";
 import { ItemRouterLink } from "#/components/common/router-links";
@@ -54,47 +63,58 @@ export function ActivityStack({ group }: { group: ActivityGroup }) {
 	const visible = canTruncate && !showAll ? entries.slice(0, VISIBLE) : entries;
 	const hidden = entries.length - VISIBLE;
 
+	const forge = entries.find((entry) => entry.event)?.event?.forge;
+	const forgeLink = forge
+		? changeRequestForgeLink(forge, group.subjectNumber, group.url)
+		: null;
+
 	return (
-		<EntityCard
-			feedbackName="ActivityStack"
-			description={<StackDescription group={group} />}
-			flush
-			footerActions={
-				canTruncate ? (
+		<Card data-feedback-name="ActivityStack">
+			<CardHeader>
+				<CardTitle>
+					<StackTitle group={group} />
+				</CardTitle>
+				<CardDescription>
+					<StackDescription group={group} />
+				</CardDescription>
+				{forge && forgeLink ? (
+					<CardAction>
+						<ForgeLinkButton forge={forge} link={forgeLink} />
+					</CardAction>
+				) : null}
+			</CardHeader>
+			<Panel padding="none">
+				<ItemGroup
+					aria-label={`Timeline of #${group.subjectNumber}`}
+					data-layout-role="activity-timeline"
+					variant="plain"
+				>
+					{visible.map((entry) => (
+						<EntryRow
+							entry={entry}
+							groupRunId={group.currentRunId}
+							groupUrl={group.url}
+							key={entry.eventId}
+						/>
+					))}
+				</ItemGroup>
+			</Panel>
+			{canTruncate ? (
+				<CardFooter>
+					<CardMeta>
+						{showAll ? entries.length : `${VISIBLE} of ${entries.length}`}{" "}
+						events
+					</CardMeta>
 					<Button
-						onAction={() => setShowAll((v) => !v)}
+						onAction={() => setShowAll((value) => !value)}
 						size="small"
 						variant="secondary"
 					>
 						{showAll ? "Show fewer events" : `Show ${hidden} more events`}
 					</Button>
-				) : undefined
-			}
-			footerMeta={
-				canTruncate
-					? showAll
-						? `${entries.length} events`
-						: `${VISIBLE} of ${entries.length} events`
-					: undefined
-			}
-			status={<StackStatus group={group} />}
-			title={<StackTitle group={group} />}
-		>
-			<ItemGroup
-				aria-label={`Timeline of #${group.subjectNumber}`}
-				data-layout-role="activity-timeline"
-				variant="plain"
-			>
-				{visible.map((entry) => (
-					<EntryRow
-						entry={entry}
-						groupRunId={group.currentRunId}
-						groupUrl={group.url}
-						key={entry.eventId}
-					/>
-				))}
-			</ItemGroup>
-		</EntityCard>
+				</CardFooter>
+			) : null}
+		</Card>
 	);
 }
 
@@ -116,29 +136,19 @@ function StackDescription({ group }: { group: ActivityGroup }) {
 			<span>{group.actor.login}</span>
 			<span>{group.repoFullName}</span>
 			<ZonedTime at={group.latestActivityAt} format="short" />
+			<StackStatus group={group} />
 		</MetaRow>
 	);
 }
 
 function StackStatus({ group }: { group: ActivityGroup }) {
 	const evaluating = group.currentRunId != null && group.currentVerdict == null;
-	const forge = group.timeline.find((entry) => entry.event)?.event?.forge;
-	const forgeLink = forge
-		? changeRequestForgeLink(forge, group.subjectNumber, group.url)
-		: null;
-	return (
-		<>
-			{evaluating ? (
-				<Status size="small" status="running">
-					Checking again
-				</Status>
-			) : (
-				<VerdictChip outcome={groupOutcome(group)} />
-			)}
-			{forge && forgeLink ? (
-				<ForgeLinkButton forge={forge} link={forgeLink} />
-			) : null}
-		</>
+	return evaluating ? (
+		<Status size="small" status="running">
+			Checking again
+		</Status>
+	) : (
+		<VerdictChip outcome={groupOutcome(group)} />
 	);
 }
 

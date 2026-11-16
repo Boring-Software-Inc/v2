@@ -52,6 +52,7 @@ interface PaletteItemBase {
 }
 
 interface NeutralPaletteItem extends PaletteItemBase {
+	agentConfirmation?: string;
 	confirmation?: never;
 	variant?: "default";
 }
@@ -103,6 +104,7 @@ export function mapPaletteItemToCommandItem(
 				value: item.id,
 			}
 		: {
+				agentConfirmation: item.agentConfirmation,
 				current: item.current,
 				icon: item.icon,
 				keywords: item.searchTags,
@@ -115,11 +117,17 @@ export function mapPaletteItemToCommandItem(
 }
 
 export function CommandPalette({
+	finalFocus,
 	open,
 	onClose,
+	onQueryChange,
+	query,
 }: {
+	finalFocus: () => HTMLElement | null;
 	open: boolean;
 	onClose: () => void;
+	onQueryChange: (query: string) => void;
+	query: string;
 }) {
 	const queryClient = useQueryClient();
 	const signOut = useSignOut();
@@ -159,9 +167,7 @@ export function CommandPalette({
 	// the list with your query intact.
 	const [connectOpen, setConnectOpen] = useState(false);
 	const [createOrgOpen, setCreateOrgOpen] = useState(false);
-	const [query, setQuery] = useState("");
 	const close = () => {
-		setQuery("");
 		setConnectOpen(false);
 		setCreateOrgOpen(false);
 		onClose();
@@ -352,6 +358,12 @@ export function CommandPalette({
 		actionItems.push(
 			scopedRepo.armed
 				? {
+						confirmation: {
+							confirmLabel: "Turn off Tripwire",
+							description:
+								"Tripwire will keep recording events but will stop checking change requests for this repository.",
+							title: `Turn off Tripwire for ${scopedRepo.fullName}?`,
+						},
 						id: "action:disarm",
 						label: `Turn off Tripwire for ${scopedRepo.fullName}`,
 						searchTags: [
@@ -366,8 +378,10 @@ export function CommandPalette({
 						icon: repoIcon(scopedRepo.forge),
 						onSelect: () =>
 							disarm.mutate({ org: currentOrg, repo: currentRepo }),
+						variant: "destructive",
 					}
 				: {
+						agentConfirmation: `Turn on Tripwire for ${scopedRepo.fullName}?`,
 						id: "action:arm",
 						label: `Turn on Tripwire for ${scopedRepo.fullName}`,
 						searchTags: [
@@ -566,34 +580,31 @@ export function CommandPalette({
 
 	return (
 		<>
-			{open ? (
-				<CommandDialog
-					ariaLabel="Command palette"
-					autoFocus
-					emptyLabel="No results"
-					filter={() => true}
-					footerHints={[
-						{ key: "↑ ↓", label: "Move" },
-						{ key: "Enter", label: "Open" },
-						{ key: "Esc", label: "Close" },
-						{
-							key: String(resultCount),
-							label: resultCount === 1 ? "result" : "results",
-						},
-					]}
-					inputRef={inputRef}
-					items={loading ? [] : commandItems}
-					loading={loading}
-					loadingContent="Loading orgs and repos"
-					onOpenChange={(next) => {
-						if (!next) close();
-					}}
-					onQueryChange={setQuery}
-					open={open}
-					placeholder="Search orgs, repos, actions and pages"
-					title="Search orgs, repos, actions and pages"
-				/>
-			) : null}
+			<CommandDialog
+				ariaLabel="Command palette"
+				autoFocus
+				emptyLabel="No results"
+				filter={() => true}
+				finalFocus={finalFocus}
+				footerHints={[
+					{ key: "↑ ↓", label: "Move" },
+					{ key: "Enter", label: "Open" },
+					{ key: "Esc", label: "Close" },
+				]}
+				footerResultCount={loading ? undefined : resultCount}
+				inputRef={inputRef}
+				items={loading ? [] : commandItems}
+				loading={loading}
+				loadingContent="Loading orgs and repos"
+				onOpenChange={(next) => {
+					if (!next) close();
+				}}
+				onQueryChange={onQueryChange}
+				open={open}
+				placeholder="Search orgs, repos, actions and pages"
+				query={query}
+				title="Search orgs, repos, actions and pages"
+			/>
 			<ConnectForgeDialog
 				onOpenChange={setConnectOpen}
 				open={connectOpen}

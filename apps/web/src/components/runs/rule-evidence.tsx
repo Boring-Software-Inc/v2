@@ -113,13 +113,20 @@ export function RuleEvidence({
 	if (!(detail || raw)) {
 		return null;
 	}
+	const disclosure = maintainer
+		? { variant: "compact" as const }
+		: { variant: "default" as const };
 	return (
 		<div data-layout-role="rule-evidence">
-			<Collapsible hiddenUntilFound trigger={detail?.label ?? "Evidence"}>
+			<Collapsible
+				hiddenUntilFound
+				trigger={detail?.label ?? "Evidence"}
+				{...disclosure}
+			>
 				<div data-layout-role="rule-evidence-detail">
 					{detail?.body}
 					{raw && detail ? (
-						<Collapsible trigger="Raw evidence">
+						<Collapsible trigger="Raw evidence" variant="compact">
 							<div data-layout-role="rule-evidence-raw">
 								<JsonView data={inner} label="Raw evidence" />
 							</div>

@@ -3,14 +3,7 @@ import { FORGE_BY_ID, type ForgeConnection } from "@tripwire/contracts";
 import { Avatar } from "@tripwire/ui/avatar";
 import { Badge } from "@tripwire/ui/badge";
 import { Button, DestructiveDialogLauncher } from "@tripwire/ui/button";
-import {
-	ArrowRight,
-	Check,
-	Dark,
-	Icon,
-	Light,
-	Monitor,
-} from "@tripwire/ui/icon";
+import { ArrowRight, Check, Icon } from "@tripwire/ui/icon";
 import {
 	Item,
 	ItemActions,
@@ -25,9 +18,9 @@ import { Status } from "@tripwire/ui/status";
 import { Switch } from "@tripwire/ui/switch";
 import { notify } from "@tripwire/ui/toast";
 import { SupportingText } from "@tripwire/ui/typography";
-import { useTheme } from "next-themes";
 import { useEffect, useRef, useState } from "react";
 import { DeleteAccountDialog } from "#/components/account/delete-account-dialog";
+import { ThemePicker } from "#/components/account/theme-picker";
 import {
 	EmptyState,
 	EmptyStateDescription,
@@ -45,7 +38,6 @@ import {
 } from "#/components/settings/settings-frame";
 import { TimezonePicker } from "#/components/timezones/timezone-picker";
 import { ZonedTime } from "#/components/timezones/zoned-time";
-import { useHasMounted } from "#/hooks/use-has-mounted";
 import { useOrgSwitchPath } from "#/hooks/use-org-switch-path";
 import { useDeviceTimezone } from "#/hooks/use-timezones";
 import {
@@ -66,12 +58,6 @@ import { myOrgsQueryOptions } from "#/lib/org.query";
 import { ACCOUNT_SECTIONS } from "#/lib/settings-sections";
 import { setAccountTimezone } from "#/lib/timezone.functions";
 import { describeUserAgent } from "#/lib/user-agent";
-
-const THEMES = [
-	{ value: "light", label: "Light", icon: Light },
-	{ value: "dark", label: "Dark", icon: Dark },
-	{ value: "system", label: "System", icon: Monitor },
-] as const;
 
 const ROLE_LABEL = new Map([
 	["admin", "Admin"],
@@ -375,8 +361,6 @@ function SessionsSection() {
 }
 
 function PreferencesSection() {
-	const { theme, setTheme } = useTheme();
-	const hasMounted = useHasMounted();
 	const queryClient = useQueryClient();
 	const device = useDeviceTimezone();
 	const { data: session } = useQuery(sessionInfoQueryOptions());
@@ -410,48 +394,7 @@ function PreferencesSection() {
 	return (
 		<SettingsSection id="preferences" title="Preferences">
 			<div className="flex flex-col gap-3">
-				<div>
-					<p className="type-label" id="theme-label">
-						Theme
-					</p>
-					<p className="mt-0.5 type-body-sm text-text-2">
-						Choose how Tripwire looks on this device.
-					</p>
-				</div>
-				<div
-					aria-labelledby="theme-label"
-					className="grid grid-cols-1 gap-2 sm:grid-cols-3"
-					role="radiogroup"
-				>
-					{THEMES.map((item) => {
-						const selected =
-							(hasMounted ? (theme ?? "system") : "system") === item.value;
-						return (
-							<label className="group relative min-w-0" key={item.value}>
-								<input
-									checked={selected}
-									className="peer sr-only"
-									name="theme"
-									onChange={() => setTheme(item.value)}
-									type="radio"
-									value={item.value}
-								/>
-								<span className="flex min-w-0 cursor-pointer flex-col rounded-overlay border border-line bg-paper p-2 text-start transition-colors duration-(--dur-state) ease-out hover:bg-hover-row peer-checked:border-line-focus peer-checked:bg-pressed peer-focus-visible:focus-ring">
-									<ThemePreview value={item.value} />
-									<span className="mt-2 flex items-center gap-2 px-1 type-label">
-										<Icon icon={item.icon} />
-										<span>{item.label}</span>
-										{selected ? (
-											<span className="ms-auto flex">
-												<Icon icon={Check} label="Selected" />
-											</span>
-										) : null}
-									</span>
-								</span>
-							</label>
-						);
-					})}
-				</div>
+				<ThemePicker reduceMotion={checked} />
 				<div className="shell">
 					<ItemGroup aria-label="Preferences">
 						<Item>
@@ -488,63 +431,6 @@ function PreferencesSection() {
 				</div>
 			</div>
 		</SettingsSection>
-	);
-}
-
-function ThemePreview({ value }: { value: (typeof THEMES)[number]["value"] }) {
-	if (value === "system") {
-		return (
-			<span data-layout-role="theme-preview-system">
-				<AppShellPreview compact tone="light" />
-				<AppShellPreview compact tone="dark" />
-			</span>
-		);
-	}
-	return <AppShellPreview tone={value} />;
-}
-
-function AppShellPreview({
-	tone,
-	compact = false,
-}: {
-	tone: "light" | "dark";
-	compact?: boolean;
-}) {
-	return (
-		<span
-			aria-hidden
-			data-compact={compact || undefined}
-			data-layout-role="theme-preview-shell"
-			data-tone={tone}
-		>
-			<span data-layout-role="theme-preview-sidebar">
-				<span data-layout-role="theme-preview-logo" />
-				<span data-layout-role="theme-preview-sidebar-line" data-line="first" />
-				<span
-					data-layout-role="theme-preview-sidebar-line"
-					data-line="second"
-				/>
-				<span data-layout-role="theme-preview-sidebar-line" data-line="last" />
-			</span>
-			<span data-layout-role="theme-preview-content">
-				<span
-					data-layout-role="theme-preview-content-line"
-					data-line="heading"
-				/>
-				<span
-					data-layout-role="theme-preview-content-line"
-					data-line="primary"
-				/>
-				<span
-					data-layout-role="theme-preview-content-line"
-					data-line="secondary"
-				/>
-				<span
-					data-layout-role="theme-preview-content-line"
-					data-line="footer"
-				/>
-			</span>
-		</span>
 	);
 }
 

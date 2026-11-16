@@ -379,7 +379,22 @@ test("commands own search, actions, links, pending, dialog, and agent behavior",
 			await page.waitForTimeout(200);
 			const dialogBounds = await dialog.boundingBox();
 			expect(dialogBounds?.width).toBeCloseTo(640, 1);
-			expect(dialogBounds?.height).toBeCloseTo(432, 1);
+			const dialogGeometry = await dialog.evaluate((element) => {
+				const bounds = (slot: string) =>
+					element
+						.querySelector(`[data-slot="${slot}"]`)
+						?.getBoundingClientRect();
+				return {
+					statusHeight: bounds("command-status")?.height,
+					emptyHeight: bounds("command-empty")?.height,
+					afterRow:
+						(bounds("command-panel")?.bottom ?? 0) -
+						(bounds("command-item")?.bottom ?? 0),
+				};
+			});
+			expect(dialogGeometry.statusHeight).toBe(0);
+			expect(dialogGeometry.emptyHeight ?? 0).toBe(0);
+			expect(dialogGeometry.afterRow).toBeLessThanOrEqual(5);
 			expect(dialogBounds?.y).toBeCloseTo(144, 1);
 			expect(
 				await dialog

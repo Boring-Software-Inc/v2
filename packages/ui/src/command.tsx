@@ -34,6 +34,7 @@ import {
 	interactionFromEvent,
 	shouldConfirmLocally,
 } from "./interaction";
+import { Kbd } from "./kbd";
 import { OverlayPortal } from "./overlay-portal";
 
 interface CommandItemBase {
@@ -56,6 +57,7 @@ export interface CommandBadgeData {
 }
 
 interface NeutralCommandActionItem extends CommandItemBase {
+	agentConfirmation?: string;
 	confirmation?: never;
 	onAction: (details: InteractionDetails) => unknown;
 	tone?: "neutral";
@@ -120,6 +122,7 @@ interface CommandBaseProps {
 		| "startsWith"
 		| ((item: CommandLeafItem, query: string) => boolean | number);
 	footerHints?: readonly CommandFooterHint[];
+	footerResultCount?: number;
 	inputRef?: Ref<HTMLInputElement>;
 	items: readonly CommandEntry[];
 	loading?: boolean;
@@ -158,6 +161,7 @@ export function Command({
 	emptyLabel = "No results",
 	filter,
 	footerHints,
+	footerResultCount,
 	inputRef,
 	items,
 	loading = false,
@@ -216,73 +220,81 @@ export function Command({
 			query={query}
 			status={loading ? "loading" : "idle"}
 		>
-			<div data-slot="command-input-wrapper">
-				<Icon icon={Search} tone="secondary" />
-				<CommandInput
-					aria-label={ariaLabel}
-					autoFocus={autoFocus}
-					data-slot="command-input"
-					placeholder={placeholder}
-					ref={inputRef}
-				/>
+			<div data-slot="command-panel">
+				<div data-slot="command-input-wrapper">
+					<Icon icon={Search} tone="secondary" />
+					<CommandInput
+						aria-label={ariaLabel}
+						autoFocus={autoFocus}
+						data-slot="command-input"
+						placeholder={placeholder}
+						ref={inputRef}
+					/>
+				</div>
+				<CommandStatus data-slot="command-status">
+					{loading ? loadingContent : null}
+				</CommandStatus>
+				<CommandList data-slot="command-list">
+					{loading
+						? null
+						: items.map((item) => {
+								if (item.type === "separator") {
+									return (
+										<CommandSeparator
+											data-slot="command-separator"
+											key={item.id}
+										/>
+									);
+								}
+								if (item.type === "content") {
+									return (
+										<div data-slot="command-content" key={item.id}>
+											{item.content}
+										</div>
+									);
+								}
+								if (item.type === "group") {
+									return (
+										<CommandGroup
+											aria-label={item.label}
+											data-slot="command-group"
+											key={item.label}
+										>
+											{item.showLabel === false ? null : (
+												<CommandGroupLabel data-slot="command-group-label">
+													{item.label}
+												</CommandGroupLabel>
+											)}
+											{item.items.map(renderItem)}
+										</CommandGroup>
+									);
+								}
+								return renderItem(item);
+							})}
+				</CommandList>
+				{loading ? null : (
+					<CommandEmpty data-slot="command-empty">
+						{emptyContent ?? emptyLabel}
+					</CommandEmpty>
+				)}
 			</div>
-			<CommandStatus data-slot="command-status">
-				{loading ? loadingContent : null}
-			</CommandStatus>
-			<CommandList data-slot="command-list">
-				{loading
-					? null
-					: items.map((item) => {
-							if (item.type === "separator") {
-								return (
-									<CommandSeparator
-										data-slot="command-separator"
-										key={item.id}
-									/>
-								);
-							}
-							if (item.type === "content") {
-								return (
-									<div data-slot="command-content" key={item.id}>
-										{item.content}
-									</div>
-								);
-							}
-							if (item.type === "group") {
-								return (
-									<CommandGroup
-										aria-label={item.label}
-										data-slot="command-group"
-										key={item.label}
-									>
-										{item.showLabel === false ? null : (
-											<CommandGroupLabel data-slot="command-group-label">
-												{item.label}
-											</CommandGroupLabel>
-										)}
-										{item.items.map(renderItem)}
-									</CommandGroup>
-								);
-							}
-							return renderItem(item);
-						})}
-			</CommandList>
-			{loading ? null : (
-				<CommandEmpty data-slot="command-empty">
-					{emptyContent ?? emptyLabel}
-				</CommandEmpty>
-			)}
-			{footerHints?.length ? (
+			{footerHints?.length || footerResultCount !== undefined ? (
 				<footer data-slot="command-footer">
-					{footerHints.map((hint) => (
+					{footerHints?.map((hint) => (
 						<span
 							data-slot="command-footer-hint"
 							key={`${hint.key}-${hint.label}`}
 						>
-							<kbd>{hint.key}</kbd>
+							<Kbd>{hint.key}</Kbd>
 							{hint.label}
 						</span>
 					))}
+					{footerResultCount === undefined ? null : (
+						<span data-slot="command-footer-count">
+							{footerResultCount}{" "}
+							{footerResultCount === 1 ? "result" : "results"}
+						</span>
+					)}
 				</footer>
 			) : null}
 		</BehaviorCommand>
@@ -294,7 +306,11 @@ function renderItem(item: CommandLeafItem) {
 		<CommandItem
 			aria-current={item.current ? "page" : undefined}
 			data-agent-confirm={
-				item.type === "link" ? undefined : item.confirmation?.title
+				item.type === "link"
+					? undefined
+					: item.tone === "destructive"
+						? item.confirmation.title
+						: item.agentConfirmation
 			}
 			data-slot="command-item"
 			data-tone={item.type === "link" ? "neutral" : (item.tone ?? "neutral")}
@@ -356,6 +372,7 @@ function renderItem(item: CommandLeafItem) {
 }
 
 interface CommandDialogBaseProps {
+	finalFocus?: () => HTMLElement | null;
 	onOpenChange?: (open: boolean, details: InteractionDetails) => void;
 	title: string;
 	trigger?: ReactElement<object>;
@@ -377,6 +394,7 @@ export type CommandDialogProps = CommandProps &
 
 export function CommandDialog({
 	defaultOpen,
+	finalFocus,
 	onOpenChange,
 	open,
 	title,
@@ -396,7 +414,7 @@ export function CommandDialog({
 			) : null}
 			<OverlayPortal>
 				<DialogBackdrop data-slot="dialog-backdrop" />
-				<DialogContent data-command-dialog="">
+				<DialogContent data-command-dialog="" finalFocus={finalFocus}>
 					<DialogTitle className="ui-sr-only">{title}</DialogTitle>
 					<Command {...command} />
 				</DialogContent>

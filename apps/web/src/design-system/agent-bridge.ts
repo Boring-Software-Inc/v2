@@ -56,12 +56,6 @@ export function isStructurallyAllowedAgentAction(
 	return SAFE_AGENT_ACTIONS.get(step.component)?.has(step.action) ?? false;
 }
 
-export function shouldDelegateConfirmationToPrimitive(
-	step: TripwireAgentAction,
-): boolean {
-	return step.component === "command" && step.action === "press";
-}
-
 export function registerTripwireBrowserAgent(
 	confirmAction: ConfirmAgentAction,
 ): () => void {
@@ -85,9 +79,6 @@ export function createTripwireAgentPermission(
 	) => {
 		if (!isStructurallyAllowedAgentAction(step)) return false;
 		const summary = step.confirm?.trim();
-		if (summary && shouldDelegateConfirmationToPrimitive(step)) {
-			return true;
-		}
 		return summary ? confirmAction(summary, signal) : true;
 	};
 }

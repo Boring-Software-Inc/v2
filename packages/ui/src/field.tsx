@@ -173,6 +173,7 @@ interface InputOptions extends TextControlOptions {
 	leadingIcon?: ReactNode;
 	max?: number | string;
 	min?: number | string;
+	pattern?: string;
 	ref?: Ref<HTMLInputElement>;
 	showShortcutHint?: boolean;
 	type?: "date" | "email" | "number" | "password" | "search" | "text" | "url";
@@ -205,6 +206,7 @@ export function Input({
 	onFocus,
 	onKeyDown,
 	onValueChange,
+	pattern,
 	placeholder,
 	readOnly,
 	required,
@@ -246,6 +248,7 @@ export function Input({
 					? details.cancel()
 					: onValueChange?.(nextValue, interactionDetails(details))
 			}
+			pattern={pattern}
 			placeholder={placeholder}
 			readOnly={readOnly}
 			ref={ref}

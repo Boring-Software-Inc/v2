@@ -13,6 +13,7 @@ import {
 	Workflow,
 } from "@tripwire/ui/icon";
 import { RelativeTime } from "@tripwire/ui/relative-time";
+import { Caption } from "@tripwire/ui/typography";
 import { useState } from "react";
 import {
 	BranchCard,
@@ -39,10 +40,6 @@ import {
 } from "#/lib/run-chain";
 import { cn } from "#/lib/utils";
 
-function ClockTime({ at }: { at: string }) {
-	return <RelativeTime date={at} />;
-}
-
 function When({
 	at,
 	offsetMs,
@@ -55,11 +52,11 @@ function When({
 		return null;
 	}
 	return (
-		<span className="type-caption text-text-2">
-			{at ? <ClockTime at={at} /> : null}
+		<Caption data-layout-role="run-timestamp">
+			{at ? <RelativeTime date={at} /> : null}
 			{at && showOffset ? ", " : null}
 			{showOffset ? formatOffset(offsetMs) : null}
-		</span>
+		</Caption>
 	);
 }
 

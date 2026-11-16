@@ -117,7 +117,9 @@ describe("RuleEvidence", () => {
 	test("trace-only evidence is absent publicly, retained for maintainers", () => {
 		expect(renderEvidence("ai-review@2", { output: null, trace })).toBe("");
 		const html = renderEvidence("ai-review@2", { output: null, trace }, true);
-		expect(html).toContain(">Trace</button>");
+		expect(html).toContain(
+			'data-slot="collapsible-label">Trace</span></button>',
+		);
 		expect(html).toContain("PRIVATE_TRACE_CANARY");
 		expect(html).not.toContain("finding</span>");
 	});
@@ -143,7 +145,9 @@ describe("RuleEvidence", () => {
 			{ output: { findings: "bad" }, trace },
 			true,
 		);
-		expect(withTrace).toContain(">Trace</button>");
+		expect(withTrace).toContain(
+			'data-slot="collapsible-label">Trace</span></button>',
+		);
 		expect(withTrace).toContain("PRIVATE_TRACE_CANARY");
 		const withFindings = renderEvidence("ai-review@2", {
 			output,

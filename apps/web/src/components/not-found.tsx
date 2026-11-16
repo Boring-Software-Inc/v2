@@ -20,8 +20,9 @@ const NotFoundInShell = lazy(() =>
 export function NotFoundBody({ signedIn }: { signedIn: boolean }) {
 	return (
 		<EmptyState
-			art={<MascotArt minigame mood="not-found" />}
+			art={<MascotArt mood="not-found" />}
 			className="max-w-sm"
+			data-layout-role="public-empty-state"
 			reason="no-results"
 		>
 			<EmptyStateHeader>
