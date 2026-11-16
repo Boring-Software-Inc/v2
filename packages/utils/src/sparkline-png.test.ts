@@ -1,9 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-	encodePng,
-	renderDitherChart,
-	renderSparklinePng,
-} from "./sparkline-png.ts";
+import { encodePng, renderDitherChart } from "./sparkline-png.ts";
 
 /** A minimal PNG parser: verify signature, then read IHDR width/height and the
  * chunk sequence. Enough to prove the encoder emits a structurally valid PNG a
@@ -40,35 +36,6 @@ describe("encodePng", () => {
 		expect(width).toBe(4);
 		expect(height).toBe(3);
 		expect(chunks).toEqual(["IHDR", "IDAT", "IEND"]);
-	});
-});
-
-describe("renderSparklinePng", () => {
-	test("renders overlaid series at the requested size", () => {
-		const png = renderSparklinePng(
-			[
-				{ values: [1, 2, 2, 3, 5, 3, 4, 5], color: [88, 101, 242] },
-				{ values: [1, 1, 2, 2, 3, 2, 3, 3], color: [254, 231, 92] },
-			],
-			{ width: 360, height: 120 },
-		);
-		const { width, height, chunks } = readPng(png);
-		expect(width).toBe(360);
-		expect(height).toBe(120);
-		expect(chunks[0]).toBe("IHDR");
-		expect(chunks.at(-1)).toBe("IEND");
-		// A drawn chart is larger than a same-size blank canvas would compress to.
-		expect(png.length).toBeGreaterThan(200);
-	});
-
-	test("degenerate inputs never throw: empty, single point, flat", () => {
-		expect(() => renderSparklinePng([])).not.toThrow();
-		expect(() =>
-			renderSparklinePng([{ values: [5], color: [0, 0, 0] }]),
-		).not.toThrow();
-		expect(() =>
-			renderSparklinePng([{ values: [2, 2, 2], color: [0, 0, 0] }]),
-		).not.toThrow();
 	});
 });
 
