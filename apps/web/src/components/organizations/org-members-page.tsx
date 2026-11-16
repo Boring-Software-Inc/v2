@@ -7,11 +7,12 @@ import {
 	DestructiveDialogLauncher,
 	IconButton,
 } from "@tripwire/ui/button";
-import { Dialog } from "@tripwire/ui/dialog";
 import { Field, FieldError, FieldLabel, Input } from "@tripwire/ui/field";
 import { Icon, More } from "@tripwire/ui/icon";
 import { Menu } from "@tripwire/ui/menu";
 import { NumberInput } from "@tripwire/ui/number-input";
+import { Popover } from "@tripwire/ui/popover";
+import { SegmentedControl } from "@tripwire/ui/radio-group";
 import { Select } from "@tripwire/ui/select";
 import {
 	Table,
@@ -142,19 +143,21 @@ export function OrgMembersPage({ org }: { org: string }) {
 			<SettingsHeader
 				description="Manage who can access this workspace and what they can do."
 				title="Members"
-			/>
+			>
+				{canInvite ? (
+					<InviteForm
+						onCreated={(token) => {
+							setCreatedToken(token);
+							setActiveTab("pending");
+							setInviting(false);
+						}}
+						onOpenChange={setInviting}
+						open={inviting}
+						org={org}
+					/>
+				) : null}
+			</SettingsHeader>
 			<Tabs
-				actions={
-					canInvite
-						? [
-								{
-									label: "Invite member",
-									onAction: () => setInviting(true),
-									value: "invite-member",
-								},
-							]
-						: []
-				}
 				ariaLabel="Workspace access"
 				items={[
 					{
@@ -205,18 +208,6 @@ export function OrgMembersPage({ org }: { org: string }) {
 				size="small"
 				value={activeTab}
 			/>
-			{canInvite ? (
-				<InviteForm
-					onCreated={(token) => {
-						setCreatedToken(token);
-						setActiveTab("pending");
-						setInviting(false);
-					}}
-					onOpenChange={setInviting}
-					open={inviting}
-					org={org}
-				/>
-			) : null}
 
 			{isPersonal || !orgContext || !canResolveAdminExit || onlyAdmin ? null : (
 				<LeaveOrgRow
@@ -599,6 +590,12 @@ function InviteForm({
 				);
 			}
 		},
+		onError: () => {
+			notify.show(
+				{ title: "Tripwire couldn't create the invite link. Try again." },
+				"error",
+			);
+		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: orgQueryKeys.invites(org) });
 		},
@@ -609,35 +606,30 @@ function InviteForm({
 	const inputsValid = maxUsesValid && expiryValid;
 
 	return (
-		<Dialog
-			action={{
-				disabled: !inputsValid,
-				label: "Create invite link",
-				onAction: async () => {
-					const result = await createMutation.mutateAsync();
-					if (!result.token) throw new Error(result.error ?? "Invite failed");
-				},
-				pendingLabel: "Creating",
-			}}
-			description="Choose who can use the link and when it expires."
+		<Popover
+			align="end"
+			description="Create a link you can share with a new member."
+			focusMode="trap"
 			onOpenChange={onOpenChange}
 			open={open}
-			title="Create an invite link"
+			title="Invite member"
+			trigger={<Button size="small">Invite member</Button>}
+			triggerLabel="Invite member"
 		>
 			<form
-				className="flex flex-col"
-				data-layout-role="invite-dialog-form"
+				className="flex flex-col composition-gap-group"
 				onSubmit={(event) => {
 					event.preventDefault();
-					if (inputsValid) {
+					if (inputsValid && !createMutation.isPending) {
 						createMutation.mutate();
 					}
 				}}
 			>
 				<Field>
 					<FieldLabel>Role</FieldLabel>
-					<Select
+					<SegmentedControl
 						ariaLabel="Role"
+						fill
 						options={ROLE_ITEMS}
 						onValueChange={(value) => {
 							if (isOrgRole(value)) {
@@ -670,8 +662,27 @@ function InviteForm({
 					/>
 					{expiryValid ? null : <FieldError>Enter 1 to 90 days.</FieldError>}
 				</Field>
+				<div className="flex flex-wrap justify-end composition-gap-standard">
+					<Button
+						onAction={() => onOpenChange(false)}
+						size="small"
+						type="button"
+					>
+						Cancel
+					</Button>
+					<Button
+						disabled={!inputsValid}
+						pending={createMutation.isPending}
+						pendingLabel="Creating"
+						size="small"
+						type="submit"
+						variant="primary"
+					>
+						Create link
+					</Button>
+				</div>
 			</form>
-		</Dialog>
+		</Popover>
 	);
 }
 

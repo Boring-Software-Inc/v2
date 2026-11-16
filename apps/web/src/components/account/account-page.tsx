@@ -54,7 +54,7 @@ import type { CurrentUser } from "#/lib/auth.functions";
 import { authQueryKeys, sessionInfoQueryOptions } from "#/lib/auth.query";
 import { connectionsQueryOptions } from "#/lib/connections.query";
 import { reconnectForge } from "#/lib/forge-connect";
-import { myOrgsQueryOptions } from "#/lib/org.query";
+import { myOrgsQueryOptions, orgContextQueryOptions } from "#/lib/org.query";
 import { ACCOUNT_SECTIONS } from "#/lib/settings-sections";
 import { setAccountTimezone } from "#/lib/timezone.functions";
 import { describeUserAgent } from "#/lib/user-agent";
@@ -111,7 +111,7 @@ export function AccountPage({ org, user }: { org: string; user: CurrentUser }) {
 				user={user}
 			/>
 			<SessionsSection />
-			<PreferencesSection />
+			<PreferencesSection org={org} />
 			<OrgsSection activeOrg={org} />
 			<AccountDeletion />
 		</>
@@ -360,9 +360,10 @@ function SessionsSection() {
 	);
 }
 
-function PreferencesSection() {
+function PreferencesSection({ org }: { org: string }) {
 	const queryClient = useQueryClient();
 	const device = useDeviceTimezone();
+	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
 	const { data: session } = useQuery(sessionInfoQueryOptions());
 	const signedIn = Boolean(session?.user);
 	const reduce = session?.user?.reduceAgentMotion ?? false;
@@ -413,7 +414,7 @@ function PreferencesSection() {
 						</Item>
 						<Item data-layout-role="account-timezone-row">
 							<ItemContent>
-								<ItemTitle id="timezone-label">Timezone</ItemTitle>
+								<ItemTitle id="timezone-label">Display timezone</ItemTitle>
 							</ItemContent>
 							<ItemActions data-layout-role="account-timezone-picker">
 								<div className="w-full">
@@ -421,7 +422,11 @@ function PreferencesSection() {
 										disabled={!signedIn || saveTimezone.isPending}
 										labelledBy="timezone-label"
 										onChange={(next) => saveTimezone.mutate(next)}
-										unsetLabel={`Organization timezone · ${device}`}
+										unsetLabel={
+											orgContext?.timezone
+												? `Use organization timezone (${orgContext.timezone})`
+												: `Use device timezone (${device})`
+										}
 										value={session?.user?.timezone ?? null}
 									/>
 								</div>

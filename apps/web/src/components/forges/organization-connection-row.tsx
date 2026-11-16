@@ -5,6 +5,7 @@ import {
 import { Button } from "@tripwire/ui/button";
 import { Collapsible } from "@tripwire/ui/collapsible";
 import { Dialog } from "@tripwire/ui/dialog";
+import { ChevronDown, Icon } from "@tripwire/ui/icon";
 import {
 	Item,
 	ItemActions,
@@ -45,15 +46,27 @@ export function OrganizationConnectionRow({
 					connection.installations.length === 0)
 			}
 			hiddenUntilFound
-			summary={`${connection.repositories.length} ${connection.repositories.length === 1 ? "repo" : "repos"}`}
 			trigger={
-				<span className="inline-flex items-center composition-gap-standard">
-					<ForgeMark
-						className="size-(--icon) shrink-0"
-						forge={connection.forge}
-					/>
-					{label}
-				</span>
+				<>
+					<span className="inline-flex items-center composition-gap-standard">
+						<ForgeMark
+							className="size-(--icon) shrink-0"
+							forge={connection.forge}
+						/>
+						{label}
+					</span>
+					<span className="inline-flex shrink-0 items-center composition-gap-standard">
+						<span className="content-caption tone-content-secondary">
+							{`${connection.repositories.length} ${connection.repositories.length === 1 ? "repo" : "repos"}`}
+						</span>
+						<span
+							className="inline-flex"
+							data-layout-role="connection-disclosure-chevron"
+						>
+							<Icon icon={ChevronDown} tone="secondary" />
+						</span>
+					</span>
+				</>
 			}
 		>
 			{connection.forge === "gitcafe" && connection.installations.length > 0 ? (
