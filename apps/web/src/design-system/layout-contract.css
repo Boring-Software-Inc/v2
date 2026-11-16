@@ -1876,10 +1876,11 @@ span[data-layout-role="agent-client-logo"] {
 
 [data-layout-role="run-copy-action"] {
 	flex: none;
+	inline-size: min(100%, calc(4 * var(--space-6)));
 }
 
 [data-layout-role="run-copy-action"] > [data-slot="button"] {
-	min-inline-size: calc(4 * var(--space-6));
+	inline-size: 100%;
 }
 
 [data-layout-role="run-node-title"],

@@ -82,14 +82,15 @@ describe("Tripwire browser agent policy", () => {
 	});
 
 	test("requires approval before pressing a confirmed command", async () => {
+		const summary = "Sign out of Tripwire?";
 		const step = action({
 			component: "command",
-			confirm: "Sign out of Tripwire?",
+			confirm: summary,
 		});
 		const signal = new AbortController().signal;
 		const rejected = createTripwireAgentPermission(
-			async (summary, receivedSignal) => {
-				expect(summary).toBe(step.confirm);
+			async (receivedSummary, receivedSignal) => {
+				expect(receivedSummary).toBe(summary);
 				expect(receivedSignal).toBe(signal);
 				return false;
 			},
