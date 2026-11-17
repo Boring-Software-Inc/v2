@@ -10,7 +10,10 @@ import {
 } from "react";
 import { useDebouncedValue } from "#/hooks/use-debounced-value";
 import { closeGifFrom, type GiphyGif } from "#/lib/giphy-gif";
-import { closeGifsQueryOptions } from "#/lib/response.query";
+import {
+	closeGifsQueryOptions,
+	workflowGifsQueryOptions,
+} from "#/lib/response.query";
 import type { GiphyStatus } from "#/lib/server/giphy-search";
 
 const Grid = lazy(() =>
@@ -42,18 +45,28 @@ function GridLoader() {
 export interface GifSearchProps {
 	org: string;
 	onPick: (gif: CloseGif) => void;
+	scope?: "responses" | "workflows";
 }
 
-export function GifSearch({ org, onPick }: GifSearchProps) {
+export function GifSearch({
+	org,
+	onPick,
+	scope = "responses",
+}: GifSearchProps) {
 	const queryClient = useQueryClient();
 	const [text, setText] = useState("");
 	const query = useDebouncedValue(searchTerm(text), SEARCH_DELAY_MS);
 	const [status, setStatus] = useState<GiphyStatus>("ok");
 
 	const fetchGifs = async (offset: number): Promise<GiphyPageRecord> => {
-		const page = await queryClient.fetchQuery(
-			closeGifsQueryOptions(org, query, offset),
-		);
+		const page =
+			scope === "workflows"
+				? await queryClient.fetchQuery(
+						workflowGifsQueryOptions(org, query, offset),
+					)
+				: await queryClient.fetchQuery(
+						closeGifsQueryOptions(org, query, offset),
+					);
 		if (offset === 0 || page.status !== "ok") {
 			setStatus(page.status);
 		}

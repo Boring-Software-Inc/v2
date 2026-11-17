@@ -1,5 +1,6 @@
 import type { CloseGif } from "@tripwire/contracts";
 import { closeGifFrom } from "#/lib/giphy-gif";
+import type { GiphyPage } from "#/lib/server/giphy-search";
 import {
 	createMemoryLayer,
 	FILL_LEASE_MS,
@@ -7,6 +8,7 @@ import {
 	GIPHY_API_BASE,
 	type GiphyDeps,
 	type GiphyStore,
+	searchGiphy,
 } from "#/lib/server/giphy-search";
 
 let layered: GiphyStore | null = null;
@@ -58,4 +60,17 @@ export async function resolveServedGif(
 	const page = await giphyServices.findCachedGiphyPage(getDb().db, gifId);
 	const gif = findGif(page, gifId);
 	return gif ? closeGifFrom(gif) : null;
+}
+
+export async function searchServedGifs(input: {
+	query: string;
+	offset: number;
+}): Promise<GiphyPage> {
+	const { readSessionState } = await import("#/lib/server/session");
+	const session = await readSessionState();
+	return searchGiphy(await giphyDeps(), {
+		userId: session.userId ?? "open",
+		query: input.query,
+		offset: input.offset,
+	});
 }

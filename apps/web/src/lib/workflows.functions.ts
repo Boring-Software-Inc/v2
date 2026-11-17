@@ -12,6 +12,7 @@ import type {
 	WorkflowWorkDetail,
 } from "@tripwire/db";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
+import type { GiphyPage } from "#/lib/server/giphy-search";
 import {
 	orgPermissionMiddleware,
 	requireOrgRepoById,
@@ -22,6 +23,21 @@ export type { DraftDecisionResult, SetEnabledResult, WorkflowCard };
 export interface WorkflowDetail extends WorkflowWorkDetail {
 	lastTicks: Record<string, string>;
 }
+
+export const searchWorkflowGifs = createServerFn({ method: "GET" })
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("workflows:manage"),
+	])
+	.inputValidator((input: { org: string; query: string; offset: number }) => ({
+		org: String(input.org),
+		query: String(input.query ?? "").slice(0, 200),
+		offset: Number(input.offset) || 0,
+	}))
+	.handler(async ({ data }): Promise<GiphyPage> => {
+		const { searchServedGifs } = await import("#/lib/server/giphy-store");
+		return searchServedGifs(data);
+	});
 
 /**
  * Workflows surface (§grid + editor). Members read; admins mutate. Every fn

@@ -144,6 +144,7 @@ export const SERVER_FN_CLASSIFICATION: ServerFnClassification = {
 	decideWorkflowPush: "permission:workflows:manage",
 	setRepoWorkflowEnabled: "permission:workflows:manage",
 	testDeliveryConnection: "permission:workflows:manage", // makes an outbound request
+	searchWorkflowGifs: "permission:workflows:manage",
 	refreshRepoReviewers: "permission:workflows:manage",
 	refreshRepoLabels: "permission:workflows:manage",
 

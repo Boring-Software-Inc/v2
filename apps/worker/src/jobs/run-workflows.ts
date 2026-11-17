@@ -14,17 +14,20 @@ import {
 	allowlistAccountIdSchema,
 	CONTRIBUTOR_ALLOWLIST_RULE_REF,
 	type CustomRuleRecord,
+	closeGifSchema,
 	commentObservedEvidenceSchema,
 	commentRuleEnvelopeSchema,
 	customRuleDefinitionSchema,
 	customRuleRef,
 	customRuleSummary,
+	gifMarkdown,
 	isAiReviewNotRunStep,
 	isCustomRuleId,
 	isIssueWorkflow,
 	joinVerdicts,
 	nonEnforcingRuleNodeIds,
 	PILOT_TRIGGER_KINDS,
+	postCommentParamsSchema,
 	resolveEffectiveRuleConfig,
 	ruleIdOf,
 	ruleResultSchema,
@@ -103,8 +106,14 @@ export function actionPayload(
 		nodeId: `${definitionId}:${action.nodeId}`,
 	};
 	if (action.action === "post-comment") {
+		const gif = closeGifSchema.nullable().catch(null).parse(action.params.gif);
+		const markdown = gifMarkdown(gif);
+		const message = postCommentParamsSchema.shape.message
+			.catch("")
+			.parse(action.params.message);
 		return {
 			...payload,
+			message: markdown ? `${message}\n\n${markdown}` : message,
 			marker: actionCommentMarker({
 				workflowId: definitionId,
 				nodeId: action.nodeId,

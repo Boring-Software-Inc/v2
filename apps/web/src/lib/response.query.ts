@@ -4,6 +4,7 @@ import {
 	getRepoResponseConfig,
 	searchCloseGifs,
 } from "#/lib/response.functions";
+import { searchWorkflowGifs } from "#/lib/workflows.functions";
 
 export const responseQueryKeys = {
 	all: ["response"] as const,
@@ -14,6 +15,8 @@ export const responseQueryKeys = {
 		[...responseQueryKeys.all, "org-defaults", org] as const,
 	gifs: (org: string, query: string, offset: number) =>
 		[...responseQueryKeys.all, "gifs", org, query, offset] as const,
+	workflowGifs: (org: string, query: string, offset: number) =>
+		[...responseQueryKeys.all, "workflow-gifs", org, query, offset] as const,
 };
 
 export const responseConfigQueryOptions = (org: string, repoId: string) =>
@@ -41,5 +44,17 @@ export const closeGifsQueryOptions = (
 		queryKey: responseQueryKeys.gifs(org, query, offset),
 		queryFn: ({ signal }) =>
 			searchCloseGifs({ data: { org, query, offset }, signal }),
+		staleTime: 10 * 60_000,
+	});
+
+export const workflowGifsQueryOptions = (
+	org: string,
+	query: string,
+	offset: number,
+) =>
+	queryOptions({
+		queryKey: responseQueryKeys.workflowGifs(org, query, offset),
+		queryFn: ({ signal }) =>
+			searchWorkflowGifs({ data: { org, query, offset }, signal }),
 		staleTime: 10 * 60_000,
 	});

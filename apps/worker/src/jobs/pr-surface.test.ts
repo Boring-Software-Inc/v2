@@ -394,4 +394,28 @@ describe("actionPayload", () => {
 			),
 		).toEqual({ nodeId: "workflow:label", labels: ["triage"] });
 	});
+
+	test("post-comment appends validated GIPHY media as markdown", () => {
+		const payload = actionPayload(
+			{
+				nodeId: "message",
+				action: "post-comment",
+				params: {
+					message: "The build is ready.",
+					gif: {
+						id: "abc123",
+						url: "https://media2.giphy.com/media/abc123/giphy.gif",
+						width: 480,
+						height: 270,
+						title: "Ship it",
+					},
+				},
+			},
+			"workflow",
+			"run",
+		);
+		expect(payload.message).toBe(
+			"The build is ready.\n\n![Ship it](https://media2.giphy.com/media/abc123/giphy.gif)",
+		);
+	});
 });

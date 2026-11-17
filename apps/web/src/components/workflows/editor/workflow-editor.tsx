@@ -45,6 +45,7 @@ import {
 } from "@tripwire/contracts";
 import { DestructiveDialog } from "@tripwire/ui/dialog";
 import { notify } from "@tripwire/ui/toast";
+import { generateId } from "@tripwire/utils/id";
 import {
 	addEdge,
 	type Connection,
@@ -78,7 +79,10 @@ import {
 	settleLive,
 } from "#/components/workflows/editor/agent-canvas";
 import { AgentEnterContext } from "#/components/workflows/editor/agent-work-context";
-import { CanvasZoom } from "#/components/workflows/editor/canvas-zoom";
+import {
+	CanvasZoom,
+	fitViewOptions,
+} from "#/components/workflows/editor/canvas-zoom";
 import { EditorHeader } from "#/components/workflows/editor/editor-header";
 import {
 	buildNodeFromItem,
@@ -86,6 +90,7 @@ import {
 	TOOLBOX_SECTIONS,
 	type ToolboxItem,
 } from "#/components/workflows/editor/editor-sidebar";
+import { EditorToolbar } from "#/components/workflows/editor/editor-toolbar";
 import {
 	cardHeightOf,
 	estimateCardHeight,
@@ -220,7 +225,7 @@ function routedCard(card: RuleCard | undefined): boolean {
 }
 
 function newId(): string {
-	return crypto.randomUUID();
+	return generateId();
 }
 
 /** dnd-kit reports movement from the activator, not a final pointer event. */
@@ -296,17 +301,6 @@ function eventPoint(event: MouseEvent | TouchEvent) {
 }
 const DELETE_KEYS = ["Backspace", "Delete"];
 const CANVAS_DROP_ID = "workflow-canvas";
-function fitViewOptions() {
-	const wide = globalThis.matchMedia?.("(min-width: 768px)").matches ?? false;
-	return {
-		padding: {
-			left: wide ? "336px" : "48px",
-			right: "48px",
-			top: wide ? "48px" : "64px",
-			bottom: "48px",
-		},
-	} as const;
-}
 
 /**
  * The droppable MUST be a child of <DndContext> — a useDroppable call in the
@@ -427,8 +421,7 @@ function EditorBody({
 			),
 		};
 	}, [definition]);
-	// Connection-test failures from the last save, keyed by node — merged into
-	// the validation issues so they surface with the same red-dot treatment.
+	/** Connection-test failures join validation issues under the same treatment. */
 	const [connectionIssues, setConnectionIssues] = useState<
 		Map<string, string[]>
 	>(new Map());
@@ -471,8 +464,16 @@ function EditorBody({
 		[scheduleDrafts],
 	);
 	const [dragged, setDragged] = useState<ToolboxItem | null>(null);
-	const { fitView, getIntersectingNodes, getZoom, screenToFlowPosition } =
-		useReactFlow<TripwireFlowNode, FlowEdge>();
+	const {
+		deleteElements,
+		fitView,
+		getIntersectingNodes,
+		getZoom,
+		screenToFlowPosition,
+	} = useReactFlow<TripwireFlowNode, FlowEdge>();
+	const settleShellLayout = useCallback(() => {
+		fitView({ ...fitViewOptions(), duration: 0 });
+	}, [fitView]);
 	const shownGraph = useRef({ nodes, edges });
 	shownGraph.current = { nodes, edges };
 	const [mountRevision] = useState(() =>
@@ -596,7 +597,7 @@ function EditorBody({
 					? "Connection deleted"
 					: `${deletedEdges.length} connections deleted`;
 		notify.show({
-			title: title,
+			title,
 			action: {
 				label: "Undo",
 				onAction: () => {
@@ -608,8 +609,7 @@ function EditorBody({
 		return true;
 	};
 
-	// meta rides the LOADED definition; a rename lands on refetch, and the next
-	// save picks it up — the definition stays the single artifact.
+	/** Loaded metadata keeps the definition as the single saved artifact. */
 	const meta = useMemo(
 		() => ({
 			id: definition.id,
@@ -619,10 +619,7 @@ function EditorBody({
 		[definition],
 	);
 
-	// Enable-check against the RUNTIME catalog — built-ins plus this repo's
-	// custom rules — so the editor's live preview matches the server. Without
-	// the custom entries a custom rule reads as "unknown rule" and blocks enable
-	// from the editor, even though the list page (server-validated) enables it.
+	/** Runtime custom rules keep editor enablement aligned with server validation. */
 	const enableCatalog = useMemo(
 		() => [...RULE_CATALOG, ...customValidationEntries(customRules)],
 		[customRules],
@@ -796,7 +793,6 @@ function EditorBody({
 		];
 	}, [nodes, decor, groups]);
 
-	// ---- graph mutations ---------------------------------------------------
 	const onNodesChange = useCallback(
 		(all: NodeChange<TripwireFlowNode>[]) => {
 			const changes = all.filter(
@@ -844,7 +840,7 @@ function EditorBody({
 				addEdge(
 					{
 						...connection,
-						id: crypto.randomUUID(),
+						id: generateId(),
 						...edgeWhenFields(when),
 					},
 					current,
@@ -1354,12 +1350,24 @@ function EditorBody({
 	const selectedOne =
 		selectedFlowNodes.length === 1 ? selectedFlowNodes[0] : undefined;
 	const selectedNode =
-		selectedOne &&
-		(selectedOne.data.node.type === "rule" || !groups.cards.has(selectedOne.id))
+		selectedOne && !groups.cards.has(selectedOne.id)
 			? selectedOne.data.node
 			: null;
+	const selectedName = selectedNode ? stepDisplayName(selectedNode) : null;
+	const duplicateSelected = () => {
+		if (!(selectedNode && selectedOne) || readOnly) return;
+		const copy = structuredClone(selectedNode);
+		copy.id = newId();
+		insertNode(copy, {
+			x: selectedOne.position.x + 32,
+			y: selectedOne.position.y + 32,
+		});
+	};
+	const removeSelected = () => {
+		if (!selectedOne || readOnly) return;
+		deleteElements({ nodes: [selectedOne] });
+	};
 
-	// ---- dnd-kit drag-in ---------------------------------------------------
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
 	);
@@ -1392,7 +1400,7 @@ function EditorBody({
 			return;
 		}
 		insertNode(buildNodeFromItem(item), {
-			// Center-ish for the wider, taller field-bearing cards.
+			/** Wider field-bearing cards need more room around the drop point. */
 			x: position.x - 110,
 			y: position.y - 40,
 		});
@@ -1412,7 +1420,6 @@ function EditorBody({
 		insertNode(buildNodeFromItem(item), { x: 80, y });
 	};
 
-	// ---- save ---------------------------------------------------------------
 	const handleSave = async () => {
 		const unparsed = problems.find((problem) =>
 			problem.key.startsWith("schedule:"),
@@ -1517,137 +1524,169 @@ function EditorBody({
 
 	return (
 		<div data-layout-role="workflow-editor">
-			<EditorHeader
-				forge={forge}
-				blockers={blockers}
-				customRules={customRules}
-				onViewChange={onViewChange}
-				view={view}
-				definition={definition}
-				dirty={dirty}
-				enabled={enabled}
-				name={name}
-				onArrange={arrange}
-				onRename={onRename}
-				onSave={handleSave}
-				onSetEnabled={handleSetEnabled}
-				onShowProblems={() => setProblemsOpen(true)}
-				readOnly={readOnly}
-				saving={saving}
-				toggling={toggling}
-				zeroNodes={nodes.length === 0}
-				leading={headerLeading}
-				actions={headerActions}
-				note={headerNote}
-			/>
-			{codeView ? (
-				<WorkflowCode
-					unsaved={dirty && codeView.kind === "code" && codeView.unsaved}
-					view={codeView}
-				/>
-			) : null}
 			<DndContext
 				onDragEnd={onDragEnd}
 				onDragStart={onDragStart}
 				sensors={sensors}
 			>
-				<CanvasDropzone hidden={view !== "canvas"} mounted={canvasShown}>
-					<ReviewerScopeContext.Provider value={reviewerScope}>
-						<CustomRuleNamesContext.Provider value={customRuleNames}>
-							<ProblemsContext.Provider value={problemsApi}>
-								<EditFieldContext.Provider value={editField}>
-									<DragPlanContext.Provider value={plan}>
-										<AgentEnterContext.Provider value={entering}>
-											<RuleGroupsContext.Provider value={ruleGroupsApi}>
-												<ReactFlow
-													connectionLineComponent={TypedConnectionLine}
-													data-agent-live={live ? "" : undefined}
-													data-agent-motion={live?.motion}
-													data-layout-role="workflow-editor-canvas"
-													data-drag-tone={
-														plan?.port
-															? WORKFLOW_PORT_TONE[plan.port]
-															: undefined
-													}
-													deleteKeyCode={
-														readOnly || view !== "canvas" ? null : DELETE_KEYS
-													}
-													onBeforeDelete={readOnly ? undefined : onBeforeDelete}
-													edges={flowEdges}
-													edgeTypes={EDGE_TYPES}
-													edgesReconnectable={!readOnly}
-													elementsSelectable
-													fitView
-													fitViewOptions={fitViewOptions()}
-													isValidConnection={isValidConnection}
-													nodes={canvasNodes as TripwireFlowNode[]}
-													nodesConnectable={!readOnly}
-													nodesDraggable={!readOnly}
-													nodeTypes={NODE_TYPES}
-													onConnect={readOnly ? undefined : onConnect}
-													onConnectEnd={onConnectEnd}
-													onConnectStart={cancelPending}
-													onNodeClick={cancelPending}
-													onPaneClick={cancelPending}
-													onReconnectEnd={() => {
-														reconnecting.current = null;
-													}}
-													onReconnectStart={(_event, edge) => {
-														reconnecting.current = edge.id;
-													}}
-													onEdgesChange={onEdgesChange}
-													onNodesChange={onNodesChange}
-													onReconnect={readOnly ? undefined : onReconnect}
-													proOptions={{ hideAttribution: true }}
-												>
-													<CanvasZoom />
-													<LaneRules ys={decor.rules.map((rule) => rule.y)} />
-													<DropHint />
-													{pending ? <PendingConnection {...pending} /> : null}
-												</ReactFlow>
-											</RuleGroupsContext.Provider>
-										</AgentEnterContext.Provider>
-									</DragPlanContext.Provider>
-								</EditFieldContext.Provider>
-							</ProblemsContext.Provider>
-						</CustomRuleNamesContext.Provider>
-						<ScheduleDraftsContext.Provider value={scheduleDraftsApi}>
-							<ScheduleTimingContext.Provider value={scheduleTiming}>
-								<EditorSidebar
-									connect={toolboxConnect}
-									customRules={customRules}
-									onCancelConnect={cancelPending}
-									fieldFocus={fieldFocus}
-									onFieldFocused={() => setFieldFocus(null)}
-									org={org}
-									repo={repo}
-									onAdd={addAtFreePosition}
-									onClearSelection={clearSelection}
-									onTestConnection={onTestConnection}
-									onUpdateNode={updateNode}
-									readOnly={readOnly}
-									selectedNode={selectedNode}
-								/>
-							</ScheduleTimingContext.Provider>
-						</ScheduleDraftsContext.Provider>
-						<ProblemsButton
-							onFix={fixProblem}
-							onOpenChange={setProblemsOpen}
-							onReveal={revealProblem}
-							open={problemsOpen}
-							problems={problems}
-						/>
-					</ReviewerScopeContext.Provider>
-					{nodes.length === 0 ? (
-						<div data-layout-role="workflow-editor-empty-canvas">
-							<p>
-								{live
-									? "No steps yet"
-									: "Drag a step from the toolbox, or press its add button"}
-							</p>
-						</div>
-					) : null}
-				</CanvasDropzone>
+				<ReviewerScopeContext.Provider value={reviewerScope}>
+					<ScheduleDraftsContext.Provider value={scheduleDraftsApi}>
+						<ScheduleTimingContext.Provider value={scheduleTiming}>
+							<EditorSidebar
+								connect={toolboxConnect}
+								customRules={customRules}
+								fieldFocus={fieldFocus}
+								onAdd={addAtFreePosition}
+								onCancelConnect={cancelPending}
+								onClearSelection={clearSelection}
+								onDuplicateSelected={duplicateSelected}
+								onFieldFocused={() => setFieldFocus(null)}
+								onLayoutSettled={settleShellLayout}
+								onRemoveSelected={removeSelected}
+								onTestConnection={onTestConnection}
+								onUpdateNode={updateNode}
+								org={org}
+								readOnly={readOnly}
+								renderHeader={() => (
+									<EditorHeader
+										actions={headerActions}
+										dirty={dirty}
+										forge={forge}
+										leading={headerLeading}
+										name={name}
+										note={headerNote}
+										onRename={onRename}
+										onSave={handleSave}
+										readOnly={readOnly}
+										saving={saving}
+										zeroNodes={nodes.length === 0}
+									/>
+								)}
+								renderToolbar={(openToolbox) => (
+									<EditorToolbar
+										blockers={blockers}
+										customRules={customRules}
+										definition={definition}
+										enabled={enabled}
+										forge={forge}
+										name={name}
+										onArrange={arrange}
+										onDuplicateSelected={duplicateSelected}
+										onOpenToolbox={openToolbox}
+										onRemoveSelected={removeSelected}
+										onSetEnabled={handleSetEnabled}
+										onShowProblems={() => setProblemsOpen(true)}
+										onViewChange={onViewChange}
+										readOnly={readOnly}
+										selectedName={selectedName}
+										selectedNode={selectedNode}
+										toggling={toggling}
+										view={view}
+										zeroNodes={nodes.length === 0}
+									/>
+								)}
+								repo={repo}
+								selectedNode={selectedNode}
+							>
+								{codeView ? (
+									<WorkflowCode
+										unsaved={
+											dirty && codeView.kind === "code" && codeView.unsaved
+										}
+										view={codeView}
+									/>
+								) : null}
+								<CanvasDropzone
+									hidden={view !== "canvas"}
+									mounted={canvasShown}
+								>
+									<CustomRuleNamesContext.Provider value={customRuleNames}>
+										<ProblemsContext.Provider value={problemsApi}>
+											<EditFieldContext.Provider value={editField}>
+												<DragPlanContext.Provider value={plan}>
+													<AgentEnterContext.Provider value={entering}>
+														<RuleGroupsContext.Provider value={ruleGroupsApi}>
+															<ReactFlow
+																connectionLineComponent={TypedConnectionLine}
+																data-agent-live={live ? "" : undefined}
+																data-agent-motion={live?.motion}
+																data-layout-role="workflow-editor-canvas"
+																data-drag-tone={
+																	plan?.port
+																		? WORKFLOW_PORT_TONE[plan.port]
+																		: undefined
+																}
+																deleteKeyCode={
+																	readOnly || view !== "canvas"
+																		? null
+																		: DELETE_KEYS
+																}
+																onBeforeDelete={
+																	readOnly ? undefined : onBeforeDelete
+																}
+																edges={flowEdges}
+																edgeTypes={EDGE_TYPES}
+																edgesReconnectable={!readOnly}
+																elementsSelectable
+																fitView
+																fitViewOptions={fitViewOptions()}
+																isValidConnection={isValidConnection}
+																nodes={canvasNodes as TripwireFlowNode[]}
+																nodesConnectable={!readOnly}
+																nodesDraggable={!readOnly}
+																nodeTypes={NODE_TYPES}
+																onConnect={readOnly ? undefined : onConnect}
+																onConnectEnd={onConnectEnd}
+																onConnectStart={cancelPending}
+																onNodeClick={cancelPending}
+																onPaneClick={cancelPending}
+																onReconnectEnd={() => {
+																	reconnecting.current = null;
+																}}
+																onReconnectStart={(_event, edge) => {
+																	reconnecting.current = edge.id;
+																}}
+																onEdgesChange={onEdgesChange}
+																onNodesChange={onNodesChange}
+																onReconnect={readOnly ? undefined : onReconnect}
+																proOptions={{ hideAttribution: true }}
+															>
+																<CanvasZoom />
+																<LaneRules
+																	ys={decor.rules.map((rule) => rule.y)}
+																/>
+																<DropHint />
+																{pending ? (
+																	<PendingConnection {...pending} />
+																) : null}
+															</ReactFlow>
+														</RuleGroupsContext.Provider>
+													</AgentEnterContext.Provider>
+												</DragPlanContext.Provider>
+											</EditFieldContext.Provider>
+										</ProblemsContext.Provider>
+									</CustomRuleNamesContext.Provider>
+									<ProblemsButton
+										onFix={fixProblem}
+										onOpenChange={setProblemsOpen}
+										onReveal={revealProblem}
+										open={problemsOpen}
+										problems={problems}
+									/>
+									{nodes.length === 0 ? (
+										<div data-layout-role="workflow-editor-empty-canvas">
+											<p>
+												{live
+													? "No steps yet"
+													: "Drag a step from the toolbox, or press its add button"}
+											</p>
+										</div>
+									) : null}
+								</CanvasDropzone>
+							</EditorSidebar>
+						</ScheduleTimingContext.Provider>
+					</ScheduleDraftsContext.Provider>
+				</ReviewerScopeContext.Provider>
 				<DragOverlay dropAnimation={null}>
 					{dragged ? (
 						<div data-layout-role="workflow-editor-drag-preview">

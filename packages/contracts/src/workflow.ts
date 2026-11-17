@@ -4,6 +4,7 @@ import {
 	eventKindSchema,
 	threadSubjectSchema,
 } from "./events.ts";
+import { closeGifSchema } from "./response.ts";
 import {
 	cronShortestGap,
 	isValidTimeZone,
@@ -259,6 +260,7 @@ export const postCommentParamsSchema = z.object({
 			MAX_COMMENT_MESSAGE,
 			`keep it under ${MAX_COMMENT_MESSAGE} characters`,
 		),
+	gif: closeGifSchema.nullable().optional(),
 });
 export type PostCommentParams = z.infer<typeof postCommentParamsSchema>;
 
