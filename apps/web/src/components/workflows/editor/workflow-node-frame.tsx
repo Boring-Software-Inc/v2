@@ -16,6 +16,7 @@ import {
 interface WorkflowNodeFrameProps {
 	nodeId: string;
 	selected: boolean;
+	surface?: "default" | "comment";
 	cornerOutput?: boolean;
 	dropState?: "origin" | "open" | "closed";
 	children: ReactNode;
@@ -25,6 +26,7 @@ interface WorkflowNodeFrameProps {
 export function WorkflowNodeFrame({
 	nodeId,
 	selected,
+	surface = "default",
 	cornerOutput = false,
 	dropState,
 	children,
@@ -36,6 +38,7 @@ export function WorkflowNodeFrame({
 		<>
 			<div
 				data-layout-role="workflow-node-frame"
+				data-node-surface={surface === "comment" ? surface : undefined}
 				data-selected={selected || undefined}
 				data-problem-status={status ?? undefined}
 				data-corner-output={cornerOutput || undefined}

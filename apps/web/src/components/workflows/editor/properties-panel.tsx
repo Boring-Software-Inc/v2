@@ -1,6 +1,12 @@
-import type { GateMode, JsonValue, WorkflowNode } from "@tripwire/contracts";
+import type {
+	CloseGif,
+	GateMode,
+	JsonValue,
+	WorkflowNode,
+} from "@tripwire/contracts";
 import {
 	actionTakesSettings,
+	closeGifSchema,
 	GATE_CATALOG,
 	jsonValueSchema,
 	lockParamsSchema,
@@ -20,9 +26,10 @@ import {
 import { NumberInput } from "@tripwire/ui/number-input";
 import { Select, type SelectOption } from "@tripwire/ui/select";
 import { Status } from "@tripwire/ui/status";
-import { SupportingText } from "@tripwire/ui/typography";
+import { Caption, SupportingText } from "@tripwire/ui/typography";
 import { useState } from "react";
 import { z } from "zod";
+import { GifBlockPopover } from "#/components/responses/blocks/gif-block-popover";
 import { LabelPicker } from "#/components/workflows/editor/label-picker";
 import {
 	type FieldSpec,
@@ -63,6 +70,7 @@ export function hasEditableParams(node: WorkflowNode): boolean {
 
 export interface PropertiesPanelProps {
 	node: WorkflowNode;
+	org?: string;
 	readOnly: boolean;
 	onUpdate: (next: WorkflowNode) => void;
 	onTestConnection?: (
@@ -73,6 +81,7 @@ export interface PropertiesPanelProps {
 
 export function PropertiesPanel({
 	node,
+	org = "",
 	readOnly,
 	onUpdate,
 	onTestConnection,
@@ -90,6 +99,7 @@ export function PropertiesPanel({
 			return (
 				<ActionFields
 					node={node}
+					org={org}
 					onTestConnection={onTestConnection}
 					onUpdate={onUpdate}
 					readOnly={readOnly}
@@ -351,11 +361,13 @@ function GateFields({
 
 function ActionFields({
 	node,
+	org,
 	readOnly,
 	onUpdate,
 	onTestConnection,
 }: {
 	node: Extract<WorkflowNode, { type: "action" }>;
+	org: string;
 	readOnly: boolean;
 	onUpdate: (next: WorkflowNode) => void;
 	onTestConnection?: (
@@ -383,7 +395,12 @@ function ActionFields({
 	}
 	if (node.action === "post-comment") {
 		return (
-			<CommentFields node={node} onUpdate={onUpdate} readOnly={readOnly} />
+			<PostCommentFields
+				node={node}
+				onUpdate={onUpdate}
+				org={org}
+				readOnly={readOnly}
+			/>
 		);
 	}
 	if (node.action === "request-fix" || node.action === "note") {
@@ -417,6 +434,70 @@ function ActionFields({
 				value={labels}
 			/>
 		</Field>
+	);
+}
+
+function PostCommentFields({
+	node,
+	org,
+	readOnly,
+	onUpdate,
+}: {
+	node: Extract<WorkflowNode, { type: "action" }>;
+	org: string;
+	readOnly: boolean;
+	onUpdate: (next: WorkflowNode) => void;
+}) {
+	const parsedGif = closeGifSchema.safeParse(node.params?.gif);
+	const gif = parsedGif.success ? parsedGif.data : null;
+	const updateGif = (next: CloseGif | null) =>
+		onUpdate({ ...node, params: { ...node.params, gif: next } });
+
+	return (
+		<>
+			<CommentFields node={node} onUpdate={onUpdate} readOnly={readOnly} />
+			<Field data-field="gif" data-layout-role="workflow-action-property">
+				<FieldLabel>GIF</FieldLabel>
+				{gif ? (
+					<figure data-layout-role="workflow-comment-gif-preview">
+						<img
+							alt={gif.title || "Selected GIF"}
+							data-layout-role="workflow-comment-gif-image"
+							height={gif.height}
+							src={gif.url}
+							width={gif.width}
+						/>
+						<figcaption data-layout-role="workflow-comment-gif-caption">
+							<Caption>{gif.title || "Selected GIF"}</Caption>
+						</figcaption>
+					</figure>
+				) : (
+					<FieldDescription>
+						Add an allowlisted GIPHY image beneath the comment.
+					</FieldDescription>
+				)}
+				<div data-layout-role="workflow-comment-gif-actions">
+					<GifBlockPopover
+						disabled={readOnly || org === ""}
+						gif={gif}
+						onPick={updateGif}
+						org={org}
+						scope="workflows"
+						variant="primary"
+					/>
+					{gif ? (
+						<Button
+							disabled={readOnly}
+							onAction={() => updateGif(null)}
+							size="small"
+							variant="ghost"
+						>
+							Remove
+						</Button>
+					) : null}
+				</div>
+			</Field>
+		</>
 	);
 }
 

@@ -96,6 +96,56 @@ test("lock actions render a nullable reason without a reserved option value", ()
 	expect(html).toContain("Off-topic");
 });
 
+test("post-comment properties show authored GIF media without enabling read-only controls", () => {
+	const html = renderToStaticMarkup(
+		<PropertiesPanel
+			node={{
+				id: "comment",
+				type: "action",
+				action: "post-comment",
+				params: {
+					message: "The build is ready.",
+					gif: {
+						id: "abc123",
+						url: "https://media2.giphy.com/media/abc123/giphy.gif",
+						width: 480,
+						height: 270,
+						title: "Ship it",
+					},
+				},
+			}}
+			onUpdate={() => undefined}
+			org="test-org"
+			readOnly
+		/>,
+	);
+	expect(html).toContain("The build is ready.");
+	expect(html).toContain('alt="Ship it"');
+	expect(html).toContain("Change GIF");
+	expect(html).toContain("Remove");
+	expect(html.match(/disabled=""/g)?.length).toBeGreaterThanOrEqual(3);
+});
+
+test("read-only empty comment GIF stays closed behind its disabled trigger", () => {
+	const html = renderToStaticMarkup(
+		<PropertiesPanel
+			node={{
+				id: "comment",
+				type: "action",
+				action: "post-comment",
+				params: { message: "The build is ready." },
+			}}
+			onUpdate={() => undefined}
+			org="test-org"
+			readOnly
+		/>,
+	);
+	expect(html).toContain("Pick a GIF");
+	expect(html).toContain('disabled=""');
+	expect(html).not.toContain("Search GIPHY");
+	expect(html).not.toContain("Powered by GIPHY");
+});
+
 test.each([
 	false,
 	true,

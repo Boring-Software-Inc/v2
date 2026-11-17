@@ -22,6 +22,7 @@ const USERS = {
 	admin: generateId(),
 	member: generateId(),
 	moderator: generateId(),
+	workflowManager: generateId(),
 	outsider: generateId(),
 };
 
@@ -82,6 +83,12 @@ beforeAll(async () => {
 		role: "moderator",
 		permission: JSON.stringify(scopesToStatements({ moderation: "manage" })),
 	});
+	await db.insert(schema.organizationRole).values({
+		id: generateId(),
+		organizationId: orgId,
+		role: "workflow-manager",
+		permission: JSON.stringify(scopesToStatements({ workflows: "manage" })),
+	});
 	await db.insert(schema.member).values([
 		{
 			id: generateId(),
@@ -100,6 +107,12 @@ beforeAll(async () => {
 			organizationId: orgId,
 			userId: USERS.moderator,
 			role: "moderator",
+		},
+		{
+			id: generateId(),
+			organizationId: orgId,
+			userId: USERS.workflowManager,
+			role: "workflow-manager",
 		},
 	]);
 }, 120_000);
@@ -161,6 +174,24 @@ describe("every org server fn, gated on a real database", () => {
 				ok: await allowed(USERS.member, fn.requirement),
 			}).toEqual({ name: fn.name, ok: expected });
 		}
+	});
+
+	test("a workflow manager can search workflow GIFs without response access", async () => {
+		const workflowSearch = ORG_FNS.find(
+			(entry) => entry.name === "searchWorkflowGifs",
+		);
+		const responseSearch = ORG_FNS.find(
+			(entry) => entry.name === "searchCloseGifs",
+		);
+		if (!(workflowSearch && responseSearch)) {
+			throw new Error("GIF search functions were not discovered");
+		}
+		expect(
+			await allowed(USERS.workflowManager, workflowSearch.requirement),
+		).toBe(true);
+		expect(
+			await allowed(USERS.workflowManager, responseSearch.requirement),
+		).toBe(false);
 	});
 
 	test("an admin reaches every org fn", async () => {

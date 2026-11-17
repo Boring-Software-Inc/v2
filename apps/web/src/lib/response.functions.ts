@@ -195,13 +195,6 @@ export const searchCloseGifs = createServerFn({ method: "GET" })
 		offset: Number(input.offset) || 0,
 	}))
 	.handler(async ({ data }): Promise<GiphyPage> => {
-		const { readSessionState } = await import("#/lib/server/session");
-		const { giphyDeps } = await import("#/lib/server/giphy-store");
-		const { searchGiphy } = await import("#/lib/server/giphy-search");
-		const session = await readSessionState();
-		return searchGiphy(await giphyDeps(), {
-			userId: session.userId ?? "open",
-			query: data.query,
-			offset: data.offset,
-		});
+		const { searchServedGifs } = await import("#/lib/server/giphy-store");
+		return searchServedGifs(data);
 	});

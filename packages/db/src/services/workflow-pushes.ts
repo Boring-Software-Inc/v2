@@ -28,6 +28,7 @@ import { user } from "../schema/auth.ts";
 import { repos, workflowDefinitions } from "../schema/repos.ts";
 import { workflowPushProposals } from "../schema/workflow-pushes.ts";
 import { openDraftMarks, promoteSavedDrafts } from "./agent-work.ts";
+import { settleWorkflowGifs } from "./workflow-gifs.ts";
 import {
 	listWorkflowRows,
 	liveSaveRefusals,
@@ -121,10 +122,13 @@ export async function proposeWorkflowPush(
 	},
 ): Promise<ProposeWorkflowPushResult> {
 	const now = input.now ?? new Date();
+	const definitions = await Promise.all(
+		input.definitions.map((definition) => settleWorkflowGifs(db, definition)),
+	);
 	const [preview, rows] = await Promise.all([
 		previewWorkflowPush(db, {
 			repoId: input.repoId,
-			definitions: input.definitions,
+			definitions,
 		}),
 		listWorkflowRows(db, input.repoId),
 	]);
@@ -133,7 +137,7 @@ export async function proposeWorkflowPush(
 			.filter((entry) => entry.changes.length > 0)
 			.map((entry) => entry.id),
 	);
-	const changed = input.definitions.filter((definition) =>
+	const changed = definitions.filter((definition) =>
 		changedIds.has(definition.id),
 	);
 	if (changed.length === 0) {
@@ -144,7 +148,7 @@ export async function proposeWorkflowPush(
 			...preview,
 			workflows: preview.workflows.filter((entry) => changedIds.has(entry.id)),
 		},
-		input.definitions,
+		definitions,
 		rows,
 	);
 	if (blocks.length > 0) {
@@ -398,8 +402,9 @@ async function applyEntry(
 ): Promise<WorkflowPushOutcome> {
 	const base = rows.find((row) => row.id === entry.baseWorkflowId);
 	if (!base) {
-		const definition = workflowDefinitionSchema.parse(
-			pushedDefinition(null, entry.definition),
+		const definition = await settleWorkflowGifs(
+			tx,
+			workflowDefinitionSchema.parse(pushedDefinition(null, entry.definition)),
 		);
 		const workflowId = generateId();
 		await tx.insert(workflowDefinitions).values({
@@ -418,8 +423,11 @@ async function applyEntry(
 			workflowId,
 		};
 	}
-	const merged = workflowDefinitionSchema.parse(
-		pushedDefinition(base.definition, entry.definition),
+	const merged = await settleWorkflowGifs(
+		tx,
+		workflowDefinitionSchema.parse(
+			pushedDefinition(base.definition, entry.definition),
+		),
 	);
 	await tx
 		.update(workflowDefinitions)

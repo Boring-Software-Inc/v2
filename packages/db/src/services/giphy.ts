@@ -1,4 +1,9 @@
-import { type GiphyPageRecord, giphyPageSchema } from "@tripwire/contracts";
+import {
+	type CloseGif,
+	closeGifFromGiphy,
+	type GiphyPageRecord,
+	giphyPageSchema,
+} from "@tripwire/contracts";
 import { and, eq, lt, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { giphyBudget, giphyCache, giphyFills } from "../schema/giphy.ts";
@@ -49,7 +54,7 @@ export async function writeGiphyCache(
 }
 
 export async function findCachedGiphyPage(
-	db: Db,
+	db: Pick<Db, "select">,
 	gifId: string,
 ): Promise<GiphyPageRecord | null> {
 	const rows = await db
@@ -61,6 +66,15 @@ export async function findCachedGiphyPage(
 		.limit(1);
 	const body = giphyPageSchema.safeParse(rows[0]?.body);
 	return body.success ? body.data : null;
+}
+
+export async function resolveCachedGiphyGif(
+	db: Pick<Db, "select">,
+	gifId: string,
+): Promise<CloseGif | null> {
+	const page = await findCachedGiphyPage(db, gifId);
+	const gif = page?.data.find((candidate) => candidate.id === gifId);
+	return gif ? closeGifFromGiphy(gif) : null;
 }
 
 export async function claimGiphyFill(

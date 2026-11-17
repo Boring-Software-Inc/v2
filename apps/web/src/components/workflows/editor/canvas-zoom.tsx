@@ -1,40 +1,45 @@
-import { Button } from "@tripwire/ui/button";
+import { IconButton } from "@tripwire/ui/button";
 import { Add, FitView, Icon, Subtract } from "@tripwire/ui/icon";
 import { Panel, useReactFlow } from "@xyflow/react";
+
+export function fitViewOptions() {
+	return {
+		padding: {
+			left: "48px",
+			right: "48px",
+			top: "64px",
+			bottom: "48px",
+		},
+	} as const;
+}
 
 export function CanvasZoom() {
 	const { zoomIn, zoomOut, fitView } = useReactFlow();
 	return (
 		<Panel
 			aria-label="Zoom"
-			className="!m-3 flex flex-col gap-0.5 rounded-overlay border border-line bg-paper p-0.5"
+			data-layout-role="workflow-canvas-zoom"
 			position="bottom-right"
 			role="group"
 		>
-			<Button
-				ariaLabel="Zoom in"
+			<IconButton
+				icon={<Icon icon={Add} />}
+				label="Zoom in"
 				onAction={() => zoomIn()}
 				size="small"
-				variant="ghost"
-			>
-				<Icon icon={Add} />
-			</Button>
-			<Button
-				ariaLabel="Zoom out"
+			/>
+			<IconButton
+				icon={<Icon icon={Subtract} />}
+				label="Zoom out"
 				onAction={() => zoomOut()}
 				size="small"
-				variant="ghost"
-			>
-				<Icon icon={Subtract} />
-			</Button>
-			<Button
-				ariaLabel="Fit to view"
-				onAction={() => fitView()}
+			/>
+			<IconButton
+				icon={<Icon icon={FitView} />}
+				label="Fit to view"
+				onAction={() => fitView(fitViewOptions())}
 				size="small"
-				variant="ghost"
-			>
-				<Icon icon={FitView} />
-			</Button>
+			/>
 		</Panel>
 	);
 }

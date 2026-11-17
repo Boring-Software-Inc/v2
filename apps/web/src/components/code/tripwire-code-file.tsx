@@ -1,6 +1,6 @@
 import { CopyButton } from "@tripwire/ui/copy-button";
 import { Copy, Icon } from "@tripwire/ui/icon";
-import { lazy, type ReactNode, Suspense, useCallback, useState } from "react";
+import { type ReactNode, Suspense, useCallback, useState } from "react";
 import { useCodeDark, WrapToggle } from "#/components/code/code-controls";
 import { CodeHeader } from "#/components/code/code-header";
 import {
@@ -8,15 +8,11 @@ import {
 	type LineRange,
 	parseLineAnchor,
 } from "#/components/code/line-anchor";
-import { PlainCode } from "#/components/code/plain-code";
+import {
+	CodeRendererLoading,
+	LazyPierreFile,
+} from "#/components/code/pierre-code-loader";
 import { cn } from "#/lib/utils";
-
-const PierreFile = lazy(() =>
-	import("#/components/code/pierre-code").then(
-		(module) => ({ default: module.PierreFile }),
-		() => ({ default: PlainCode }),
-	),
-);
 
 export interface TripwireCodeFileProps {
 	name: string;
@@ -51,9 +47,9 @@ export function TripwireCodeFile({
 			`${pathname}${search}${formatLineAnchor(range)}`,
 		);
 	}, []);
-	const plain = <PlainCode code={code} />;
 	return (
 		<div
+			aria-busy={!mounted ? true : undefined}
 			className={cn(
 				"code-surface min-w-0 overflow-hidden rounded-lg",
 				className,
@@ -73,8 +69,8 @@ export function TripwireCodeFile({
 				/>
 			</CodeHeader>
 			{mounted ? (
-				<Suspense fallback={plain}>
-					<PierreFile
+				<Suspense fallback={<CodeRendererLoading />}>
+					<LazyPierreFile
 						code={code}
 						dark={dark}
 						name={name}
@@ -84,7 +80,7 @@ export function TripwireCodeFile({
 					/>
 				</Suspense>
 			) : (
-				plain
+				<CodeRendererLoading />
 			)}
 		</div>
 	);
