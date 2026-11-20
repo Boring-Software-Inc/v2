@@ -6,6 +6,7 @@ import {
 	gitCafeCheckRerequestedEventSchema,
 	gitCafeDispatchableRepositoryEventSchema,
 	gitCafeHydratedCommentEventSchema,
+	gitCafeHydratedIssueEventSchema,
 	gitCafeHydratedPullEventSchema,
 	gitCafePullIdentitySchema,
 	gitCafePushEventSchema,
@@ -41,9 +42,11 @@ import {
 	type GitCafeInstallationClientOptions,
 	GitCafeReads,
 	hydrateGitCafeCommentEvent,
+	hydrateGitCafeIssueEvent,
 	hydrateGitCafePullEvent,
 	hydrateGitCafePushRef,
 	normalizeGitCafeCommentEvent,
+	normalizeGitCafeIssueEvent,
 	normalizeGitCafePullEvent,
 	normalizeGitCafePushRef,
 	verifyGitCafeCheckRerequest,
@@ -335,6 +338,8 @@ export function buildGitCafeRuntime(
 	const normalize = (raw: RawForgeEvent, receivedAt: string) => {
 		const parsed = parseJson(raw.body, gitCafeHydratedPullEventSchema);
 		if (parsed) return normalizeGitCafePullEvent(parsed, receivedAt);
+		const issue = parseJson(raw.body, gitCafeHydratedIssueEventSchema);
+		if (issue) return normalizeGitCafeIssueEvent(issue, receivedAt);
 		const comment = parseJson(raw.body, gitCafeHydratedCommentEventSchema);
 		return comment ? normalizeGitCafeCommentEvent(comment, receivedAt) : null;
 	};
@@ -637,6 +642,20 @@ export function buildGitCafeRuntime(
 					? {
 							ok: true,
 							value: normalizeGitCafeCommentEvent(hydrated.value, receivedAt),
+						}
+					: hydrated;
+			}
+			if (event.type === "issue.created") {
+				const hydrated = await hydrateGitCafeIssueEvent(
+					bound.client,
+					bound.installation,
+					event,
+					Date.now() + 300_000,
+				);
+				return hydrated.ok
+					? {
+							ok: true,
+							value: normalizeGitCafeIssueEvent(hydrated.value, receivedAt),
 						}
 					: hydrated;
 			}

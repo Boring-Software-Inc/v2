@@ -2,9 +2,11 @@ import {
 	type GitCafeCommentEvent,
 	type GitCafeCommentIdentity,
 	type GitCafeHydratedCommentEvent,
+	type GitCafeHydratedIssueEvent,
 	type GitCafeHydratedPullEvent,
 	type GitCafeHydratedPushRef,
 	type GitCafeInstallation,
+	type GitCafeIssueEvent,
 	type GitCafePullEvent,
 	type GitCafePushEvent,
 	gitCafeCommentDetailSchema,
@@ -12,11 +14,14 @@ import {
 	gitCafeCommentSubjectSchema,
 	gitCafeCompletePushEventSchema,
 	gitCafeHydratedCommentEventSchema,
+	gitCafeHydratedIssueEventSchema,
 	gitCafeHydratedPullEventSchema,
 	gitCafeHydratedPushRefSchema,
 	gitCafeIssueCommentPageSchema,
+	gitCafeIssueEventSchema,
 	gitCafePullEventSchema,
 	gitCafePullIdentitySchema,
+	gitCafeReadIssueThreadSchema,
 	type NormalizedEvent,
 	normalizedEventSchema,
 } from "@tripwire/contracts";
@@ -126,6 +131,170 @@ export type GitCafeCommentHydrationResult =
 			ok: false;
 			reason: "stale-event" | "author-unavailable" | "comment-unavailable";
 	  };
+
+export type GitCafeIssueHydrationResult =
+	| { ok: true; value: GitCafeHydratedIssueEvent }
+	| GitCafeReadFailure
+	| { ok: false; reason: "stale-event" | "author-unavailable" };
+
+/** The installed issue read binds the unsigned author identity and rejects a changed creation snapshot. */
+export async function hydrateGitCafeIssueEvent(
+	client: GitCafeInstallationClient,
+	expectedInstallation: GitCafeInstallation,
+	input: GitCafeIssueEvent,
+	deadlineAt?: number,
+): Promise<GitCafeIssueHydrationResult> {
+	const parsed = gitCafeIssueEventSchema.safeParse(input);
+	if (!parsed.success) return { ok: false, reason: "invalid-response" };
+	const event = parsed.data;
+	if (
+		event.installation.id !== expectedInstallation.id ||
+		event.repository.owner !== expectedInstallation.org
+	)
+		return { ok: false, reason: "identity-mismatch" };
+	const repository = await client.getRepository(
+		expectedInstallation.id,
+		event.repository.owner,
+		event.repository.name,
+		expectedInstallation,
+		deadlineAt,
+	);
+	if (!repository.ok) return repository;
+	if (
+		repository.value.id !== event.repository.id ||
+		repository.value.owner !== event.repository.owner ||
+		repository.value.name !== event.repository.name ||
+		repository.value.archivedAt !== null
+	)
+		return { ok: false, reason: "identity-mismatch" };
+	const repo = `${event.repository.owner}/${event.repository.name}`;
+	const response = await client.request(
+		expectedInstallation.id,
+		{
+			method: "GET",
+			resourcePath: `repos/${repo}/issues/${event.issue.number}`,
+		},
+		expectedInstallation,
+		deadlineAt,
+	);
+	if (!response.ok) return response;
+	const current = gitCafeReadIssueThreadSchema.safeParse(response.value);
+	if (!current.success) return { ok: false, reason: "invalid-response" };
+	const issue = current.data;
+	if (
+		issue.id !== event.issue.id ||
+		issue.number !== event.issue.number ||
+		issue.repoId !== event.repository.id ||
+		issue.author.actorId !== issue.authorActorId
+	)
+		return { ok: false, reason: "identity-mismatch" };
+	if (
+		issue.version !== event.issue.version ||
+		issue.title !== event.issue.title ||
+		issue.description !== event.issue.description ||
+		issue.stateType !== event.issue.state ||
+		(issue.lockedAt !== null) !== event.issue.locked ||
+		["completed", "canceled"].includes(issue.stateType)
+	)
+		return { ok: false, reason: "stale-event" };
+	if (!issue.authorActorId || !issue.author.handle)
+		return { ok: false, reason: "author-unavailable" };
+	const author = {
+		login: issue.author.handle,
+		externalId: issue.authorActorId,
+		avatarUrl: issue.author.avatarUrl ?? undefined,
+	};
+	const sender =
+		event.actor?.id === expectedInstallation.bot.actorId
+			? {
+					login: expectedInstallation.bot.handle,
+					externalId: expectedInstallation.bot.actorId,
+				}
+			: event.actor?.id === author.externalId
+				? author
+				: undefined;
+	const reads = new GitCafeReads({
+		client,
+		installationId: expectedInstallation.id,
+		expectedInstallation,
+	});
+	const profile = await reads.getContributorProfile(
+		repo,
+		author.login,
+		author.externalId,
+	);
+	if (!profile.ok) return profile;
+	const finalResponse = await client.request(
+		expectedInstallation.id,
+		{
+			method: "GET",
+			resourcePath: `repos/${repo}/issues/${event.issue.number}`,
+		},
+		expectedInstallation,
+		deadlineAt,
+	);
+	if (!finalResponse.ok) return finalResponse;
+	const final = gitCafeReadIssueThreadSchema.safeParse(finalResponse.value);
+	if (!final.success) return { ok: false, reason: "invalid-response" };
+	if (
+		final.data.id !== issue.id ||
+		final.data.number !== issue.number ||
+		final.data.repoId !== issue.repoId ||
+		final.data.authorActorId !== issue.authorActorId
+	)
+		return { ok: false, reason: "identity-mismatch" };
+	if (
+		final.data.version !== issue.version ||
+		final.data.title !== issue.title ||
+		final.data.description !== issue.description ||
+		final.data.stateType !== issue.stateType ||
+		final.data.lockedAt !== issue.lockedAt
+	)
+		return { ok: false, reason: "stale-event" };
+	return {
+		ok: true,
+		value: gitCafeHydratedIssueEventSchema.parse({
+			event,
+			author,
+			sender,
+			maintainer: profile.value.isMaintainer === true,
+		}),
+	};
+}
+
+/** Pure projection after the installed read binds the issue author and maintainer status. */
+export function normalizeGitCafeIssueEvent(
+	input: GitCafeHydratedIssueEvent,
+	receivedAt: string,
+): NormalizedEvent {
+	const { event, author, sender, maintainer } =
+		gitCafeHydratedIssueEventSchema.parse(input);
+	const fullName = `${event.repository.owner}/${event.repository.name}`;
+	return normalizedEventSchema.parse({
+		id: generateId(),
+		forge: "gitcafe",
+		deliveryId: JSON.stringify([event.installation.id, event.id]),
+		kind: "issue.opened",
+		repo: {
+			owner: event.repository.owner,
+			name: event.repository.name,
+			fullName,
+		},
+		repoExternalId: event.repository.id,
+		installationExternalId: event.installation.id,
+		actor: author,
+		sender,
+		occurredAt: event.createdAt,
+		receivedAt,
+		issue: {
+			number: event.issue.number,
+			title: event.issue.title,
+			body: event.issue.description,
+			maintainer,
+			url: `https://git.cafe/${fullName}/issues/${event.issue.number}`,
+		},
+	});
+}
 
 /** Comment evidence belongs to its live author, independently of the PR author or event sender. */
 export async function hydrateGitCafeCommentEvent(

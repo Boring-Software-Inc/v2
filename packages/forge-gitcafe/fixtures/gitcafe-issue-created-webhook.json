@@ -1,0 +1,35 @@
+{
+	"id": "evt_01m7vh9mdrf25bna072yb7pa8j",
+	"type": "issue.created",
+	"actor": {
+		"id": "act_01m08gfttrfw3ba3xpz50vq38h"
+	},
+	"issue": {
+		"id": "issue_01m7vh9mdjet2r2q7tq2hgkft8",
+		"state": "backlog",
+		"title": "Tripwire issue-created acceptance 2026-11-19",
+		"locked": false,
+		"number": 4,
+		"pinned": false,
+		"dueDate": null,
+		"version": 0,
+		"labelIds": [],
+		"priority": 0,
+		"lockReason": null,
+		"assigneeIds": [],
+		"description": "Disposable staging fixture capture for GitCafe issue moderation parity.",
+		"milestoneId": null,
+		"closedReason": null
+	},
+	"version": "1",
+	"createdAt": "2026-11-20T03:51:39.192Z",
+	"repository": {
+		"id": "repo_01m608d2crfqzt2vc8akngqsc0",
+		"name": "scratch",
+		"orgId": "org_01m601398vfdztay7fh3vaenpn",
+		"owner": "boring"
+	},
+	"installation": {
+		"id": "ins_01m60zef0bfzzbx050fw4rymhr"
+	}
+}

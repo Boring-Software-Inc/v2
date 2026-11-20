@@ -944,3 +944,21 @@ manual index and drop-line implementation made the lifted row feel disconnected
 from the list and allowed rapid pointer movement to produce abrupt placement.
 The official sortable package adds those missing behaviors without introducing
 a second drag-and-drop system or changing persisted response data.
+
+## 2026-11-19 | GitCafe queues start with the standard worker
+
+The standard worker registers GitCafe's isolated protection, lifecycle, and
+connection queues whenever staging receipt admission is enabled. Both forge
+runtimes share the process's single pg-boss instance but retain separate queue
+names, supervision, action locks, and recovery contracts. The dedicated
+GitCafe worker modes remain available for focused verification.
+
+Activation fails closed. Enabling GitCafe receipt admission without the exact
+staging application identity and complete credentials prevents the worker from
+starting. The standard health check reports GitCafe as live, degraded, or
+disabled and returns an unhealthy response when an enabled GitCafe runtime is
+not healthy.
+
+This replaces the staging requirement to change `WORKER_MODE` by hand. A
+routine pause, resume, or redeploy now restores GitHub and GitCafe consumers
+together from the same saved configuration.

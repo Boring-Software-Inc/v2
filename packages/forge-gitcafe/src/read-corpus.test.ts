@@ -6,6 +6,7 @@ import {
 	gitCafeReadCommitsSchema,
 	gitCafeReadDiffFileSchema,
 	gitCafeReadIssueThreadPageSchema,
+	gitCafeReadIssueThreadSchema,
 	gitCafeReadProfileSchema,
 	gitCafeReadPullPageSchema,
 	gitCafeReadPullSchema,
@@ -16,6 +17,7 @@ import {
 import publicProfile from "../fixtures/gitcafe-profile.json";
 import pull from "../fixtures/gitcafe-pull.json";
 import collaborators from "../fixtures/gitcafe-read-collaborators.json";
+import issue4 from "../fixtures/gitcafe-read-issue-4.json";
 import issueThreads from "../fixtures/gitcafe-read-issues-list.json";
 import emptyIssues from "../fixtures/gitcafe-read-issues-list-empty.json";
 import profile from "../fixtures/gitcafe-read-profile.json";
@@ -38,6 +40,11 @@ describe("captured GitCafe read boundaries", () => {
 		expect(current.id).toBe(listed.id);
 		expect(current.version).toBe(listed.version);
 		expect(current.version).toBe(1);
+		expect(gitCafeReadIssueThreadSchema.parse(issue4)).toMatchObject({
+			number: 4,
+			description:
+				"Disposable staging fixture capture for GitCafe issue moderation parity.",
+		});
 	});
 	test("parses installed branch and thread pages without inventing missing detail", () => {
 		expect(

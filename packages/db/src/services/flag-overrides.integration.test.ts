@@ -119,7 +119,7 @@ beforeAll(async () => {
 	pool = handle.pool;
 	await applyMigrations(db);
 	staff = await seedUser("grim");
-});
+}, 120_000);
 afterAll(async () => {
 	await pool.end();
 	await container.stop();

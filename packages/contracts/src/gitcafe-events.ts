@@ -43,6 +43,35 @@ export const gitCafePullEventSchema = gitCafeRepositoryEventSchema.extend({
 });
 export type GitCafePullEvent = z.infer<typeof gitCafePullEventSchema>;
 
+export const gitCafeIssueEventSchema = gitCafeRepositoryEventSchema.extend({
+	type: z.literal("issue.created"),
+	issue: z.object({
+		id: z.string().min(1).max(255),
+		number: z.number().int().positive().max(2147483647),
+		version: z.number().int().nonnegative().safe(),
+		title: z.string().max(255),
+		description: z.string().max(65536).nullable(),
+		state: z.enum([
+			"triage",
+			"backlog",
+			"unstarted",
+			"started",
+			"completed",
+			"canceled",
+		]),
+		locked: z.boolean(),
+		pinned: z.boolean(),
+		dueDate: z.iso.datetime().nullable(),
+		labelIds: z.array(z.string().min(1).max(255)).max(100),
+		priority: z.number().int().min(0).max(4),
+		lockReason: z.string().nullable(),
+		assigneeIds: z.array(z.string().min(1).max(255)).max(20),
+		milestoneId: z.string().min(1).max(255).nullable(),
+		closedReason: z.string().nullable(),
+	}),
+});
+export type GitCafeIssueEvent = z.infer<typeof gitCafeIssueEventSchema>;
+
 export const gitCafePullIdentitySchema =
 	gitCafePullEventSchema.shape.pull.extend({
 		repoId: z.string().min(1),
@@ -168,6 +197,7 @@ export type GitCafeHydratedCommentEvent = z.infer<
 
 export const gitCafeDispatchableRepositoryEventTypeSchema = z.enum([
 	...gitCafePullEventSchema.shape.type.options,
+	"issue.created",
 	"pull.comment_created",
 	"issue.comment_created",
 ]);
@@ -177,6 +207,7 @@ export type GitCafeDispatchableRepositoryEventType = z.infer<
 
 export const gitCafeDispatchableRepositoryEventSchema = z.union([
 	gitCafePullEventSchema,
+	gitCafeIssueEventSchema,
 	gitCafeCommentEventSchema,
 ]);
 export type GitCafeDispatchableRepositoryEvent = z.infer<
@@ -198,6 +229,22 @@ export const gitCafeHydratedPullEventSchema = z
 	);
 export type GitCafeHydratedPullEvent = z.infer<
 	typeof gitCafeHydratedPullEventSchema
+>;
+
+export const gitCafeHydratedIssueEventSchema = z
+	.strictObject({
+		event: gitCafeIssueEventSchema,
+		author: eventActorSchema.extend({ login: z.string().min(1) }),
+		sender: eventActorSchema.optional(),
+		maintainer: z.boolean(),
+	})
+	.refine(
+		(value) =>
+			value.sender === undefined ||
+			value.sender.externalId === value.event.actor?.id,
+	);
+export type GitCafeHydratedIssueEvent = z.infer<
+	typeof gitCafeHydratedIssueEventSchema
 >;
 
 export const gitCafeCheckRerequestedEventSchema =

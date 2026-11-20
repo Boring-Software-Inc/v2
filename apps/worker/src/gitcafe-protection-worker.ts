@@ -32,6 +32,7 @@ import { GitCafeInstallationClient } from "@tripwire/forge-gitcafe";
 import { generateId } from "@tripwire/utils";
 import type { PgBoss } from "pg-boss";
 import type { Logger } from "pino";
+import type { z } from "zod";
 import { createGenerate } from "./ai/generate.ts";
 import {
 	gitCafeConnectionWorkerEnvSchema,
@@ -60,6 +61,24 @@ const PROTECTION_QUEUES = [
 	GITCAFE_SCHEDULE_TICK_QUEUE,
 	GITCAFE_BACKFILL_REPO_QUEUE,
 ];
+
+type GitCafeProtectionEnv = z.infer<typeof gitCafeConnectionWorkerEnvSchema>;
+
+export interface GitCafeProtectionRuntime {
+	healthy(): boolean;
+	queues: string[];
+	stop(): Promise<void>;
+}
+
+export function resolveGitCafeProtectionEnv(
+	environment: Record<string, string | undefined>,
+): GitCafeProtectionEnv | null {
+	if (environment.GITCAFE_WEBHOOK_RECEIPTS_ENABLED !== "true") return null;
+	const parsed = gitCafeConnectionWorkerEnvSchema.safeParse(environment);
+	if (!parsed.success)
+		throw new Error("Invalid staging GitCafe protection worker configuration");
+	return parsed.data;
+}
 
 /** Dedicated queues and scoped supervision keep every legacy forge backlog idle. */
 export async function registerGitCafeProtectionQueues(
@@ -315,20 +334,19 @@ export async function registerGitCafeProtectionQueues(
 	return PROTECTION_QUEUES;
 }
 
-export async function startGitCafeProtectionWorker(
+export async function startGitCafeProtectionRuntime(
 	logger: Logger,
-): Promise<void> {
-	const parsed = gitCafeConnectionWorkerEnvSchema.safeParse(process.env);
-	if (
-		!parsed.success ||
-		parsed.data.GITCAFE_WEBHOOK_RECEIPTS_ENABLED !== "true"
-	)
-		throw new Error("Invalid staging GitCafe protection worker configuration");
-	const env = parsed.data;
+	bossOverride?: PgBoss,
+): Promise<GitCafeProtectionRuntime | null> {
+	const env = resolveGitCafeProtectionEnv(process.env);
+	if (!env) return null;
 	const { db, pool } = createDb(env.DATABASE_URL);
 	const directPool = createDirectPool();
 	const actionPool = createDirectPool();
-	const boss = await createGitCafeConnectionBoss(env.DATABASE_URL, logger);
+	const boss =
+		bossOverride ??
+		(await createGitCafeConnectionBoss(env.DATABASE_URL, logger));
+	const ownsBoss = bossOverride === undefined;
 	const health = observeGitCafeQueueHealth(boss);
 	const credentials = {
 		appId: env.GITCAFE_APP_ID,
@@ -391,29 +409,47 @@ export async function startGitCafeProtectionWorker(
 		await pool.end();
 		throw error;
 	}
+	const stop = async () => {
+		health.degrade();
+		if (ownsBoss) await boss.stop({ graceful: true, timeout: 30_000 });
+		await directPool.end();
+		await actionPool.end();
+		await pool.end();
+	};
+	logger.info(
+		{ mode: "gitcafe-protection", queues },
+		"GitCafe protection worker up",
+	);
+	return { healthy: () => health.healthy, queues, stop };
+}
+
+export async function startGitCafeProtectionWorker(
+	logger: Logger,
+): Promise<void> {
+	const runtime = await startGitCafeProtectionRuntime(logger);
+	if (!runtime)
+		throw new Error("Invalid staging GitCafe protection worker configuration");
+	const port = gitCafeConnectionWorkerEnvSchema.parse(process.env).PORT;
 	const server = Bun.serve({
-		port: env.PORT,
+		port,
 		fetch(request) {
+			const healthy = runtime.healthy();
 			return new URL(request.url).pathname === "/healthz"
 				? Response.json(
-						{ ok: health.healthy, mode: "gitcafe-protection", queues },
-						{ status: health.healthy ? 200 : 503 },
+						{
+							ok: healthy,
+							mode: "gitcafe-protection",
+							queues: runtime.queues,
+						},
+						{ status: healthy ? 200 : 503 },
 					)
 				: new Response("not found", { status: 404 });
 		},
 	});
 	const stop = async () => {
-		health.degrade();
 		server.stop(true);
-		await boss.stop({ graceful: true, timeout: 30_000 });
-		await directPool.end();
-		await actionPool.end();
-		await pool.end();
+		await runtime.stop();
 	};
 	process.once("SIGTERM", stop);
 	process.once("SIGINT", stop);
-	logger.info(
-		{ mode: "gitcafe-protection", queues },
-		"GitCafe protection worker up",
-	);
 }
