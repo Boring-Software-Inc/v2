@@ -1,5 +1,6 @@
 import { DndContext, DragOverlay } from "@dnd-kit/core";
 import type {
+	ForgeId,
 	RedactionPolicy,
 	ResponseBlock,
 	ResponseConfig,
@@ -42,6 +43,7 @@ const LOCAL_APPEARANCE = {
 } as const;
 
 export interface ResponseBuilderProps {
+	forge: ForgeId | null;
 	outcome: OutcomeMeta;
 	config: ResponseConfig;
 	policy: RedactionPolicy;
@@ -54,6 +56,7 @@ export interface ResponseBuilderProps {
 }
 
 export function ResponseBuilder({
+	forge,
 	outcome,
 	config,
 	policy,
@@ -74,11 +77,17 @@ export function ResponseBuilder({
 		canEdit,
 	);
 	const dnd = useBlockDnd(builder);
-	const preview = responsePreview(config, outcome, policy, builder.view.viewer);
+	const preview = responsePreview(
+		config,
+		outcome,
+		policy,
+		builder.view.viewer,
+		forge,
+	);
 	const readOnly = !canEdit;
 	const rulesHidden = variableHidden("failed-rules", preview.lens);
 	const helpDefaultContent = defaultHelpContent(
-		sampleInput(outcome).reasons,
+		sampleInput(outcome, forge).reasons,
 		lensLevel(preview.lens),
 	);
 	const dragged = builder.drag?.item;
@@ -118,6 +127,7 @@ export function ResponseBuilder({
 									<RedactionSettings
 										canEdit={canEdit}
 										config={config}
+										forge={forge}
 										effective={policy}
 										orgPolicy={orgPolicy}
 										setField={setField}
@@ -130,6 +140,7 @@ export function ResponseBuilder({
 				<ResponseGithubStage
 					builder={builder}
 					check={preview.check}
+					forge={forge}
 					edited={outcome.edited}
 					outputs={preview.outputs}
 					plan={preview.plan}

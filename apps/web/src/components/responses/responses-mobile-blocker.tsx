@@ -57,8 +57,7 @@ export function ResponsesMobileBlocker({
 							Mobile response builder under construction
 						</EmptyStateTitle>
 						<EmptyStateDescription>
-							We’re tuning this editor for smaller screens. Use Tripwire on
-							desktop to build and preview GitHub responses.
+							Use a desktop to build and preview responses.
 						</EmptyStateDescription>
 					</EmptyStateHeader>
 					<EmptyStateContent>

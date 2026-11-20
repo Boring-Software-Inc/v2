@@ -62,7 +62,7 @@ export function ResponseEditor({
 						Response blocks
 					</h2>
 					<p className={LOCAL_APPEARANCE.node51_5}>
-						Select a block to edit its GitHub output.
+						Select a block to edit its output.
 					</p>
 				</div>
 				{readOnly || builder.full ? null : (
@@ -82,7 +82,7 @@ export function ResponseEditor({
 						Post a comment
 					</span>
 					<span className={LOCAL_APPEARANCE.node71_9}>
-						Publish these response blocks on GitHub.
+						Publish these response blocks.
 					</span>
 				</span>
 				<Switch

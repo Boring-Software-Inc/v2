@@ -12,7 +12,7 @@ import {
 
 describe("GitHub response preview chrome", () => {
 	test("keeps the pull request identity around Tripwire's output", () => {
-		const html = renderToStaticMarkup(<PullRequestHeader />);
+		const html = renderToStaticMarkup(<PullRequestHeader forge="github" />);
 
 		expect(html).toContain("[ShanaBoo] test bounty");
 		expect(html).toContain("#231");
@@ -32,6 +32,7 @@ describe("GitHub response preview chrome", () => {
 	test("renders Tripwire's check output inside realistic GitHub checks chrome", () => {
 		const html = renderToStaticMarkup(
 			<GithubChecksPreview
+				forge="github"
 				check={{
 					posted: true,
 					verdict: "block",
@@ -49,13 +50,41 @@ describe("GitHub response preview chrome", () => {
 	});
 
 	test("shows the contributor activity that Tripwire responds to", () => {
-		const html = renderToStaticMarkup(<ContributorCommentPreview />);
+		const html = renderToStaticMarkup(
+			<ContributorCommentPreview forge="github" />,
+		);
 
 		expect(html).toContain("genesisrevelationinc-debug");
 		expect(html).toContain("ShanaBoo Autonomous Fix");
 		expect(html).toContain("Source: GitHub");
 		expect(html).toContain("Auto-submitted by ShanaBoo CNS");
 	});
+
+	for (const forge of ["gitcafe", null] as const) {
+		test(`${forge ?? "unresolved"} chrome identifies sample output without GitHub source or checks`, () => {
+			const html = renderToStaticMarkup(
+				<>
+					<PullRequestHeader forge={forge} />
+					<ContributorCommentPreview forge={forge} />
+					<GithubChecksPreview
+						forge={forge}
+						check={{
+							posted: true,
+							verdict: "block",
+							summary: "Blocked by Crypto address.",
+						}}
+					/>
+				</>,
+			);
+			expect(html).toContain("Sample output");
+			expect(html).toContain("Sample checks");
+			expect(html).toContain("Sample analysis");
+			expect(html).not.toContain("GitHub");
+			expect(html).not.toContain("CodeQL");
+			expect(html).not.toContain("Vercel");
+			expect(html).not.toContain('href="https://github.com');
+		});
+	}
 
 	test("shows the deployment state above the review summary", () => {
 		const html = renderToStaticMarkup(<DeploymentPreview />);

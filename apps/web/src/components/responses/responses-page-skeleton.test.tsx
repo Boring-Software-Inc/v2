@@ -14,10 +14,22 @@ describe("BuilderSkeleton", () => {
 
 		expect(html).toContain('data-layout-role="responses-editor-skeleton"');
 		expect(html).toContain('data-layout-role="responses-preview-loader"');
-		expect(html).toContain("Loading GitHub response preview");
+		expect(html).toContain("Loading response preview");
+		expect(html).not.toContain("GitHub");
 		expect(html).toContain('data-slot="card"');
 		expect(html).not.toContain('data-layout-role="responses-preview-skeleton"');
 	});
+
+	for (const [forge, name] of [
+		["github", "GitHub"],
+		["gitcafe", "GitCafe"],
+	] as const) {
+		test(`names ${name} only after its repository context is resolved`, () => {
+			expect(renderToStaticMarkup(<BuilderSkeleton forge={forge} />)).toContain(
+				`Loading ${name} response preview`,
+			);
+		});
+	}
 
 	test("fills every loading wrapper in the responses inset", () => {
 		expect(layoutCss).toMatch(

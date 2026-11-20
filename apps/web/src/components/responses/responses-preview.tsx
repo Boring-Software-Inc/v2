@@ -1,4 +1,8 @@
-import type { BlockViewer, SurfacePlan } from "@tripwire/contracts";
+import {
+	type BlockViewer,
+	FORGE_BY_ID,
+	type SurfacePlan,
+} from "@tripwire/contracts";
 import { Button } from "@tripwire/ui/button";
 import { SegmentedControl } from "@tripwire/ui/radio-group";
 import { Select } from "@tripwire/ui/select";
@@ -19,7 +23,7 @@ import type { RunView } from "#/lib/runs.functions";
 const TABS: { value: PreviewTab; label: string }[] = [
 	{ value: "check", label: "Check run" },
 	{ value: "comment", label: "PR comment" },
-	{ value: "review", label: "GitHub review" },
+	{ value: "review", label: "Review" },
 	{ value: "run-page", label: "Run page" },
 ];
 
@@ -55,9 +59,11 @@ export function ResponsesPreview({
 	onView,
 }: ResponsesPreviewProps) {
 	const titleId = useId();
-	const tabs = TABS.filter(
-		(tab) => tab.value !== "review" || plan.review !== null,
-	);
+	const tabs = TABS.map((tab) =>
+		tab.value === "review" && run.forge
+			? { ...tab, label: `${FORGE_BY_ID[run.forge].label} review` }
+			: tab,
+	).filter((tab) => tab.value !== "review" || plan.review !== null);
 	const setTab = (value: string) => {
 		const tab = pickValue(TAB_VALUES, value);
 		if (tab) {
@@ -130,8 +136,8 @@ export function ResponsesPreview({
 						<div className="flex flex-col items-start gap-2">
 							<p className="type-body-sm text-text-2">
 								{plan.comment === "upsert"
-									? "This GitHub review requests changes. The reasons and response blocks are in the separate PR comment."
-									: "This GitHub review requests changes and carries the response blocks. Tripwire posts no separate PR comment."}
+									? "This review requests changes. The reasons and response blocks are in the separate PR comment."
+									: "This review requests changes and carries the response blocks. Tripwire posts no separate PR comment."}
 							</p>
 							{plan.comment === "upsert" ? (
 								<Button

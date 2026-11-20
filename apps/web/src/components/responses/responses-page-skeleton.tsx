@@ -57,7 +57,11 @@ function SkeletonLine({
 	);
 }
 
-export function BuilderSkeleton() {
+export function BuilderSkeleton({
+	forge = null,
+}: {
+	forge?: ForgeId | null;
+} = {}) {
 	return (
 		<div
 			aria-busy="true"
@@ -137,7 +141,9 @@ export function BuilderSkeleton() {
 			>
 				<Icon icon={Pending} motion="spin" />
 				<span className={LOCAL_APPEARANCE.node94_25}>
-					Loading GitHub response preview
+					{forge
+						? `Loading ${FORGE_BY_ID[forge].label} response preview`
+						: "Loading response preview"}
 				</span>
 			</output>
 		</div>
@@ -153,3 +159,5 @@ export function ResponsesPageSkeleton() {
 		</DashboardLayout>
 	);
 }
+
+import { FORGE_BY_ID, type ForgeId } from "@tripwire/contracts";

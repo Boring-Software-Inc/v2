@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
-import type { RedactionPolicy } from "@tripwire/contracts";
+import type { ForgeId, RedactionPolicy } from "@tripwire/contracts";
 import { OPEN_REDACTION, resolveRedaction } from "@tripwire/contracts";
 import { SkeletonSwap } from "@tripwire/ui/skeleton";
 import { useMemo, useState } from "react";
@@ -65,6 +65,7 @@ export function ResponsesPage() {
 			<PreviewLinkProvider>
 				<ResponsesView
 					canEdit={canEdit}
+					forge={repo?.forge ?? null}
 					loaded={Boolean(savedConfig && orgDefaults)}
 					onDiscarded={saveConfig.reset}
 					org={org}
@@ -79,6 +80,7 @@ export function ResponsesPage() {
 }
 
 interface ResponsesViewProps {
+	forge: ForgeId | null;
 	canEdit: boolean;
 	org: string;
 	repo: string;
@@ -91,6 +93,7 @@ interface ResponsesViewProps {
 
 function ResponsesView({
 	canEdit,
+	forge,
 	org,
 	repo,
 	loaded,
@@ -132,7 +135,7 @@ function ResponsesView({
 			<div data-layout-role="responses-shell">
 				<div className="min-h-0 flex-1">
 					<SkeletonSwap
-						fallback={<BuilderSkeleton />}
+						fallback={<BuilderSkeleton forge={forge} />}
 						label="Loading response settings"
 						loading={!(config && policy)}
 					>
@@ -144,6 +147,7 @@ function ResponsesView({
 								<ResponseBuilder
 									canEdit={canEdit}
 									config={config}
+									forge={forge}
 									key={`${outcome.value}-${epoch}`}
 									onOutcomeChange={setScope}
 									org={org}

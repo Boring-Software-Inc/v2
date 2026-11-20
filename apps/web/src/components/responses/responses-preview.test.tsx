@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
 	DEFAULT_RESPONSE_CONFIG,
+	type ForgeId,
 	OPEN_REDACTION,
 	responseConfigSchema,
 } from "@tripwire/contracts";
@@ -20,6 +21,7 @@ describe("Responses surface context", () => {
 		tab: PreviewTab,
 		config = DEFAULT_RESPONSE_CONFIG,
 		scope: Parameters<typeof outcomeMeta>[0] = "block",
+		forge: ForgeId | null = "github",
 	) => {
 		const outcome = outcomeMeta(scope);
 		const preview = responsePreview(
@@ -27,6 +29,7 @@ describe("Responses surface context", () => {
 			outcome,
 			OPEN_REDACTION,
 			"outsider",
+			forge,
 		);
 		return renderToStaticMarkup(
 			<PreviewLinkProvider>
@@ -36,7 +39,7 @@ describe("Responses surface context", () => {
 					onView={() => undefined}
 					outcome={outcome}
 					plan={preview.plan}
-					run={sampleRunFor(outcome, preview.plan, preview.check)}
+					run={sampleRunFor(outcome, preview.plan, preview.check, forge)}
 					runPageLevel={preview.runPageLevel}
 					view={{ tab, viewer: "outsider" }}
 				/>
@@ -50,6 +53,26 @@ describe("Responses surface context", () => {
 		expect(html).toContain("Blocked by Account age and Crypto address.");
 		expect(html).not.toContain("requested changes just now");
 	});
+
+	for (const forge of ["github", "gitcafe", null] as const) {
+		test(`${forge ?? "unresolved"} run preview never links sample evidence to another forge`, () => {
+			const html = render("run-page", DEFAULT_RESPONSE_CONFIG, "block", forge);
+			expect(html).toContain("Sample preview");
+			if (forge !== "github") expect(html).not.toContain("https://github.com");
+		});
+		test(`${forge ?? "unresolved"} review copy follows sample identity`, () => {
+			const html = render("review", DEFAULT_RESPONSE_CONFIG, "block", forge);
+			expect(html).toContain("This review requests changes.");
+			expect(html).toContain(
+				forge === "github"
+					? "GitHub review"
+					: forge === "gitcafe"
+						? "GitCafe review"
+						: 'title="Review"',
+			);
+			if (forge !== "github") expect(html).not.toContain("GitHub");
+		});
+	}
 
 	test("a level-zero review explains its pointer and offers the full comment", () => {
 		const html = render("review");

@@ -1,6 +1,8 @@
 import {
 	type BlockOutput,
 	CHECK_NAME,
+	FORGE_BY_ID,
+	type ForgeId,
 	type SurfacePlan,
 } from "@tripwire/contracts";
 import { Badge } from "@tripwire/ui/badge";
@@ -207,6 +209,7 @@ export function entersCaptureRange(
 }
 
 export interface ResponseGithubStageProps {
+	forge: ForgeId | null;
 	builder: BlockBuilder;
 	check: CheckPreview;
 	outputs: BlockOutput[];
@@ -217,7 +220,11 @@ export interface ResponseGithubStageProps {
 	toolbar: ReactNode;
 }
 
-export function PullRequestHeader() {
+export function PullRequestHeader({
+	forge = null,
+}: {
+	forge?: ForgeId | null;
+} = {}) {
 	return (
 		<header className={LOCAL_APPEARANCE.node115_1}>
 			<div className={LOCAL_APPEARANCE.node116_2}>
@@ -226,7 +233,7 @@ export function PullRequestHeader() {
 				</span>
 				<div className={LOCAL_APPEARANCE.node120_4}>
 					<p className={LOCAL_APPEARANCE.node121_5}>
-						[ShanaBoo] test bounty{" "}
+						{forge === "github" ? "[ShanaBoo] test bounty" : "Sample output"}{" "}
 						<span className={LOCAL_APPEARANCE.node123_6}>#231</span>
 					</p>
 					<div className={LOCAL_APPEARANCE.node125_7}>
@@ -342,7 +349,13 @@ function GithubCheckRow({
 	);
 }
 
-export function GithubChecksPreview({ check }: { check: CheckPreview }) {
+export function GithubChecksPreview({
+	check,
+	forge = null,
+}: {
+	check: CheckPreview;
+	forge?: ForgeId | null;
+}) {
 	const state = check.posted
 		? CHECK_STATUS[check.verdict]
 		: { status: "queued" as const, label: "Not posted" };
@@ -355,10 +368,17 @@ export function GithubChecksPreview({ check }: { check: CheckPreview }) {
 			: "3 successful checks";
 
 	return (
-		<section aria-label="GitHub checks" className={LOCAL_APPEARANCE.node250_18}>
+		<section
+			aria-label={
+				forge ? `${FORGE_BY_ID[forge].label} checks` : "Sample checks"
+			}
+			className={LOCAL_APPEARANCE.node250_18}
+		>
 			<div className={LOCAL_APPEARANCE.node252_19}>
 				<aside className={LOCAL_APPEARANCE.node253_20}>
-					<h2 className={LOCAL_APPEARANCE.node254_21}>Checks</h2>
+					<h2 className={LOCAL_APPEARANCE.node254_21}>
+						{forge === "github" ? "Checks" : "Sample checks"}
+					</h2>
 					<p className={LOCAL_APPEARANCE.node255_22}>{summary}</p>
 					<div className={LOCAL_APPEARANCE.node256_23}>
 						<GithubCheckRow
@@ -370,12 +390,12 @@ export function GithubChecksPreview({ check }: { check: CheckPreview }) {
 						/>
 						<GithubCheckRow
 							description="Successful in 42s"
-							name="CodeQL / Analyze"
+							name={forge === "github" ? "CodeQL / Analyze" : "Sample analysis"}
 							status="ok"
 						/>
 						<GithubCheckRow
 							description="Deployment ready"
-							name="Vercel / Preview"
+							name={forge === "github" ? "Vercel / Preview" : "Sample preview"}
 							status="ok"
 						/>
 					</div>
@@ -414,7 +434,11 @@ export function GithubChecksPreview({ check }: { check: CheckPreview }) {
 	);
 }
 
-export function ContributorCommentPreview() {
+export function ContributorCommentPreview({
+	forge = null,
+}: {
+	forge?: ForgeId | null;
+} = {}) {
 	return (
 		<div className={LOCAL_APPEARANCE.node315_35} data-preview-step>
 			<img
@@ -446,7 +470,11 @@ export function ContributorCommentPreview() {
 						bounty on{" "}
 						<span className={LOCAL_APPEARANCE.node344_44}>this issue</span>.
 					</p>
-					<p>Source: GitHub | Task: 3918183660</p>
+					<p>
+						{forge === "github"
+							? "Source: GitHub | Task: 3918183660"
+							: "Sample output | Task: 3918183660"}
+					</p>
 					<p>
 						Closes
 						<br />
@@ -548,6 +576,7 @@ export function MergePreview() {
 }
 
 export function ResponseGithubStage({
+	forge,
 	builder,
 	check,
 	outputs,
@@ -769,7 +798,11 @@ export function ResponseGithubStage({
 
 	return (
 		<section
-			aria-label="GitHub response preview"
+			aria-label={
+				forge
+					? `${FORGE_BY_ID[forge].label} response preview`
+					: "Response preview"
+			}
 			className={LOCAL_APPEARANCE.node673_72}
 		>
 			<div aria-hidden className={LOCAL_APPEARANCE.node677_73} />
@@ -800,7 +833,7 @@ export function ResponseGithubStage({
 				ref={scroll}
 			>
 				<div className={LOCAL_APPEARANCE.node708_77}>
-					<PullRequestHeader />
+					<PullRequestHeader forge={forge} />
 					<div className={LOCAL_APPEARANCE.node710_78}>
 						<PullRequestNavigation
 							onValueChange={setPreviewTab}
@@ -820,7 +853,7 @@ export function ResponseGithubStage({
 										ease: [0.16, 1, 0.3, 1],
 									}}
 								>
-									<ContributorCommentPreview />
+									<ContributorCommentPreview forge={forge} />
 									<div
 										className={LOCAL_APPEARANCE.node731_80}
 										data-preview-target="response-blocks"
@@ -867,7 +900,7 @@ export function ResponseGithubStage({
 										ease: [0.16, 1, 0.3, 1],
 									}}
 								>
-									<GithubChecksPreview check={check} />
+									<GithubChecksPreview check={check} forge={forge} />
 								</motion.div>
 							</div>
 						)}
