@@ -693,7 +693,9 @@ export function validateWalletAddress<AddressInput, OptionsInput>(
 	options: OptionsInput,
 ): WalletAddressValidation {
 	try {
-		const parsedOptions = walletAddressRequestSchema.omit({ address: true }).safeParse(options);
+		const parsedOptions = walletAddressRequestSchema
+			.omit({ address: true })
+			.safeParse(options);
 		if (!parsedOptions.success)
 			return { status: "invalid", reason: "invalid-input" };
 		const request = walletAddressRequestSchema.safeParse({
