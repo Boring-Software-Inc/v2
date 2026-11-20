@@ -661,6 +661,8 @@ if (import.meta.main && workerMode === "standard") {
 				return Response.json(
 					{
 						ok: gitCafeHealthy,
+						live: true,
+						ready: gitCafeHealthy,
 						github: githubAdapter ? "live" : "disabled",
 						gitcafe: gitCafeProtection
 							? gitCafeHealthy

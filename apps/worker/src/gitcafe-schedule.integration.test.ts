@@ -533,6 +533,13 @@ test("exhausted and deleted local schedule jobs recover once without replaying c
 	await database.pool.query("DELETE FROM pgboss.job WHERE name = $1", [
 		GITCAFE_PROCESS_EVENT_QUEUE,
 	]);
+	expect(
+		await gitCafeLifecycleServices.recoverGitCafeEvents(database.db, boss),
+	).toBe(0);
+	await database.pool.query(
+		"UPDATE events SET next_recovery_at = now() - interval '1 second' WHERE id = $1",
+		[id],
+	);
 	const restored = await Promise.all([
 		gitCafeLifecycleServices.recoverGitCafeEvents(database.db, boss),
 		gitCafeLifecycleServices.recoverGitCafeEvents(database.db, boss),

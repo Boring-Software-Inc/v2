@@ -16,6 +16,7 @@ import { HTTPException } from "hono/http-exception";
 import pino from "pino";
 import type { ApiDeps, ApiEnv } from "./env.ts";
 import { resolveGitCafeReceiptConfig } from "./gitcafe-receipts.ts";
+import { createApiHealth } from "./health.ts";
 import { stream } from "./routes/stream.ts";
 import { webhooks } from "./routes/webhooks.ts";
 
@@ -25,6 +26,7 @@ import { webhooks } from "./routes/webhooks.ts";
  */
 export function createApi(deps: ApiDeps) {
 	const app = new Hono<ApiEnv>();
+	const readHealth = createApiHealth(deps);
 	app.use("*", async (c, next) => {
 		c.set("deps", deps);
 		await next();
@@ -38,7 +40,10 @@ export function createApi(deps: ApiDeps) {
 		return c.text("Internal Server Error", 500);
 	});
 	app.use("/events/*", cors({ origin: deps.webOrigin, allowMethods: ["GET"] }));
-	app.get("/healthz", (c) => c.json({ ok: true }));
+	app.get("/healthz", async (c) => {
+		const health = await readHealth();
+		return c.json(health.body, health.status);
+	});
 	app.route("/webhooks", webhooks);
 	app.route("/events", stream);
 	return app;
@@ -111,5 +116,15 @@ if (import.meta.main) {
 		idleTimeout: 45,
 		fetch: app.fetch,
 	});
-	logger.info({ port: server.port }, "api listening");
+	logger.info(
+		{
+			port: server.port,
+			service: "api",
+			release: process.env.UNKEY_GIT_COMMIT_SHA ?? "unknown",
+			receiptAdmissionEnabled: Boolean(gitCafeReceipts),
+			expectedAppId: gitCafeReceipts?.appId,
+			sentryConfigured: Boolean(process.env.SENTRY_DSN),
+		},
+		"api listening",
+	);
 }

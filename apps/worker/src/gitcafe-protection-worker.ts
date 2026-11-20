@@ -1,3 +1,4 @@
+import { captureException } from "@sentry/bun";
 import {
 	type Forge,
 	GITCAFE_BACKFILL_REPO_QUEUE,
@@ -9,6 +10,7 @@ import {
 	GITCAFE_RERUN_QUEUE,
 	GITCAFE_RESUME_RUN_QUEUE,
 	GITCAFE_SCHEDULE_TICK_QUEUE,
+	type GitCafeEventSettlement,
 	gitCafeBackfillRepoJobSchema,
 	gitCafeProcessEventJobSchema,
 	gitCafeRefreshCatalogsJobSchema,
@@ -24,13 +26,14 @@ import {
 	createGitCafeConnectionBoss,
 	eventServices,
 	gitCafeLifecycleServices,
+	gitCafeOperationalServices,
 	moderationServices,
 	repoServices,
 	runServices,
 } from "@tripwire/db";
 import { GitCafeInstallationClient } from "@tripwire/forge-gitcafe";
-import { generateId } from "@tripwire/utils";
-import type { PgBoss } from "pg-boss";
+import { generateId, withTimeout } from "@tripwire/utils";
+import type { PgBoss, WorkHandler } from "pg-boss";
 import type { Logger } from "pino";
 import type { z } from "zod";
 import { createGenerate } from "./ai/generate.ts";
@@ -38,10 +41,11 @@ import {
 	gitCafeConnectionWorkerEnvSchema,
 	registerGitCafeConnectionConsumer,
 } from "./gitcafe-connection-worker.ts";
+import { registerGitCafeLifecycleConsumer } from "./gitcafe-lifecycle-consumer.ts";
 import {
-	observeGitCafeQueueHealth,
-	registerGitCafeLifecycleConsumer,
-} from "./gitcafe-lifecycle-consumer.ts";
+	createGitCafeRecoveryMonitor,
+	type GitCafeRecoveryMonitor,
+} from "./gitcafe-recovery-monitor.ts";
 import { buildGitCafeRuntime, type GitCafeRuntime } from "./gitcafe-runtime.ts";
 import { backfillRepo } from "./jobs/backfill-repo.ts";
 import { type ProcessEventDeps, processEvent } from "./jobs/process-event.ts";
@@ -86,7 +90,30 @@ export async function registerGitCafeProtectionQueues(
 	boss: PgBoss,
 	prepareCheckRerequest: GitCafeRuntime["prepareCheckRerequest"],
 	catalogRuntime: Pick<GitCafeRuntime, "getCatalogs">,
+	monitor?: GitCafeRecoveryMonitor,
 ) {
+	const work = (queue: string, handler: WorkHandler<unknown>) =>
+		boss.work<unknown>(queue, { batchSize: 1 }, async (jobs) => {
+			try {
+				return await handler(jobs);
+			} catch {
+				monitor?.degrade();
+				deps.logger.error(
+					{
+						event: "gitcafe.process.retrying",
+						forge: "gitcafe",
+						queue,
+						jobId: jobs[0]?.id,
+						reason: "queue-job-failed",
+					},
+					"GitCafe queue job failed",
+				);
+				captureException(new Error("GitCafe queue job failed"), {
+					tags: { queue, forge: "gitcafe" },
+				});
+				throw new Error("GitCafe queue job failed");
+			}
+		});
 	for (const name of PROTECTION_QUEUES) {
 		await boss.createQueue(
 			name,
@@ -98,194 +125,209 @@ export async function registerGitCafeProtectionQueues(
 		);
 		await boss.supervise(name);
 	}
-	await gitCafeLifecycleServices.recoverGitCafeEvents(deps.db, boss);
-	await boss.work<unknown>(
-		GITCAFE_BACKFILL_REPO_QUEUE,
-		{ batchSize: 1 },
-		async (jobs) => {
-			for (const job of jobs) {
-				const parsed = gitCafeBackfillRepoJobSchema.parse(job.data);
-				const { requestId, ...binding } = parsed;
-				if (
-					!(await gitCafeLifecycleServices.matchesGitCafeRepositoryBinding(
-						deps.db,
-						binding,
-					))
-				)
-					continue;
-				await backfillRepo(
-					{
-						db: deps.db,
-						pool: deps.pool,
-						reads: deps.resolveForge("gitcafe")?.reads ?? null,
-						makeGenerate: deps.makeGenerate,
-						gitCafeHistoryBinding: binding,
-						logger: deps.logger.child({ requestId, repoId: parsed.repoId }),
-					},
-					parsed,
+	const initialRecovery = () =>
+		gitCafeLifecycleServices.recoverGitCafeEvents(deps.db, boss);
+	await (monitor
+		? monitor.run("protection", initialRecovery)
+		: initialRecovery());
+	await work(GITCAFE_BACKFILL_REPO_QUEUE, async (jobs) => {
+		for (const job of jobs) {
+			const parsed = gitCafeBackfillRepoJobSchema.parse(job.data);
+			const { requestId, ...binding } = parsed;
+			if (
+				!(await gitCafeLifecycleServices.matchesGitCafeRepositoryBinding(
+					deps.db,
+					binding,
+				))
+			)
+				continue;
+			await backfillRepo(
+				{
+					db: deps.db,
+					pool: deps.pool,
+					reads: deps.resolveForge("gitcafe")?.reads ?? null,
+					makeGenerate: deps.makeGenerate,
+					gitCafeHistoryBinding: binding,
+					logger: deps.logger.child({ requestId, repoId: parsed.repoId }),
+				},
+				parsed,
+			);
+		}
+	});
+	await work(GITCAFE_SCHEDULE_TICK_QUEUE, async (jobs) => {
+		for (const job of jobs) {
+			const parsed = gitCafeScheduleTickJobSchema.safeParse(job.data);
+			if (!parsed.success) throw new Error("Invalid GitCafe schedule tick job");
+			const lock = await deps.pool.connect();
+			try {
+				await lock.query(
+					"SELECT pg_advisory_lock(hashtext('gitcafe-schedule-tick'))",
 				);
-			}
-		},
-	);
-	await boss.work<unknown>(
-		GITCAFE_SCHEDULE_TICK_QUEUE,
-		{ batchSize: 1 },
-		async (jobs) => {
-			for (const job of jobs) {
-				const parsed = gitCafeScheduleTickJobSchema.safeParse(job.data);
-				if (!parsed.success)
-					throw new Error("Invalid GitCafe schedule tick job");
-				const lock = await deps.pool.connect();
+				const result = await scheduleTick({
+					...deps,
+					boss,
+					forge: "gitcafe",
+					requestId: parsed.data.requestId,
+					logger: deps.logger.child({ requestId: parsed.data.requestId }),
+				});
+				if (result.errors)
+					throw new Error("GitCafe scheduled discovery unavailable");
+			} finally {
 				try {
 					await lock.query(
-						"SELECT pg_advisory_lock(hashtext('gitcafe-schedule-tick'))",
+						"SELECT pg_advisory_unlock(hashtext('gitcafe-schedule-tick'))",
 					);
-					const result = await scheduleTick({
-						...deps,
-						boss,
-						forge: "gitcafe",
-						requestId: parsed.data.requestId,
-						logger: deps.logger.child({ requestId: parsed.data.requestId }),
-					});
-					if (result.errors)
-						throw new Error("GitCafe scheduled discovery unavailable");
 				} finally {
-					try {
-						await lock.query(
-							"SELECT pg_advisory_unlock(hashtext('gitcafe-schedule-tick'))",
-						);
-					} finally {
-						lock.release();
-					}
+					lock.release();
 				}
 			}
-		},
-	);
-	await boss.work<unknown>(
-		GITCAFE_REFRESH_CATALOGS_QUEUE,
-		{ batchSize: 1 },
-		async (jobs) => {
-			for (const job of jobs) {
-				const parsed = gitCafeRefreshCatalogsJobSchema.safeParse(job.data);
-				if (!parsed.success) throw new Error("Invalid GitCafe catalog job");
-				const result = await refreshGitCafeCatalogs(
-					{ db: deps.db, runtime: catalogRuntime, logger: deps.logger },
-					parsed.data,
+		}
+	});
+	await work(GITCAFE_REFRESH_CATALOGS_QUEUE, async (jobs) => {
+		for (const job of jobs) {
+			const parsed = gitCafeRefreshCatalogsJobSchema.safeParse(job.data);
+			if (!parsed.success) throw new Error("Invalid GitCafe catalog job");
+			const result = await refreshGitCafeCatalogs(
+				{ db: deps.db, runtime: catalogRuntime, logger: deps.logger },
+				parsed.data,
+			);
+			if (!result.ok) throw new Error("GitCafe catalog refresh unavailable");
+		}
+	});
+	await work(GITCAFE_PROCESS_EVENT_QUEUE, async (jobs) => {
+		for (const job of jobs) {
+			const parsed = gitCafeProcessEventJobSchema.safeParse(job.data);
+			if (!parsed.success) throw new Error("Invalid GitCafe process job");
+			const event = await eventServices.getEventById(
+				deps.db,
+				parsed.data.eventId,
+			);
+			if (event?.forge !== "gitcafe" || event.processedAt) continue;
+			const lock = await deps.pool.connect();
+			try {
+				await lock.query(
+					"SELECT pg_advisory_lock(hashtext('gitcafe-process'), hashtext($1))",
+					[event.id],
 				);
-				if (!result.ok) throw new Error("GitCafe catalog refresh unavailable");
-			}
-		},
-	);
-	await boss.work<unknown>(
-		GITCAFE_PROCESS_EVENT_QUEUE,
-		{ batchSize: 1 },
-		async (jobs) => {
-			for (const job of jobs) {
-				const parsed = gitCafeProcessEventJobSchema.safeParse(job.data);
-				if (!parsed.success) throw new Error("Invalid GitCafe process job");
-				const event = await eventServices.getEventById(
+				const current = await eventServices.getEventById(deps.db, event.id);
+				if (current?.forge !== "gitcafe" || current.processedAt) continue;
+				const eventDeps = {
+					...deps,
+					resumeNormalized: true,
+					logger: deps.logger.child({
+						forge: "gitcafe",
+						queue: GITCAFE_PROCESS_EVENT_QUEUE,
+						jobId: job.id,
+						requestId: parsed.data.requestId,
+						eventId: event.id,
+					}),
+				};
+				eventDeps.logger.info(
+					{ event: "gitcafe.process.started" },
+					"GitCafe processing started",
+				);
+				let settlement: GitCafeEventSettlement;
+				if (event.rawKind === "check.rerequested") {
+					const prepared = await prepareCheckRerequest(event.id);
+					if (!prepared.ok) {
+						eventDeps.logger.warn(
+							{ reason: prepared.reason, status: prepared.status },
+							"GitCafe check re-run refused",
+						);
+						if (
+							["network", "expired", "inactive"].includes(prepared.reason) ||
+							(prepared.reason === "http" &&
+								(prepared.status === 429 || (prepared.status ?? 0) >= 500))
+						)
+							throw new Error("GitCafe check re-run preparation unavailable");
+						settlement = {
+							status: "skipped",
+							reason:
+								prepared.reason === "stale-event"
+									? "stale-subject"
+									: "unsupported-event",
+						};
+					} else {
+						await rerunChangeRequest(eventDeps, prepared.value);
+						const run = prepared.value.runId
+							? await runServices.getRunById(deps.db, prepared.value.runId)
+							: null;
+						if (!run)
+							throw new Error("GitCafe check rerun has no durable result");
+						if (["queued", "running"].includes(run.status))
+							throw new Error("GitCafe check rerun is still evaluating");
+						settlement =
+							run.verdict !== null &&
+							["completed", "paused", "closed"].includes(run.status)
+								? { status: "completed", runId: run.id }
+								: {
+										status: "skipped",
+										reason: "rerun-not-evaluated",
+										runId: run.id,
+									};
+					}
+				} else {
+					const result = await processEvent(eventDeps, parsed.data);
+					if (result?.retry)
+						throw new Error(`GitCafe event retry: ${result.reason}`);
+					if (!result) throw new Error("GitCafe event has no settlement");
+					settlement = result.settlement;
+				}
+				await gitCafeLifecycleServices.finishGitCafeEvent(
 					deps.db,
-					parsed.data.eventId,
+					event.id,
+					settlement,
 				);
-				if (event?.forge !== "gitcafe" || event.processedAt) continue;
-				const lock = await deps.pool.connect();
+				eventDeps.logger.info(
+					{ event: "gitcafe.process.settled", ...settlement },
+					"GitCafe processing settled",
+				);
+			} finally {
 				try {
 					await lock.query(
-						"SELECT pg_advisory_lock(hashtext('gitcafe-process'), hashtext($1))",
+						"SELECT pg_advisory_unlock(hashtext('gitcafe-process'), hashtext($1))",
 						[event.id],
 					);
-					const current = await eventServices.getEventById(deps.db, event.id);
-					if (current?.forge !== "gitcafe" || current.processedAt) continue;
-					const eventDeps = {
-						...deps,
-						resumeNormalized: true,
-						logger: deps.logger.child({
-							requestId: parsed.data.requestId,
-							eventId: event.id,
-						}),
-					};
-					if (event.rawKind === "check.rerequested") {
-						const prepared = await prepareCheckRerequest(event.id);
-						if (!prepared.ok) {
-							eventDeps.logger.warn(
-								{ reason: prepared.reason, status: prepared.status },
-								"GitCafe check re-run refused",
-							);
-							if (
-								["network", "expired", "inactive"].includes(prepared.reason) ||
-								(prepared.reason === "http" &&
-									(prepared.status === 429 || (prepared.status ?? 0) >= 500))
-							)
-								throw new Error("GitCafe check re-run preparation unavailable");
-						} else await rerunChangeRequest(eventDeps, prepared.value);
-					} else {
-						const result = await processEvent(eventDeps, parsed.data);
-						if (result?.retry)
-							throw new Error(`GitCafe event retry: ${result.reason}`);
-					}
-					await gitCafeLifecycleServices.finishGitCafeEvent(deps.db, event.id);
 				} finally {
-					try {
-						await lock.query(
-							"SELECT pg_advisory_unlock(hashtext('gitcafe-process'), hashtext($1))",
-							[event.id],
-						);
-					} finally {
-						lock.release();
-					}
+					lock.release();
 				}
 			}
-		},
-	);
-	await boss.work<unknown>(
-		GITCAFE_RESUME_RUN_QUEUE,
-		{ batchSize: 1 },
-		async (jobs) => {
-			for (const job of jobs) {
-				const parsed = gitCafeResumeRunJobSchema.safeParse(job.data);
-				if (!parsed.success) throw new Error("Invalid GitCafe resume job");
-				const item = await moderationServices.getModerationItem(
-					deps.db,
-					parsed.data.itemId,
-				);
-				const run = item
-					? await runServices.getRunById(deps.db, item.runId)
-					: null;
-				const event = run
-					? await eventServices.getEventById(deps.db, run.eventId)
-					: null;
-				if (event?.forge === "gitcafe") await resumeRun(deps, parsed.data);
-			}
-		},
-	);
-	await boss.work<unknown>(
-		GITCAFE_RERUN_QUEUE,
-		{ batchSize: 1 },
-		async (jobs) => {
-			for (const job of jobs) {
-				const parsed = rerunChangeRequestJobSchema.safeParse(job.data);
-				if (!parsed.success) throw new Error("Invalid GitCafe rerun job");
-				if (parsed.data.forge === "gitcafe")
-					await rerunChangeRequest(deps, parsed.data);
-			}
-		},
-	);
-	await boss.work<unknown>(
-		GITCAFE_REFRESH_SURFACES_QUEUE,
-		{ batchSize: 1 },
-		async (jobs) => {
-			for (const job of jobs) {
-				const parsed = gitCafeRefreshSurfacesJobSchema.safeParse(job.data);
-				if (!parsed.success) throw new Error("Invalid GitCafe refresh job");
-				const repo = await repoServices.getRepoById(
-					deps.db,
-					parsed.data.repoId,
-				);
-				if (repo?.forge === "gitcafe")
-					await refreshRepoSurfaces(deps, parsed.data, job.id);
-			}
-		},
-	);
+		}
+	});
+	await work(GITCAFE_RESUME_RUN_QUEUE, async (jobs) => {
+		for (const job of jobs) {
+			const parsed = gitCafeResumeRunJobSchema.safeParse(job.data);
+			if (!parsed.success) throw new Error("Invalid GitCafe resume job");
+			const item = await moderationServices.getModerationItem(
+				deps.db,
+				parsed.data.itemId,
+			);
+			const run = item
+				? await runServices.getRunById(deps.db, item.runId)
+				: null;
+			const event = run
+				? await eventServices.getEventById(deps.db, run.eventId)
+				: null;
+			if (event?.forge === "gitcafe") await resumeRun(deps, parsed.data);
+		}
+	});
+	await work(GITCAFE_RERUN_QUEUE, async (jobs) => {
+		for (const job of jobs) {
+			const parsed = rerunChangeRequestJobSchema.safeParse(job.data);
+			if (!parsed.success) throw new Error("Invalid GitCafe rerun job");
+			if (parsed.data.forge === "gitcafe")
+				await rerunChangeRequest(deps, parsed.data);
+		}
+	});
+	await work(GITCAFE_REFRESH_SURFACES_QUEUE, async (jobs) => {
+		for (const job of jobs) {
+			const parsed = gitCafeRefreshSurfacesJobSchema.safeParse(job.data);
+			if (!parsed.success) throw new Error("Invalid GitCafe refresh job");
+			const repo = await repoServices.getRepoById(deps.db, parsed.data.repoId);
+			if (repo?.forge === "gitcafe")
+				await refreshRepoSurfaces(deps, parsed.data, job.id);
+		}
+	});
 	let lastTickSlot: string | undefined;
 	const queueTick = async () => {
 		const slot = scheduleTickSlot(new Date()).toISOString();
@@ -306,9 +348,12 @@ export async function registerGitCafeProtectionQueues(
 	const recover = setInterval(async () => {
 		if (recovering) return;
 		recovering = true;
-		try {
+		const work = async () => {
 			for (const name of PROTECTION_QUEUES) await boss.supervise(name);
-			await gitCafeLifecycleServices.recoverGitCafeEvents(deps.db, boss);
+			const recovered = await gitCafeLifecycleServices.recoverGitCafeEvents(
+				deps.db,
+				boss,
+			);
 			await queueTick();
 			await sweepActions(
 				{
@@ -320,6 +365,10 @@ export async function registerGitCafeProtectionQueues(
 				},
 				{ forge: "gitcafe" },
 			);
+			return recovered;
+		};
+		try {
+			await (monitor ? monitor.run("protection", work) : work());
 		} catch {
 			deps.logger.error(
 				{ reason: "recovery-unavailable" },
@@ -330,6 +379,9 @@ export async function registerGitCafeProtectionQueues(
 		}
 	}, 30_000);
 	recover.unref();
+	monitor?.signal.addEventListener("abort", () => clearInterval(recover), {
+		once: true,
+	});
 	boss.once("stopped", () => clearInterval(recover));
 	return PROTECTION_QUEUES;
 }
@@ -347,7 +399,35 @@ export async function startGitCafeProtectionRuntime(
 		bossOverride ??
 		(await createGitCafeConnectionBoss(env.DATABASE_URL, logger));
 	const ownsBoss = bossOverride === undefined;
-	const health = observeGitCafeQueueHealth(boss);
+	const runtimeId = generateId();
+	const release = process.env.UNKEY_GIT_COMMIT_SHA ?? "unknown";
+	logger = logger.child({
+		service: "worker",
+		forge: "gitcafe",
+		release,
+		mode: process.env.WORKER_MODE ?? "standard",
+	});
+	const expectedQueues = [
+		...PROTECTION_QUEUES,
+		GITCAFE_CONNECT_QUEUE,
+		GITCAFE_LIFECYCLE_QUEUE,
+	];
+	const haveConsumers = () => {
+		const workers = boss.getWipData();
+		return expectedQueues.every((queue) =>
+			workers.some((worker) => worker.name === queue),
+		);
+	};
+	const heartbeat = () => {
+		if (!haveConsumers()) throw new Error("GitCafe consumers are absent");
+		return gitCafeOperationalServices.recordGitCafeRuntimeHeartbeat(db, {
+			runtimeId,
+			release,
+		});
+	};
+	const health = createGitCafeRecoveryMonitor(logger, Date.now, heartbeat);
+	boss.on("error", health.degrade);
+	boss.on("stopped", health.stop);
 	const credentials = {
 		appId: env.GITCAFE_APP_ID,
 		keyId: env.GITCAFE_APP_KEY_ID,
@@ -387,6 +467,7 @@ export async function startGitCafeProtectionRuntime(
 			boss,
 			runtime.prepareCheckRerequest,
 			runtime,
+			health,
 		);
 		await registerGitCafeLifecycleConsumer(
 			db,
@@ -394,7 +475,9 @@ export async function startGitCafeProtectionRuntime(
 			logger,
 			health.degrade,
 			true,
+			health,
 		);
+		await boss.createQueue(GITCAFE_CONNECT_QUEUE);
 		await registerGitCafeConnectionConsumer(
 			{ db, client, lifecycleEnabled: true },
 			boss,
@@ -402,25 +485,62 @@ export async function startGitCafeProtectionRuntime(
 			health.degrade,
 		);
 		queues = [...protection, GITCAFE_CONNECT_QUEUE, GITCAFE_LIFECYCLE_QUEUE];
+		health.registered();
+		await withTimeout(heartbeat(), 4_000);
 	} catch (error) {
-		await boss.stop({ graceful: false });
-		await directPool.end();
-		await actionPool.end();
-		await pool.end();
+		health.stop();
+		boss.off("error", health.degrade);
+		boss.off("stopped", health.stop);
+		if (ownsBoss) await boss.stop({ graceful: false });
+		else
+			await Promise.allSettled(
+				[
+					...PROTECTION_QUEUES,
+					GITCAFE_LIFECYCLE_QUEUE,
+					GITCAFE_CONNECT_QUEUE,
+				].map((queue) => boss.offWork(queue, { wait: false })),
+			);
+		await withTimeout(
+			Promise.all([directPool.end(), actionPool.end(), pool.end()]),
+			30_000,
+		).catch(() => undefined);
 		throw error;
 	}
 	const stop = async () => {
-		health.degrade();
+		health.stop();
+		boss.off("error", health.degrade);
+		boss.off("stopped", health.stop);
 		if (ownsBoss) await boss.stop({ graceful: true, timeout: 30_000 });
-		await directPool.end();
-		await actionPool.end();
-		await pool.end();
+		else
+			await withTimeout(
+				Promise.all(queues.map((queue) => boss.offWork(queue, { wait: true }))),
+				30_000,
+			).catch(() => undefined);
+		await withTimeout(
+			gitCafeOperationalServices.removeGitCafeRuntimeHeartbeat(db, runtimeId),
+			4_000,
+		).catch(() => undefined);
+		await withTimeout(
+			Promise.all([directPool.end(), actionPool.end(), pool.end()]),
+			30_000,
+		).catch(() => {
+			logger.error(
+				{ event: "gitcafe.shutdown.timeout", reason: "cleanup-unavailable" },
+				"GitCafe runtime cleanup timed out",
+			);
+		});
 	};
 	logger.info(
-		{ mode: "gitcafe-protection", queues },
+		{
+			mode: "gitcafe-protection",
+			queues,
+			receiptAdmissionEnabled: true,
+			expectedAppId: env.GITCAFE_APP_ID,
+			sentryConfigured: Boolean(process.env.SENTRY_DSN),
+		},
 		"GitCafe protection worker up",
 	);
-	return { healthy: () => health.healthy, queues, stop };
+	return { healthy: () => health.healthy() && haveConsumers(), queues, stop };
 }
 
 export async function startGitCafeProtectionWorker(
@@ -438,6 +558,8 @@ export async function startGitCafeProtectionWorker(
 				? Response.json(
 						{
 							ok: healthy,
+							live: true,
+							ready: healthy,
 							mode: "gitcafe-protection",
 							queues: runtime.queues,
 						},

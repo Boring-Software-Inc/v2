@@ -122,6 +122,12 @@ export async function receiveGitCafeReceipt(c: Context<ApiEnv>) {
 	);
 	logger.info(
 		{
+			event: result.inserted
+				? "gitcafe.receipt.accepted"
+				: "gitcafe.receipt.duplicate",
+			service: "api",
+			forge: "gitcafe",
+			release: process.env.UNKEY_GIT_COMMIT_SHA ?? "unknown",
 			requestId,
 			receiptId: result.receiptId,
 			eventType,

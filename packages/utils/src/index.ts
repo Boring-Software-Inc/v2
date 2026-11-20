@@ -46,4 +46,4 @@ export {
 	type SparkSeries,
 } from "./sparkline-png.ts";
 export { truncate } from "./string.ts";
-export { sleep } from "./time.ts";
+export { sleep, withTimeout } from "./time.ts";
