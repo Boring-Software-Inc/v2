@@ -6,7 +6,11 @@ import {
 import { accountAge } from "./account-age.ts";
 import { aiReview, aiReviewV2, aiReviewV3 } from "./ai-review/rule.ts";
 import { contributorAllowlist } from "./contributor-allowlist.ts";
-import { cryptoAddress, cryptoAddressV2 } from "./crypto-address.ts";
+import {
+	cryptoAddress,
+	cryptoAddressV2,
+	cryptoAddressV3,
+} from "./crypto-address.ts";
 import { type RuleDefinition, ruleRef } from "./define.ts";
 import { englishOnly } from "./english-only.ts";
 import { honeypot } from "./honeypot.ts";
@@ -49,6 +53,7 @@ register(maxFilesChanged);
 register(englishOnly);
 register(cryptoAddress);
 register(cryptoAddressV2);
+register(cryptoAddressV3);
 register(honeypot);
 register(profileReadme);
 register(aiReview);

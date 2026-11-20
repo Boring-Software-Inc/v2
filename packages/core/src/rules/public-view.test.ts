@@ -53,7 +53,15 @@ const SAMPLE_EVIDENCE = {
 	"max-files-changed": { filesChanged: 2, max: 200 },
 	"english-only": { ratio: 0.5, lettersExamined: 10, sample: "修复: fix" },
 	"crypto-address": {
-		matches: [{ kind: "eth", value: "0xAb58", location: "DONATE.md" }],
+		matches: [
+			{
+				kind: "eth",
+				value: "0xAb58",
+				location: "DONATE.md",
+				confirmation: "address-format",
+			},
+		],
+		checks: [],
 	},
 	honeypot: { touched: [".github/workflows/exfil.yml"] },
 	"profile-readme": { hasProfileText: true, length: 24, minLength: 32 },

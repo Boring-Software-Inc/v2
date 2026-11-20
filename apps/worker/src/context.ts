@@ -14,6 +14,7 @@ import type {
 } from "@tripwire/forge";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
+import { createCryptoAddressActivityReader } from "./crypto-address-activity.ts";
 import { forcedReadFailures } from "./reads-injection.ts";
 
 /**
@@ -152,6 +153,7 @@ export async function buildRuleContext(
 	const starReads = new Map<string, Promise<StarredContributionCount | null>>();
 
 	const ctx: RuleContext = {
+		readCryptoAddressActivity: createCryptoAddressActivityReader(logger),
 		event,
 		now,
 		generate,

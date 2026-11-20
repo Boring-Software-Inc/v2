@@ -17,6 +17,7 @@ describe("registry", () => {
 				"ai-review@3",
 				"crypto-address@1",
 				"crypto-address@2",
+				"crypto-address@3",
 				"english-only@1",
 				"honeypot@1",
 				"max-files-changed@1",

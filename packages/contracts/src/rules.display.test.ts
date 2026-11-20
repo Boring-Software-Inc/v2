@@ -53,7 +53,7 @@ describe("ruleChangeNote — the versioning-law upgrade summary (§6 b)", () => 
 			"skips review when patch evidence is explicitly unavailable",
 		);
 		expect(ruleChangeNote("crypto-address@2")).toBe(
-			"skips clean verdicts when patch evidence is explicitly unavailable",
+			"validates address formats, scans added lines, and corroborates ambiguous Solana addresses on-chain",
 		);
 	});
 
