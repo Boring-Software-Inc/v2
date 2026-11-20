@@ -34,7 +34,7 @@ export async function restoreContributionAppeal(
 	const data = await runServices.getRunWithSteps(db, appeal.runId);
 	if (
 		!repo ||
-		repo.forge !== "github" ||
+		!["github", "gitcafe"].includes(repo.forge) ||
 		repo.removedAt ||
 		!data ||
 		!data.steps.some((step) => step.nodeId === STANDALONE_MODERATION_NODE_ID)
@@ -92,29 +92,33 @@ export async function restoreContributionAppeal(
 		return row?.id === data.run.id;
 	};
 	if (!(await latest())) return;
-	const runtime = deps.resolveForge("github");
-	if (!runtime?.adapter || !runtime.signalHttp)
-		throw new Error("Appeal restoration requires the GitHub runtime");
-	const live = appealRestorationThreadSchema.parse(
-		await runtime.signalHttp.get(
-			repo.fullName,
-			`/repos/${repo.fullName}/issues/${subject.number}`,
-		),
-	);
-	if (
-		String(live.user.id) !== appeal.accountId ||
-		(live.pull_request !== undefined) !==
-			(appeal.subjectKind === "change-request")
-	)
-		return;
-	if ("changeRequest" in event) {
-		const pull = appealRestorationPullSchema.parse(
+	const runtime = deps.resolveForge(repo.forge);
+	if (!runtime?.adapter)
+		throw new Error(`Appeal restoration requires the ${repo.forge} runtime`);
+	if (repo.forge === "github") {
+		if (!runtime.signalHttp)
+			throw new Error("Appeal restoration requires GitHub signal HTTP");
+		const live = appealRestorationThreadSchema.parse(
 			await runtime.signalHttp.get(
 				repo.fullName,
-				`/repos/${repo.fullName}/pulls/${subject.number}`,
+				`/repos/${repo.fullName}/issues/${subject.number}`,
 			),
 		);
-		if (pull.merged || pull.head.sha !== data.run.headSha) return;
+		if (
+			String(live.user.id) !== appeal.accountId ||
+			(live.pull_request !== undefined) !==
+				(appeal.subjectKind === "change-request")
+		)
+			return;
+		if ("changeRequest" in event) {
+			const pull = appealRestorationPullSchema.parse(
+				await runtime.signalHttp.get(
+					repo.fullName,
+					`/repos/${repo.fullName}/pulls/${subject.number}`,
+				),
+			);
+			if (pull.merged || pull.head.sha !== data.run.headSha) return;
+		}
 	}
 	const standalone = data.actions.filter(
 		(action) =>

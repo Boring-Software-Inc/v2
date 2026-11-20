@@ -640,7 +640,7 @@ for (const kind of ["reopen", "unlock"] as const) {
 	test(`${kind} uses a fresh subject version and checks the restored state`, async () => {
 		const now = new Date().toISOString();
 		const guard = {
-			authorId: "act_author",
+			authorId: pull.authorActorId ?? "",
 			subject: "change-request" as const,
 			headSha: pull.headOid ?? undefined,
 			appliedAfter: now,
@@ -653,8 +653,20 @@ for (const kind of ["reopen", "unlock"] as const) {
 		let subject = gitCafeActionSubjectSchema.parse({
 			...pullFixture,
 			state: kind === "reopen" ? "closed" : pullFixture.state,
-			lockedAt:
-				kind === "unlock" ? "2026-11-20T04:00:00.000Z" : pullFixture.lockedAt,
+			closedAt: kind === "reopen" ? now : pullFixture.closedAt,
+			closedByActorId:
+				kind === "reopen"
+					? installation.bot.actorId
+					: pullFixture.closedByActorId,
+			closedByViaInstallationId:
+				kind === "reopen"
+					? installation.id
+					: pullFixture.closedByViaInstallationId,
+			lockedAt: kind === "unlock" ? now : pullFixture.lockedAt,
+			lockedByActorId:
+				kind === "unlock"
+					? installation.bot.actorId
+					: pullFixture.lockedByActorId,
 		});
 		let writes = 0;
 		const h = await harness(async (url, init) => {
@@ -688,12 +700,14 @@ for (const kind of ["reopen", "unlock"] as const) {
 
 test("issue unlock uses the issue lock endpoint and verifies readback", async () => {
 	const issueRoot = root.replace("/pulls/", "/issues/");
+	const now = new Date().toISOString();
 	let subject = gitCafeActionSubjectSchema.parse({
 		...pullFixture,
 		headOid: null,
 		state: undefined,
 		stateType: "started",
-		lockedAt: "2026-11-20T04:00:00.000Z",
+		lockedAt: now,
+		lockedByActorId: installation.bot.actorId,
 	});
 	const h = await harness(async (url, init) => {
 		if (init.method === "GET") return Response.json(subject);
@@ -705,7 +719,6 @@ test("issue unlock uses the issue lock endpoint and verifies readback", async ()
 		subject = { ...subject, version: subject.version + 1, lockedAt: null };
 		return Response.json(subject);
 	});
-	const now = new Date().toISOString();
 	expect(
 		await h.actions.execute(
 			{
@@ -713,7 +726,7 @@ test("issue unlock uses the issue lock endpoint and verifies readback", async ()
 				repoFullName: "boring/scratch",
 				number: 1,
 				guard: {
-					authorId: "act_author",
+					authorId: pull.authorActorId ?? "",
 					subject: "issue",
 					appliedAfter: now,
 					appliedBefore: now,
@@ -722,6 +735,64 @@ test("issue unlock uses the issue lock endpoint and verifies readback", async ()
 			{ ...h.binding, subject: "issue", headOid: null },
 		),
 	).toEqual({ ok: true, value: { externalId: pull.id } });
+});
+
+test("appeal restoration refuses a changed subject, head, owner, or time window", async () => {
+	const now = new Date().toISOString();
+	const base = gitCafeActionSubjectSchema.parse({
+		...pullFixture,
+		state: "closed",
+		closedAt: now,
+		closedByActorId: installation.bot.actorId,
+		closedByViaInstallationId: installation.id,
+	});
+	const cases = [
+		{
+			name: "subject",
+			subject: { ...base, authorActorId: "act_other" },
+			reason: "appeal-subject-changed",
+		},
+		{
+			name: "head",
+			subject: { ...base, headOid: "a".repeat(40) },
+			reason: "stale",
+		},
+		{
+			name: "owner",
+			subject: { ...base, closedByActorId: "act_other" },
+			reason: "appeal-effect-no-longer-owned",
+		},
+		{
+			name: "time",
+			subject: { ...base, closedAt: "2026-01-01T00:00:00.000Z" },
+			reason: "appeal-effect-no-longer-owned",
+		},
+	] as const;
+	for (const current of cases) {
+		let writes = 0;
+		const h = await harness(async (_url, init) => {
+			if (init.method === "GET") return Response.json(current.subject);
+			writes++;
+			return Response.json(current.subject);
+		});
+		const result = await h.actions.execute(
+			{
+				kind: "reopen",
+				repoFullName: "boring/scratch",
+				number: 1,
+				guard: {
+					authorId: pull.authorActorId ?? "",
+					subject: "change-request",
+					headSha: pull.headOid ?? undefined,
+					appliedAfter: now,
+					appliedBefore: now,
+				},
+			},
+			h.binding,
+		);
+		expect(result, current.name).toEqual({ ok: false, reason: current.reason });
+		expect(writes, current.name).toBe(0);
+	}
 });
 
 test("deletion never trusts another author's marker or claims a refused deletion succeeded", async () => {
