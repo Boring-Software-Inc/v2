@@ -67,6 +67,7 @@ afterAll(async () => {
 async function scenario(
 	subject: "issue" | "change-request" = "issue",
 	kind = "close",
+	forge: "github" | "gitcafe" = "github",
 ) {
 	const repoId = generateId(),
 		runId = generateId(),
@@ -76,6 +77,7 @@ async function scenario(
 	const paused = kind === "human-review";
 	const eventBase = {
 		...source,
+		forge,
 		id: eventId,
 		deliveryId: eventId,
 		repoExternalId: repoId,
@@ -113,11 +115,12 @@ async function scenario(
 		owner: "appeals",
 		name: `repo-${repoId}`,
 		fullName,
+		forge,
 	});
 	await db.insert(schema.events).values({
 		id: eventId,
 		deliveryId: eventId,
-		forge: "github",
+		forge,
 		rawKind: subject === "issue" ? "issues" : "pull_request",
 		raw: {},
 		normalized: event,
@@ -249,6 +252,20 @@ async function scenario(
 			return new Response(JSON.stringify(body), { status: 200 });
 		}) as typeof fetch,
 	};
+	const githubAdapter = createGithubAdapter(options);
+	const adapter =
+		forge === "github"
+			? githubAdapter
+			: {
+					...githubAdapter,
+					forge: "gitcafe" as const,
+					execute: async (
+						action: Parameters<typeof githubAdapter.execute>[0],
+					) => {
+						calls.push(`RESTORE ${action.kind}`);
+						return { externalId: null };
+					},
+				};
 	const deps = {
 		db,
 		pool,
@@ -256,8 +273,8 @@ async function scenario(
 		appUrl: "https://tripwire.test",
 		makeGenerate: null,
 		resolveForge: staticForge({
-			adapter: createGithubAdapter(options),
-			signalHttp: new GithubHttp(options),
+			adapter,
+			signalHttp: forge === "github" ? new GithubHttp(options) : null,
 		}),
 	};
 	return {
@@ -306,6 +323,20 @@ test("approved locked issue unlocks without closing or reopening", async () => {
 		s.calls.filter((c) => c.startsWith("DELETE ") && c.endsWith("/lock")),
 	).toHaveLength(1);
 	expect(s.calls.some((c) => c.startsWith("PATCH "))).toBe(false);
+});
+
+test("GitCafe appeals reach the provider restoration action with the original guard", async () => {
+	const s = await scenario("issue", "close", "gitcafe");
+	await restoreContributionAppeal(s.deps, { appealId: s.appealId });
+	expect(s.calls).toEqual(["RESTORE reopen"]);
+	const restoration = (
+		await runServices.getRunWithSteps(db, s.runId)
+	)?.actions.find((action) => action.kind === "reopen");
+	expect(restoration).toMatchObject({ status: "executed" });
+	expect(restoration?.payload).toMatchObject({
+		authorId: s.event.actor.externalId,
+		subject: "issue",
+	});
 });
 
 test("a later run prevents restoration", async () => {
