@@ -269,9 +269,17 @@ export function buildGitCafeRuntime(
 				reason: bound.reason,
 				status: "status" in bound ? bound.status : undefined,
 			};
+		const issueEvidence =
+			context && "actionId" in context
+				? await gitCafeActionServices.getGitCafeIssueActionEvidence(
+						db,
+						context.actionId,
+					)
+				: null;
 		const actions = new GitCafeActions({
 			client: bound.client,
 			installation: bound.installation,
+			issueEvidence,
 			store: {
 				read: (id) => gitCafeActionServices.readGitCafeAction(db, id),
 				prepare: (operation) =>

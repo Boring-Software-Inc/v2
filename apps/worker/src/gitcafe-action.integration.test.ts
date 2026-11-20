@@ -2169,6 +2169,13 @@ test("dispatched receipts restore exhausted or missing process jobs once and sto
 	);
 	expect(
 		await gitCafeLifecycleServices.recoverGitCafeEvents(database.db, boss),
+	).toBe(0);
+	await database.pool.query(
+		"UPDATE events SET next_recovery_at = now() - interval '1 second' WHERE id=$1",
+		[row.id],
+	);
+	expect(
+		await gitCafeLifecycleServices.recoverGitCafeEvents(database.db, boss),
 	).toBe(1);
 	await gitCafeLifecycleServices.finishGitCafeEvent(database.db, row.id);
 	await database.pool.query(
