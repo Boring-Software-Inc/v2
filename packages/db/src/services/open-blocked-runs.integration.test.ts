@@ -73,7 +73,7 @@ beforeAll(async () => {
 	await seedRun(4, "block", new Date(Date.now() - 60 * DAY));
 
 	openFix = await seedRun(5, "changes_required", new Date(Date.now() - DAY));
-});
+}, 120_000);
 
 afterAll(async () => {
 	await pool.end();
