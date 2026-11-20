@@ -25,4 +25,10 @@ describe("BuilderSkeleton", () => {
 		);
 		expect(layoutCss).toContain("block-size: 100%;\n\tmin-block-size: 0;");
 	});
+
+	test("does not reserve an empty desktop column beside the builder", () => {
+		expect(layoutCss).not.toContain(
+			"grid-template-columns: minmax(0, 1fr) calc(var(--space-1) * 80);",
+		);
+	});
 });
