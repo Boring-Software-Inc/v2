@@ -948,3 +948,18 @@ not healthy.
 This replaces the staging requirement to change `WORKER_MODE` by hand. A
 routine pause, resume, or redeploy now restores GitHub and GitCafe consumers
 together from the same saved configuration.
+
+## 2026-11-19 | Retired GitCafe claims do not strand repositories
+
+A fresh GitCafe installation may reclaim a removed repository row from another
+Tripwire organization only when the old installation has a stored claim for
+the same forge owner and its lifecycle is paused, uninstalled, or requires
+reconciliation. The current connection must still pass complete provider
+authority, local permission, generation, repository identity, and final
+revalidation checks.
+
+Active claims, owner mismatches, and rows without a verified prior claim remain
+ownership conflicts. Historical claims and repository creation timestamps are
+preserved when the live repository binding moves. This prevents an abandoned
+staging connection from requiring a database repair without weakening the
+cross-organization ownership fence.

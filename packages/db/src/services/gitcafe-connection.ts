@@ -292,7 +292,6 @@ export async function commitGitCafeConnection(
 					.where(
 						and(
 							eq(organizationInstallations.forge, "gitcafe"),
-							eq(organizationInstallations.organizationId, job.data.orgId),
 							eq(organizationInstallations.accountLogin, input.owner),
 							inArray(gitCafeInstallationLifecycle.status, [
 								"reconcile-required",
@@ -307,17 +306,17 @@ export async function commitGitCafeConnection(
 		);
 		for (const repo of existing) {
 			const selectedRepo = selectedById.get(repo.externalId);
+			const canReclaim =
+				repo.installationId !== null &&
+				repo.owner === input.owner &&
+				repo.removedAt !== null &&
+				selectedRepo !== undefined &&
+				reclaimable.has(repo.installationId);
 			if (
-				(repo.orgId !== null && repo.orgId !== job.data.orgId) ||
+				(repo.orgId !== null && repo.orgId !== job.data.orgId && !canReclaim) ||
 				(repo.installationId !== null &&
 					repo.installationId !== job.data.installationId &&
-					!(
-						repo.orgId === job.data.orgId &&
-						repo.owner === input.owner &&
-						repo.removedAt !== null &&
-						selectedRepo !== undefined &&
-						reclaimable.has(repo.installationId)
-					)) ||
+					!canReclaim) ||
 				(selectedRepo === undefined && selectedFullNames.has(repo.fullName))
 			)
 				return { ok: false, reason: "ownership-conflict" };
