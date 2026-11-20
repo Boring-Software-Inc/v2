@@ -14,6 +14,9 @@ HARD RULES:
 - A primitive migration must preserve the approved rendered and interaction
   baseline unless the implementation spec explicitly marks the surface for
   redesign.
+- Before the first rendered UI edit, activate
+  `.agents/skills/before-and-after/SKILL.md`; publish and verify matching
+  before/after evidence before handing off the change or its PR.
 - Extract a component when it hits 50+ lines, is used in 2+ files, or owns state.
   Keep it inline when <10 lines, single-use, presentational.
 - Keep `useEffect` down: server sync → a query; derived state → `useMemo`;

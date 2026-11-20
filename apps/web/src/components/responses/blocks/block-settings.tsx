@@ -88,7 +88,7 @@ export function BlockSettings({
 			) : null}
 			{block.type === "ai-notice" ? (
 				<p className="type-body-sm text-text-2">
-					Adds “AI review did not run.” when the org is out of AI credits.
+					Adds “AI review did not run.” when the workspace is out of AI credits.
 					Otherwise, this block is omitted.
 				</p>
 			) : null}

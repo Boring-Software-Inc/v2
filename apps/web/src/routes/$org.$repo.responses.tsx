@@ -9,19 +9,12 @@ import { buildSeo, formatPageTitle } from "#/lib/seo";
 import { completeResponsesStep } from "#/lib/setup-page-view";
 
 const PAGE_COPY = {
-	title: "Responses",
-	description: "Choose what Tripwire does after each workflow outcome.",
 	seoDescription:
 		"What Tripwire posts on each change request, and what it hides.",
 } as const;
 
 function ResponsesRoutePage() {
-	return (
-		<ResponsesPage
-			description={PAGE_COPY.description}
-			title={PAGE_COPY.title}
-		/>
-	);
+	return <ResponsesPage />;
 }
 
 export const Route = createFileRoute("/$org/$repo/responses")({

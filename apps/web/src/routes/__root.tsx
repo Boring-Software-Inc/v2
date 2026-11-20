@@ -30,13 +30,20 @@ import {
 } from "#/lib/auth.query";
 import { getPublicDatabuddyConfig } from "#/lib/databuddy.functions";
 import { isPublicPath } from "#/lib/run-access";
+import { getSidebarPreference } from "#/lib/sidebar-preference.functions";
 import { siteConfig } from "#/lib/site-config";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRouteWithContext<{
 	queryClient: QueryClient;
 }>()({
-	loader: () => getPublicDatabuddyConfig(),
+	loader: async () => {
+		const [databuddy, sidebar] = await Promise.all([
+			getPublicDatabuddyConfig(),
+			getSidebarPreference(),
+		]);
+		return { ...databuddy, sidebarCollapsed: sidebar.collapsed };
+	},
 	/**
 	 * §10 — Better Auth gates the dashboard, then onboarding gates it again: a
 	 * signed-in user with no active repo goes to /onboarding (same shape as the

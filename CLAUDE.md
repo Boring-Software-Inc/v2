@@ -18,3 +18,20 @@ Only an explicit choice of antislop during or after selects a session mode. A re
 If the mode is unresolved, ask during/after and end the response; wait for the answer before any UI review, planning, or concept. For read-only tasks, put the active-mode notice only at the start of the final answer, never in progress messages. For editing tasks, announce before the first edit and omit it from the final answer.
 To update antislop later: `npx antislop-ai --update`, or run `npx antislop-ai` and pick Overwrite them.
 <!-- antislop:end -->
+
+<!-- visual-evidence:start -->
+## UI visual evidence
+For every task that edits rendered UI, read
+`.agents/skills/before-and-after/SKILL.md` before the first edit. This includes
+layout, styles, tokens, components, visible copy, responsive behavior, motion,
+states, and preserve-only UI refactors.
+
+Before editing, say `visual evidence active: before/after required for every
+changed UI surface.` once. Capture the existing surface before editing, then
+capture the matching result after editing. Use an after-only Preview for a
+net-new surface and a recording or frame sequence for motion. Do not hand off a
+UI change or its PR until the marked evidence block is published and verified
+on the rendered PR. If a draft PR is needed to obtain a preview deployment,
+create it without handing it off, attach the evidence, verify it, then report
+the PR. Tests and written descriptions never replace the media.
+<!-- visual-evidence:end -->

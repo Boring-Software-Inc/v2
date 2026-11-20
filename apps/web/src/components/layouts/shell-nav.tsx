@@ -1,12 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useLocation, useParams } from "@tanstack/react-router";
+import {
+	Link,
+	useLocation,
+	useNavigate,
+	useParams,
+} from "@tanstack/react-router";
 import type { OrgRegion } from "@tripwire/contracts";
 import {
 	Activity,
 	Analytics,
 	Customize,
 	Home,
-	Icon,
 	type IconGlyph,
 	Moderation,
 	Rules,
@@ -14,9 +18,8 @@ import {
 	Workflow,
 } from "@tripwire/ui/icon";
 import { motion, useReducedMotion } from "motion/react";
-import { type RefObject, useEffect, useRef } from "react";
+import { type MouseEvent, type RefObject, useEffect, useRef } from "react";
 import {
-	prepareSidebarTransition,
 	SidebarNav,
 	SidebarNavItemContent,
 	SidebarNavTooltip,
@@ -25,6 +28,7 @@ import {
 import type { RouteScope } from "#/lib/active-scope";
 import { orgContextQueryOptions, orgHomeQueryOptions } from "#/lib/org.query";
 import { cn } from "#/lib/utils";
+import { DashboardRailNavSkeleton } from "./dashboard-rail-skeleton";
 
 type NavVariant = "tabs" | "rail";
 
@@ -62,12 +66,12 @@ export function ShellNav({
 	const reduceMotion = useReducedMotion();
 	const navRef = useRef<HTMLElement>(null);
 	useActiveLinkInView(navRef);
-	const { data: permissions } = useQuery({
+	const { data: permissions, isPending: permissionsPending } = useQuery({
 		...orgContextQueryOptions(org ?? ""),
 		enabled: Boolean(org),
 		select: (context) => context.permissions,
 	});
-	const { data: hasRepos } = useQuery({
+	const { data: hasRepos, isPending: reposPending } = useQuery({
 		...orgHomeQueryOptions(org ?? ""),
 		enabled: Boolean(org) && !repo,
 		select: (home) => home.repos.length > 0,
@@ -81,6 +85,9 @@ export function ShellNav({
 
 	if (!org) {
 		return null;
+	}
+	if (variant === "rail" && (permissionsPending || (!repo && reposPending))) {
+		return <DashboardRailNavSkeleton condensed={collapsed} />;
 	}
 
 	if (!repo) {
@@ -117,7 +124,7 @@ export function ShellNav({
 		return variant === "rail" ? (
 			<SidebarNav
 				aria-label="Org"
-				className={collapsed ? "items-center" : "px-1"}
+				className={collapsed ? undefined : "px-1"}
 				ref={navRef}
 			>
 				{items}
@@ -210,7 +217,7 @@ export function ShellNav({
 	return variant === "rail" ? (
 		<SidebarNav
 			aria-label="Repo"
-			className={collapsed ? "items-center" : "px-1"}
+			className={collapsed ? undefined : "px-1"}
 			data-feedback-name="ShellNav"
 			ref={navRef}
 		>
@@ -231,11 +238,14 @@ export function ShellNav({
 export function ShellSettingsLink({
 	org,
 	collapsed = false,
+	onBeforeNavigate,
 }: {
 	org: string | undefined;
 	collapsed?: boolean;
+	onBeforeNavigate?: () => void;
 }) {
 	const pathname = useLocation({ select: (location) => location.pathname });
+	const navigate = useNavigate();
 	if (!org) {
 		return null;
 	}
@@ -245,10 +255,22 @@ export function ShellSettingsLink({
 			collapsed={collapsed}
 			icon={Settings}
 			label="Settings"
-			onClick={() => prepareSidebarTransition("forward")}
+			onClick={(event) => {
+				if (
+					event.button !== 0 ||
+					event.metaKey ||
+					event.ctrlKey ||
+					event.shiftKey ||
+					event.altKey
+				) {
+					return;
+				}
+				event.preventDefault();
+				onBeforeNavigate?.();
+				void navigate({ to: `/${org}/settings` });
+			}}
 			to={`/${org}/settings`}
 			variant="rail"
-			viewTransition
 		/>
 	);
 }
@@ -284,7 +306,7 @@ function NavLink({
 	nested?: boolean;
 	variant: NavVariant;
 	collapsed?: boolean;
-	onClick?: () => void;
+	onClick?: (event: MouseEvent<HTMLAnchorElement>) => void;
 	viewTransition?: boolean;
 }) {
 	const link = (
@@ -292,6 +314,7 @@ function NavLink({
 			activeOptions={{ exact }}
 			activeProps={active === undefined ? { "aria-current": "page" } : {}}
 			aria-current={active ? "page" : undefined}
+			aria-label={collapsed ? label : undefined}
 			className={cn(
 				variant === "rail"
 					? sidebarNavItemClass({ collapsed, nested })
@@ -305,7 +328,7 @@ function NavLink({
 			{variant === "rail" ? (
 				<SidebarNavItemContent
 					collapsed={collapsed}
-					icon={<Icon icon={icon} />}
+					icon={icon}
 					label={label}
 					nested={nested}
 					value={value}

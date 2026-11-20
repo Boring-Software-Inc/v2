@@ -9,18 +9,20 @@ import {
 	lensLevel,
 	variableHidden,
 } from "@tripwire/contracts";
-import { Button } from "@tripwire/ui/button";
-import { Sheet } from "@tripwire/ui/drawer";
-import { Add, Icon } from "@tripwire/ui/icon";
-import { Switch } from "@tripwire/ui/switch";
-import { useId } from "react";
-import { BlockCanvas } from "#/components/responses/blocks/block-canvas";
+import { Card, CardContent } from "@tripwire/ui/card";
+import { Drawer } from "@tripwire/ui/drawer";
+import { useReducedMotion } from "motion/react";
+import { type ReactNode, useState } from "react";
+import { ConfirmDestructiveDialog } from "#/components/common/confirm-destructive-dialog";
 import { BLOCK_META } from "#/components/responses/blocks/block-catalog";
 import { BlockColumn } from "#/components/responses/blocks/block-column";
 import { BlockDragPreview } from "#/components/responses/blocks/block-drag-preview";
 import { useBlockBuilder } from "#/components/responses/blocks/use-block-builder";
 import { useBlockDnd } from "#/components/responses/blocks/use-block-dnd";
-import { GithubCommentMock } from "#/components/responses/github-comment-mock";
+import { OutcomeCarousel } from "#/components/responses/outcome-carousel";
+import { RedactionSettings } from "#/components/responses/redaction-settings";
+import { ResponseEditor } from "#/components/responses/response-editor";
+import { ResponseGithubStage } from "#/components/responses/response-github-stage";
 import {
 	blockKey,
 	encodeBlocks,
@@ -29,16 +31,25 @@ import {
 	responsePreview,
 	sampleInput,
 } from "#/components/responses/responses-model";
-import { ResponsesPreview } from "#/components/responses/responses-preview";
-import { sampleRunFor } from "#/components/responses/sample-run";
 import type { useSaveQueue } from "#/components/save-queue";
+
+const LOCAL_APPEARANCE = {
+	node87_1:
+		"grid min-h-0 flex-1 grid-cols-[minmax(20rem,24rem)_minmax(0,1fr)] overflow-hidden bg-shell",
+	node90_2: "min-h-0 overflow-y-auto border-e border-line-faint bg-shell",
+	node95_3: "px-4 py-5",
+	node107_4: "mt-4",
+} as const;
 
 export interface ResponseBuilderProps {
 	outcome: OutcomeMeta;
 	config: ResponseConfig;
 	policy: RedactionPolicy;
+	orgPolicy: RedactionPolicy;
 	canEdit: boolean;
 	org: string;
+	onOutcomeChange: (value: string) => void;
+	saveToolbar: ReactNode;
 	setField: ReturnType<typeof useSaveQueue>["setField"];
 }
 
@@ -46,125 +57,118 @@ export function ResponseBuilder({
 	outcome,
 	config,
 	policy,
+	orgPolicy,
 	canEdit,
 	org,
+	onOutcomeChange,
+	saveToolbar,
 	setField,
 }: ResponseBuilderProps) {
+	const reduceMotion = useReducedMotion();
+	const [removeId, setRemoveId] = useState<string | null>(null);
 	const save = (next: ResponseBlock[]) =>
 		setField(blockKey(outcome), encodeBlocks(next));
-	const builder = useBlockBuilder(outcomeBlocks(config, outcome), save);
+	const builder = useBlockBuilder(
+		outcomeBlocks(config, outcome),
+		save,
+		canEdit,
+	);
 	const dnd = useBlockDnd(builder);
-	const { view } = builder;
-	const preview = responsePreview(config, outcome, policy, view.viewer);
-	const { outputs, plan, posting } = preview;
+	const preview = responsePreview(config, outcome, policy, builder.view.viewer);
 	const readOnly = !canEdit;
 	const rulesHidden = variableHidden("failed-rules", preview.lens);
 	const helpDefaultContent = defaultHelpContent(
 		sampleInput(outcome).reasons,
 		lensLevel(preview.lens),
 	);
-	const postingLabelId = useId();
-
-	const setPosting = (on: boolean) =>
-		setField(outcome.surface, on ? "comment" : "silent");
 	const dragged = builder.drag?.item;
 	const liftedOutput =
 		dragged?.source === "canvas"
-			? outputs.find((output) => output.block.id === dragged.id)
+			? preview.outputs.find((output) => output.block.id === dragged.id)
 			: undefined;
+	const setPosting = (posting: boolean) =>
+		setField(outcome.surface, posting ? "comment" : "silent");
 
 	return (
 		<DndContext {...dnd}>
-			<div className="relative min-h-0" data-layout-role="response-builder">
-				<ResponsesPreview
-					action={
-						canEdit ? (
-							<div className="flex w-full items-center composition-gap-standard sm:min-w-0 sm:flex-1">
-								{builder.full ? null : (
-									<Button
-										onAction={() => builder.browse()}
-										size="small"
-										variant="secondary"
-									>
-										<Icon icon={Add} />
-										Add block
-									</Button>
-								)}
-								<div
-									className="composition-push-end flex shrink-0 items-center composition-gap-standard"
-									data-layout-role="response-posting-control"
-								>
-									<span
-										className="content-label-small tone-content-secondary"
-										id={postingLabelId}
-									>
-										Post a comment
-									</span>
-									<Switch
-										ariaLabelledBy={postingLabelId}
-										checked={posting}
-										onCheckedChange={setPosting}
-										size="small"
+			<div
+				className={LOCAL_APPEARANCE.node87_1}
+				data-layout-role="response-builder"
+			>
+				<aside className={LOCAL_APPEARANCE.node90_2}>
+					<OutcomeCarousel
+						onValueChange={onOutcomeChange}
+						value={outcome.value}
+					/>
+					<div className={LOCAL_APPEARANCE.node95_3}>
+						<ResponseEditor
+							builder={builder}
+							helpDefaultContent={helpDefaultContent}
+							onPostingChange={setPosting}
+							onRemoveBlock={setRemoveId}
+							org={org}
+							outputs={preview.outputs}
+							posting={preview.posting}
+							readOnly={readOnly}
+							rulesHidden={rulesHidden}
+						/>
+						<div className={LOCAL_APPEARANCE.node107_4}>
+							<Card>
+								<CardContent>
+									<RedactionSettings
+										canEdit={canEdit}
+										config={config}
+										effective={policy}
+										orgPolicy={orgPolicy}
+										setField={setField}
 									/>
-								</div>
-							</div>
-						) : undefined
-					}
-					canvas={
-						<div
-							className="flex flex-col composition-gap-standard"
-							data-region="comment"
-						>
-							{posting && plan.comment !== "upsert" ? (
-								<p className="content-body-small tone-content-secondary composition-support-indent">
-									Tripwire posts no separate PR comment. These blocks appear in
-									the GitHub review.
-								</p>
-							) : null}
-							<GithubCommentMock
-								action={
-									posting && plan.comment !== "upsert" ? "review" : "comment"
-								}
-								body={posting ? "" : null}
-								edited={outcome.edited}
-								editor={
-									<BlockCanvas
-										builder={builder}
-										outputs={outputs}
-										readOnly={readOnly}
-									/>
-								}
-							/>
+								</CardContent>
+							</Card>
 						</div>
-					}
+					</div>
+				</aside>
+				<ResponseGithubStage
+					builder={builder}
 					check={preview.check}
-					onView={builder.setView}
-					outcome={outcome}
-					plan={plan}
-					run={sampleRunFor(outcome, plan, preview.check)}
-					runPageLevel={preview.runPageLevel}
-					view={view}
+					edited={outcome.edited}
+					outputs={preview.outputs}
+					plan={preview.plan}
+					posting={preview.posting}
+					readOnly={readOnly}
+					toolbar={saveToolbar}
 				/>
 			</div>
-			<Sheet
-				bodyInset="content"
+			<Drawer
 				onOpenChange={builder.showPalette}
 				open={builder.paletteOpen}
 				showFooter={false}
 				showHeader={false}
-				title={builder.selected ? "Block settings" : "Add block"}
+				title="Add block"
 			>
 				<BlockColumn
 					builder={builder}
-					key={builder.selectedId ?? builder.insertIndex ?? "palette"}
 					helpDefaultContent={helpDefaultContent}
 					org={org}
 					outcome={outcome.value}
 					readOnly={readOnly}
 					rulesHidden={rulesHidden}
 				/>
-			</Sheet>
-			<DragOverlay dropAnimation={null}>
+			</Drawer>
+			<ConfirmDestructiveDialog
+				confirmLabel="Remove block"
+				description="This response block will be removed after you save the response."
+				onConfirm={() => {
+					if (removeId) builder.remove(removeId);
+					return undefined;
+				}}
+				onOpenChange={(open) => {
+					if (!open) setRemoveId(null);
+				}}
+				open={removeId !== null}
+				pendingLabel="Removing"
+				title="Remove this block?"
+			/>
+			<DragOverlay dropAnimation={reduceMotion ? null : undefined}>
 				{dragged?.source === "palette" ? (
 					<BlockDragPreview
 						icon={BLOCK_META[dragged.type].icon}
@@ -173,11 +177,7 @@ export function ResponseBuilder({
 					/>
 				) : null}
 				{liftedOutput ? (
-					<BlockDragPreview
-						body={liftedOutput.body}
-						label={BLOCK_META[liftedOutput.block.type].label}
-						source="canvas"
-					/>
+					<BlockDragPreview source="canvas" type={liftedOutput.block.type} />
 				) : null}
 			</DragOverlay>
 		</DndContext>

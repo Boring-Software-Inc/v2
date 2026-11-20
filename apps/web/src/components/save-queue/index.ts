@@ -16,4 +16,8 @@ export {
 	useSaveQueue,
 	useSaveQueueField,
 } from "./save-queue-context";
-export { UnsavedChangesBar } from "./unsaved-changes-bar";
+export {
+	UnsavedChangesBar,
+	UnsavedChangesToolbar,
+	type UnsavedChangesToolbarProps,
+} from "./unsaved-changes-bar";

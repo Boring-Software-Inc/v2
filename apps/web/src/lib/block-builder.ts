@@ -38,6 +38,7 @@ export type BuilderAction =
 	| { type: "update"; block: ResponseBlock }
 	| { type: "remove"; id: string }
 	| { type: "select"; id: string | null }
+	| { type: "focus"; id: string }
 	| { type: "palette"; open: boolean }
 	| { type: "browse"; index?: number }
 	| { type: "view"; view: Partial<PreviewView> }
@@ -134,6 +135,13 @@ export function reduceBuilder(
 				paletteOpen: action.id !== null,
 				insertIndex: null,
 			};
+		case "focus":
+			return {
+				...state,
+				selectedId: action.id,
+				paletteOpen: false,
+				insertIndex: null,
+			};
 		case "palette":
 			return {
 				...state,
@@ -190,23 +198,6 @@ export function dropLineIndex(state: BuilderState): number | null {
 	const { id } = drag.item;
 	const from = state.blocks.findIndex((block) => block.id === id);
 	return movedIndex(from, drag.index) === null ? null : drag.index;
-}
-
-export function verticalStep(
-	direction: "up" | "down",
-	top: number,
-	height: number,
-	centers: readonly number[],
-): number | null {
-	const center = top + height / 2;
-	const target =
-		direction === "down"
-			? Math.min(...centers.filter((other) => other > center))
-			: Math.max(...centers.filter((other) => other < center));
-	if (!Number.isFinite(target)) {
-		return null;
-	}
-	return target + (direction === "down" ? 1 : -1) - height / 2;
 }
 
 export function dropPosition(

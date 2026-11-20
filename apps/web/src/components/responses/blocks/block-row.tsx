@@ -1,38 +1,44 @@
-import { useDraggable, useDroppable } from "@dnd-kit/core";
 import type { ResponseBlock } from "@tripwire/contracts";
-import { DragHandle, Icon } from "@tripwire/ui/icon";
+import { motion, useReducedMotion } from "motion/react";
 import { type KeyboardEvent, type ReactNode, useRef } from "react";
 import { BLOCK_META } from "#/components/responses/blocks/block-catalog";
-import type { BlockDragData } from "#/components/responses/blocks/use-block-dnd";
 import { cn } from "#/lib/utils";
+
+const LOCAL_APPEARANCE = {
+	root: "group/block relative snap-center snap-always scroll-m-24 rounded-panel px-2 py-1.5 type-body text-text-1 transition-[opacity,filter,transform] duration-(--dur-state) max-sm:ps-7 motion-reduce:transition-none",
+	selected: "bg-paper ring-1 ring-line-strong",
+	hover: "hover:bg-hover",
+	dimmed: "scale-[0.996] opacity-[0.42] blur-[0.75px]",
+	node61_1:
+		"pointer-events-none absolute -inset-1 z-10 rounded-[calc(var(--radius-panel)+4px)] border-2 border-[#58a6ff]/80 bg-[#58a6ff]/4 shadow-[0_0_0_1px_color-mix(in_oklab,#58a6ff_18%,transparent)]",
+	node74_2: "absolute inset-0 cursor-pointer rounded-panel",
+} as const;
 
 export interface BlockRowProps {
 	block: ResponseBlock;
 	selected: boolean;
-	lifted: boolean;
 	placeholder: boolean;
 	readOnly: boolean;
+	dimmed: boolean;
 	onSelect: (id: string | null) => void;
+	onNavigate: (direction: -1 | 1) => void;
 	children: ReactNode;
 }
 
 export function BlockRow({
 	block,
 	selected,
-	lifted,
 	placeholder,
 	readOnly,
+	dimmed,
 	onSelect,
+	onNavigate,
 	children,
 }: BlockRowProps) {
 	const label = BLOCK_META[block.type].label;
-	const data: BlockDragData = {
-		item: { source: "canvas", id: block.id },
-		label,
-	};
-	const drag = useDraggable({ id: block.id, data, disabled: readOnly });
-	const drop = useDroppable({ id: block.id, data });
-	const handle = useRef<HTMLButtonElement>(null);
+	const editButton = useRef<HTMLButtonElement>(null);
+	const row = useRef<HTMLLIElement>(null);
+	const reduceMotion = useReducedMotion();
 	const select = () => onSelect(block.id);
 	const leave = (event: KeyboardEvent<HTMLLIElement>) => {
 		if (
@@ -41,55 +47,55 @@ export function BlockRow({
 			event.currentTarget.contains(event.target as Node)
 		) {
 			event.preventDefault();
-			onSelect(null);
-			handle.current?.focus();
+			editButton.current?.focus();
 		}
 	};
-
 	return (
 		<li
 			className={cn(
-				"group/block relative rounded-panel px-2 py-1.5 type-body text-text-1 max-sm:ps-7",
+				LOCAL_APPEARANCE.root,
 				selected
-					? "bg-paper ring-1 ring-line-strong"
-					: !readOnly && "hover:bg-hover",
-				lifted && "opacity-30",
+					? LOCAL_APPEARANCE.selected
+					: !readOnly && LOCAL_APPEARANCE.hover,
+				dimmed && LOCAL_APPEARANCE.dimmed,
 			)}
 			data-block={block.type}
+			data-block-id={block.id}
 			data-empty-block={placeholder || undefined}
 			onKeyDown={leave}
-			ref={(node) => {
-				drag.setNodeRef(node);
-				drop.setNodeRef(node);
-			}}
+			ref={row}
 		>
+			{selected ? (
+				<motion.span
+					aria-hidden
+					className={LOCAL_APPEARANCE.node61_1}
+					layoutId="response-preview-focus"
+					transition={
+						reduceMotion
+							? { duration: 0 }
+							: { type: "spring", stiffness: 320, damping: 34, mass: 0.82 }
+					}
+				/>
+			) : null}
 			{children}
 			{readOnly ? null : (
 				<button
 					aria-label={`Edit ${label}`}
-					className="absolute inset-0 cursor-pointer rounded-panel"
+					className={LOCAL_APPEARANCE.node74_2}
 					onClick={select}
+					onKeyDown={(event) => {
+						if (event.key === "ArrowDown" || event.key === "PageDown") {
+							event.preventDefault();
+							onNavigate(1);
+						}
+						if (event.key === "ArrowUp" || event.key === "PageUp") {
+							event.preventDefault();
+							onNavigate(-1);
+						}
+					}}
+					ref={editButton}
 					type="button"
 				/>
-			)}
-			{readOnly ? null : (
-				<button
-					aria-label={label}
-					className={cn(
-						"-start-9.5 max-sm:start-1.5 absolute top-1.5 flex h-5.5 w-4 cursor-grab items-center justify-center rounded-tag text-text-3 opacity-0 transition-opacity duration-(--dur-state) hover:text-text-1 focus-visible:opacity-100 focus-visible:focus-sm group-hover/block:opacity-100 pointer-coarse:opacity-100",
-						selected && "opacity-100",
-					)}
-					onClick={select}
-					ref={(node) => {
-						drag.setActivatorNodeRef(node);
-						handle.current = node;
-					}}
-					type="button"
-					{...drag.attributes}
-					{...drag.listeners}
-				>
-					<Icon icon={DragHandle} size={14} />
-				</button>
 			)}
 		</li>
 	);

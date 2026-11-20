@@ -2,26 +2,23 @@ import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import type { RedactionPolicy } from "@tripwire/contracts";
 import { OPEN_REDACTION, resolveRedaction } from "@tripwire/contracts";
-import { SegmentedControl } from "@tripwire/ui/radio-group";
 import { SkeletonSwap } from "@tripwire/ui/skeleton";
 import { useMemo, useState } from "react";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { Page, PageBody, PageHeader } from "#/components/layouts/page";
 import { ResponseBuilder } from "#/components/responses/blocks/response-builder";
 import { PreviewLinkProvider } from "#/components/responses/preview-link";
-import { RedactionSettings } from "#/components/responses/redaction-settings";
+import { ResponsesMobileBlocker } from "#/components/responses/responses-mobile-blocker";
 import {
 	flattenConfig,
-	OUTCOMES,
 	outcomeMeta,
 	unflattenConfig,
 } from "#/components/responses/responses-model";
 import { BuilderSkeleton } from "#/components/responses/responses-page-skeleton";
-import { SaveState } from "#/components/responses/save-state";
 import { useSaveResponseConfig } from "#/components/responses/use-save-response-config";
 import {
 	type SaveQueueCommit,
 	SaveQueueProvider,
+	UnsavedChangesToolbar,
 	useSaveQueue,
 } from "#/components/save-queue";
 import { useOrgPermission } from "#/hooks/use-org-permission";
@@ -35,12 +32,7 @@ import {
 
 const routeApi = getRouteApi("/$org/$repo/responses");
 
-export interface ResponsesPageProps {
-	title: string;
-	description: string;
-}
-
-export function ResponsesPage({ title, description }: ResponsesPageProps) {
+export function ResponsesPage() {
 	const { org, repo: repoName } = routeApi.useParams();
 	const { data: repo } = useQuery(orgRepoQueryOptions(org, repoName));
 	const canEdit = useOrgPermission(org, "responses:manage");
@@ -73,14 +65,13 @@ export function ResponsesPage({ title, description }: ResponsesPageProps) {
 			<PreviewLinkProvider>
 				<ResponsesView
 					canEdit={canEdit}
-					description={description}
 					loaded={Boolean(savedConfig && orgDefaults)}
 					onDiscarded={saveConfig.reset}
 					org={org}
+					repo={repoName}
 					orgPolicy={orgDefaults?.defaults.redaction ?? OPEN_REDACTION}
 					saveError={saveConfig.error?.message ?? null}
 					savedValues={savedValues}
-					title={title}
 				/>
 			</PreviewLinkProvider>
 		</SaveQueueProvider>
@@ -89,26 +80,24 @@ export function ResponsesPage({ title, description }: ResponsesPageProps) {
 
 interface ResponsesViewProps {
 	canEdit: boolean;
-	description: string;
 	org: string;
+	repo: string;
 	loaded: boolean;
 	orgPolicy: RedactionPolicy;
 	saveError: string | null;
 	savedValues: Parameters<SaveQueueCommit>[0];
 	onDiscarded: () => void;
-	title: string;
 }
 
 function ResponsesView({
 	canEdit,
-	description,
 	org,
+	repo,
 	loaded,
 	orgPolicy,
 	saveError,
 	savedValues,
 	onDiscarded,
-	title,
 }: ResponsesViewProps) {
 	const { pending, setField, discard } = useSaveQueue();
 	const { scope } = routeApi.useSearch();
@@ -141,58 +130,41 @@ function ResponsesView({
 	return (
 		<DashboardLayout counts={{}}>
 			<div data-layout-role="responses-shell">
-				<Page>
-					<PageHeader
-						actions={
-							<SaveState
-								canEdit={canEdit}
-								error={saveError}
-								onDiscard={onDiscard}
-							/>
-						}
-						description={description}
-						title={title}
-					/>
-					<PageBody>
-						<div data-layout-role="response-scopes">
-							<SegmentedControl
-								ariaLabel="Outcome"
-								onValueChange={(value) => value && setScope(value)}
-								options={OUTCOMES}
-								value={scope}
-							/>
-						</div>
-						<SkeletonSwap
-							fallback={<BuilderSkeleton />}
-							label="Loading response settings"
-							layout="fill"
-							loading={!(config && policy)}
-						>
-							{config && policy ? (
-								<div data-layout-role="response-workspace">
-									<ResponseBuilder
-										canEdit={canEdit}
-										config={config}
-										key={`${outcome.value}-${epoch}`}
-										org={org}
-										outcome={outcome}
-										policy={policy}
-										setField={setField}
-									/>
-									<div data-layout-role="response-redaction">
-										<RedactionSettings
-											canEdit={canEdit}
-											config={config}
-											effective={policy}
-											orgPolicy={orgPolicy}
-											setField={setField}
-										/>
-									</div>
-								</div>
-							) : null}
-						</SkeletonSwap>
-					</PageBody>
-				</Page>
+				<div className="min-h-0 flex-1">
+					<SkeletonSwap
+						fallback={<BuilderSkeleton />}
+						label="Loading response settings"
+						loading={!(config && policy)}
+					>
+						{config && policy ? (
+							<div
+								className="max-lg:hidden"
+								data-layout-role="response-workspace"
+							>
+								<ResponseBuilder
+									canEdit={canEdit}
+									config={config}
+									key={`${outcome.value}-${epoch}`}
+									onOutcomeChange={setScope}
+									org={org}
+									orgPolicy={orgPolicy}
+									outcome={outcome}
+									policy={policy}
+									saveToolbar={
+										canEdit ? (
+											<UnsavedChangesToolbar
+												error={saveError}
+												onDiscard={onDiscard}
+											/>
+										) : null
+									}
+									setField={setField}
+								/>
+							</div>
+						) : null}
+					</SkeletonSwap>
+				</div>
+				<ResponsesMobileBlocker org={org} repo={repo} />
 			</div>
 		</DashboardLayout>
 	);

@@ -94,7 +94,8 @@ function parseBody(body: string): BodyBlock[] {
 	return blocks;
 }
 
-const INLINE_RE = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\)|@[A-Za-z0-9-]+)/g;
+const INLINE_RE =
+	/(\*\*[^*]+\*\*|\*[^*]+\*|_[^_]+_|`[^`]+`|\[[^\]]+\]\([^)]+\)|@[A-Za-z0-9-]+)/g;
 
 const ESCAPED_RE = /\\([\\`*_[\]<>])/g;
 
@@ -107,6 +108,13 @@ function renderInline(text: string): ReactNode[] {
 					{renderInline(part.slice(2, -2))}
 				</strong>
 			);
+		}
+		if (
+			((part.startsWith("*") && part.endsWith("*")) ||
+				(part.startsWith("_") && part.endsWith("_"))) &&
+			part.length > 2
+		) {
+			return <em key={key}>{renderInline(part.slice(1, -1))}</em>;
 		}
 		if (part.startsWith("`") && part.endsWith("`") && part.length > 2) {
 			return <code key={key}>{part.slice(1, -1)}</code>;

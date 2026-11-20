@@ -931,6 +931,20 @@ Shared component agent policy and semantic metadata belong in `@tripwire/ui`.
 Page-level agent permissions, WebMCP operations, data access, and product policy
 remain in the consuming app.
 
+## 2026-11-19 · Sortable response blocks
+
+**Decision:** The web app uses `@dnd-kit/sortable` for reordering response
+blocks in the Responses editor. The existing `@dnd-kit/core` context continues
+to own sensors, accessibility announcements, the drag overlay, and palette
+insertion.
+
+**Why:** The core package exposes drag events but does not provide sortable-list
+layout transforms, keyboard coordinates, or displacement animation. The former
+manual index and drop-line implementation made the lifted row feel disconnected
+from the list and allowed rapid pointer movement to produce abrupt placement.
+The official sortable package adds those missing behaviors without introducing
+a second drag-and-drop system or changing persisted response data.
+
 ## 2026-11-19 | GitCafe queues start with the standard worker
 
 The standard worker registers GitCafe's isolated protection, lifecycle, and
