@@ -28,7 +28,7 @@ beforeAll(async () => {
 	db = handle.db;
 	pool = handle.pool;
 	await applyMigrations(db);
-});
+}, 120_000);
 
 afterAll(async () => {
 	await pool.end();

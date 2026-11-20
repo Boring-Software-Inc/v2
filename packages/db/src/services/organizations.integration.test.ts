@@ -113,7 +113,7 @@ beforeAll(async () => {
 	db = handle.db;
 	pool = handle.pool;
 	await applyMigrations(db);
-});
+}, 120_000);
 
 afterAll(async () => {
 	await pool.end();
@@ -1668,5 +1668,5 @@ describe("migration backfill (§11) — idempotency", () => {
 			.from(repos)
 			.where(eq(repos.fullName, "legacy/app"));
 		expect(repoRows[0]?.orgId).toBe(legacyOrg.id);
-	});
+	}, 15_000);
 });

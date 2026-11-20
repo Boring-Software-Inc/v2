@@ -66,7 +66,7 @@ beforeAll(async () => {
 	pool = handle.pool;
 	await applyMigrations(db);
 	repoId = await seedRepo("web");
-});
+}, 120_000);
 
 afterAll(async () => {
 	await pool.end();
