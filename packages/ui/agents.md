@@ -17,6 +17,9 @@ HARD RULES:
 - A native `<button>` is not automatically the shared `Button`. Product roles
   with distinct anatomy or interaction contracts require a named molecule,
   not a location-specific Button variant.
+- Every primitive or molecule change that can affect rendered output activates
+  `.agents/skills/before-and-after/SKILL.md`; the consuming surface needs
+  published and verified before/after evidence before PR handoff.
 - A consumer reaching for `className`, `style`, color, spacing, size, weight, or leading controls to change chrome is a smell. Expose a finite semantic prop only when real call sites prove it.
 - Public component props are hand-authored semantic contracts. Do not expose `className`, `style`, `render`, `asChild`, `slotProps`, `classes`, `unstyled`, or raw ui-sdk state through exported types.
 - Product-specific composition and geometry stay in `apps/web/src/components`.

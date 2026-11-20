@@ -280,7 +280,7 @@ export function postsComment(config: ResponseConfig, outcome: OutcomeMeta) {
 export function sampleInput(outcome: OutcomeMeta): CommentInput {
 	const base = {
 		verdict: outcome.verdict,
-		contributorLogin: "contributor",
+		contributorLogin: "genesisrevelationinc-debug",
 		reasons: [] as CommentReason[],
 		runUrl: "https://tripwire.sh/runs/sample",
 		title: "Add sponsor wallet",

@@ -35,14 +35,14 @@ export function RedactionSettings({
 
 	return (
 		<SettingSection
-			description="What people outside your org see."
+			description="What people outside your workspace see."
 			id="redaction"
 			title="Redaction"
 		>
 			<SettingToggle
 				checked={inherit}
 				disabled={!canEdit}
-				label="Use org defaults"
+				label="Use workspace defaults"
 				onChange={setInherit}
 				setting="redaction"
 			/>

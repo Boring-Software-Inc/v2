@@ -1,9 +1,9 @@
-import { UI_MOTION } from "@tripwire/ui/motion";
+import { Icon, type IconGlyph } from "@tripwire/ui/icon";
 import { Tooltip } from "@tripwire/ui/tooltip";
 import {
 	AnimatePresence,
-	MotionConfig,
 	motion,
+	useIsPresent,
 	useReducedMotion,
 } from "motion/react";
 import type {
@@ -12,81 +12,123 @@ import type {
 	ReactElement,
 	ReactNode,
 } from "react";
-import { cloneElement, useLayoutEffect, useRef } from "react";
-import "./sidebar.css";
+import { cn } from "#/lib/utils";
 
-function cn(...values: Array<string | false | null | undefined>) {
-	return values.filter(Boolean).join(" ");
+type SidebarFrameProps = ComponentPropsWithoutRef<"div"> & {
+	secondary?: ReactNode;
+	secondaryDelay?: number;
+	onSecondaryExitComplete?: () => void;
+};
+
+export function SidebarFrame({
+	className,
+	secondary,
+	secondaryDelay = 0,
+	onSecondaryExitComplete,
+	children,
+	...props
+}: SidebarFrameProps) {
+	return (
+		<div
+			className={cn("flex h-full min-h-0 shrink-0", className)}
+			data-secondary={secondary ? "" : undefined}
+			data-slot="frame"
+			{...props}
+		>
+			{children}
+			<AnimatePresence onExitComplete={onSecondaryExitComplete}>
+				{secondary ? (
+					<SidebarSecondaryMotion entryDelay={secondaryDelay} key="secondary">
+						{secondary}
+					</SidebarSecondaryMotion>
+				) : null}
+			</AnimatePresence>
+		</div>
+	);
 }
 
-export type SidebarTransitionDirection = "forward" | "back";
+type SidebarPrimaryProps = ComponentPropsWithoutRef<typeof motion.nav> & {
+	condensed?: boolean;
+};
 
-interface PendingSidebarSnapshot {
-	direction: SidebarTransitionDirection;
-	element: HTMLElement;
+export function SidebarPrimary({
+	className,
+	condensed = false,
+	...props
+}: SidebarPrimaryProps) {
+	return (
+		<motion.nav
+			className={cn("h-full min-h-0 shrink-0", className)}
+			data-condensed={condensed ? "" : undefined}
+			data-slot="primary"
+			{...props}
+		/>
+	);
 }
 
-let pendingSidebarSnapshot: PendingSidebarSnapshot | null = null;
+type SidebarSecondaryProps = ComponentPropsWithoutRef<typeof motion.div>;
 
-function supportsViewTransitions() {
-	return document.startViewTransition instanceof Function;
+export function SidebarSecondary({
+	className,
+	...props
+}: SidebarSecondaryProps) {
+	return (
+		<motion.div
+			className={cn(
+				"min-h-0 w-56 shrink-0 overflow-y-auto px-1 py-2",
+				className,
+			)}
+			data-slot="secondary"
+			{...props}
+		/>
+	);
 }
 
-function motionValue(name: string, fallback: number) {
-	const value = getComputedStyle(document.body).getPropertyValue(name).trim();
-	if (!value) return fallback;
-	const amount = Number.parseFloat(value);
-	if (!Number.isFinite(amount)) return fallback;
-	return value.endsWith("s") && !value.endsWith("ms") ? amount * 1000 : amount;
-}
-
-function captureSidebarSnapshot(direction: SidebarTransitionDirection) {
-	if (
-		window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
-		supportsViewTransitions()
-	) {
-		return;
-	}
-	const source = document.querySelector<HTMLElement>("[data-sidebar-swap]");
-	if (!source) return;
-	const bounds = source.getBoundingClientRect();
-	const snapshot = source.cloneNode(true) as HTMLElement;
-	snapshot.removeAttribute("data-sidebar-swap");
-	snapshot.setAttribute("aria-hidden", "true");
-	const frame = document.createElement("div");
-	frame.dataset.sidebarSnapshot = "";
-	frame.dataset.sidebarTransitionDirection = direction;
-	frame.style.insetBlockStart = `${bounds.top}px`;
-	frame.style.insetInlineStart = `${bounds.left}px`;
-	frame.style.inlineSize = `${bounds.width}px`;
-	frame.style.blockSize = `${bounds.height}px`;
-	frame.append(snapshot);
-	document.body.append(frame);
-	pendingSidebarSnapshot?.element.remove();
-	pendingSidebarSnapshot = { direction, element: frame };
-}
-
-export function prepareSidebarTransition(
-	direction: SidebarTransitionDirection,
-) {
-	document.documentElement.dataset.sidebarTransitionDirection = direction;
-	captureSidebarSnapshot(direction);
-}
-
-export async function runSidebarTransition(
-	direction: SidebarTransitionDirection,
-	update: () => Promise<void>,
-) {
-	prepareSidebarTransition(direction);
-	if (
-		window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
-		!supportsViewTransitions()
-	) {
-		await update();
-		return;
-	}
-	const transition = document.startViewTransition(update);
-	await transition.finished;
+function SidebarSecondaryMotion({
+	children,
+	entryDelay,
+}: {
+	children: ReactNode;
+	entryDelay: number;
+}) {
+	const isPresent = useIsPresent();
+	const reduceMotion = useReducedMotion();
+	return (
+		<motion.div
+			animate={{ width: 224 }}
+			className="min-h-0 shrink-0 overflow-hidden"
+			data-slot="secondary-rail"
+			exit={{ width: 0 }}
+			initial={{ width: 0 }}
+			inert={isPresent ? undefined : true}
+			transition={
+				reduceMotion
+					? { duration: 0 }
+					: {
+							delay: isPresent ? entryDelay : 0,
+							duration: 0.18,
+							ease: [0.2, 0.8, 0, 1],
+						}
+			}
+		>
+			<SidebarSecondary
+				animate={{ opacity: 1, x: 0 }}
+				exit={{ opacity: 0, x: reduceMotion ? 0 : 12 }}
+				initial={{ opacity: 1, x: reduceMotion ? 0 : -12 }}
+				transition={
+					reduceMotion
+						? { duration: 0 }
+						: {
+								delay: isPresent ? entryDelay : 0,
+								duration: isPresent ? 0.18 : 0.1,
+								ease: isPresent ? [0.19, 0.91, 0.38, 1] : [0.2, 0.8, 0, 1],
+							}
+				}
+			>
+				{children}
+			</SidebarSecondary>
+		</motion.div>
+	);
 }
 
 export function SidebarNav({
@@ -113,7 +155,14 @@ export function SidebarNavSectionLabel({
 	collapsed?: boolean;
 }) {
 	if (collapsed) return null;
-	return <div data-layout-role="sidebar-section-label">{children}</div>;
+	return (
+		<div
+			className="px-2 pt-1 pb-1 uppercase"
+			data-layout-role="sidebar-nav-section-label"
+		>
+			{children}
+		</div>
+	);
 }
 
 export function sidebarNavItemClass({
@@ -124,10 +173,10 @@ export function sidebarNavItemClass({
 	nested?: boolean;
 } = {}) {
 	return cn(
-		"relative flex h-(--control) items-center gap-2 rounded-tag px-2 sidebar-nav-link",
+		"flex h-(--control) items-center gap-2 rounded-tag px-2 type-label text-text-2 hover:bg-hover hover:text-text-1 aria-[current=page]:bg-pressed aria-[current=page]:text-text-1",
 		nested && !collapsed && "ps-(--sidebar-nested-indent)",
 		collapsed &&
-			"group/nav-link h-(--control) w-(--control-sm) justify-center rounded-none px-0",
+			"group/nav-link h-(--control) w-(--control-sm) justify-center rounded-none px-0 hover:bg-transparent aria-[current=page]:bg-transparent",
 	);
 }
 
@@ -138,66 +187,41 @@ export function SidebarNavItemContent({
 	collapsed = false,
 	nested = false,
 }: {
-	icon: ReactNode;
+	icon: IconGlyph;
 	label: string;
 	value?: number;
 	collapsed?: boolean;
 	nested?: boolean;
 }) {
-	const reduceMotion = useReducedMotion();
-	const transition = reduceMotion ? { duration: 0 } : UI_MOTION.position;
-	const exitTransition = reduceMotion ? { duration: 0 } : UI_MOTION.state;
 	return (
-		<MotionConfig transition={transition}>
-			<motion.span
-				data-collapsed={collapsed || undefined}
-				data-layout-role="sidebar-nav-icon-plate"
-				layout="position"
-			>
-				<span data-layout-role="sidebar-nav-icon">{icon}</span>
-			</motion.span>
-			<AnimatePresence initial={false} mode="popLayout">
-				{collapsed ? null : (
-					<motion.span
-						animate={{ opacity: 1, transform: "translateX(0px)" }}
-						className="min-w-0 truncate"
-						data-layout-role="sidebar-nav-label"
-						exit={{
-							opacity: 0,
-							transform: "translateX(calc(var(--space-1) * -1))",
-						}}
-						initial={{
-							opacity: 0,
-							transform: "translateX(calc(var(--space-1) * -1))",
-						}}
-						title={nested ? label : undefined}
-						transition={exitTransition}
-					>
-						{label}
-					</motion.span>
+		<>
+			<span
+				className={cn(
+					"relative flex h-[22px] w-[26px] items-center justify-center",
+					collapsed && "rounded-[8px]",
 				)}
-			</AnimatePresence>
-			<AnimatePresence initial={false} mode="popLayout">
-				{value !== undefined && !collapsed ? (
-					<motion.span
-						animate={{ opacity: 1, transform: "translateX(0px)" }}
-						className="ms-auto overflow-hidden tone-content-tertiary tabular-nums"
-						exit={{
-							opacity: 0,
-							transform: "translateX(calc(var(--space-1) * -1))",
-						}}
-						initial={{
-							opacity: 0,
-							transform: "translateX(calc(var(--space-1) * -1))",
-						}}
-						transition={exitTransition}
-					>
-						{value}
-						<span className="sr-only"> to review</span>
-					</motion.span>
-				) : null}
-			</AnimatePresence>
-		</MotionConfig>
+				data-collapsed={collapsed ? "true" : undefined}
+				data-layout-role="sidebar-nav-icon-plate"
+			>
+				<span className="flex" data-layout-role="sidebar-nav-icon">
+					<Icon icon={icon} size={collapsed ? 18 : undefined} />
+				</span>
+			</span>
+			{collapsed ? null : (
+				<span className="min-w-0 truncate" title={nested ? label : undefined}>
+					{label}
+				</span>
+			)}
+			{value !== undefined && !collapsed ? (
+				<span
+					className="ms-auto tabular-nums"
+					data-layout-role="sidebar-nav-count"
+				>
+					{value}
+					<span className="sr-only"> to review</span>
+				</span>
+			) : null}
+		</>
 	);
 }
 
@@ -208,7 +232,12 @@ export function SidebarNavTooltip({
 }: {
 	label: string;
 	collapsed: boolean;
-	children: ReactElement<Pick<ComponentPropsWithoutRef<"a">, "aria-label">>;
+	children: ReactElement<{
+		"aria-label"?: string;
+		"aria-labelledby"?: string;
+		children?: ReactNode;
+		title?: string;
+	}>;
 }) {
 	if (!collapsed) {
 		return children;
@@ -217,59 +246,10 @@ export function SidebarNavTooltip({
 		<Tooltip
 			offset="spacious"
 			placement="right"
-			trigger={cloneElement(children, { "aria-label": label })}
+			trigger={children}
 			variant="sidebar"
 		>
 			{label}
 		</Tooltip>
-	);
-}
-
-export function SidebarSwap({
-	activeKey,
-	direction,
-	children,
-}: {
-	activeKey: string;
-	direction: "forward" | "back";
-	children: ReactNode;
-}) {
-	const reduceMotion = useReducedMotion();
-	const outgoing =
-		direction === "forward" ? "var(--space-6)" : "calc(var(--space-6) * -1)";
-	const incoming =
-		direction === "forward" ? "calc(var(--space-6) * -1)" : "var(--space-6)";
-	const swapRef = useRef<HTMLDivElement>(null);
-	useLayoutEffect(() => {
-		const pending = pendingSidebarSnapshot;
-		const incoming = swapRef.current;
-		if (!(pending && incoming)) return;
-		pendingSidebarSnapshot = null;
-		const duration = motionValue("--dur-slide", 200);
-		incoming.dataset.sidebarEntering = pending.direction;
-		window.setTimeout(() => {
-			pending.element.remove();
-			delete incoming.dataset.sidebarEntering;
-		}, duration);
-	}, []);
-	return (
-		<div
-			className="relative flex shrink-0 grow flex-col overflow-hidden"
-			data-sidebar-swap=""
-			ref={swapRef}
-		>
-			<AnimatePresence initial={false} mode="popLayout">
-				<motion.div
-					animate={{ x: 0 }}
-					className="flex grow flex-col gap-4"
-					exit={{ x: reduceMotion ? 0 : outgoing }}
-					initial={{ x: reduceMotion ? 0 : incoming }}
-					key={activeKey}
-					transition={reduceMotion ? { duration: 0 } : UI_MOTION.slide}
-				>
-					{children}
-				</motion.div>
-			</AnimatePresence>
-		</div>
 	);
 }

@@ -13,6 +13,9 @@ HARD RULES:
 - `src/mocks/` (today's mock data) shrinks to empty as build steps land — it is
   scaffolding, not a parallel state system to grow.
 - New surfaces match the demo via the `tripwire-design` skill.
+- Every rendered UI edit uses `.agents/skills/before-and-after/SKILL.md` and is
+  not handed off until its PR contains verified before/after evidence. Net-new
+  surfaces use an after-only Preview; motion uses a recording or frame sequence.
 
 See `.claude/rules/frontend.md`, `.claude/rules/naming.md`,
 `.claude/skills/tripwire-design/`.

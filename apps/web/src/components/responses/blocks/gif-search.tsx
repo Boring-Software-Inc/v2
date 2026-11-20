@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { CloseGif, GiphyPageRecord } from "@tripwire/contracts";
 import { Input } from "@tripwire/ui/field";
+import { Skeleton } from "@tripwire/ui/skeleton";
 import {
 	type KeyboardEvent,
 	lazy,
@@ -36,9 +37,42 @@ function searchTerm(text: string): string {
 	return trimmed.length >= MIN_QUERY ? trimmed : "";
 }
 
-function GridLoader() {
+const SKELETON_COLUMNS = [
+	{
+		id: "leading",
+		items: [
+			{ id: "leading-tall", size: "tall" },
+			{ id: "leading-short", size: "short" },
+			{ id: "leading-medium", size: "medium" },
+		],
+	},
+	{
+		id: "trailing",
+		items: [
+			{ id: "trailing-medium", size: "medium" },
+			{ id: "trailing-tall", size: "tall" },
+			{ id: "trailing-short", size: "short" },
+		],
+	},
+] as const;
+
+export function GifGridSkeleton() {
 	return (
-		<p className="py-3 text-center type-body-sm text-text-2">Loading GIFs</p>
+		<output aria-label="Loading GIFs" data-layout-role="gif-grid-skeleton">
+			{SKELETON_COLUMNS.map((column) => (
+				<div data-layout-role="gif-grid-skeleton-column" key={column.id}>
+					{column.items.map((item) => (
+						<span
+							data-layout-role="gif-grid-skeleton-item"
+							data-layout-size={item.size}
+							key={item.id}
+						>
+							<Skeleton fill />
+						</span>
+					))}
+				</div>
+			))}
+		</output>
 	);
 }
 
@@ -83,31 +117,28 @@ export function GifSearch({
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col gap-3">
-			<h2 className="sr-only">Pick a GIF</h2>
-			<div className="shrink-0">
-				<Input
-					ariaLabel="Search GIPHY"
-					autoFocus
-					onValueChange={setText}
-					placeholder="Search GIPHY"
-					type="search"
-					value={text}
-				/>
-			</div>
+			<Input
+				ariaLabel="Search GIPHY"
+				autoFocus
+				onValueChange={setText}
+				placeholder="Search GIPHY"
+				type="search"
+				value={text}
+			/>
 			{status !== "ok" ? (
 				<output className="type-body-sm text-text-2">
 					{STATUS_COPY[status]}
 				</output>
 			) : null}
 			<div className="-mx-1 h-90 min-h-0 shrink overflow-y-auto overscroll-contain px-1">
-				<Suspense fallback={<GridLoader />}>
+				<Suspense fallback={<GifGridSkeleton />}>
 					<Grid
 						columns={2}
 						fetchGifs={fetchGifs}
 						gutter={8}
 						hideAttribution
 						key={query}
-						loader={GridLoader}
+						loader={GifGridSkeleton}
 						noLink
 						noResultsMessage={
 							<p className="py-3 text-center type-body-sm text-text-2">

@@ -1,11 +1,53 @@
 ---
 name: before-and-after
-description: Add existing screenshots or screen recordings to a GitHub pull request as a before/after or preview block. Use when a PR needs visual media attached to its description. Browser navigation and capture belong to agent-browser.
+description: Required for every rendered UI edit. Capture the existing surface before editing, capture the result after editing, and attach the evidence to the pull request. Browser navigation and capture belong to agent-browser.
 ---
 
 # Add visual media to a PR
 
 Use `agent-browser` to create the screenshots or recordings. This skill only owns the GitHub PR attachment workflow.
+
+## Mandatory activation
+
+This skill is required whenever an agent changes rendered UI, including layout,
+styles, design tokens, components, visible copy, responsive behavior, motion,
+loading or empty states, and visual-test baselines. A code-only refactor of UI
+still requires evidence showing that the rendered output was preserved.
+
+Before the first UI edit, read this file and announce exactly once:
+
+> visual evidence active: before/after required for every changed UI surface.
+
+Then identify the affected routes, themes, breakpoints, and interaction states.
+Capture the existing surface before editing. Capture the same surface after the
+implementation with the same viewport, theme, data, scroll position, and UI
+state. Motion changes require a recording or a frame sequence that shows the
+transition, not only a still image.
+
+For a net-new surface, publish an after-only Preview. If work already started
+without a baseline, recover the before state from the PR base in a separate
+clean worktree, an existing deployment, or an earlier trustworthy capture. Do
+not reset or overwrite the user's working tree to recreate it, and do not label
+an approximate reconstruction as the before state.
+
+Every materially changed surface needs evidence. Group identical responsive or
+theme behavior only when one pair genuinely proves the other states were not
+affected. Preserve-only migrations still need a before/after pair proving
+parity.
+
+This is a delivery gate:
+
+- Do not hand off a UI change or call it complete without the evidence.
+- Do not send the user a UI pull request that lacks the marked visual-evidence
+  block. If a preview deployment requires a draft PR first, create it silently,
+  attach and verify the evidence, then hand it off.
+- Do not substitute test output, a visual-audit score, DOM inspection, or a
+  written claim for screenshots or recordings.
+- If the application cannot be run after exhausting safe in-scope setup and
+  capture paths, stop and ask the user rather than shipping an evidence-free UI
+  change.
+- Keep capture artifacts out of the product commit unless the user explicitly
+  asks to version them.
 
 ## Capture
 
