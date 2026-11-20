@@ -31,4 +31,13 @@ describe("BuilderSkeleton", () => {
 			"grid-template-columns: minmax(0, 1fr) calc(var(--space-1) * 80);",
 		);
 	});
+
+	test("constrains the desktop workspace so its columns keep their own scroll", () => {
+		expect(layoutCss).toMatch(
+			/\[data-layout-role="responses-shell"\] \[data-slot="skeleton-swap"\],\s+\[data-layout-role="responses-shell"\] \[data-slot="skeleton-swap"\] > \*,\s+\[data-layout-role="response-workspace"\] \{\s+block-size: 100%;/,
+		);
+		expect(layoutCss).toMatch(
+			/\[data-layout-role="responses-shell"\] \{\s+display: flex;\s+flex-direction: column;\s+overflow: hidden;/,
+		);
+	});
 });

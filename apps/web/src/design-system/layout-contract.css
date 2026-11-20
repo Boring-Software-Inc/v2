@@ -1733,6 +1733,8 @@ span[data-layout-role="agent-client-logo"] {
 
 @media (min-width: 64rem) {
 	[data-layout-role="responses-shell"] {
+		display: flex;
+		flex-direction: column;
 		overflow: hidden;
 	}
 
@@ -1746,6 +1748,7 @@ span[data-layout-role="agent-client-logo"] {
 		overflow: hidden;
 	}
 
+	[data-layout-role="responses-shell"] [data-slot="skeleton-swap"],
 	[data-layout-role="responses-shell"] [data-slot="skeleton-swap"] > *,
 	[data-layout-role="response-workspace"] {
 		block-size: 100%;
