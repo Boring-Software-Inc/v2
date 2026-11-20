@@ -4,6 +4,7 @@ import {
 	gitCafeConnectionWorkerEnvSchema,
 	workerModeSchema,
 } from "./gitcafe-connection-worker.ts";
+import { resolveGitCafeProtectionEnv } from "./gitcafe-protection-worker.ts";
 import { GITCAFE_STAGING_APP_ID } from "./jobs/gitcafe-connect.ts";
 
 test("isolated connection mode requires actual preview environment and dedicated staging app", () => {
@@ -57,4 +58,30 @@ test("receipt rollout uses the API flag and defaults existing connection mode to
 			GITCAFE_WEBHOOK_RECEIPTS_ENABLED: "yes",
 		}).success,
 	).toBe(false);
+});
+
+test("standard worker activation cannot silently omit the GitCafe protection runtime", () => {
+	const environment = {
+		UNKEY_ENVIRONMENT_SLUG: "preview",
+		GITCAFE_APP_ID: GITCAFE_STAGING_APP_ID,
+		GITCAFE_APP_KEY_ID: "staging-key",
+		GITCAFE_APP_PRIVATE_KEY: "test-only-no-key",
+		DATABASE_URL: "postgres://test:test@localhost/test",
+		GITCAFE_WEBHOOK_RECEIPTS_ENABLED: "true",
+	};
+	expect(resolveGitCafeProtectionEnv(environment)?.GITCAFE_APP_ID).toBe(
+		GITCAFE_STAGING_APP_ID,
+	);
+	expect(
+		resolveGitCafeProtectionEnv({
+			...environment,
+			GITCAFE_WEBHOOK_RECEIPTS_ENABLED: "false",
+		}),
+	).toBeNull();
+	expect(() =>
+		resolveGitCafeProtectionEnv({
+			...environment,
+			GITCAFE_APP_PRIVATE_KEY: undefined,
+		}),
+	).toThrow("Invalid staging GitCafe protection worker configuration");
 });
