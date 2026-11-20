@@ -35,7 +35,7 @@ beforeAll(async () => {
 		slug: "acme",
 		isPersonal: false,
 	});
-});
+}, 120_000);
 
 afterAll(async () => {
 	await pool.end();

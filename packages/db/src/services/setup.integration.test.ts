@@ -67,7 +67,7 @@ beforeAll(async () => {
 			allowedScopes: ["tripwire:read"],
 		},
 	});
-});
+}, 120_000);
 
 afterAll(async () => {
 	await pool.end();

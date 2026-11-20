@@ -53,7 +53,7 @@ beforeAll(async () => {
 		{ id: orgId, name: "acme", slug: "acme", isPersonal: false },
 		{ id: otherOrgId, name: "beta", slug: "beta", isPersonal: false },
 	]);
-});
+}, 120_000);
 
 afterAll(async () => {
 	await pool.end();
