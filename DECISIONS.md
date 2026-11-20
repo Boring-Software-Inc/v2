@@ -977,3 +977,25 @@ ownership conflicts. Historical claims and repository creation timestamps are
 preserved when the live repository binding moves. This prevents an abandoned
 staging connection from requiring a database repair without weakening the
 cross-organization ownership fence.
+
+## 2026-11-20 · Wallet address validation primitives
+
+**Decision:** `@tripwire/utils` uses pinned `@scure/base@2.4.0`,
+`@noble/hashes@2.2.0`, and `cborg@7.0.0` for wallet address validation.
+The public API separates format/network validation from injected chain reads.
+It stays in the existing package layout; no package, app, route or UI is added.
+
+**Replaces:** Hand-written Keccak, Base58 and Bech32 implementations. Noble's
+version already exists in the workspace lockfile. Scure supplies checked
+base encodings, and cborg validates legacy Cardano CBOR without a custom parser.
+
+**Why the existing stack cannot do this:** Web Crypto lacks Keccak-256 and
+Blake2b, and neither Zod nor the existing utilities provide Bech32/Bech32m,
+Base58Check or CBOR decoding. The reference multi-wallet libraries omit TON or
+have Taproot and Cardano network-validation gaps. These dependencies provide
+the missing primitives without importing their currency policy or reimplementing
+cryptographic functions. Chain/network rules remain explicit and tested here.
+
+`@tripwire/utils` also declares the workspace's existing Zod version directly:
+the decoder uses numeric schemas at the CBOR boundary. This replaces manual
+runtime type guards and uses the stack's existing validation library.

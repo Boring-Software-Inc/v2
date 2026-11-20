@@ -1,0 +1,143 @@
+{
+	"capturedAt": "2026-11-20T22:18:02.983Z",
+	"kind": "Upstream conformance vectors and protocol examples, not claims of on-chain activity",
+	"upstreamCommit": "99a3856a1678b2845e660100fa92eaf752e2ccd6",
+	"sources": [
+		{
+			"source": "test/addresses/btc.json",
+			"url": "https://github.com/christsim/multichain-address-validator/blob/99a3856a1678b2845e660100fa92eaf752e2ccd6/test/addresses/btc.json",
+			"sha256": "8e9d2ab7c42033496ffa167332c08e41c11392dd274a23ef5dab674d6cbdaad5"
+		},
+		{
+			"source": "test/addresses/btc-testnet.json",
+			"url": "https://github.com/christsim/multichain-address-validator/blob/99a3856a1678b2845e660100fa92eaf752e2ccd6/test/addresses/btc-testnet.json",
+			"sha256": "6ba87e285c8beb45bed11a85209530a9b9a1597cf27a1330d2a7d1cf2f3b5b81"
+		},
+		{
+			"source": "test/addresses/evm.json",
+			"url": "https://github.com/christsim/multichain-address-validator/blob/99a3856a1678b2845e660100fa92eaf752e2ccd6/test/addresses/evm.json",
+			"sha256": "693fb1cd1a8b213245cf3a449263c679ef2defb4e4aa044aca786a81b1e8b4e5"
+		},
+		{
+			"source": "test/addresses/solana.json",
+			"url": "https://github.com/christsim/multichain-address-validator/blob/99a3856a1678b2845e660100fa92eaf752e2ccd6/test/addresses/solana.json",
+			"sha256": "a116e6faf8dd8e794daf5d1bb6710273d92d5a56cfd2636e1ad660b8cf64a188"
+		},
+		{
+			"source": "test/addresses/tron.json",
+			"url": "https://github.com/christsim/multichain-address-validator/blob/99a3856a1678b2845e660100fa92eaf752e2ccd6/test/addresses/tron.json",
+			"sha256": "73a7dbf91287f5acbc7e4a9db321aba0e7bf2db01c1c35bd6707b06aca370268"
+		},
+		{
+			"source": "test/addresses/ripple.json",
+			"url": "https://github.com/christsim/multichain-address-validator/blob/99a3856a1678b2845e660100fa92eaf752e2ccd6/test/addresses/ripple.json",
+			"sha256": "ff3556d92e38e378bd1228e42c9b74640c75f64fce41924250258e13325feaf2"
+		},
+		{
+			"source": "test/addresses/cardano.json",
+			"url": "https://github.com/christsim/multichain-address-validator/blob/99a3856a1678b2845e660100fa92eaf752e2ccd6/test/addresses/cardano.json",
+			"sha256": "aa5acdf8b5e3aa0a0dabb91accf51f4e381b096e41a73ec79c1214e0ffc6cb4f"
+		},
+		{
+			"source": "test/addresses/ltc.json",
+			"url": "https://github.com/christsim/multichain-address-validator/blob/99a3856a1678b2845e660100fa92eaf752e2ccd6/test/addresses/ltc.json",
+			"sha256": "bc6c0292e5e079ec0c000f5b24473fe7a08aef43a89329f3981307a2f63b07c2"
+		},
+		{
+			"source": "test/addresses/ltc-testnet.json",
+			"url": "https://github.com/christsim/multichain-address-validator/blob/99a3856a1678b2845e660100fa92eaf752e2ccd6/test/addresses/ltc-testnet.json",
+			"sha256": "bfc7f82a03eaded65760da1d9f61c9e8a7d084e0768ca923d6b670711a7a5468"
+		},
+		{
+			"source": "test/addresses/doge.json",
+			"url": "https://github.com/christsim/multichain-address-validator/blob/99a3856a1678b2845e660100fa92eaf752e2ccd6/test/addresses/doge.json",
+			"sha256": "be73654a02c740996ca80f403e1decf407adb82ded30757b9ca731fd0098a98b"
+		},
+		{
+			"source": "test/addresses/doge-testnet.json",
+			"url": "https://github.com/christsim/multichain-address-validator/blob/99a3856a1678b2845e660100fa92eaf752e2ccd6/test/addresses/doge-testnet.json",
+			"sha256": "61e0ca06666d8a8916f5c4f1e5c2839c02546da48756bbf371a49e20dc4f9f09"
+		},
+		{
+			"source": "test/addresses/bch.json",
+			"url": "https://github.com/christsim/multichain-address-validator/blob/99a3856a1678b2845e660100fa92eaf752e2ccd6/test/addresses/bch.json",
+			"sha256": "536091ce4bbf48485df9a522970ea57edcb6849bc18276811702b1d1ea4c6ee1"
+		},
+		{
+			"source": "test/addresses/bch-testnet.json",
+			"url": "https://github.com/christsim/multichain-address-validator/blob/99a3856a1678b2845e660100fa92eaf752e2ccd6/test/addresses/bch-testnet.json",
+			"sha256": "cc7482675847cae68e84e455cbe8d7e295fbbf2b2e2b5a222edd341dba1d13ef"
+		},
+		{
+			"source": "test/addresses/cosmos.json",
+			"url": "https://github.com/christsim/multichain-address-validator/blob/99a3856a1678b2845e660100fa92eaf752e2ccd6/test/addresses/cosmos.json",
+			"sha256": "2c854f26f1868ec01beafd5606e2b9138f921898910ad32e6b05fd6b19e4a55e"
+		},
+		{
+			"source": "test/addresses/sui.json",
+			"url": "https://github.com/christsim/multichain-address-validator/blob/99a3856a1678b2845e660100fa92eaf752e2ccd6/test/addresses/sui.json",
+			"sha256": "8645cb584f344a13f00a855c5d24fdc5949922c12e80f3738afa696a9c599ffc"
+		},
+		{
+			"source": "test/addresses/xlm.json",
+			"url": "https://github.com/christsim/multichain-address-validator/blob/99a3856a1678b2845e660100fa92eaf752e2ccd6/test/addresses/xlm.json",
+			"sha256": "2254b22edff3bd3d1f09538936b1e1524c4debdbccfbb7117cf7574b3456f460"
+		},
+		{
+			"source": "test/addresses/monero.json",
+			"url": "https://github.com/christsim/multichain-address-validator/blob/99a3856a1678b2845e660100fa92eaf752e2ccd6/test/addresses/monero.json",
+			"sha256": "97eec08620c1ad715b2eed2d22ba6e4cd3295c6a2a2084ea775fb304558f34b2"
+		},
+		{
+			"source": "test/addresses/monero-testnet.json",
+			"url": "https://github.com/christsim/multichain-address-validator/blob/99a3856a1678b2845e660100fa92eaf752e2ccd6/test/addresses/monero-testnet.json",
+			"sha256": "c507af0fa6f0f98c660d9c7423a52433ec454ceaee2372c73db5cbca7d338932"
+		},
+		{
+			"source": "test/addresses/polkadot.json",
+			"url": "https://github.com/christsim/multichain-address-validator/blob/99a3856a1678b2845e660100fa92eaf752e2ccd6/test/addresses/polkadot.json",
+			"sha256": "b3bd100e36a5cc460407f4dc9325ab4a283dee58a7f378465886ed7ea285e60a"
+		},
+		{
+			"source": "test/addresses/tezos.json",
+			"url": "https://github.com/christsim/multichain-address-validator/blob/99a3856a1678b2845e660100fa92eaf752e2ccd6/test/addresses/tezos.json",
+			"sha256": "ff032a6d147946106a1d06eaf4a0ed4350cc107e6051b66f3cd51178242f5b27"
+		}
+	],
+	"protocolSources": [
+		{
+			"name": "stellar-strkey",
+			"url": "https://github.com/stellar/js-stellar-base/blob/master/test/unit/strkey_test.js",
+			"snapshotSha256": "8f93d9252fbe57975a50f75fcb1e315085dc18079b9a068d9e1c5c6ffb5914d6"
+		},
+		{
+			"name": "ton",
+			"url": "https://raw.githubusercontent.com/ton-org/ton-core/main/src/address/Address.spec.ts",
+			"capturedAt": "2026-11-20T22:17:12.184Z",
+			"sha256": "b836f02f18406adac3d70552a7a4c5e8a16856961b1f88d1cd863ba730a48611"
+		},
+		{
+			"name": "cardano",
+			"url": "https://raw.githubusercontent.com/cardano-foundation/CIPs/master/CIP-0019/README.md",
+			"capturedAt": "2026-11-20T22:17:12.383Z",
+			"sha256": "9fbc8c69f261650b5ccab975fe1e291358a2e5e09088690b000013ea1cb72ce5"
+		},
+		{
+			"name": "bip350",
+			"url": "https://raw.githubusercontent.com/bitcoin/bips/master/bip-0350.mediawiki",
+			"capturedAt": "2026-11-20T22:17:12.533Z",
+			"sha256": "63634b06aa8bae88b31929674736e74964c4598684269ac2b0b140c43a7a0dec"
+		},
+		{
+			"name": "xrp-x-address",
+			"url": "https://github.com/XRPLF/xrpl.js/blob/main/packages/ripple-address-codec/test/index.test.ts",
+			"capturedAt": "2026-11-20T22:29:05.900Z",
+			"sha256": "96ab396c4fb5c3678276fdd318ced64e3700b4ac7f139507f191096f8f5a4fd6"
+		}
+	],
+	"notes": [
+		"Address strings retained verbatim. Memo-only failures do not invalidate addresses.",
+		"Captured Polkadot prefix 42 vectors retain their testnet labels; validation correctly treats prefix 42 as generic and compatible with mainnet and testnet.",
+		"Upstream expectations are recorded before auditing against protocol standards."
+	]
+}

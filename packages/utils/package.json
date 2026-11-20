@@ -8,7 +8,9 @@
 		"./id": "./src/id.ts",
 		"./forge-sign-in": "./src/forge-sign-in.ts",
 		"./databuddy-server": "./src/databuddy.server.ts",
-		"./shared-blocklist": "./src/shared-blocklist.ts"
+		"./shared-blocklist": "./src/shared-blocklist.ts",
+		"./wallet-address": "./src/wallet-address.ts",
+		"./wallet-address-inspector": "./src/wallet-address-inspector.ts"
 	},
 	"types": "./src/index.ts",
 	"scripts": {
@@ -16,6 +18,10 @@
 		"typecheck:ts5": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@tripwire/contracts": "workspace:*"
+		"@noble/hashes": "2.2.0",
+		"@scure/base": "2.4.0",
+		"@tripwire/contracts": "workspace:*",
+		"cborg": "7.0.0",
+		"zod": "^4.0.0"
 	}
 }

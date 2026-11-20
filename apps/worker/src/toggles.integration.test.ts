@@ -167,7 +167,7 @@ describe("toggles → derived default workflow", () => {
 		const refs = steps.map((s) => s.rule_id);
 		expect(refs).not.toContain("account-age@1");
 		// siblings still ran (proves it's a targeted drop, not empty).
-		expect(refs).toContain("crypto-address@2");
+		expect(refs).toContain("crypto-address@3");
 	});
 
 	test("ai-review is opt-in: absent ⇒ not in the run; enabled but keyless ⇒ skipped step (§8)", async () => {

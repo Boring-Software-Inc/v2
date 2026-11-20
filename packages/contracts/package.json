@@ -4,7 +4,8 @@
 	"private": true,
 	"type": "module",
 	"exports": {
-		".": "./src/index.ts"
+		".": "./src/index.ts",
+		"./wallet-address": "./src/wallet-address.ts"
 	},
 	"types": "./src/index.ts",
 	"scripts": {

@@ -1,4 +1,6 @@
 import type {
+	CryptoAddressActivity,
+	CryptoAddressKind,
 	NormalizedEvent,
 	SharedBlocklistEvidence,
 	StarredContributionCount,
@@ -78,6 +80,10 @@ export type AiReviewGenerate = (
 ) => Promise<AiReviewResponse | AiReviewUnavailable>;
 
 export interface RuleContext {
+	readCryptoAddressActivity?: (
+		kind: CryptoAddressKind,
+		value: string,
+	) => Promise<CryptoAddressActivity>;
 	event: NormalizedEvent;
 	/** ISO — the evaluation clock. Determinism: time is an input. */
 	now: string;

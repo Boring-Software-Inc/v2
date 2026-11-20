@@ -5,6 +5,7 @@
  */
 
 export { pendingCheckIsStale, supersededBy } from "./action-supersession.ts";
+export { cryptoAddressCandidates, isCryptoAddress } from "./crypto-address.ts";
 export {
 	createDatabuddyApi,
 	DATABUDDY_API_URL,
@@ -47,3 +48,12 @@ export {
 } from "./sparkline-png.ts";
 export { truncate } from "./string.ts";
 export { sleep, withTimeout } from "./time.ts";
+export {
+	validateWalletAddress,
+	WALLET_ADDRESS_CHAINS,
+} from "./wallet-address.ts";
+export {
+	createWalletAddressInspector,
+	type WalletAddressInspectorOptions,
+	type WalletAddressReader,
+} from "./wallet-address-inspector.ts";
