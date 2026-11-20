@@ -1761,7 +1761,7 @@ span[data-layout-role="agent-client-logo"] {
 	}
 
 	[data-layout-role="response-workspace"] {
-		grid-template-columns: minmax(0, 1fr) calc(var(--space-1) * 80);
+		grid-template-columns: minmax(0, 1fr);
 	}
 
 	[data-layout-role="response-redaction"] {
