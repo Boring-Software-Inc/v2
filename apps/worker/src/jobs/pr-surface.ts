@@ -68,6 +68,18 @@ export async function recoverGitCafeRunSurface(
 	)
 		return false;
 	if (saved.run.status === "closed" || saved.run.backfill) return true;
+	if (
+		event.kind === "issue.opened" &&
+		saved.steps.some(
+			(step) =>
+				step.nodeId === "run:degradation" &&
+				step.output !== null &&
+				typeof step.output === "object" &&
+				"tookNoAction" in step.output &&
+				step.output.tookNoAction === true,
+		)
+	)
+		return true;
 	const surfaceKey = `evaluation:${createHash("sha256").update(JSON.stringify(state.phase)).digest("hex")}${options?.refreshId ? `:refresh:${options.refreshId}` : ""}`;
 	const repo = await repoServices.getRepoByFullName(
 		deps.db,
@@ -328,7 +340,8 @@ export async function emitPrSurface(
 					subjectKind: "issue",
 					standaloneWarning,
 					appealUrl:
-						verdict === "block" || verdict === "close"
+						event.forge === "github" &&
+						(verdict === "block" || verdict === "close")
 							? `${deps.appUrl}/appeals/${runId}`
 							: undefined,
 					reasons,
@@ -338,11 +351,32 @@ export async function emitPrSurface(
 				policy,
 				{ reviewPosted: false },
 			);
-			const responses = await runServices.recordActions(
-				db,
-				runId,
-				commentRows(plan, event.issue.number, verdict, previous),
+			const intents = commentRows(
+				plan,
+				event.issue.number,
+				verdict,
+				previous,
+			).map((row) =>
+				input.surfaceKey
+					? {
+							...row,
+							idempotencyKey: `${row.idempotencyKey}:${input.surfaceKey}`,
+						}
+					: row,
 			);
+			const responses = input.gitCafePhase
+				? await runServices.recordGitCafeSurfaceActions(
+						db,
+						runId,
+						input.gitCafePhase,
+						intents,
+						input.pendingActionRows
+							.filter((row) => GITCAFE_VERDICT_ACTION_KINDS.has(row.kind))
+							.map((row) => row.id),
+						[],
+					)
+				: await runServices.recordActions(db, runId, intents);
+			if (responses === null) return;
 			pendingActionRows = [...responses, ...pendingActionRows];
 		}
 		await emitThreadActions(
@@ -422,7 +456,9 @@ export async function emitPrSurface(
 			verdict,
 			standaloneWarning,
 			appealUrl:
-				standaloneOutcome && (verdict === "block" || verdict === "close")
+				event.forge === "github" &&
+				standaloneOutcome &&
+				(verdict === "block" || verdict === "close")
 					? `${deps.appUrl}/appeals/${runId}`
 					: undefined,
 			contributorLogin: event.actor.login,
@@ -798,7 +834,14 @@ async function emitThreadActions(
 		);
 		return;
 	}
-	for (const row of input.pendingActionRows) {
+	let surfaceFailed = false;
+	const pending =
+		event.forge === "gitcafe"
+			? [...input.pendingActionRows].sort(
+					(a, b) => Number(a.kind === "close") - Number(b.kind === "close"),
+				)
+			: input.pendingActionRows;
+	for (const row of pending) {
 		if (row.kind === "webhook" || row.kind === "discord") {
 			continue;
 		}
@@ -814,12 +857,15 @@ async function emitThreadActions(
 			);
 			continue;
 		}
+		if (event.forge === "gitcafe" && row.kind === "close" && surfaceFailed)
+			continue;
 		try {
 			const result = await adapter.execute(
 				toForgeAction(row, repoFullName, thread.number, REVIEW_POINTER.block),
 				{ actionId: row.id },
 			);
 			if ("refused" in result) {
+				if (CLOSE_PREREQUISITES.has(row.kind)) surfaceFailed = true;
 				logger.warn(
 					{
 						actionId: row.id,
@@ -833,6 +879,7 @@ async function emitThreadActions(
 			}
 			await runServices.markActionExecuted(db, row.id, result.externalId);
 		} catch (error) {
+			if (CLOSE_PREREQUISITES.has(row.kind)) surfaceFailed = true;
 			logger.error(
 				{ actionId: row.id, kind: row.kind, error: getErrorMessage(error) },
 				"thread action failed — row stays recorded for retry",

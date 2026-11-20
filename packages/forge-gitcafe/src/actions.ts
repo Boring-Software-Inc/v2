@@ -5,6 +5,7 @@ import {
 	type GitCafeActionOperation,
 	type GitCafeActionReview,
 	type GitCafeActionSubject,
+	type GitCafeHydratedIssueEvent,
 	type GitCafeInstallation,
 	type GitCafeReadBoundary,
 	gitCafeActionBindingSchema,
@@ -72,6 +73,7 @@ export interface GitCafeActionsOptions {
 	installation: GitCafeInstallation;
 	store: GitCafeActionStore;
 	deadlineAt?: number;
+	issueEvidence?: GitCafeHydratedIssueEvent | null;
 }
 
 /** Installed writes share the read transport's authority fences and persist create inputs before dispatch. */
@@ -222,6 +224,17 @@ export class GitCafeActions {
 		);
 		if (!result.ok) return result;
 		if (result.value.repoId !== binding.repositoryId)
+			return { ok: false as const, reason: "identity-mismatch" as const };
+		const issue = this.options.issueEvidence;
+		if (
+			issue &&
+			binding.subject === "issue" &&
+			(result.value.id !== issue.event.issue.id ||
+				result.value.authorActorId !== issue.author.externalId ||
+				binding.number !== issue.event.issue.number ||
+				binding.repositoryId !== issue.event.repository.id ||
+				binding.installationId !== issue.event.installation.id)
+		)
 			return { ok: false as const, reason: "identity-mismatch" as const };
 		if (
 			binding.subject === "change-request" &&

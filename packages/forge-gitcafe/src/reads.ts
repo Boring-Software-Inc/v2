@@ -929,7 +929,28 @@ export class GitCafeReads {
 			);
 		const inheritedMaintainer =
 			membership && ["org-owner", "org-admin"].includes(membership.role);
-		const isMaintainer = directMaintainer || inheritedMaintainer ? true : null;
+		const isMaintainer =
+			directMaintainer || inheritedMaintainer
+				? true
+				: members.ok &&
+						collaborators.ok &&
+						(!membership ||
+							[
+								"org-owner",
+								"org-admin",
+								"org-member-read",
+								"org-member-write",
+								"org-member-none",
+							].includes(membership.role)) &&
+						(!collaborator ||
+							[
+								"repo-reader",
+								"repo-writer",
+								"repo-maintainer",
+								"repo-admin",
+							].includes(collaborator.role))
+					? false
+					: null;
 		const result: GitCafeReadResult<ContributorProfile> = {
 			ok: true,
 			value: {

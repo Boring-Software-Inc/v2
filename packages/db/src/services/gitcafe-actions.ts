@@ -3,10 +3,12 @@ import {
 	GITCAFE_VERDICT_ACTION_KINDS,
 	type GitCafeActionBinding,
 	type GitCafeActionOperation,
+	type GitCafeHydratedIssueEvent,
 	gitCafeActionBindingSchema,
 	gitCafeActionOperationSchema,
 	gitCafeActionPayloadSchema,
 	gitCafeCheckRerequestedEventSchema,
+	gitCafeHydratedIssueEventSchema,
 	normalizedEventSchema,
 	persistedForgeActionSchema,
 	type RerunChangeRequestJob,
@@ -28,6 +30,7 @@ import {
 	getGitCafeEvaluationPhase,
 	getLatestRunForChangeRequest,
 	markActionInvalid,
+	runRecency,
 } from "./runs.ts";
 
 type CheckRerunPreparation =
@@ -504,6 +507,36 @@ export async function getGitCafeActionBinding(
 	)
 		return null;
 	const event = normalized.data;
+	if (event.kind === "issue.opened") {
+		if (
+			row.run.subjectKind !== "issue" ||
+			row.run.subjectNumber !== event.issue.number ||
+			row.run.headSha !== null ||
+			row.run.repoFullName !== event.repo.fullName
+		)
+			return null;
+		const [latest] = await db
+			.select({ id: runs.id })
+			.from(runs)
+			.innerJoin(events, eq(events.id, runs.eventId))
+			.where(
+				and(
+					eq(events.forge, "gitcafe"),
+					eq(events.kind, "issue.opened"),
+					eq(runs.repoFullName, row.run.repoFullName),
+					eq(runs.subjectKind, "issue"),
+					eq(runs.subjectNumber, event.issue.number),
+					eq(runs.backfill, false),
+				),
+			)
+			.orderBy(...runRecency)
+			.limit(1);
+		if (
+			latest?.id !== row.run.id &&
+			GITCAFE_VERDICT_ACTION_KINDS.has(row.action.kind)
+		)
+			return null;
+	}
 	if ("changeRequest" in event && bearsVerdict(event.kind)) {
 		const latest = await getLatestRunForChangeRequest(
 			db,
@@ -557,11 +590,13 @@ export async function getGitCafeActionBinding(
 	);
 	if (!authority.allowed) return null;
 	const subject =
-		"comment" in event
-			? (event.comment.subjectKind ?? "change-request")
-			: "thread" in event
-				? event.thread.kind
-				: "change-request";
+		event.kind === "issue.opened"
+			? "issue"
+			: "comment" in event
+				? (event.comment.subjectKind ?? "change-request")
+				: "thread" in event
+					? event.thread.kind
+					: "change-request";
 	return gitCafeActionBindingSchema.parse({
 		actionId,
 		installationId: event.installationExternalId,
@@ -577,6 +612,35 @@ export async function getGitCafeActionBinding(
 				: row.run.headSha,
 		recordedAt: row.action.recordedAt.toISOString(),
 	});
+}
+
+/** Issue effects retain the creation identity even after Tripwire changes the issue version. */
+export async function getGitCafeIssueActionEvidence(
+	db: DbLike,
+	actionId: string,
+): Promise<GitCafeHydratedIssueEvent | null> {
+	const [row] = await db
+		.select({ raw: events.raw, normalized: events.normalized })
+		.from(runActions)
+		.innerJoin(runs, eq(runs.id, runActions.runId))
+		.innerJoin(events, eq(events.id, runs.eventId))
+		.where(and(eq(runActions.id, actionId), eq(events.forge, "gitcafe")));
+	const parsed = normalizedEventSchema.safeParse(row?.normalized);
+	if (!parsed.success || parsed.data.kind !== "issue.opened") return null;
+	const normalized = parsed.data;
+	const evidence = gitCafeHydratedIssueEventSchema.parse({
+		event: row?.raw,
+		author: normalized.actor,
+		sender: normalized.sender,
+		maintainer: normalized.issue.maintainer,
+	});
+	if (
+		evidence.event.repository.id !== normalized.repoExternalId ||
+		evidence.event.installation.id !== normalized.installationExternalId ||
+		evidence.event.issue.number !== normalized.issue.number
+	)
+		throw new Error("Persisted GitCafe issue action identity is inconsistent");
+	return evidence;
 }
 
 /** A create command is immutable once stored; retries reuse the original review request ID, version and body. */

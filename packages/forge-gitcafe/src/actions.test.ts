@@ -3,6 +3,7 @@ import { generateKeyPairSync } from "node:crypto";
 import {
 	COMMENT_MARKER,
 	type GitCafeActionOperation,
+	type GitCafeHydratedIssueEvent,
 	gitCafeActionBindingSchema,
 	gitCafeActionCommentPageSchema,
 	gitCafeActionCommentSchema,
@@ -15,6 +16,7 @@ import {
 	gitCafeActionReviewPageSchema,
 	gitCafeActionReviewSchema,
 	gitCafeActionSubjectSchema,
+	gitCafeHydratedIssueEventSchema,
 	gitCafeInstallationSchema,
 	gitCafeInstallationTokenSchema,
 } from "@tripwire/contracts";
@@ -35,6 +37,8 @@ import candidatesFixture from "../fixtures/gitcafe-action-reviewer-candidates.js
 import reviewersFixture from "../fixtures/gitcafe-action-reviewers-current.json";
 import reviewsPopulated from "../fixtures/gitcafe-action-reviews-populated.json";
 import tokenFixture from "../fixtures/gitcafe-action-token-current.json";
+import issueCreated from "../fixtures/gitcafe-issue-created-webhook.json";
+import issueFixture from "../fixtures/gitcafe-read-issue-4.json";
 import pullFixture from "../fixtures/gitcafe-read-scratch-pull.json";
 import { GitCafeActions } from "./actions.ts";
 import { GitCafeInstallationClient } from "./installation-client.ts";
@@ -53,6 +57,7 @@ const root = "https://git.cafe/api/repos/boring/scratch/pulls/1";
 
 async function harness(
 	resource: (url: string, init: RequestInit) => Promise<Response>,
+	issueEvidence?: GitCafeHydratedIssueEvent,
 ) {
 	const client = new GitCafeInstallationClient({
 		credentials,
@@ -116,8 +121,58 @@ async function harness(
 	return {
 		binding,
 		operation: () => operation,
-		actions: new GitCafeActions({ client, installation: lookup.value, store }),
+		actions: new GitCafeActions({
+			client,
+			installation: lookup.value,
+			store,
+			issueEvidence,
+		}),
 	};
+}
+
+for (const changed of ["id", "authorActorId", "repoId"] as const) {
+	test(`issue creation evidence refuses a changed ${changed} before writes`, async () => {
+		const evidence = gitCafeHydratedIssueEventSchema.parse({
+			event: issueCreated,
+			author: {
+				login: issueFixture.author.handle,
+				externalId: issueFixture.authorActorId,
+			},
+			maintainer: false,
+		});
+		let writes = 0;
+		const h = await harness(async (_url, init) => {
+			if (init.method !== "GET") writes++;
+			return Response.json({ ...issueFixture, [changed]: pull.id });
+		}, evidence);
+		const binding = {
+			...h.binding,
+			subject: "issue" as const,
+			number: issueFixture.number,
+			headOid: null,
+		};
+		for (const action of ["close", "lock", "post-comment"] as const) {
+			const command =
+				action === "post-comment"
+					? {
+							kind: action,
+							body: "Captured issue check",
+							marker: "controlled-test",
+						}
+					: { kind: action };
+			expect(
+				await h.actions.execute(
+					{
+						...command,
+						repoFullName: "boring/scratch",
+						number: issueFixture.number,
+					},
+					binding,
+				),
+			).toEqual({ ok: false, reason: "identity-mismatch" });
+		}
+		expect(writes).toBe(0);
+	});
 }
 
 for (const source of ["github", "provider", "unsupported"] as const) {

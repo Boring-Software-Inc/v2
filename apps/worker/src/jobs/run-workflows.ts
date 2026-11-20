@@ -236,6 +236,13 @@ export interface RunWorkflowsDeps {
 }
 
 export interface RunWorkflowsResult {
+	skipReason?:
+		| "unarmed"
+		| "stale-subject"
+		| "unsupported-event"
+		| "no-matching-workflow"
+		| "maintainer-exemption"
+		| "superseded";
 	runId: string | null;
 	verdict: Verdict | null;
 	paused: boolean;
@@ -296,7 +303,7 @@ async function runWorkflowsInner(
 		(repo?.id !== deps.gitCafeHistoryBinding.repoId ||
 			event.repoExternalId !== deps.gitCafeHistoryBinding.repositoryId)
 	)
-		return none;
+		return { ...none, skipReason: "stale-subject" };
 
 	/**
 	 * §4 arming gate — an unarmed repo is skipped ENTIRELY: no run, no check, no
@@ -314,7 +321,7 @@ async function runWorkflowsInner(
 		if (deps.claimRunId) {
 			await runServices.failRun(db, deps.claimRunId);
 		}
-		return none;
+		return { ...none, skipReason: "unarmed" };
 	}
 
 	const ruleConfigs = repo
@@ -332,9 +339,20 @@ async function runWorkflowsInner(
 	const issue = event.kind === "issue.opened" ? event.issue : null;
 	if (
 		issue &&
-		(event.forge !== "github" || event.repoExternalId !== repo.externalId)
+		(event.repoExternalId !== repo.externalId ||
+			(event.forge === "gitcafe" &&
+				event.installationExternalId !== repo.installationId) ||
+			(event.forge !== "github" && event.forge !== "gitcafe"))
 	) {
-		return none;
+		return {
+			...none,
+			skipReason:
+				event.repoExternalId !== repo.externalId ||
+				(event.forge === "gitcafe" &&
+					event.installationExternalId !== repo.installationId)
+					? "stale-subject"
+					: "unsupported-event",
+		};
 	}
 	const applicable = stored.filter(
 		(definition) => isIssueWorkflow(definition) === (issue !== null),
@@ -352,8 +370,11 @@ async function runWorkflowsInner(
 			(node) => node.type === "trigger" && node.kinds.includes(event.kind),
 		);
 	const subject: ModerationSubject | null =
-		event.forge === "github" &&
-		(!event.repoExternalId || event.repoExternalId === repo.externalId)
+		(event.forge === "github" &&
+			(!event.repoExternalId || event.repoExternalId === repo.externalId)) ||
+		(event.forge === "gitcafe" &&
+			event.repoExternalId === repo.externalId &&
+			event.installationExternalId === repo.installationId)
 			? issue
 				? "issue"
 				: event.kind === "change-request.opened" ||
@@ -457,7 +478,7 @@ async function runWorkflowsInner(
 		if (deps.claimRunId) {
 			await runServices.failRun(db, deps.claimRunId);
 		}
-		return none;
+		return { ...none, skipReason: "no-matching-workflow" };
 	}
 
 	const headShaEarly =
@@ -535,7 +556,7 @@ async function runWorkflowsInner(
 			if (deps.claimRunId) {
 				await runServices.failRun(db, deps.claimRunId);
 			}
-			return none;
+			return { ...none, skipReason: "maintainer-exemption" };
 		}
 		matching = standalone?.nodes.some((node) => node.type === "rule")
 			? [...strictWorkflows, standalone]
@@ -574,6 +595,7 @@ async function runWorkflowsInner(
 		issue?.number ??
 		("changeRequest" in event ? event.changeRequest.number : null);
 	const approvedAppealId =
+		event.forge === "github" &&
 		standalone &&
 		subject &&
 		subjectNumberForAppeal !== null &&
@@ -726,7 +748,8 @@ async function runWorkflowsInner(
 				skippedCount > 0));
 	if (issue && heldBack) {
 		for (const execution of executions) {
-			if (execution.definition === standalone) continue;
+			if (execution.definition === standalone && event.forge !== "gitcafe")
+				continue;
 			execution.result.actions = [];
 			execution.result.pausedAtNodeIds = [];
 			execution.result.verdict = "pass";
@@ -911,7 +934,7 @@ async function runWorkflowsInner(
 			),
 			suppressed: silent,
 		});
-		if (!persisted) return none;
+		if (!persisted) return { ...none, skipReason: "superseded" };
 		runId = persisted.runId;
 		actionRows = persisted.actionRows;
 	} else {
@@ -1023,7 +1046,7 @@ async function runWorkflowsInner(
 		degraded,
 		aiReviewNotRun,
 	};
-	if (closedNow) {
+	if (closedNow || (event.forge === "gitcafe" && issue !== null && heldBack)) {
 		result.quiet = true;
 	}
 	return result;

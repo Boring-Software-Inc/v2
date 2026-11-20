@@ -114,6 +114,7 @@ export type GitCafeEvaluationPhase = z.infer<
 export const GITCAFE_VERDICT_ACTION_KINDS: ReadonlySet<string> = new Set([
 	"block",
 	"close",
+	"lock",
 	"comment",
 	"delete-comment",
 	"set-check",
