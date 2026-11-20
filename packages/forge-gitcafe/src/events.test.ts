@@ -1,29 +1,41 @@
 import { expect, test } from "bun:test";
 import { generateKeyPairSync } from "node:crypto";
 import {
+	type GitCafeReadIssueThread,
 	gitCafeCheckRerequestedEventSchema,
 	gitCafeCommentEventSchema,
+	gitCafeInstallationSchema,
+	gitCafeIssueEventSchema,
 	gitCafePullEventSchema,
 	gitCafePushEventSchema,
+	gitCafeReadIssueThreadSchema,
 } from "@tripwire/contracts";
 import {
 	GitCafeInstallationClient,
 	hydrateGitCafeCommentEvent,
+	hydrateGitCafeIssueEvent,
 	hydrateGitCafePullEvent,
 	normalizeGitCafeCommentEvent,
+	normalizeGitCafeIssueEvent,
 	normalizeGitCafePullEvent,
 } from "@tripwire/forge-gitcafe";
 import rerequested from "../fixtures/gitcafe-check-rerequested-webhook.json";
+import members from "../fixtures/gitcafe-connection-members.json";
 import repository from "../fixtures/gitcafe-connection-repository.json";
 import push from "../fixtures/gitcafe-git-push-webhook.json";
 import installation from "../fixtures/gitcafe-installation.json";
 import token from "../fixtures/gitcafe-installation-token.json";
 import issueComment from "../fixtures/gitcafe-issue-comment-created-webhook.json";
+import createdIssue from "../fixtures/gitcafe-issue-created-webhook.json";
 import pullComment from "../fixtures/gitcafe-pull-comment-created-webhook.json";
 import created from "../fixtures/gitcafe-pull-created-webhook.json";
+import collaborators from "../fixtures/gitcafe-read-collaborators.json";
 import issue from "../fixtures/gitcafe-read-issue.json";
+import issue4 from "../fixtures/gitcafe-read-issue-4.json";
 import issueComments from "../fixtures/gitcafe-read-issue-comments.json";
+import profile from "../fixtures/gitcafe-read-profile.json";
 import commentDetail from "../fixtures/gitcafe-read-pull-comment-detail.json";
+import mergedPulls from "../fixtures/gitcafe-read-pulls.json";
 import pull from "../fixtures/gitcafe-read-scratch-pull.json";
 
 const credentials = {
@@ -77,6 +89,99 @@ function commentHarness(
 	});
 	return { client, calls, expected };
 }
+
+function issueHarness(
+	current: GitCafeReadIssueThread = gitCafeReadIssueThreadSchema.parse(issue4),
+) {
+	const expected = gitCafeInstallationSchema.parse({
+		...installation,
+		id: createdIssue.installation.id,
+	});
+	const client = new GitCafeInstallationClient({
+		credentials,
+		now: () => Date.parse(token.expiresAt) - 900_000,
+		lifecycleGuard: async () => true,
+		fetch: async (url) => {
+			if (url.endsWith("/access_tokens"))
+				return Response.json({
+					...token,
+					token: "synthetic-test-bearer",
+					installationId: expected.id,
+					actor: expected.bot.actorId,
+				});
+			if (url.includes("/apps/installations/")) return Response.json(expected);
+			if (url.endsWith("/repos/boring/scratch"))
+				return Response.json(repository);
+			if (url.endsWith("/repos/boring/scratch/issues/4"))
+				return Response.json(current);
+			if (url.endsWith("/users/grim")) return Response.json(profile);
+			if (url.includes("/repos/boring/scratch/pulls/?"))
+				return Response.json(mergedPulls);
+			if (url.includes("/orgs/boring/members/?")) return Response.json(members);
+			if (url.includes("/repos/boring/scratch/collaborators/?"))
+				return Response.json(collaborators);
+			throw new Error(`Unexpected issue transport request: ${url}`);
+		},
+	});
+	return { client, expected };
+}
+
+test("captured issue.created hydrates its author and normalizes issue moderation", async () => {
+	const h = issueHarness();
+	const lookup = await h.client.getInstallation(createdIssue.installation.id);
+	if (!lookup.ok) throw new Error("lookup failed");
+	const before = JSON.stringify(createdIssue);
+	const hydrated = await hydrateGitCafeIssueEvent(
+		h.client,
+		lookup.value,
+		gitCafeIssueEventSchema.parse(createdIssue),
+	);
+	if (!hydrated.ok)
+		throw new Error(`issue hydration failed: ${hydrated.reason}`);
+	const normalized = normalizeGitCafeIssueEvent(
+		hydrated.value,
+		createdIssue.createdAt,
+	);
+	expect(normalized).toMatchObject({
+		forge: "gitcafe",
+		kind: "issue.opened",
+		repoExternalId: repository.id,
+		actor: {
+			login: "grim",
+			externalId: createdIssue.actor.id,
+		},
+		issue: {
+			number: 4,
+			title: createdIssue.issue.title,
+			body: createdIssue.issue.description,
+			maintainer: true,
+			url: "https://git.cafe/boring/scratch/issues/4",
+		},
+	});
+	expect(normalized.deliveryId).toBe(
+		JSON.stringify([createdIssue.installation.id, createdIssue.id]),
+	);
+	expect(JSON.stringify(createdIssue)).toBe(before);
+});
+
+test("issue.created hydration refuses a changed issue snapshot", async () => {
+	const h = issueHarness(
+		gitCafeReadIssueThreadSchema.parse({
+			...issue4,
+			version: 1,
+			title: "Changed",
+		}),
+	);
+	const lookup = await h.client.getInstallation(createdIssue.installation.id);
+	if (!lookup.ok) throw new Error("lookup failed");
+	expect(
+		await hydrateGitCafeIssueEvent(
+			h.client,
+			lookup.value,
+			gitCafeIssueEventSchema.parse(createdIssue),
+		),
+	).toEqual({ ok: false, reason: "stale-event" });
+});
 
 for (const captured of [pullComment, issueComment]) {
 	test(`captured ${captured.type} binds its live author and preserves raw evidence`, async () => {
@@ -452,8 +557,9 @@ function harness(
 	return { client, calls };
 }
 
-test("three genuine app-delivery captures parse without implying successful ingress", () => {
+test("genuine app-delivery captures parse without inventing provider fields", () => {
 	expect(gitCafePullEventSchema.parse(created).pull.id).toBe(pull.id);
+	expect(gitCafeIssueEventSchema.parse(createdIssue).issue.id).toBe(issue4.id);
 	expect(
 		gitCafeCheckRerequestedEventSchema.parse(rerequested).checkRun.headOid,
 	).toBe(pull.headOid);

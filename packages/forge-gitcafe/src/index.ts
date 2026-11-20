@@ -13,11 +13,14 @@ export {
 export { reportGitCafeCheck, verifyGitCafeCheckRerequest } from "./checks.ts";
 export {
 	type GitCafeCommentHydrationResult,
+	type GitCafeIssueHydrationResult,
 	type GitCafePullHydrationResult,
 	hydrateGitCafeCommentEvent,
+	hydrateGitCafeIssueEvent,
 	hydrateGitCafePullEvent,
 	hydrateGitCafePushRef,
 	normalizeGitCafeCommentEvent,
+	normalizeGitCafeIssueEvent,
 	normalizeGitCafePullEvent,
 	normalizeGitCafePushRef,
 } from "./events.ts";

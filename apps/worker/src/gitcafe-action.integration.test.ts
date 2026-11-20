@@ -13,6 +13,7 @@ import {
 	gitCafeCheckRerequestedEventSchema,
 	gitCafeCommentEventSchema,
 	gitCafeInstallationSchema,
+	gitCafeIssueEventSchema,
 	gitCafePullEventSchema,
 	gitCafePullIdentitySchema,
 	gitCafeReadPullSchema,
@@ -879,6 +880,116 @@ async function admitPullReceipt(
 	);
 	return { ...inserted, receipt, payload };
 }
+
+test("signed issue.created reaches the worker as issue moderation evidence", async () => {
+	const fixture = (name: string): Promise<unknown> =>
+		Bun.file(new URL(`${name}.json`, base)).json();
+	const [
+		raw,
+		issue,
+		repository,
+		token,
+		profile,
+		members,
+		collaborators,
+		merged,
+	] = await Promise.all(
+		[
+			"gitcafe-issue-created-webhook",
+			"gitcafe-read-issue-4",
+			"gitcafe-connection-repository",
+			"gitcafe-action-token-current",
+			"gitcafe-read-profile",
+			"gitcafe-connection-members",
+			"gitcafe-read-collaborators",
+			"gitcafe-read-pulls",
+		].map(fixture),
+	);
+	const source = gitCafeIssueEventSchema.parse(raw);
+	const admitted = await admitPullReceipt(source);
+	expect(
+		await gitCafeLifecycleServices.dispatchGitCafeRepositoryReceipt(
+			database.db,
+			boss,
+			admitted.receiptId,
+		),
+	).toBe("dispatched");
+	const [row] = (
+		await database.pool.query<{ id: string }>(
+			"SELECT id FROM events WHERE delivery_id=$1",
+			[JSON.stringify([source.installation.id, admitted.payload.id])],
+		)
+	).rows;
+	if (!row) throw new Error("Missing issue event");
+	const {
+		gitCafeInstallationTokenSchema,
+		gitCafeReadCollaboratorsSchema,
+		gitCafeReadIssueThreadSchema,
+		gitCafeReadProfileSchema,
+		gitCafeReadPullPageSchema,
+	} = await import("@tripwire/contracts");
+	const runtime = buildGitCafeRuntime(
+		database.db,
+		{
+			appId: installation.appId,
+			keyId: "issue-created-runtime-test",
+			privateKey: generateKeyPairSync("ec", { namedCurve: "prime256v1" })
+				.privateKey.export({ format: "pem", type: "pkcs8" })
+				.toString(),
+		},
+		async (url, init) => {
+			const path = new URL(url).pathname;
+			if (path.includes("/api/apps/"))
+				return Response.json(
+					init.method === "GET"
+						? installation
+						: {
+								...gitCafeInstallationTokenSchema.parse(token),
+								token: "issue-created-runtime-token",
+								expiresAt: new Date(Date.now() + 900_000).toISOString(),
+							},
+				);
+			if (path === "/api/repos/boring/scratch")
+				return Response.json(repository);
+			if (path === "/api/repos/boring/scratch/issues/4")
+				return Response.json(gitCafeReadIssueThreadSchema.parse(issue));
+			if (path === "/api/users/grim")
+				return Response.json(gitCafeReadProfileSchema.parse(profile));
+			if (path === "/api/orgs/boring/members/") return Response.json(members);
+			if (path.endsWith("/collaborators/"))
+				return Response.json(
+					gitCafeReadCollaboratorsSchema.parse(collaborators),
+				);
+			if (path.endsWith("/pulls/"))
+				return Response.json(gitCafeReadPullPageSchema.parse(merged));
+			throw new Error(`Unexpected issue-created path: ${path}`);
+		},
+	);
+	await processEvent(
+		{
+			db: database.db,
+			pool: database.pool,
+			logger: pino({ level: "silent" }),
+			resolveForge: () => runtime,
+			makeGenerate: null,
+			appUrl: "https://tripwire.test",
+			resumeNormalized: true,
+		},
+		{ eventId: row.id },
+	);
+	const saved = await eventServices.getEventById(database.db, row.id);
+	expect(saved?.raw).toEqual(admitted.payload);
+	expect(normalizedEventSchema.parse(saved?.normalized)).toMatchObject({
+		forge: "gitcafe",
+		kind: "issue.opened",
+		actor: { login: "grim", externalId: source.actor?.id },
+		issue: {
+			number: 4,
+			body: source.issue.description,
+			maintainer: true,
+		},
+	});
+});
 
 const COMMENT_SCENARIOS = [
 	"healthy",
