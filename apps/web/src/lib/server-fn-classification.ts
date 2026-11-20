@@ -30,6 +30,7 @@ export const SERVER_FN_CLASSIFICATION: ServerFnClassification = {
 	// ── public (deliberately reachable without the beta gate) ───────────
 	getSessionInfo: "public", // feeds the gate, queue screen, unauth
 	getCurrentUser: "public", // caller's OWN identity; no product data
+	getSidebarPreference: "public", // caller's own display-preference cookie
 	/** The signed-out login page needs provider IDs, never auth configuration. */
 	getProviderAvailability: "public",
 	getPublicDatabuddyConfig: "public",

@@ -19,6 +19,7 @@ import { discoverServerFns, ORG_SHELL } from "./server-fn-discovery.ts";
 const PUBLIC_ALLOWLIST = new Set([
 	"getSessionInfo", // session/status — feeds the gate, queue screen, unauth
 	"getCurrentUser", // caller's OWN identity (name/login/avatar); no product data
+	"getSidebarPreference", // reads the caller's own display-preference cookie
 	/** The signed-out login page needs provider IDs, never auth configuration. */
 	"getProviderAvailability",
 	/** Public analytics ID is needed on signed-out pages; no secret configuration. */

@@ -91,6 +91,7 @@ async function renderWorkflowPage({
 		[],
 	);
 	const root = createRootRoute({
+		loader: () => ({ sidebarCollapsed: false }),
 		component: () => (
 			<QueryClientProvider client={client}>
 				<FlagsProvider clientId="synthetic">
