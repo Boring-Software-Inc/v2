@@ -280,6 +280,7 @@ export type GitCafeReadPullThread = z.infer<typeof gitCafeReadPullThreadSchema>;
 export const gitCafeReadIssueThreadSchema = gitCafeReadPullThreadSchema
 	.omit({ state: true })
 	.extend({
+		description: z.string().max(65536).nullable(),
 		stateType: z.enum([
 			"triage",
 			"backlog",

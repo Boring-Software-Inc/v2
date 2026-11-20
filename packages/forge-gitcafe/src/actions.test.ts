@@ -636,6 +636,94 @@ for (const kind of ["close", "lock"] as const) {
 	});
 }
 
+for (const kind of ["reopen", "unlock"] as const) {
+	test(`${kind} uses a fresh subject version and checks the restored state`, async () => {
+		const now = new Date().toISOString();
+		const guard = {
+			authorId: "act_author",
+			subject: "change-request" as const,
+			headSha: pull.headOid ?? undefined,
+			appliedAfter: now,
+			appliedBefore: now,
+		};
+		const action: ForgeAction =
+			kind === "reopen"
+				? { kind: "reopen", repoFullName: "boring/scratch", number: 1, guard }
+				: { kind: "unlock", repoFullName: "boring/scratch", number: 1, guard };
+		let subject = gitCafeActionSubjectSchema.parse({
+			...pullFixture,
+			state: kind === "reopen" ? "closed" : pullFixture.state,
+			lockedAt:
+				kind === "unlock" ? "2026-11-20T04:00:00.000Z" : pullFixture.lockedAt,
+		});
+		let writes = 0;
+		const h = await harness(async (url, init) => {
+			if (init.method === "GET") return Response.json(subject);
+			expect(url).toBe(kind === "reopen" ? `${root}/reopen` : `${root}/unlock`);
+			expect(init.method).toBe("POST");
+			expect(JSON.parse(String(init.body))).toEqual({
+				expectedVersion: subject.version,
+			});
+			writes++;
+			subject = {
+				...subject,
+				version: subject.version + 1,
+				state: kind === "reopen" ? "open" : subject.state,
+				lockedAt: kind === "unlock" ? null : subject.lockedAt,
+			};
+			return Response.json(subject);
+		});
+		expect(await h.actions.execute(action, h.binding)).toEqual({
+			ok: true,
+			value: { externalId: pull.id },
+		});
+		expect(writes).toBe(1);
+		expect(await h.actions.execute(action, h.binding)).toEqual({
+			ok: true,
+			value: { externalId: pull.id },
+		});
+		expect(writes).toBe(1);
+	});
+}
+
+test("issue unlock uses the issue lock endpoint and verifies readback", async () => {
+	const issueRoot = root.replace("/pulls/", "/issues/");
+	let subject = gitCafeActionSubjectSchema.parse({
+		...pullFixture,
+		headOid: null,
+		state: undefined,
+		stateType: "started",
+		lockedAt: "2026-11-20T04:00:00.000Z",
+	});
+	const h = await harness(async (url, init) => {
+		if (init.method === "GET") return Response.json(subject);
+		expect(url).toBe(`${issueRoot}/lock`);
+		expect(init.method).toBe("DELETE");
+		expect(JSON.parse(String(init.body))).toEqual({
+			expectedVersion: subject.version,
+		});
+		subject = { ...subject, version: subject.version + 1, lockedAt: null };
+		return Response.json(subject);
+	});
+	const now = new Date().toISOString();
+	expect(
+		await h.actions.execute(
+			{
+				kind: "unlock",
+				repoFullName: "boring/scratch",
+				number: 1,
+				guard: {
+					authorId: "act_author",
+					subject: "issue",
+					appliedAfter: now,
+					appliedBefore: now,
+				},
+			},
+			{ ...h.binding, subject: "issue", headOid: null },
+		),
+	).toEqual({ ok: true, value: { externalId: pull.id } });
+});
+
 test("deletion never trusts another author's marker or claims a refused deletion succeeded", async () => {
 	let writes = 0;
 	for (const own of [true, false]) {

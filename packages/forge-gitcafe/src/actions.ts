@@ -81,8 +81,6 @@ export class GitCafeActions {
 		action: ForgeAction,
 		input: GitCafeActionBinding,
 	): Promise<GitCafeActionResult<{ externalId: string | null }>> {
-		if (action.kind === "reopen" || action.kind === "unlock")
-			return { ok: false, reason: "configuration" };
 		const parsed = gitCafeActionBindingSchema.safeParse(input);
 		if (!parsed.success) return { ok: false, reason: "invalid-response" };
 		const binding = parsed.data;
@@ -159,8 +157,12 @@ export class GitCafeActions {
 				);
 			case "close":
 				return this.close(binding);
+			case "reopen":
+				return this.reopen(binding);
 			case "lock":
 				return this.lock(binding, action.reason);
+			case "unlock":
+				return this.unlock(binding);
 			default:
 				action satisfies never;
 				return { ok: false, reason: "configuration" };
@@ -765,6 +767,41 @@ export class GitCafeActions {
 			: { ok: false as const, reason: "conflict" as const };
 	}
 
+	private async reopen(binding: GitCafeActionBinding) {
+		const before = await this.subject(binding);
+		if (!before.ok) return before;
+		const open =
+			binding.subject === "change-request"
+				? before.value.state === "open"
+				: !["completed", "canceled"].includes(before.value.stateType ?? "");
+		if (open)
+			return { ok: true as const, value: { externalId: before.value.id } };
+		const response = await this.options.client.request(
+			binding.installationId,
+			{
+				method: "POST",
+				resourcePath: `${this.root(binding)}/reopen`,
+				body: JSON.stringify(
+					gitCafeActionVersionInputSchema.parse({
+						expectedVersion: before.value.version,
+					}),
+				),
+			},
+			this.options.installation,
+			this.deadlineAt,
+		);
+		if (!response.ok) return response;
+		const after = await this.subject(binding);
+		if (!after.ok) return after;
+		return (
+			binding.subject === "change-request"
+				? after.value.state === "open"
+				: !["completed", "canceled"].includes(after.value.stateType ?? "")
+		)
+			? { ok: true as const, value: { externalId: after.value.id } }
+			: { ok: false as const, reason: "conflict" as const };
+	}
+
 	private async lock(
 		binding: GitCafeActionBinding,
 		reason?: Extract<ForgeAction, { kind: "lock" }>["reason"],
@@ -797,6 +834,33 @@ export class GitCafeActions {
 		const after = await this.subject(binding);
 		if (!after.ok) return after;
 		return after.value.lockedAt !== null
+			? { ok: true as const, value: { externalId: after.value.id } }
+			: { ok: false as const, reason: "conflict" as const };
+	}
+
+	private async unlock(binding: GitCafeActionBinding) {
+		const before = await this.subject(binding);
+		if (!before.ok) return before;
+		if (before.value.lockedAt === null)
+			return { ok: true as const, value: { externalId: before.value.id } };
+		const response = await this.options.client.request(
+			binding.installationId,
+			{
+				method: binding.subject === "issue" ? "DELETE" : "POST",
+				resourcePath: `${this.root(binding)}/${binding.subject === "issue" ? "lock" : "unlock"}`,
+				body: JSON.stringify(
+					gitCafeActionVersionInputSchema.parse({
+						expectedVersion: before.value.version,
+					}),
+				),
+			},
+			this.options.installation,
+			this.deadlineAt,
+		);
+		if (!response.ok) return response;
+		const after = await this.subject(binding);
+		if (!after.ok) return after;
+		return after.value.lockedAt === null
 			? { ok: true as const, value: { externalId: after.value.id } }
 			: { ok: false as const, reason: "conflict" as const };
 	}
