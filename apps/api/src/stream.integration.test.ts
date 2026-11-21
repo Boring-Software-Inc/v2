@@ -121,6 +121,14 @@ async function firstChunk(res: Response): Promise<string> {
 	return new TextDecoder().decode(value);
 }
 
+async function waitForIdleClient(): Promise<void> {
+	const deadline = Date.now() + 1000;
+	while (pool.idleCount === 0 && Date.now() < deadline) {
+		await Bun.sleep(10);
+	}
+	expect(pool.idleCount).toBeGreaterThan(0);
+}
+
 describe("GET /events/stream gate", () => {
 	test("no session ⇒ 401, nothing streamed", async () => {
 		const res = await makeApp(fakeAuth(null)).request("/events/stream");
@@ -153,6 +161,22 @@ describe("GET /events/stream gate", () => {
 		const res = await makeApp(null).request("/events/stream");
 		expect(res.status).toBe(200);
 		expect(await firstChunk(res)).toContain("event: heartbeat");
+	});
+
+	test("disconnects remove notification listeners before pooling the client", async () => {
+		for (let attempt = 0; attempt < 12; attempt++) {
+			const res = await makeApp(null).request("/events/stream");
+			expect(res.status).toBe(200);
+			expect(await firstChunk(res)).toContain("event: heartbeat");
+			await waitForIdleClient();
+		}
+
+		const client = await pool.connect();
+		try {
+			expect(client.listenerCount("notification")).toBe(0);
+		} finally {
+			client.release();
+		}
 	});
 
 	test("webhook route is untouched by the gate (its auth is HMAC)", async () => {

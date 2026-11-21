@@ -2,6 +2,7 @@ import { assertApproved } from "@tripwire/auth/access-gate";
 import { reposWithPermission } from "@tripwire/auth/org-gate";
 import { LIVE_CHANNEL } from "@tripwire/contracts";
 import { eventServices, liveServices, repoServices } from "@tripwire/db";
+import { getErrorMessage } from "@tripwire/utils";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { ApiEnv } from "../env.ts";
@@ -124,21 +125,31 @@ export const stream = new Hono<ApiEnv>().get(
 				}
 			};
 
-			client.on("notification", (msg) => {
+			const notificationHandler = (
+				msg: Parameters<typeof onNotification>[0],
+			) => {
 				onNotification(msg).catch((error) =>
-					logger.warn({ error }, "sse notification push failed"),
+					logger.warn(
+						{ error: getErrorMessage(error) },
+						"sse notification push failed",
+					),
 				);
-			});
-			await client.query("LISTEN events");
-			await client.query("LISTEN runs");
-			await client.query(`LISTEN ${LIVE_CHANNEL}`);
+			};
+			client.on("notification", notificationHandler);
+
+			let cleanup: Promise<void> | null = null;
+			const closeClient = () => {
+				cleanup ??= (async () => {
+					client.off("notification", notificationHandler);
+					await client.query("UNLISTEN *").catch(() => undefined);
+					client.release();
+				})();
+				return cleanup;
+			};
 
 			s.onAbort(() => {
 				open = false;
-				client
-					.query("UNLISTEN *")
-					.catch(() => undefined)
-					.finally(() => client.release());
+				void closeClient();
 			});
 
 			const { auth } = c.get("deps");
@@ -156,10 +167,19 @@ export const stream = new Hono<ApiEnv>().get(
 				}
 			};
 
-			while (open) {
-				await s.writeSSE({ event: "heartbeat", data: String(Date.now()) });
-				await refreshVisibility().catch(() => undefined);
-				await s.sleep(HEARTBEAT_MS);
+			try {
+				await client.query("LISTEN events");
+				await client.query("LISTEN runs");
+				await client.query(`LISTEN ${LIVE_CHANNEL}`);
+
+				while (open) {
+					await s.writeSSE({ event: "heartbeat", data: String(Date.now()) });
+					await refreshVisibility().catch(() => undefined);
+					await s.sleep(HEARTBEAT_MS);
+				}
+			} finally {
+				open = false;
+				await closeClient();
 			}
 		}),
 );
