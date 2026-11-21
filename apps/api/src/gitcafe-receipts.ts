@@ -17,8 +17,6 @@ export function resolveGitCafeReceiptConfig(
 	env: Record<string, string | undefined>,
 ): GitCafeReceiptConfig | null {
 	if (env.GITCAFE_WEBHOOK_RECEIPTS_ENABLED !== "true") return null;
-	if (env.UNKEY_ENVIRONMENT_SLUG !== "preview")
-		throw new Error("GitCafe receipt admission requires preview environment");
 	const parsed = gitCafeReceiptConfigSchema.safeParse({
 		appId: env.GITCAFE_APP_ID,
 		keyVersion: env.GITCAFE_WEBHOOK_KEY_VERSION,

@@ -292,7 +292,7 @@ describe("GitCafe isolated receipt admission", () => {
 		expect((await db.select().from(gitCafeReceipts)).length).toBe(0);
 	});
 
-	test("disabled receipt admission stays 404; production and wrong app refuse configuration", async () => {
+	test("disabled receipt admission stays 404; deployment environment does not replace application identity", async () => {
 		const disabled = createApi({ ...dependencies(), gitCafeReceipts: null });
 		expect((await deliver(await fixtureBody(), {}, disabled)).status).toBe(404);
 		expect(resolveGitCafeReceiptConfig({})).toBeNull();
@@ -306,8 +306,13 @@ describe("GitCafe isolated receipt admission", () => {
 		expect(resolveGitCafeReceiptConfig(env)?.appId).toBe(
 			GITCAFE_RECEIPT_APP_ID,
 		);
+		expect(
+			resolveGitCafeReceiptConfig({
+				...env,
+				UNKEY_ENVIRONMENT_SLUG: "production",
+			})?.appId,
+		).toBe(GITCAFE_RECEIPT_APP_ID);
 		for (const change of [
-			{ UNKEY_ENVIRONMENT_SLUG: "production" },
 			{ GITCAFE_APP_ID: "wrong-app" },
 			{ GITCAFE_WEBHOOK_SECRET: undefined },
 		])
