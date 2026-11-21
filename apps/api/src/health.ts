@@ -38,7 +38,7 @@ export function createApiHealth(deps: ApiDeps, now: () => number = Date.now) {
 			);
 		}
 	};
-	return async () => {
+	const read = async (requireProtection: boolean) => {
 		if (now() - sampledAt >= 30_000 && !sampling) {
 			sampling = (async () => {
 				try {
@@ -79,9 +79,10 @@ export function createApiHealth(deps: ApiDeps, now: () => number = Date.now) {
 		const ready =
 			dependenciesReady &&
 			(!deps.gitCafeReceipts || (freshHeartbeat && alerts.size === 0));
+		const ok = dependenciesReady && (!requireProtection || ready);
 		return {
 			body: {
-				ok: ready,
+				ok,
 				live: true,
 				ready,
 				gitcafe: deps.gitCafeReceipts
@@ -97,7 +98,11 @@ export function createApiHealth(deps: ApiDeps, now: () => number = Date.now) {
 							? "backlog-stalled"
 							: "ready",
 			},
-			status: ready ? (200 as const) : (503 as const),
+			status: ok ? (200 as const) : (503 as const),
 		};
+	};
+	return {
+		readHealth: () => read(false),
+		readReadiness: () => read(true),
 	};
 }

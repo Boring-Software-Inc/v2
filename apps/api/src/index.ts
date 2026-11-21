@@ -26,7 +26,7 @@ import { webhooks } from "./routes/webhooks.ts";
  */
 export function createApi(deps: ApiDeps) {
 	const app = new Hono<ApiEnv>();
-	const readHealth = createApiHealth(deps);
+	const { readHealth, readReadiness } = createApiHealth(deps);
 	app.use("*", async (c, next) => {
 		c.set("deps", deps);
 		await next();
@@ -43,6 +43,10 @@ export function createApi(deps: ApiDeps) {
 	app.get("/healthz", async (c) => {
 		const health = await readHealth();
 		return c.json(health.body, health.status);
+	});
+	app.get("/readyz", async (c) => {
+		const readiness = await readReadiness();
+		return c.json(readiness.body, readiness.status);
 	});
 	app.route("/webhooks", webhooks);
 	app.route("/events", stream);

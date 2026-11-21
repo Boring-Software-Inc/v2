@@ -59,7 +59,15 @@ test("API health detects stopped protection with empty backlog, recovers, caches
 			},
 			() => now,
 		);
-		expect(await health()).toMatchObject({
+		expect(await health.readHealth()).toMatchObject({
+			status: 200,
+			body: {
+				live: true,
+				ready: false,
+				reason: "protection-heartbeat-missing",
+			},
+		});
+		expect(await health.readReadiness()).toMatchObject({
 			status: 503,
 			body: {
 				live: true,
@@ -72,9 +80,9 @@ test("API health detects stopped protection with empty backlog, recovers, caches
 			runtimeId,
 			release: "test",
 		});
-		expect((await health()).status).toBe(503);
+		expect((await health.readReadiness()).status).toBe(503);
 		now += 30_000;
-		expect(await health()).toMatchObject({
+		expect(await health.readReadiness()).toMatchObject({
 			status: 200,
 			body: { ready: true },
 		});
@@ -82,13 +90,13 @@ test("API health detects stopped protection with empty backlog, recovers, caches
 			"UPDATE gitcafe_runtime_heartbeats SET progress_at = now() - interval '100 seconds'",
 		);
 		now += 30_000;
-		expect((await health()).status).toBe(503);
+		expect((await health.readReadiness()).status).toBe(503);
 		await gitCafeOperationalServices.recordGitCafeRuntimeHeartbeat(db, {
 			runtimeId,
 			release: "test",
 		});
 		now += 30_000;
-		expect((await health()).status).toBe(200);
+		expect((await health.readReadiness()).status).toBe(200);
 		const body = await Bun.file(
 			new URL(
 				"../../../packages/forge-gitcafe/fixtures/gitcafe-issue-created-webhook.json",
@@ -115,24 +123,24 @@ test("API health detects stopped protection with empty backlog, recovers, caches
 			[admitted.receiptId],
 		);
 		now += 30_000;
-		expect((await health()).status).toBe(200);
+		expect((await health.readReadiness()).status).toBe(200);
 		now += 30_000;
-		expect((await health()).status).toBe(503);
+		expect((await health.readReadiness()).status).toBe(503);
 		await pool.query(
 			"UPDATE gitcafe_receipts SET status = 'parked' WHERE id = $1",
 			[admitted.receiptId],
 		);
 		now += 30_000;
-		expect((await health()).status).toBe(200);
+		expect((await health.readReadiness()).status).toBe(200);
 		await pool.query("ALTER TABLE pgboss.job RENAME TO unavailable_job");
 		now += 30_000;
-		expect(await health()).toMatchObject({
+		expect(await health.readHealth()).toMatchObject({
 			status: 503,
 			body: { live: true, reason: "dependencies-unavailable" },
 		});
 		await pool.query("ALTER TABLE pgboss.unavailable_job RENAME TO job");
 		now += 30_000;
-		expect((await health()).status).toBe(200);
+		expect((await health.readHealth()).status).toBe(200);
 		const blocker = await pool.connect();
 		try {
 			await blocker.query("BEGIN");
@@ -141,14 +149,14 @@ test("API health detects stopped protection with empty backlog, recovers, caches
 			);
 			now += 30_000;
 			const started = performance.now();
-			expect((await health()).status).toBe(503);
+			expect((await health.readHealth()).status).toBe(503);
 			expect(performance.now() - started).toBeLessThan(4_500);
 		} finally {
 			await blocker.query("ROLLBACK");
 			blocker.release();
 		}
 		now += 30_000;
-		expect((await health()).status).toBe(200);
+		expect((await health.readHealth()).status).toBe(200);
 		const logs = output.join("");
 		expect(logs).toContain("gitcafe.backlog.alert");
 		expect(logs).toContain("gitcafe.backlog.recovered");
