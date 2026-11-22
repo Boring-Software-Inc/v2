@@ -13,6 +13,7 @@ import {
 } from "@tripwire/contracts";
 import type { Db, OrgWithRole, RepoLite } from "@tripwire/db";
 import { orgServices } from "@tripwire/db";
+import { toError } from "@tripwire/utils";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import { TOOL_SPECS, type ToolName } from "./catalog.ts";
@@ -26,7 +27,7 @@ export interface ToolContext {
 	config: McpConfig;
 	agent: VerifiedAgent;
 	accessDenied: string | null;
-	reportError?: (error: unknown) => void;
+	reportError?: (error: Error) => void;
 }
 
 export const ERROR_HINTS = {
@@ -316,7 +317,7 @@ export function appLink(ctx: ToolContext, path: string): string {
 
 export async function guard(
 	run: () => Promise<CallToolResult>,
-	reportError?: (error: unknown) => void,
+	reportError?: (error: Error) => void,
 ): Promise<CallToolResult> {
 	try {
 		return await run();
@@ -334,7 +335,7 @@ export async function guard(
 		if (error instanceof ToolError) {
 			return fail(error.message, error.hint);
 		}
-		reportError?.(error);
+		reportError?.(toError(error));
 		throw error;
 	}
 }

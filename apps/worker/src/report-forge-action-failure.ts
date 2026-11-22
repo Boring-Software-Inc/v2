@@ -16,6 +16,14 @@ export interface ForgeActionFailure {
 export type ReportForgeActionFailure = (failure: ForgeActionFailure) => void;
 
 export function forgeActionFailureEvent(failure: ForgeActionFailure) {
+	const tags = {
+		forge: failure.forge,
+		action_kind: failure.kind,
+		phase: failure.phase,
+		reason: failure.reason,
+		provider_status:
+			failure.status === undefined ? "none" : String(failure.status),
+	};
 	return {
 		level: "error" as const,
 		fingerprint: [
@@ -24,15 +32,7 @@ export function forgeActionFailureEvent(failure: ForgeActionFailure) {
 			failure.kind,
 			failure.reason,
 		],
-		tags: {
-			forge: failure.forge,
-			action_kind: failure.kind,
-			phase: failure.phase,
-			reason: failure.reason,
-			...(failure.status === undefined
-				? {}
-				: { provider_status: String(failure.status) }),
-		},
+		tags,
 		extra: {
 			action_id: failure.actionId,
 			run_id: failure.runId,

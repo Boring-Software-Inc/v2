@@ -4,6 +4,7 @@ import { captureException } from "@sentry/bun";
 import { assertApproved } from "@tripwire/auth/access-gate";
 import { type Forge, mcpToolCallScopeProbeSchema } from "@tripwire/contracts";
 import { agentServices, type Db } from "@tripwire/db";
+import { toError } from "@tripwire/utils";
 import { type Context, Hono } from "hono";
 import { cors } from "hono/cors";
 import type { Pool } from "pg";
@@ -34,7 +35,7 @@ export interface McpDeps {
 	logger: Logger;
 	verifyToken?: typeof verifyAgentToken;
 	reportError?: (
-		error: unknown,
+		error: Error,
 		context: {
 			phase: "request" | "protocol" | "tool";
 			method?: string;
@@ -67,13 +68,14 @@ export function createApp(deps: McpDeps) {
 	const reportError =
 		deps.reportError ??
 		((error, context) => {
+			const tags = {
+				service: "mcp",
+				phase: context.phase,
+				method: context.method ?? "none",
+				path: context.path ?? "none",
+			};
 			captureException(error, {
-				tags: {
-					service: "mcp",
-					phase: context.phase,
-					...(context.method ? { method: context.method } : {}),
-					...(context.path ? { path: context.path } : {}),
-				},
+				tags,
 				extra: {
 					tools: context.tools,
 					user_id: context.userId,
@@ -84,7 +86,7 @@ export function createApp(deps: McpDeps) {
 
 	app.onError((error, c) => {
 		logger.error({ error }, "unhandled mcp request error");
-		reportError(error, {
+		reportError(toError(error), {
 			phase: "request",
 			method: c.req.method,
 			path: c.req.path,
