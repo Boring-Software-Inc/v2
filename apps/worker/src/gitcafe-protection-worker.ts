@@ -363,7 +363,10 @@ export async function registerGitCafeProtectionQueues(
 					adapterFor: async (_repo, forge) =>
 						deps.resolveForge(forge)?.adapter ?? null,
 				},
-				{ forge: "gitcafe" },
+				{
+					forge: "gitcafe",
+					recordedBefore: new Date(Date.now() - 15_000),
+				},
 			);
 			return recovered;
 		};

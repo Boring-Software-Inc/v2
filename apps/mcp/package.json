@@ -7,13 +7,14 @@
 		".": "./src/index.ts"
 	},
 	"scripts": {
-		"dev": "bun --env-file=../../.env --watch src/index.ts",
+		"dev": "bun --env-file=../../.env --preload ./instrument.ts --watch src/index.ts",
 		"start": "bun src/index.ts",
 		"typecheck": "tsrs --noEmit --checkers 4 --fast false",
 		"typecheck:ts5": "tsc --noEmit"
 	},
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.32.1",
+		"@sentry/bun": "^11.8.0",
 		"@tripwire/auth": "workspace:*",
 		"@tripwire/contracts": "workspace:*",
 		"@tripwire/db": "workspace:*",

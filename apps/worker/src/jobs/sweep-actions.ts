@@ -11,6 +11,10 @@ import type { ForgeAdapter } from "@tripwire/forge";
 import { getErrorMessage, supersededBy } from "@tripwire/utils";
 import type { Logger } from "pino";
 import {
+	type ReportForgeActionFailure,
+	reportForgeActionFailureToSentry,
+} from "../report-forge-action-failure.ts";
+import {
 	CLOSE_PREREQUISITES,
 	emitClosedReviewSurfaces,
 	toForgeAction,
@@ -56,6 +60,7 @@ export interface SweepDeps {
 	) => Promise<ForgeAdapter | null>;
 	logger: Logger;
 	appUrl: string;
+	reportActionFailure?: ReportForgeActionFailure;
 }
 
 export interface SweepOptions {
@@ -210,6 +215,15 @@ export async function sweepActions(
 		) {
 			await runServices.markActionSuperseded(db, row.id);
 			result.abandoned++;
+			(deps.reportActionFailure ?? reportForgeActionFailureToSentry)({
+				actionId: row.id,
+				runId: row.runId,
+				repo: row.repoFullName,
+				forge: row.forge,
+				kind: row.kind,
+				phase: "abandoned",
+				reason: "give-up-window",
+			});
 			logger.error(
 				{ actionId: row.id, kind: row.kind, recordedAt: row.recordedAt },
 				"action abandoned — stuck past the give-up window, never executed",
@@ -268,6 +282,16 @@ export async function sweepActions(
 			);
 			const executed = await adapter.execute(forgeAction, { actionId: row.id });
 			if ("refused" in executed) {
+				(deps.reportActionFailure ?? reportForgeActionFailureToSentry)({
+					actionId: row.id,
+					runId: row.runId,
+					repo: row.repoFullName,
+					forge: row.forge,
+					kind: row.kind,
+					phase: "retry",
+					reason: executed.reason,
+					status: executed.status,
+				});
 				logger.warn(
 					{
 						actionId: row.id,
@@ -286,6 +310,16 @@ export async function sweepActions(
 				"swept action executed after recovery",
 			);
 		} catch (error) {
+			(deps.reportActionFailure ?? reportForgeActionFailureToSentry)({
+				actionId: row.id,
+				runId: row.runId,
+				repo: row.repoFullName,
+				forge: row.forge,
+				kind: row.kind,
+				phase: "retry",
+				reason: "exception",
+				detail: getErrorMessage(error),
+			});
 			logger.warn(
 				{ actionId: row.id, kind: row.kind, error: getErrorMessage(error) },
 				"sweep re-attempt failed — row stays recorded",

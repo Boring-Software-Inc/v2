@@ -1,4 +1,4 @@
-import { captureException } from "@sentry/bun";
+import { captureException, captureMessage } from "@sentry/bun";
 import {
 	type Auth,
 	createAuth,
@@ -10,6 +10,7 @@ import {
 	createDirectPool,
 	gitCafeLifecycleServices,
 } from "@tripwire/db";
+import { generateId } from "@tripwire/utils";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
@@ -29,15 +30,46 @@ export function createApi(deps: ApiDeps) {
 	const { readHealth, readReadiness } = createApiHealth(deps);
 	app.use("*", async (c, next) => {
 		c.set("deps", deps);
+		c.set("requestId", generateId());
+		c.set("failureCaptured", false);
 		await next();
+		c.header("x-request-id", c.get("requestId"));
+		if (c.res.status >= 500 && !c.get("failureCaptured")) {
+			captureMessage("api request returned an internal error", {
+				level: "error",
+				fingerprint: ["api-internal-response", c.req.method, c.req.path],
+				tags: {
+					service: "api",
+					method: c.req.method,
+					path: c.req.path,
+					status: String(c.res.status),
+				},
+				extra: { request_id: c.get("requestId") },
+			});
+		}
 	});
 	app.onError((error, c) => {
-		if (error instanceof HTTPException) {
+		if (error instanceof HTTPException && error.status < 500) {
 			return error.getResponse();
 		}
-		deps.logger.error({ err: error }, "unhandled api error");
-		captureException(error);
-		return c.text("Internal Server Error", 500);
+		const status = error instanceof HTTPException ? error.status : 500;
+		c.set("failureCaptured", true);
+		deps.logger.error(
+			{ err: error, requestId: c.get("requestId"), status },
+			"unhandled api error",
+		);
+		captureException(error, {
+			tags: {
+				service: "api",
+				method: c.req.method,
+				path: c.req.path,
+				status: String(status),
+			},
+			extra: { request_id: c.get("requestId") },
+		});
+		return error instanceof HTTPException
+			? error.getResponse()
+			: c.text("Internal Server Error", 500);
 	});
 	app.use("/events/*", cors({ origin: deps.webOrigin, allowMethods: ["GET"] }));
 	app.get("/healthz", async (c) => {

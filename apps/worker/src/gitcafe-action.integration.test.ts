@@ -96,7 +96,7 @@ function createAttachmentTransport() {
 		{ id: string; size: number; state: "reserved" | "ready" }
 	>();
 	return (path: string, init: RequestInit): Response | null => {
-		const root = "/api/repos/boring/scratch/attachments";
+		const root = "/api/repos/boring/scratch/attachments/";
 		if (path === root && init.method === "POST") {
 			const input = gitCafeActionAttachmentReserveSchema.parse(
 				JSON.parse(String(init.body)),
@@ -113,8 +113,14 @@ function createAttachmentTransport() {
 				contentType: attachment.state === "ready" ? "image/png" : null,
 			});
 		}
-		if (path.startsWith(`${root}/`) && init.method === "PUT") {
-			const id = decodeURIComponent(path.slice(root.length + 1));
+		if (path.startsWith(root) && init.method === "PUT") {
+			const headers = new Headers(init.headers);
+			if (
+				headers.get("content-type") !== "application/octet-stream" ||
+				headers.get("content-length") !== "28953"
+			)
+				return new Response(null, { status: 400 });
+			const id = decodeURIComponent(path.slice(root.length));
 			const entry = [...attachments.entries()].find(
 				([, attachment]) => attachment.id === id,
 			);
@@ -212,6 +218,11 @@ beforeEach(async () => {
 		status: "completed",
 		verdict: "block",
 	});
+	await gitCafeLifecycleServices.finishGitCafeEvent(
+		database.db,
+		inserted.eventId,
+		{ status: "completed", runId },
+	);
 	const [action] = await runServices.recordActions(database.db, runId, [
 		{
 			kind: "comment",
@@ -309,6 +320,11 @@ for (const drift of ["none", "pickup", "commit"] as const) {
 			throw new Error("Missing captured pull projection");
 		const ids: string[] = [];
 		for (const repositoryId of [event.repository.id, `repo_${generateId()}`]) {
+			const raw = gitCafePullEventSchema.parse({
+				...event,
+				pull: { ...event.pull, number: 987 },
+				repository: { ...event.repository, id: repositoryId },
+			});
 			const normalized = normalizedEventSchema.parse({
 				...source,
 				deliveryId: generateId(),
@@ -319,7 +335,7 @@ for (const drift of ["none", "pickup", "commit"] as const) {
 				deliveryId: normalized.deliveryId,
 				forge: "gitcafe",
 				rawKind: event.type,
-				raw: event,
+				raw,
 			});
 			if (!inserted.eventId) throw new Error("Missing backfill source");
 			ids.push(inserted.eventId);
@@ -328,6 +344,10 @@ for (const drift of ["none", "pickup", "commit"] as const) {
 				database.pool,
 				inserted.eventId,
 				normalized,
+			);
+			await database.pool.query(
+				"UPDATE events SET next_recovery_at=now() + interval '1 hour' WHERE id=$1",
+				[inserted.eventId],
 			);
 		}
 		const [validId, foreignId] = ids;
