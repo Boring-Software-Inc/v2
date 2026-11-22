@@ -49,7 +49,7 @@ import { TOOL_SPECS, type ToolName, toolVisible } from "./catalog.ts";
 import {
 	appLink,
 	fail,
-	guard,
+	guard as guardTool,
 	ok,
 	requireAccess,
 	resolveOrg,
@@ -142,6 +142,8 @@ export function registerTools(
 	ctx: ToolContext,
 	selection: Parameters<typeof toolVisible>[1],
 ): void {
+	const guard = (run: Parameters<typeof guardTool>[0]) =>
+		guardTool(run, ctx.reportError);
 	const visible = (name: ToolName) => toolVisible(name, selection);
 	const scoped = async (
 		org: string | undefined,

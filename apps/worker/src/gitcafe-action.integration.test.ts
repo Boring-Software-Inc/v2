@@ -96,7 +96,7 @@ function createAttachmentTransport() {
 		{ id: string; size: number; state: "reserved" | "ready" }
 	>();
 	return (path: string, init: RequestInit): Response | null => {
-		const root = "/api/repos/boring/scratch/attachments";
+		const root = "/api/repos/boring/scratch/attachments/";
 		if (path === root && init.method === "POST") {
 			const input = gitCafeActionAttachmentReserveSchema.parse(
 				JSON.parse(String(init.body)),
@@ -113,8 +113,14 @@ function createAttachmentTransport() {
 				contentType: attachment.state === "ready" ? "image/png" : null,
 			});
 		}
-		if (path.startsWith(`${root}/`) && init.method === "PUT") {
-			const id = decodeURIComponent(path.slice(root.length + 1));
+		if (path.startsWith(root) && init.method === "PUT") {
+			const headers = new Headers(init.headers);
+			if (
+				headers.get("content-type") !== "application/octet-stream" ||
+				headers.get("content-length") !== "28953"
+			)
+				return new Response(null, { status: 400 });
+			const id = decodeURIComponent(path.slice(root.length));
 			const entry = [...attachments.entries()].find(
 				([, attachment]) => attachment.id === id,
 			);

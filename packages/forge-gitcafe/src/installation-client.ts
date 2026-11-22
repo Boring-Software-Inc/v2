@@ -59,7 +59,6 @@ export interface GitCafeAuthorizedBinaryRequest {
 	method: "PUT";
 	resourcePath: string;
 	body: Uint8Array;
-	contentType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
 }
 
 export type GitCafeAuthorizedRequest =
@@ -514,10 +513,12 @@ export class GitCafeInstallationClient {
 			authorization: `Bearer ${credential.value}`,
 		});
 		if (request?.body !== undefined) {
-			headers.set(
-				"content-type",
-				"contentType" in request ? request.contentType : "application/json",
-			);
+			if (request.body instanceof Uint8Array) {
+				headers.set("content-type", "application/octet-stream");
+				headers.set("content-length", String(request.body.byteLength));
+			} else {
+				headers.set("content-type", "application/json");
+			}
 		}
 		const response = await this.send(
 			{

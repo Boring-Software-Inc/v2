@@ -26,6 +26,7 @@ export interface ToolContext {
 	config: McpConfig;
 	agent: VerifiedAgent;
 	accessDenied: string | null;
+	reportError?: (error: unknown) => void;
 }
 
 export const ERROR_HINTS = {
@@ -315,6 +316,7 @@ export function appLink(ctx: ToolContext, path: string): string {
 
 export async function guard(
 	run: () => Promise<CallToolResult>,
+	reportError?: (error: unknown) => void,
 ): Promise<CallToolResult> {
 	try {
 		return await run();
@@ -332,6 +334,7 @@ export async function guard(
 		if (error instanceof ToolError) {
 			return fail(error.message, error.hint);
 		}
+		reportError?.(error);
 		throw error;
 	}
 }

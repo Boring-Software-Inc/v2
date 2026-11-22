@@ -41,6 +41,10 @@ import {
 	supersededBy,
 } from "@tripwire/utils";
 import type { Logger } from "pino";
+import {
+	type ReportForgeActionFailure,
+	reportForgeActionFailureToSentry,
+} from "../report-forge-action-failure.ts";
 import { buildCommentReasons } from "./comment-reasons.ts";
 import { customRuleSource } from "./custom-rules.ts";
 import { loadRunIssues } from "./run-issues.ts";
@@ -204,6 +208,29 @@ export interface PrSurfaceDeps {
 	logger: Logger;
 	/** Base URL for run deep links, e.g. https://tripwire.sh or localhost web. */
 	appUrl: string;
+	reportActionFailure?: ReportForgeActionFailure;
+}
+
+function reportActionFailure(
+	deps: PrSurfaceDeps,
+	input: EmitSurfaceInput,
+	row: { id: string; kind: string },
+	reason: string,
+	status?: number,
+	detail?: string,
+): void {
+	if (!("repo" in input.event)) return;
+	(deps.reportActionFailure ?? reportForgeActionFailureToSentry)({
+		actionId: row.id,
+		runId: input.runId,
+		repo: input.event.repo.fullName,
+		forge: input.event.forge,
+		kind: row.kind,
+		phase: "initial",
+		reason,
+		status,
+		detail,
+	});
 }
 
 /** §5.6b — hold the merge button DURING evaluation, not just after. */
@@ -750,6 +777,7 @@ async function executeRecordedPrActions(
 			const result = await adapter.execute(forgeAction, { actionId: row.id });
 			if ("refused" in result) {
 				if (CLOSE_PREREQUISITES.has(row.kind)) surfaceFailed = true;
+				reportActionFailure(deps, input, row, result.reason, result.status);
 				logger.warn(
 					{
 						actionId: row.id,
@@ -769,6 +797,14 @@ async function executeRecordedPrActions(
 			if (CLOSE_PREREQUISITES.has(row.kind)) {
 				surfaceFailed = true;
 			}
+			reportActionFailure(
+				deps,
+				input,
+				row,
+				"exception",
+				undefined,
+				getErrorMessage(error),
+			);
 			logger.error(
 				{ actionId: row.id, kind: row.kind, error: getErrorMessage(error) },
 				"action execution failed — row stays recorded for retry",
@@ -866,6 +902,7 @@ async function emitThreadActions(
 			);
 			if ("refused" in result) {
 				if (CLOSE_PREREQUISITES.has(row.kind)) surfaceFailed = true;
+				reportActionFailure(deps, input, row, result.reason, result.status);
 				logger.warn(
 					{
 						actionId: row.id,
@@ -880,6 +917,14 @@ async function emitThreadActions(
 			await runServices.markActionExecuted(db, row.id, result.externalId);
 		} catch (error) {
 			if (CLOSE_PREREQUISITES.has(row.kind)) surfaceFailed = true;
+			reportActionFailure(
+				deps,
+				input,
+				row,
+				"exception",
+				undefined,
+				getErrorMessage(error),
+			);
 			logger.error(
 				{ actionId: row.id, kind: row.kind, error: getErrorMessage(error) },
 				"thread action failed — row stays recorded for retry",

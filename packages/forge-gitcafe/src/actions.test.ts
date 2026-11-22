@@ -408,7 +408,7 @@ test("uploads the shared run badge and posts GitCafe-safe linked image markdown"
 			return Response.json(commentsBefore);
 		if (
 			init.method === "POST" &&
-			url === "https://git.cafe/api/repos/boring/scratch/attachments"
+			url === "https://git.cafe/api/repos/boring/scratch/attachments/"
 		) {
 			reserved++;
 			const input = gitCafeActionAttachmentReserveSchema.parse(
@@ -430,7 +430,9 @@ test("uploads the shared run badge and posts GitCafe-safe linked image markdown"
 				`https://git.cafe/api/repos/boring/scratch/attachments/${attachmentId}`
 		) {
 			uploaded++;
-			expect(new Headers(init.headers).get("content-type")).toBe("image/png");
+			const headers = new Headers(init.headers);
+			expect(headers.get("content-type")).toBe("application/octet-stream");
+			expect(headers.get("content-length")).toBe("28953");
 			expect(init.body).toBeInstanceOf(Uint8Array);
 			const bytes = init.body as Uint8Array;
 			expect(bytes.byteLength).toBe(28_953);
@@ -464,7 +466,7 @@ test("uploads the shared run badge and posts GitCafe-safe linked image markdown"
 	expect(requests).toEqual([
 		`GET ${root}`,
 		`GET ${root}/comments/?limit=100`,
-		"POST https://git.cafe/api/repos/boring/scratch/attachments",
+		"POST https://git.cafe/api/repos/boring/scratch/attachments/",
 		`PUT https://git.cafe/api/repos/boring/scratch/attachments/${attachmentId}`,
 		`GET ${root}`,
 		`POST ${root}/comments/`,

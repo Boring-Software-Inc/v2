@@ -602,7 +602,7 @@ export class GitCafeActions {
 			sha256: badge.sha256,
 			size: badge.bytes.byteLength,
 		});
-		const root = `repos/${binding.repoFullName}/attachments`;
+		const root = `repos/${binding.repoFullName}/attachments/`;
 		const reserved = await this.options.client.request(
 			binding.installationId,
 			{
@@ -624,9 +624,8 @@ export class GitCafeActions {
 				binding.installationId,
 				{
 					method: "PUT",
-					resourcePath: `${root}/${encodeURIComponent(attachment.id)}`,
+					resourcePath: `${root}${encodeURIComponent(attachment.id)}`,
 					body: badge.bytes,
-					contentType: "image/png",
 				},
 				this.options.installation,
 				this.deadlineAt,
