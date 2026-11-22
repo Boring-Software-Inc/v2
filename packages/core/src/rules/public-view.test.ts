@@ -260,7 +260,7 @@ describe("§10 public partition", () => {
 				SAMPLE_EVIDENCE["profile-readme"],
 				false,
 			).summary,
-		).toBe("Your GitHub profile README is too short.");
+		).toBe("Your profile description is too short.");
 	});
 
 	test.each(
