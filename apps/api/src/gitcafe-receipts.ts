@@ -113,11 +113,29 @@ export async function receiveGitCafeReceipt(c: Context<ApiEnv>) {
 		signedAt: timestamp,
 		requestId,
 	});
-	const result = await gitCafeLifecycleServices.insertGitCafeReceipt(
-		pool,
-		boss,
-		receipt,
-	);
+	let result: Awaited<
+		ReturnType<typeof gitCafeLifecycleServices.insertGitCafeReceipt>
+	>;
+	try {
+		result = await gitCafeLifecycleServices.insertGitCafeReceipt(
+			pool,
+			boss,
+			receipt,
+		);
+	} catch (error) {
+		logger.error(
+			{
+				error,
+				forge: "gitcafe",
+				deliveryId,
+				eventType,
+				requestId,
+				apiRequestId: c.get("requestId"),
+			},
+			"GitCafe webhook ingest failed",
+		);
+		throw error;
+	}
 	logger.info(
 		{
 			event: result.inserted
@@ -127,6 +145,7 @@ export async function receiveGitCafeReceipt(c: Context<ApiEnv>) {
 			forge: "gitcafe",
 			release: process.env.UNKEY_GIT_COMMIT_SHA ?? "unknown",
 			requestId,
+			apiRequestId: c.get("requestId"),
 			receiptId: result.receiptId,
 			eventType,
 			inserted: result.inserted,

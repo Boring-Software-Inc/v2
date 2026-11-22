@@ -93,12 +93,27 @@ export const webhooks = new Hono<ApiEnv>().post("/:forge", async (c) => {
 		return c.json({ error: "invalid json" }, 400);
 	}
 
-	const result = await eventServices.insertRawEvent(pool, boss, {
-		deliveryId,
-		rawKind: eventName,
-		raw,
-		forge,
-	});
+	let result: Awaited<ReturnType<typeof eventServices.insertRawEvent>>;
+	try {
+		result = await eventServices.insertRawEvent(pool, boss, {
+			deliveryId,
+			rawKind: eventName,
+			raw,
+			forge,
+		});
+	} catch (error) {
+		logger.error(
+			{
+				error,
+				forge,
+				deliveryId,
+				eventName,
+				requestId: c.get("requestId"),
+			},
+			"webhook ingest failed",
+		);
+		throw error;
+	}
 	logger.info(
 		{ forge, deliveryId, eventName, inserted: result.inserted },
 		"webhook accepted",
