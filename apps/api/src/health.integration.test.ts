@@ -73,6 +73,7 @@ test("API health detects stopped protection with empty backlog, recovers, caches
 				live: true,
 				ready: false,
 				reason: "protection-heartbeat-missing",
+				stalledStages: ["heartbeat"],
 			},
 		});
 		const runtimeId = generateId();
@@ -90,7 +91,10 @@ test("API health detects stopped protection with empty backlog, recovers, caches
 			"UPDATE gitcafe_runtime_heartbeats SET progress_at = now() - interval '100 seconds'",
 		);
 		now += 30_000;
-		expect((await health.readReadiness()).status).toBe(503);
+		expect(await health.readReadiness()).toMatchObject({
+			status: 503,
+			body: { stalledStages: ["heartbeat"] },
+		});
 		await gitCafeOperationalServices.recordGitCafeRuntimeHeartbeat(db, {
 			runtimeId,
 			release: "test",
@@ -125,7 +129,10 @@ test("API health detects stopped protection with empty backlog, recovers, caches
 		now += 30_000;
 		expect((await health.readReadiness()).status).toBe(200);
 		now += 30_000;
-		expect((await health.readReadiness()).status).toBe(503);
+		expect(await health.readReadiness()).toMatchObject({
+			status: 503,
+			body: { stalledStages: ["receipt"] },
+		});
 		await pool.query(
 			"UPDATE gitcafe_receipts SET status = 'parked' WHERE id = $1",
 			[admitted.receiptId],
