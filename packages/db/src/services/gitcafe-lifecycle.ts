@@ -23,6 +23,7 @@ import {
 	gitCafeLifecycleEventSchema,
 	gitCafeLifecycleEventTypeSchema,
 	gitCafeLifecycleLookupSchema,
+	gitCafePermissionsAcceptedSchema,
 	gitCafeProcessEventJobSchema,
 	gitCafePushRefDeliverySchema,
 	gitCafeReceiptJobSchema,
@@ -402,13 +403,18 @@ export async function recoverPendingGitCafeReceipts(
 		await client.query(
 			"SELECT pg_advisory_xact_lock(hashtext('gitcafe-connection'))",
 		);
-		const pending = await client.query<{ id: string; receipt: unknown }>(
+		const pending = await client.query<{
+			id: string;
+			receipt: unknown;
+			status: GitCafeReceiptStatus;
+		}>(
 			`SELECT r.id, r.receipt FROM gitcafe_receipts r
-			 WHERE r.status = 'pending' AND (r.next_recovery_at IS NULL OR r.next_recovery_at <= now()) AND NOT EXISTS (
+			 WHERE (r.status = 'pending' OR (r.status = 'parked' AND r.event_type = ANY($2::text[])))
+			 AND (r.next_recovery_at IS NULL OR r.next_recovery_at <= now()) AND NOT EXISTS (
 			   SELECT 1 FROM pgboss.job j WHERE j.name = $1
 			   AND j.data->>'receiptId' = r.id AND j.state IN ('created', 'retry', 'active')
 			 ) ORDER BY r.received_at, r.id LIMIT 100 FOR UPDATE OF r`,
-			[GITCAFE_LIFECYCLE_QUEUE],
+			[GITCAFE_LIFECYCLE_QUEUE, gitCafeLifecycleEventTypeSchema.options],
 		);
 		if (pending.rows.length > 0) {
 			const jobs = [];
@@ -432,7 +438,8 @@ export async function recoverPendingGitCafeReceipts(
 					retryBackoff: true,
 				});
 				await client.query(
-					`UPDATE gitcafe_receipts SET recovery_attempts = recovery_attempts + 1,
+					`UPDATE gitcafe_receipts SET status = 'pending', processed_at = NULL,
+					recovery_attempts = recovery_attempts + 1,
 					next_recovery_at = now() + make_interval(secs => least(3600, 30 * power(2, least(recovery_attempts, 7)))::int) WHERE id = $1`,
 					[row.id],
 				);
@@ -1391,7 +1398,15 @@ export async function processGitCafeReceipt(
 					event.data.type === "installation.repositories_updated"
 						? gitCafeRepositoriesUpdatedSchema.safeParse(event.data)
 						: null;
-				if (created?.success === false || updated?.success === false)
+				const permissionsAccepted =
+					event.data.type === "installation.permissions_accepted"
+						? gitCafePermissionsAcceptedSchema.safeParse(event.data)
+						: null;
+				if (
+					created?.success === false ||
+					updated?.success === false ||
+					permissionsAccepted?.success === false
+				)
 					status = "malformed";
 				else {
 					const state = await lockLifecycle(tx, row.installationId);
@@ -1404,6 +1419,12 @@ export async function processGitCafeReceipt(
 							(state.authorityAt && occurredAt < state.authorityAt))
 					)
 						status = "stale";
+					else if (
+						permissionsAccepted?.success &&
+						state.providerRevision !== null &&
+						permissionsAccepted.data.revision < state.providerRevision
+					)
+						status = "stale";
 					else if (state.status === "uninstalled") status = "stale";
 					else {
 						const nextStatus =
@@ -1411,10 +1432,15 @@ export async function processGitCafeReceipt(
 								? "uninstalled"
 								: event.data.type === "installation.paused"
 									? "paused"
-									: state.status === "paused"
-										? "paused"
-										: "reconcile-required";
-						if (event.data.type !== "installation.created") {
+									: event.data.type === "installation.permissions_accepted"
+										? state.status
+										: state.status === "paused"
+											? "paused"
+											: "reconcile-required";
+						if (
+							event.data.type !== "installation.created" &&
+							event.data.type !== "installation.permissions_accepted"
+						) {
 							const removal =
 								updated?.success &&
 								updated.data.repositorySelection === "selected" &&
@@ -1430,6 +1456,13 @@ export async function processGitCafeReceipt(
 							.set({
 								status: nextStatus,
 								generation: state.generation + 1,
+								authorityAt:
+									permissionsAccepted?.success && state.status === "active"
+										? occurredAt
+										: state.authorityAt,
+								providerRevision: permissionsAccepted?.success
+									? permissionsAccepted.data.revision
+									: state.providerRevision,
 								lastEventAt:
 									state.lastEventAt && state.lastEventAt > occurredAt
 										? state.lastEventAt

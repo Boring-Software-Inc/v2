@@ -4,11 +4,13 @@ import {
 	gitCafeInstallationCreatedSchema,
 	gitCafeLifecycleEventSchema,
 	gitCafeOrganizationMembersSchema,
+	gitCafePermissionsAcceptedSchema,
 	gitCafeRepositoriesUpdatedSchema,
 } from "@tripwire/contracts";
 import members from "../fixtures/gitcafe-connection-members.json";
 import repository from "../fixtures/gitcafe-connection-repository.json";
 import created from "../fixtures/gitcafe-installation-created.json";
+import permissionsAccepted from "../fixtures/gitcafe-installation-permissions-accepted.json";
 import updated from "../fixtures/gitcafe-installation-repositories-updated.json";
 import uninstalled from "../fixtures/gitcafe-installation-uninstalled.json";
 
@@ -41,5 +43,15 @@ test("authorized provider-held installation.created payload parses without claim
 		installation: created.installation,
 		repositorySelection: "selected",
 		repositories: created.repositories,
+	});
+});
+
+test("authorized provider-held permissions acceptance parses without claiming live receipt", () => {
+	expect(
+		gitCafePermissionsAcceptedSchema.parse(permissionsAccepted),
+	).toMatchObject({
+		type: "installation.permissions_accepted",
+		revision: 5,
+		installation: permissionsAccepted.installation,
 	});
 });

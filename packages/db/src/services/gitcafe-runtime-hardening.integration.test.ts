@@ -7,6 +7,7 @@ import {
 	GITCAFE_RECEIPT_APP_ID,
 	type GitCafeRecoverySelection,
 	gitCafeIssueEventSchema,
+	gitCafePermissionsAcceptedSchema,
 	gitCafeReceiptSchema,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
@@ -25,6 +26,14 @@ const payload = gitCafeIssueEventSchema.parse(
 	await Bun.file(
 		new URL(
 			"../../../forge-gitcafe/fixtures/gitcafe-issue-created-webhook.json",
+			import.meta.url,
+		),
+	).json(),
+);
+const permissionsAccepted = gitCafePermissionsAcceptedSchema.parse(
+	await Bun.file(
+		new URL(
+			"../../../forge-gitcafe/fixtures/gitcafe-installation-permissions-accepted.json",
 			import.meta.url,
 		),
 	).json(),
@@ -108,6 +117,22 @@ async function admit() {
 		...(await lifecycle.insertGitCafeReceipt(database.pool, boss, receipt)),
 		receipt,
 	};
+}
+
+async function admitPermissionsAccepted() {
+	const body = JSON.stringify(permissionsAccepted);
+	const receipt = gitCafeReceiptSchema.parse({
+		format: "gitcafe-receipt@1",
+		appId: GITCAFE_RECEIPT_APP_ID,
+		payload: permissionsAccepted,
+		bodyBase64: Buffer.from(body).toString("base64"),
+		bodySha256: createHash("sha256").update(body).digest("hex"),
+		deliveryId: generateId(),
+		keyVersion: "test",
+		signedAt: "1",
+		requestId: generateId(),
+	});
+	return lifecycle.insertGitCafeReceipt(database.pool, boss, receipt);
 }
 
 function selection(receiptIds: string[]): GitCafeRecoverySelection {
@@ -206,6 +231,34 @@ test("oldest invalid retained receipt is quarantined without starving >100 healt
 		0,
 	);
 }, 30_000);
+
+test("newly supported lifecycle events recover from their retained parked receipt", async () => {
+	await database.pool.query(
+		"INSERT INTO gitcafe_installation_lifecycle (installation_id, status, authority_at, provider_revision) VALUES ($1, 'active', $2, 4)",
+		[permissionsAccepted.installation.id, new Date("2026-11-22T05:00:00.000Z")],
+	);
+	const admitted = await admitPermissionsAccepted();
+	await database.pool.query(
+		"UPDATE gitcafe_receipts SET status = 'parked', processed_at = now() WHERE id = $1",
+		[admitted.receiptId],
+	);
+	await database.pool.query("TRUNCATE pgboss.job");
+	expect(await lifecycle.recoverPendingGitCafeReceipts(database.db, boss)).toBe(
+		1,
+	);
+	expect(await jobs(GITCAFE_LIFECYCLE_QUEUE)).toHaveLength(1);
+	expect(
+		(
+			await database.pool.query(
+				"SELECT status, processed_at FROM gitcafe_receipts WHERE id = $1",
+				[admitted.receiptId],
+			)
+		).rows[0],
+	).toMatchObject({ status: "pending", processed_at: null });
+	expect(
+		await lifecycle.processGitCafeReceipt(database.db, admitted.receiptId),
+	).toBe("applied");
+});
 
 test("two recovery replicas preserve one live event job and back off retained-away work", async () => {
 	const admitted = await admit();
