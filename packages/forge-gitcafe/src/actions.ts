@@ -8,6 +8,8 @@ import {
 	type GitCafeHydratedIssueEvent,
 	type GitCafeInstallation,
 	type GitCafeReadBoundary,
+	gitCafeActionAttachmentReserveSchema,
+	gitCafeActionAttachmentSchema,
 	gitCafeActionBindingSchema,
 	gitCafeActionCommentPageSchema,
 	gitCafeActionCommentSchema,
@@ -33,6 +35,11 @@ import type {
 	GitCafeInstallationClient,
 	GitCafeInstallationFailure,
 } from "./installation-client.ts";
+import {
+	loadGitCafeRunBadge,
+	needsGitCafeRunBadge,
+	renderGitCafeRunBadge,
+} from "./run-button.ts";
 
 export type GitCafeActionResult<T> =
 	| { ok: true; value: T }
@@ -498,8 +505,10 @@ export class GitCafeActions {
 			gitCafeActionCommentPageSchema,
 		);
 		if (!comments.ok) return comments;
+		const renderedBody = await this.gitCafeCommentBody(binding, action.body);
+		if (!renderedBody.ok) return renderedBody;
 		const marker = `<!-- tripwire-action:${binding.actionId} -->`;
-		const body = `${action.body}\n\n${action.kind === "post-comment" ? action.marker : ""}\n${marker}`;
+		const body = `${renderedBody.value}\n\n${action.kind === "post-comment" ? action.marker : ""}\n${marker}`;
 		const owned = comments.value.filter(
 			(comment) =>
 				comment.authorActorId === this.options.installation.bot.actorId &&
@@ -580,6 +589,72 @@ export class GitCafeActions {
 		)
 			return { ok: false as const, reason: "identity-mismatch" as const };
 		return { ok: true as const, value: { externalId: created.data.id } };
+	}
+
+	private async gitCafeCommentBody(
+		binding: GitCafeActionBinding,
+		body: string,
+	): Promise<GitCafeActionResult<string>> {
+		if (!needsGitCafeRunBadge(body)) return { ok: true, value: body };
+		const badge = await loadGitCafeRunBadge();
+		const reserveInput = gitCafeActionAttachmentReserveSchema.parse({
+			requestKey: `tripwire-${binding.actionId}-view-run-v1`,
+			sha256: badge.sha256,
+			size: badge.bytes.byteLength,
+		});
+		const root = `repos/${binding.repoFullName}/attachments`;
+		const reserved = await this.options.client.request(
+			binding.installationId,
+			{
+				method: "POST",
+				resourcePath: root,
+				body: JSON.stringify(reserveInput),
+			},
+			this.options.installation,
+			this.deadlineAt,
+		);
+		if (!reserved.ok) return reserved;
+		const parsed = gitCafeActionAttachmentSchema.safeParse(reserved.value);
+		if (!parsed.success || parsed.data.size !== badge.bytes.byteLength)
+			return { ok: false, reason: "invalid-response" };
+		let attachment = parsed.data;
+		if (attachment.state === "reserved") {
+			const reservedId = attachment.id;
+			const uploaded = await this.options.client.request(
+				binding.installationId,
+				{
+					method: "PUT",
+					resourcePath: `${root}/${encodeURIComponent(attachment.id)}`,
+					body: badge.bytes,
+					contentType: "image/png",
+				},
+				this.options.installation,
+				this.deadlineAt,
+			);
+			if (!uploaded.ok) return uploaded;
+			const uploadedAttachment = gitCafeActionAttachmentSchema.safeParse(
+				uploaded.value,
+			);
+			if (
+				!uploadedAttachment.success ||
+				uploadedAttachment.data.id !== reservedId
+			) {
+				return { ok: false, reason: "invalid-response" };
+			}
+			attachment = uploadedAttachment.data;
+		}
+		if (
+			attachment.state !== "ready" ||
+			attachment.contentType !== "image/png" ||
+			attachment.size !== badge.bytes.byteLength
+		) {
+			return { ok: false, reason: "incomplete" };
+		}
+		const attachmentUrl = `/api/repos/${binding.repoFullName}/attachments/${attachment.id}`;
+		return {
+			ok: true,
+			value: renderGitCafeRunBadge(body, attachmentUrl),
+		};
 	}
 
 	private async editComment(

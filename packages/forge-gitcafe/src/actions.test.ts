@@ -4,6 +4,7 @@ import {
 	COMMENT_MARKER,
 	type GitCafeActionOperation,
 	type GitCafeHydratedIssueEvent,
+	gitCafeActionAttachmentReserveSchema,
 	gitCafeActionBindingSchema,
 	gitCafeActionCommentPageSchema,
 	gitCafeActionCommentSchema,
@@ -19,6 +20,7 @@ import {
 	gitCafeHydratedIssueEventSchema,
 	gitCafeInstallationSchema,
 	gitCafeInstallationTokenSchema,
+	runButton,
 } from "@tripwire/contracts";
 import type { ForgeAction } from "@tripwire/forge";
 import { generateId } from "@tripwire/utils";
@@ -391,6 +393,93 @@ for (const accepted of [true, false]) {
 		expect(posted).toBe(1);
 	});
 }
+
+test("uploads the shared run badge and posts GitCafe-safe linked image markdown", async () => {
+	const attachmentId = "attach_01m80dwekjezc9asafppafrc10";
+	const runUrl = "https://staging.tripwire.sh/runs/01a200de";
+	let reserved = 0;
+	let uploaded = 0;
+	let postedBody: string | undefined;
+	const requests: string[] = [];
+	const h = await harness(async (url, init) => {
+		requests.push(`${init.method} ${url}`);
+		if (url === root) return Response.json(pullFixture);
+		if (init.method === "GET" && url.startsWith(`${root}/comments/`))
+			return Response.json(commentsBefore);
+		if (
+			init.method === "POST" &&
+			url === "https://git.cafe/api/repos/boring/scratch/attachments"
+		) {
+			reserved++;
+			const input = gitCafeActionAttachmentReserveSchema.parse(
+				JSON.parse(String(init.body)),
+			);
+			expect(input.requestKey).toBe(
+				`tripwire-${h.binding.actionId}-view-run-v1`,
+			);
+			return Response.json({
+				id: attachmentId,
+				state: "reserved",
+				size: input.size,
+				contentType: null,
+			});
+		}
+		if (
+			init.method === "PUT" &&
+			url ===
+				`https://git.cafe/api/repos/boring/scratch/attachments/${attachmentId}`
+		) {
+			uploaded++;
+			expect(new Headers(init.headers).get("content-type")).toBe("image/png");
+			expect(init.body).toBeInstanceOf(Uint8Array);
+			const bytes = init.body as Uint8Array;
+			expect(bytes.byteLength).toBe(28_953);
+			return Response.json({
+				id: attachmentId,
+				state: "ready",
+				size: bytes.byteLength,
+				contentType: "image/png",
+			});
+		}
+		if (init.method === "POST" && url === `${root}/comments/`) {
+			postedBody = gitCafeActionCommentWriteSchema.parse(
+				JSON.parse(String(init.body)),
+			).body;
+			return Response.json({ ...commentCreated, body: postedBody });
+		}
+		return Response.json({}, { status: 418 });
+	});
+
+	const result = await h.actions.execute(
+		{
+			kind: "comment",
+			repoFullName: "boring/scratch",
+			number: 1,
+			body: `Tripwire blocked this change request.\n\n${runButton(runUrl)}`,
+			verdict: "block",
+			previousVerdict: null,
+		},
+		h.binding,
+	);
+	expect(requests).toEqual([
+		`GET ${root}`,
+		`GET ${root}/comments/?limit=100`,
+		"POST https://git.cafe/api/repos/boring/scratch/attachments",
+		`PUT https://git.cafe/api/repos/boring/scratch/attachments/${attachmentId}`,
+		`GET ${root}`,
+		`POST ${root}/comments/`,
+	]);
+	expect(result).toEqual({
+		ok: true,
+		value: { externalId: commentCreated.id },
+	});
+	expect(reserved).toBe(1);
+	expect(uploaded).toBe(1);
+	expect(postedBody).toContain(
+		`[![View on Tripwire](/api/repos/boring/scratch/attachments/${attachmentId})](${runUrl})`,
+	);
+	expect(postedBody).not.toContain("<img");
+});
 
 test("observed delete refusal never becomes a successful receipt", async () => {
 	let writes = 0;
