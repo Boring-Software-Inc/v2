@@ -572,3 +572,42 @@ test("one invalid retained event quarantines and settles its receipt without poi
 		).rows[0]?.status,
 	).toBe("applied");
 });
+
+test("invalid retained schedule event cannot stall recovery readiness", async () => {
+	const eventId = generateId();
+	await database.pool.query(
+		`INSERT INTO events (id, forge, delivery_id, raw_kind, raw, received_at)
+		 VALUES ($1, 'gitcafe', $2, 'schedule.matched', $3, now() - interval '5 minutes')`,
+		[
+			eventId,
+			JSON.stringify(["schedule", generateId()]),
+			JSON.stringify({
+				id: generateId(),
+				forge: "gitcafe",
+				thread: {},
+			}),
+		],
+	);
+
+	expect(await lifecycle.recoverGitCafeEvents(database.db, boss)).toBe(1);
+	expect(
+		(
+			await database.pool.query(
+				"SELECT processed_at IS NOT NULL AS processed, quarantined, quarantine_reason, processing_settlement FROM events WHERE id = $1",
+				[eventId],
+			)
+		).rows[0],
+	).toEqual({
+		processed: true,
+		quarantined: true,
+		quarantine_reason: "invalid-retained-data",
+		processing_settlement: {
+			status: "quarantined",
+			reason: "invalid-retained-data",
+		},
+	});
+	expect(
+		(await operations.readGitCafeOperationalSummary(database.db))
+			.unprocessedEvents,
+	).toBe(0);
+});
