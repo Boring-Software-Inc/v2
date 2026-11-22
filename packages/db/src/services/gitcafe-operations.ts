@@ -1,10 +1,65 @@
 import {
 	GITCAFE_LIFECYCLE_QUEUE,
+	GITCAFE_PROCESS_EVENT_EXPIRE_SECONDS,
 	GITCAFE_PROCESS_EVENT_QUEUE,
+	GITCAFE_STALL_REPORT_INTERVAL_SECONDS,
 	type GitCafeOperationalSummary,
 	gitCafeOperationalSummarySchema,
 } from "@tripwire/contracts";
 import { type Db, requirePostgresPool } from "../client.ts";
+
+export interface GitCafeStalledEvent {
+	id: string;
+	deliveryId: string;
+	rawKind: string;
+	receivedAt: Date;
+	recoveryAttempts: number;
+}
+
+export async function claimStalledGitCafeEvents(
+	db: Db,
+): Promise<GitCafeStalledEvent[]> {
+	const client = await requirePostgresPool(db).connect();
+	try {
+		await client.query("BEGIN");
+		await client.query("SET LOCAL statement_timeout = '3s'");
+		await client.query("SET LOCAL lock_timeout = '1s'");
+		const result = await client.query<{
+			id: string;
+			delivery_id: string;
+			raw_kind: string;
+			received_at: Date;
+			recovery_attempts: number;
+		}>(
+			`WITH candidates AS (
+			 SELECT id FROM events
+			 WHERE forge = 'gitcafe' AND processed_at IS NULL AND NOT quarantined
+			 AND received_at <= now() - make_interval(secs => $1::int)
+			 AND (stall_reported_at IS NULL OR stall_reported_at <= now() - make_interval(secs => $2::int))
+			 ORDER BY received_at, id LIMIT 100 FOR UPDATE SKIP LOCKED
+			) UPDATE events e SET stall_reported_at = now()
+			 FROM candidates c WHERE e.id = c.id
+			 RETURNING e.id, e.delivery_id, e.raw_kind, e.received_at, e.recovery_attempts`,
+			[
+				GITCAFE_PROCESS_EVENT_EXPIRE_SECONDS,
+				GITCAFE_STALL_REPORT_INTERVAL_SECONDS,
+			],
+		);
+		await client.query("COMMIT");
+		return result.rows.map((row) => ({
+			id: row.id,
+			deliveryId: row.delivery_id,
+			rawKind: row.raw_kind,
+			receivedAt: row.received_at,
+			recoveryAttempts: row.recovery_attempts,
+		}));
+	} catch (error) {
+		await client.query("ROLLBACK");
+		throw error;
+	} finally {
+		client.release();
+	}
+}
 
 export async function readGitCafeOperationalSummary(
 	db: Db,

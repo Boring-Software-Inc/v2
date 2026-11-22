@@ -255,6 +255,7 @@ export async function processEvent(
 			eventId: event.id,
 			kind: normalized.kind,
 			repo: "repo" in normalized ? normalized.repo.fullName : null,
+			normalizationLatencyMs: Date.now() - event.receivedAt.getTime(),
 		},
 		"event normalized",
 	);
@@ -429,6 +430,7 @@ export async function processEvent(
 		);
 	if (result.runId && result.verdict && !result.quiet) {
 		await emitPrSurface(surfaceDeps, {
+			eventId: event.id,
 			runId: result.runId,
 			verdict: result.verdict,
 			event: normalized,

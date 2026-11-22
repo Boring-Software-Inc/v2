@@ -405,7 +405,107 @@ export async function readGitCafeAction(
 	return parsed.success ? (parsed.data.gitCafeOperation ?? null) : null;
 }
 
-export async function getGitCafePendingCheckBinding(
+export async function readGitCafeProcessingComment(
+	db: DbLike,
+	eventId: string,
+): Promise<GitCafeActionOperation | null> {
+	if (!(await getGitCafeEventActionBinding(db, eventId))) return null;
+	const [event] = await db
+		.select({ operation: events.processingComment })
+		.from(events)
+		.where(and(eq(events.id, eventId), eq(events.forge, "gitcafe")));
+	const parsed = gitCafeActionOperationSchema.safeParse(event?.operation);
+	return parsed.success ? parsed.data : null;
+}
+
+export async function prepareGitCafeProcessingComment(
+	db: Db,
+	operation: GitCafeActionOperation,
+): Promise<GitCafeActionOperation | null> {
+	const parsed = gitCafeActionOperationSchema.parse(operation);
+	return db.transaction(async (tx) => {
+		const binding = await getGitCafeEventActionBinding(tx, parsed.actionId);
+		const operationBinding: GitCafeActionBinding = {
+			actionId: parsed.actionId,
+			installationId: parsed.installationId,
+			repositoryId: parsed.repositoryId,
+			repoFullName: parsed.repoFullName,
+			subject: parsed.subject,
+			number: parsed.number,
+			headOid: parsed.headOid,
+			recordedAt: parsed.recordedAt,
+		};
+		if (
+			!binding ||
+			JSON.stringify(binding) !== JSON.stringify(operationBinding)
+		)
+			return null;
+		const [event] = await tx
+			.select({ operation: events.processingComment })
+			.from(events)
+			.where(and(eq(events.id, parsed.actionId), eq(events.forge, "gitcafe")))
+			.for("update");
+		const current = gitCafeActionOperationSchema.safeParse(event?.operation);
+		if (current.success) return current.data;
+		await tx
+			.update(events)
+			.set({ processingComment: parsed })
+			.where(and(eq(events.id, parsed.actionId), eq(events.forge, "gitcafe")));
+		return parsed;
+	});
+}
+
+export async function claimGitCafeProcessingComment(
+	db: Db,
+	eventId: string,
+): Promise<boolean> {
+	return db.transaction(async (tx) => {
+		if (!(await getGitCafeEventActionBinding(tx, eventId))) return false;
+		const [event] = await tx
+			.select({ operation: events.processingComment })
+			.from(events)
+			.where(and(eq(events.id, eventId), eq(events.forge, "gitcafe")))
+			.for("update");
+		const current = gitCafeActionOperationSchema.safeParse(event?.operation);
+		if (!current.success || current.data.dispatched) return false;
+		await tx
+			.update(events)
+			.set({
+				processingComment: gitCafeActionOperationSchema.parse({
+					...current.data,
+					dispatched: true,
+				}),
+			})
+			.where(and(eq(events.id, eventId), eq(events.forge, "gitcafe")));
+		return true;
+	});
+}
+
+export async function releaseGitCafeProcessingComment(
+	db: Db,
+	eventId: string,
+): Promise<void> {
+	await db.transaction(async (tx) => {
+		const [event] = await tx
+			.select({ operation: events.processingComment })
+			.from(events)
+			.where(and(eq(events.id, eventId), eq(events.forge, "gitcafe")))
+			.for("update");
+		const current = gitCafeActionOperationSchema.safeParse(event?.operation);
+		if (!current.success || !current.data.dispatched) return;
+		await tx
+			.update(events)
+			.set({
+				processingComment: gitCafeActionOperationSchema.parse({
+					...current.data,
+					dispatched: false,
+				}),
+			})
+			.where(and(eq(events.id, eventId), eq(events.forge, "gitcafe")));
+	});
+}
+
+export async function getGitCafeEventActionBinding(
 	db: DbLike,
 	eventId: string,
 ): Promise<GitCafeActionBinding | null> {
@@ -418,18 +518,53 @@ export async function getGitCafePendingCheckBinding(
 	if (
 		!normalized.success ||
 		normalized.data.forge !== "gitcafe" ||
-		!("changeRequest" in normalized.data)
+		!("repo" in normalized.data)
 	)
 		return null;
 	const event = normalized.data;
-	const latest = await getLatestRunForChangeRequest(
-		db,
-		{ forge: "gitcafe", fullName: event.repo.fullName },
-		event.changeRequest.number,
-	);
-	if (pendingCheckIsStale(latest, eventId, event.changeRequest.headSha))
+	const subject =
+		event.kind === "issue.opened"
+			? {
+					subject: "issue" as const,
+					number: event.issue.number,
+					headOid: null,
+				}
+			: "changeRequest" in event
+				? {
+						subject: "change-request" as const,
+						number: event.changeRequest.number,
+						headOid: event.changeRequest.headSha,
+					}
+				: null;
+	if (!subject || !event.repoExternalId || !event.installationExternalId)
 		return null;
-	if (!event.repoExternalId || !event.installationExternalId) return null;
+	if ("changeRequest" in event) {
+		const latest = await getLatestRunForChangeRequest(
+			db,
+			{ forge: "gitcafe", fullName: event.repo.fullName },
+			event.changeRequest.number,
+		);
+		if (pendingCheckIsStale(latest, eventId, event.changeRequest.headSha))
+			return null;
+	} else {
+		const [latest] = await db
+			.select({ eventId: runs.eventId })
+			.from(runs)
+			.innerJoin(events, eq(events.id, runs.eventId))
+			.where(
+				and(
+					eq(events.forge, "gitcafe"),
+					eq(events.kind, "issue.opened"),
+					eq(runs.repoFullName, event.repo.fullName),
+					eq(runs.subjectKind, "issue"),
+					eq(runs.subjectNumber, subject.number),
+					eq(runs.backfill, false),
+				),
+			)
+			.orderBy(...runRecency)
+			.limit(1);
+		if (latest && latest.eventId !== eventId) return null;
+	}
 	const [repo] = await db
 		.select()
 		.from(repos)
@@ -461,11 +596,19 @@ export async function getGitCafePendingCheckBinding(
 		installationId: event.installationExternalId,
 		repositoryId: event.repoExternalId,
 		repoFullName: event.repo.fullName,
-		subject: "change-request",
-		number: event.changeRequest.number,
-		headOid: event.changeRequest.headSha,
+		...subject,
 		recordedAt: row.receivedAt.toISOString(),
 	});
+}
+
+export async function getGitCafePendingCheckBinding(
+	db: DbLike,
+	eventId: string,
+): Promise<GitCafeActionBinding | null> {
+	const binding = await getGitCafeEventActionBinding(db, eventId);
+	return binding?.subject === "change-request" && binding.headOid
+		? binding
+		: null;
 }
 
 export async function getGitCafeActionBinding(

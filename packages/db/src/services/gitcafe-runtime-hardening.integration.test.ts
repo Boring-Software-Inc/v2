@@ -204,6 +204,40 @@ test("migration chain is additive and idempotent, and legacy applied rows keep u
 	).toBeNull();
 });
 
+test("stalled events are claimed once per durable reporting window", async () => {
+	const admitted = await admit();
+	await lifecycle.dispatchGitCafeRepositoryReceipt(
+		database.db,
+		boss,
+		admitted.receiptId,
+	);
+	const eventId = (await jobs(GITCAFE_PROCESS_EVENT_QUEUE))[0]?.data.eventId;
+	if (!eventId) throw new Error("Missing dispatched event");
+	expect(
+		(
+			await database.pool.query<{ expire_seconds: number }>(
+				"SELECT expire_seconds FROM pgboss.job WHERE name = $1 AND data->>'eventId' = $2",
+				[GITCAFE_PROCESS_EVENT_QUEUE, eventId],
+			)
+		).rows[0]?.expire_seconds,
+	).toBe(90);
+	await database.pool.query(
+		"UPDATE events SET received_at = now() - interval '100 seconds' WHERE id = $1",
+		[eventId],
+	);
+	expect(await operations.claimStalledGitCafeEvents(database.db)).toEqual([
+		expect.objectContaining({ id: eventId, rawKind: payload.type }),
+	]);
+	expect(await operations.claimStalledGitCafeEvents(database.db)).toEqual([]);
+	await database.pool.query(
+		"UPDATE events SET stall_reported_at = now() - interval '901 seconds' WHERE id = $1",
+		[eventId],
+	);
+	expect(await operations.claimStalledGitCafeEvents(database.db)).toEqual([
+		expect.objectContaining({ id: eventId }),
+	]);
+});
+
 test("oldest invalid retained receipt is quarantined without starving >100 healthy receipts", async () => {
 	const poison = await admit();
 	await database.pool.query(

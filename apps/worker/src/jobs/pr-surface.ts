@@ -5,6 +5,8 @@ import {
 	type CommentReason,
 	checkSummary,
 	forgePostsReviews,
+	GITCAFE_PROCESSING_COMMENT,
+	GITCAFE_PROCESSING_FAILED_COMMENT,
 	GITCAFE_VERDICT_ACTION_KINDS,
 	type GitCafeEvaluationPhase,
 	gitCafeActionPayloadSchema,
@@ -299,7 +301,104 @@ export async function emitPendingCheck(
 	}
 }
 
+export type GitCafeProcessingCommentState = "processing" | "failed";
+
+export async function emitGitCafeProcessingComment(
+	deps: PrSurfaceDeps,
+	event: NormalizedEvent,
+	eventId: string,
+	state: GitCafeProcessingCommentState = "processing",
+): Promise<boolean> {
+	if (
+		!deps.adapter ||
+		event.forge !== "gitcafe" ||
+		!(event.kind === "issue.opened" || "changeRequest" in event)
+	)
+		return false;
+	const number =
+		event.kind === "issue.opened"
+			? event.issue.number
+			: "changeRequest" in event
+				? event.changeRequest.number
+				: null;
+	if (number === null) return false;
+	const body =
+		state === "processing"
+			? GITCAFE_PROCESSING_COMMENT
+			: GITCAFE_PROCESSING_FAILED_COMMENT;
+	const startedAt = Date.now();
+	try {
+		const result = await deps.adapter.execute(
+			{
+				kind: "comment",
+				repoFullName: event.repo.fullName,
+				number,
+				body,
+				verdict: "needs_review",
+				previousVerdict: null,
+			},
+			{ eventId },
+		);
+		if (!("refused" in result)) {
+			deps.logger.info(
+				{
+					event: "gitcafe.processing-comment.updated",
+					eventId,
+					state,
+					durationMs: Date.now() - startedAt,
+				},
+				"GitCafe processing comment updated",
+			);
+			return true;
+		}
+		deps.logger.warn(
+			{
+				event: "gitcafe.processing-comment.refused",
+				eventId,
+				state,
+				reason: result.reason,
+				status: result.status,
+			},
+			"GitCafe processing comment refused",
+		);
+		reportForgeActionFailureToSentry({
+			actionId: eventId,
+			runId: eventId,
+			repo: event.repo.fullName,
+			forge: "gitcafe",
+			kind: "processing-comment",
+			phase: state === "failed" ? "abandoned" : "initial",
+			reason: result.reason,
+			status: result.status,
+		});
+		return false;
+	} catch (error) {
+		const detail = getErrorMessage(error);
+		deps.logger.warn(
+			{
+				event: "gitcafe.processing-comment.failed",
+				eventId,
+				state,
+				error: detail,
+			},
+			"GitCafe processing comment failed",
+		);
+		reportForgeActionFailureToSentry({
+			actionId: eventId,
+			runId: eventId,
+			repo: event.repo.fullName,
+			forge: "gitcafe",
+			kind: "processing-comment",
+			phase: state === "failed" ? "abandoned" : "initial",
+			reason: "exception",
+			detail,
+		});
+		return false;
+	}
+}
+
 export interface EmitSurfaceInput {
+	eventId?: string;
 	runId: string;
 	verdict: Verdict;
 	event: NormalizedEvent;
@@ -378,6 +477,8 @@ export async function emitPrSurface(
 				policy,
 				{ reviewPosted: false },
 			);
+			if (plan.comment === "upsert" && input.eventId)
+				await emitGitCafeProcessingComment(deps, event, input.eventId);
 			const intents = commentRows(
 				plan,
 				event.issue.number,
@@ -508,6 +609,8 @@ export async function emitPrSurface(
 		},
 	);
 	const review = plan.review ?? REVIEW_POINTER.block;
+	if (plan.comment === "upsert" && input.eventId)
+		await emitGitCafeProcessingComment(deps, event, input.eventId);
 	for (const row of blockRows) {
 		if (!persistedForgeActionSchema.safeParse(row).success) {
 			await runServices.markActionInvalid(db, row.id);

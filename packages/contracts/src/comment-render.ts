@@ -338,6 +338,22 @@ function verdictCheckSummary(
 }
 
 export const COMMENT_MARKER = "<!-- tripwire:run -->";
+export const GITCAFE_PROCESSING_COMMENT = `<details open>
+<summary>Tripwire is checking this contribution</summary>
+
+Evaluating this repository's rules. This comment will update when the check finishes.
+
+</details>
+
+${COMMENT_MARKER}`;
+export const GITCAFE_PROCESSING_FAILED_COMMENT = `<details open>
+<summary>Tripwire could not finish this check</summary>
+
+Tripwire retried the run, but it still did not finish. The failure was reported for investigation.
+
+</details>
+
+${COMMENT_MARKER}`;
 
 export const TRIPWIRE_MARKER_PREFIX = "<!-- tripwire:";
 

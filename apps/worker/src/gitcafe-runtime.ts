@@ -1,5 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 import {
+	GITCAFE_PROCESSING_COMMENT,
+	GITCAFE_PROCESSING_FAILED_COMMENT,
 	type GitCafeReadBoundary,
 	type GitCafeRepoReviewer,
 	type GitCafeRepositoryBinding,
@@ -133,7 +135,7 @@ export function buildGitCafeRuntime(
 								db,
 								context.actionId,
 							)
-						: await gitCafeActionServices.getGitCafePendingCheckBinding(
+						: await gitCafeActionServices.getGitCafeEventActionBinding(
 								db,
 								context.eventId,
 							))
@@ -233,7 +235,12 @@ export function buildGitCafeRuntime(
 							db,
 							context.eventId,
 						)
-					: null);
+					: action.kind === "comment"
+						? await gitCafeActionServices.getGitCafeEventActionBinding(
+								db,
+								context.eventId,
+							)
+						: null);
 		if (!binding) return { refused: true as const, reason: "inactive" };
 		if (context && "actionId" in context) {
 			const row = await gitCafeActionServices.getGitCafeRecordedAction(
@@ -255,13 +262,23 @@ export function buildGitCafeRuntime(
 			);
 			if (!isDeepStrictEqual(action, expected))
 				return { refused: true as const, reason: "command-mismatch" };
-		} else if (
-			action.kind !== "set-check" ||
-			action.check.conclusion !== "pending" ||
-			action.check.summary !== PENDING_CHECK_SUMMARY ||
-			action.check.detailsUrl !== "https://staging.tripwire.sh"
-		)
-			return { refused: true as const, reason: "command-mismatch" };
+		} else {
+			const pendingCheck =
+				action.kind === "set-check" &&
+				action.check.conclusion === "pending" &&
+				action.check.summary === PENDING_CHECK_SUMMARY &&
+				action.check.detailsUrl === "https://staging.tripwire.sh";
+			const processingComment =
+				action.kind === "comment" &&
+				action.verdict === "needs_review" &&
+				action.previousVerdict === null &&
+				[
+					GITCAFE_PROCESSING_COMMENT,
+					GITCAFE_PROCESSING_FAILED_COMMENT,
+				].includes(action.body);
+			if (!pendingCheck && !processingComment)
+				return { refused: true as const, reason: "command-mismatch" };
+		}
 		const bound = await bind(action.repoFullName, context);
 		if (!bound.ok)
 			return {
@@ -281,10 +298,21 @@ export function buildGitCafeRuntime(
 			installation: bound.installation,
 			issueEvidence,
 			store: {
-				read: (id) => gitCafeActionServices.readGitCafeAction(db, id),
+				read: (id) =>
+					context && !("actionId" in context)
+						? gitCafeActionServices.readGitCafeProcessingComment(db, id)
+						: gitCafeActionServices.readGitCafeAction(db, id),
 				prepare: (operation) =>
-					gitCafeActionServices.prepareGitCafeAction(db, operation),
-				claimComment: (id) => gitCafeActionServices.claimGitCafeComment(db, id),
+					context && !("actionId" in context)
+						? gitCafeActionServices.prepareGitCafeProcessingComment(
+								db,
+								operation,
+							)
+						: gitCafeActionServices.prepareGitCafeAction(db, operation),
+				claimComment: (id) =>
+					context && !("actionId" in context)
+						? gitCafeActionServices.claimGitCafeProcessingComment(db, id)
+						: gitCafeActionServices.claimGitCafeComment(db, id),
 				dispatchReview: (id) =>
 					gitCafeActionServices.dispatchGitCafeReview(db, id),
 				releaseReview: (id) =>
@@ -294,7 +322,9 @@ export function buildGitCafeRuntime(
 				pendingReviews: (id) =>
 					gitCafeActionServices.getPendingGitCafeReviewSubmissions(db, id),
 				releaseComment: (id) =>
-					gitCafeActionServices.releaseGitCafeComment(db, id),
+					context && !("actionId" in context)
+						? gitCafeActionServices.releaseGitCafeProcessingComment(db, id)
+						: gitCafeActionServices.releaseGitCafeComment(db, id),
 			},
 		});
 		const result = await actions.execute(action, binding);
@@ -314,10 +344,15 @@ export function buildGitCafeRuntime(
 						db,
 						context.actionId,
 					)
-				: await gitCafeActionServices.getGitCafePendingCheckBinding(
-						db,
-						context.eventId,
-					));
+				: action.kind === "set-check"
+					? await gitCafeActionServices.getGitCafePendingCheckBinding(
+							db,
+							context.eventId,
+						)
+					: await gitCafeActionServices.getGitCafeEventActionBinding(
+							db,
+							context.eventId,
+						));
 		if (!binding) return { refused: true as const, reason: "inactive" };
 		const lock = await actionPool.connect();
 		const key = JSON.stringify([

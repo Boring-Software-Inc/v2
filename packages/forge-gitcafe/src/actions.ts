@@ -536,6 +536,7 @@ export class GitCafeActions {
 		if (
 			active &&
 			action.kind === "comment" &&
+			prior &&
 			(action.previousVerdict === null ||
 				action.previousVerdict === action.verdict)
 		)
@@ -551,6 +552,13 @@ export class GitCafeActions {
 		if (!operation) return { ok: false as const, reason: "inactive" as const };
 		if (operation.command.kind !== "comment" || operation.command.body !== body)
 			return { ok: false as const, reason: "identity-mismatch" as const };
+		if (
+			active &&
+			action.kind === "comment" &&
+			(action.previousVerdict === null ||
+				action.previousVerdict === action.verdict)
+		)
+			return this.editComment(binding, active, body);
 		if (active) {
 			const old = await this.editComment(
 				binding,

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import {
 	GITCAFE_LIFECYCLE_QUEUE,
+	GITCAFE_PROCESS_EVENT_EXPIRE_SECONDS,
 	GITCAFE_PROCESS_EVENT_QUEUE,
 	GITCAFE_RECEIPT_MAX_BYTES,
 	GITCAFE_REFRESH_CATALOGS_QUEUE,
@@ -127,6 +128,7 @@ export async function insertGitCafeScheduledEvent(
 						retryLimit: 10,
 						retryDelay: 15,
 						retryBackoff: true,
+						expireInSeconds: GITCAFE_PROCESS_EVENT_EXPIRE_SECONDS,
 					},
 				],
 				{
@@ -847,6 +849,7 @@ export async function dispatchGitCafeRepositoryReceipt(
 										retryLimit: 10,
 										retryDelay: 15,
 										retryBackoff: true,
+										expireInSeconds: GITCAFE_PROCESS_EVENT_EXPIRE_SECONDS,
 									},
 								],
 								{
@@ -878,6 +881,7 @@ export async function dispatchGitCafeRepositoryReceipt(
 											retryLimit: 10,
 											retryDelay: 15,
 											retryBackoff: true,
+											expireInSeconds: GITCAFE_PROCESS_EVENT_EXPIRE_SECONDS,
 										},
 									],
 									{
@@ -1059,6 +1063,7 @@ export async function recoverGitCafeEvents(
 					retryLimit: 10,
 					retryDelay: 15,
 					retryBackoff: true,
+					expireInSeconds: GITCAFE_PROCESS_EVENT_EXPIRE_SECONDS,
 				});
 				await client.query(
 					`UPDATE events SET recovery_attempts = recovery_attempts + 1,
