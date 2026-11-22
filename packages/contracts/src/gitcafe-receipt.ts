@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { gitCafeInstallationSchema } from "./gitcafe-installation.ts";
+import {
+	gitCafeInstallationSchema,
+	gitCafePermissionSchema,
+} from "./gitcafe-installation.ts";
 
 export const GITCAFE_LIFECYCLE_QUEUE = "gitcafe-lifecycle";
 export const GITCAFE_PROCESS_EVENT_QUEUE = "gitcafe-process-event";
@@ -63,6 +66,7 @@ export type GitCafeEventEnvelope = z.infer<typeof gitCafeEventEnvelopeSchema>;
 
 export const gitCafeLifecycleEventTypeSchema = z.enum([
 	"installation.created",
+	"installation.permissions_accepted",
 	"installation.repositories_updated",
 	"installation.paused",
 	"installation.uninstalled",
@@ -106,6 +110,22 @@ export const gitCafeRepositoriesUpdatedSchema =
 	});
 export type GitCafeRepositoriesUpdated = z.infer<
 	typeof gitCafeRepositoriesUpdatedSchema
+>;
+
+export const gitCafePermissionsAcceptedSchema =
+	gitCafeLifecycleEventSchema.extend({
+		type: z.literal("installation.permissions_accepted"),
+		revision: z.number().int().positive(),
+		permissions: z.array(gitCafePermissionSchema),
+		user: z
+			.object({
+				permissions: z.array(gitCafePermissionSchema),
+				audiences: z.array(z.string().min(1)),
+			})
+			.optional(),
+	});
+export type GitCafePermissionsAccepted = z.infer<
+	typeof gitCafePermissionsAcceptedSchema
 >;
 
 /** Exact signed bytes stay separate from normalization and credentials. */

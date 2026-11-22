@@ -8,6 +8,7 @@ import {
 	type GitCafeActionOperation,
 	type GitCafeCheckRerequestedEvent,
 	type GitCafeDispatchableRepositoryEvent,
+	gitCafeActionAttachmentReserveSchema,
 	gitCafeActionCommentSchema,
 	gitCafeActionCommentWriteSchema,
 	gitCafeActionOperationSchema,
@@ -88,6 +89,48 @@ const installation = gitCafeInstallationSchema.parse(
 const event = gitCafePullEventSchema.parse(
 	await Bun.file(new URL("gitcafe-pull-created-webhook.json", base)).json(),
 );
+
+function createAttachmentTransport() {
+	const attachments = new Map<
+		string,
+		{ id: string; size: number; state: "reserved" | "ready" }
+	>();
+	return (path: string, init: RequestInit): Response | null => {
+		const root = "/api/repos/boring/scratch/attachments";
+		if (path === root && init.method === "POST") {
+			const input = gitCafeActionAttachmentReserveSchema.parse(
+				JSON.parse(String(init.body)),
+			);
+			const prior = attachments.get(input.requestKey);
+			const attachment = prior ?? {
+				id: `attach_${createHash("sha256").update(input.requestKey).digest("hex").slice(0, 26)}`,
+				size: input.size,
+				state: "reserved" as const,
+			};
+			attachments.set(input.requestKey, attachment);
+			return Response.json({
+				...attachment,
+				contentType: attachment.state === "ready" ? "image/png" : null,
+			});
+		}
+		if (path.startsWith(`${root}/`) && init.method === "PUT") {
+			const id = decodeURIComponent(path.slice(root.length + 1));
+			const entry = [...attachments.entries()].find(
+				([, attachment]) => attachment.id === id,
+			);
+			if (!entry || !(init.body instanceof Uint8Array))
+				return new Response(null, { status: 404 });
+			const [key, attachment] = entry;
+			const ready = { ...attachment, state: "ready" as const };
+			attachments.set(key, ready);
+			return Response.json({
+				...ready,
+				contentType: "image/png",
+			});
+		}
+		return null;
+	};
+}
 let container: TestDatabase;
 let database: ReturnType<typeof createDb>;
 let boss: Awaited<ReturnType<typeof createBoss>>;
@@ -1093,6 +1136,7 @@ for (const scenario of [
 			scenario !== "obsolete-phase" &&
 			scenario !== "lock-phase-retry" &&
 			scenario !== "comment-outage";
+		const attachmentTransport = createAttachmentTransport();
 		const runtime = buildGitCafeRuntime(
 			database.db,
 			{
@@ -1105,6 +1149,8 @@ for (const scenario of [
 			async (url, init) => {
 				const path = new URL(url).pathname;
 				calls.push(`${init.method} ${path}`);
+				const attachmentResponse = attachmentTransport(path, init);
+				if (attachmentResponse) return attachmentResponse;
 				if (path.includes("/api/apps/"))
 					return Response.json(
 						init.method === "GET"
@@ -2327,11 +2373,14 @@ for (const { verdict, scenario } of [
 				.privateKey.export({ format: "pem", type: "pkcs8" })
 				.toString(),
 		};
+		const attachmentTransport = createAttachmentTransport();
 		const runtime = buildGitCafeRuntime(
 			database.db,
 			credentials,
 			async (url, init) => {
 				const path = new URL(url).pathname;
+				const attachmentResponse = attachmentTransport(path, init);
+				if (attachmentResponse) return attachmentResponse;
 				if (path.includes("/api/apps/")) {
 					if (init.method === "GET" && driftInstallation && ++driftLookups >= 2)
 						installationRevision = installation.revision + 1;
