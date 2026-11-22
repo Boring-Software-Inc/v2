@@ -59,6 +59,7 @@ export const stream = new Hono<ApiEnv>().get(
 	(c) =>
 		streamSSE(c, async (s) => {
 			const { db, directPool, logger } = c.get("deps");
+			const requestId = c.get("requestId");
 			const client = await directPool.connect();
 			let open = true;
 			let visibleRepos = c.get("visibleRepos");
@@ -174,7 +175,12 @@ export const stream = new Hono<ApiEnv>().get(
 
 				while (open) {
 					await s.writeSSE({ event: "heartbeat", data: String(Date.now()) });
-					await refreshVisibility().catch(() => undefined);
+					await refreshVisibility().catch((error) =>
+						logger.warn(
+							{ error: getErrorMessage(error), requestId },
+							"sse visibility refresh failed",
+						),
+					);
 					await s.sleep(HEARTBEAT_MS);
 				}
 			} finally {

@@ -165,6 +165,7 @@ test("API health detects stopped protection with empty backlog, recovers, caches
 		now += 30_000;
 		expect((await health.readHealth()).status).toBe(200);
 		const logs = output.join("");
+		expect(logs).toContain("api.health.sample.failed");
 		expect(logs).toContain("gitcafe.backlog.alert");
 		expect(logs).toContain("gitcafe.backlog.recovered");
 		for (const hidden of [

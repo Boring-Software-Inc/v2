@@ -234,11 +234,26 @@ describe("GitCafe isolated receipt admission", () => {
 	});
 
 	test("queue failure rolls the receipt back", async () => {
+		const output: string[] = [];
+		const target = createApi({
+			...dependencies(),
+			logger: pino(
+				{ level: "error" },
+				{ write: (chunk: string) => output.push(chunk) },
+			),
+		});
 		const fail = spyOn(boss, "insert").mockRejectedValueOnce(
 			new Error("injected queue failure"),
 		);
 		try {
-			expect((await deliver(await fixtureBody())).status).toBe(500);
+			const response = await deliver(await fixtureBody(), {}, target);
+			expect(response.status).toBe(500);
+			const requestId = response.headers.get("x-request-id");
+			expect(requestId).toBeString();
+			const logged = output.join("");
+			expect(logged).toContain("GitCafe webhook ingest failed");
+			expect(logged).toContain("test-delivery");
+			expect(logged).toContain(`"apiRequestId":"${requestId}"`);
 		} finally {
 			fail.mockRestore();
 		}

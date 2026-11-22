@@ -1,6 +1,6 @@
 import type { GitCafeOperationalSummary } from "@tripwire/contracts";
 import { gitCafeOperationalServices, requirePostgresPool } from "@tripwire/db";
-import { withTimeout } from "@tripwire/utils";
+import { getErrorMessage, withTimeout } from "@tripwire/utils";
 import type { ApiDeps } from "./env.ts";
 
 export function createApiHealth(deps: ApiDeps, now: () => number = Date.now) {
@@ -65,8 +65,16 @@ export function createApiHealth(deps: ApiDeps, now: () => number = Date.now) {
 						signal("heartbeat", summary.heartbeatAgeSeconds ?? 91, 90, 1);
 					}
 					signal("dependencies", 0, 0, 1);
-				} catch {
+				} catch (error) {
 					dependenciesReady = false;
+					deps.logger.warn(
+						{
+							event: "api.health.sample.failed",
+							service: "api",
+							error: getErrorMessage(error),
+						},
+						"API dependency health sample failed",
+					);
 					signal("dependencies", 1, 0, 1);
 				} finally {
 					sampledAt = now();
