@@ -55,6 +55,17 @@ export interface GitCafeAuthorizedJsonRequest {
 	body?: string;
 }
 
+export interface GitCafeAuthorizedBinaryRequest {
+	method: "PUT";
+	resourcePath: string;
+	body: Uint8Array;
+	contentType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+}
+
+export type GitCafeAuthorizedRequest =
+	| GitCafeAuthorizedJsonRequest
+	| GitCafeAuthorizedBinaryRequest;
+
 interface CachedToken {
 	token: string;
 	expiresAt: number;
@@ -386,7 +397,7 @@ export class GitCafeInstallationClient {
 
 	async request(
 		installationId: string,
-		request: GitCafeAuthorizedJsonRequest,
+		request: GitCafeAuthorizedRequest,
 		expectedInstallation: GitCafeInstallation,
 		deadlineAt?: number,
 	): Promise<GitCafeInstallationResult<unknown>> {
@@ -483,7 +494,7 @@ export class GitCafeInstallationClient {
 		path: string,
 		expectedInstallation?: GitCafeInstallation,
 		deadlineAt?: number,
-		request?: GitCafeAuthorizedJsonRequest,
+		request?: GitCafeAuthorizedRequest,
 	): Promise<GitCafeInstallationResult<unknown>> {
 		if (this.options.lifecycleGuard && !(await this.permitted(installationId)))
 			return { ok: false, reason: "inactive" };
@@ -502,15 +513,22 @@ export class GitCafeInstallationClient {
 			accept: "application/json",
 			authorization: `Bearer ${credential.value}`,
 		});
-		if (request?.body !== undefined)
-			headers.set("content-type", "application/json");
+		if (request?.body !== undefined) {
+			headers.set(
+				"content-type",
+				"contentType" in request ? request.contentType : "application/json",
+			);
+		}
 		const response = await this.send(
 			{
 				url: `https://git.cafe/api/${path}`,
 				init: {
 					method: request?.method ?? "GET",
 					headers,
-					body: request?.body,
+					body:
+						request?.body instanceof Uint8Array
+							? Buffer.from(request.body)
+							: request?.body,
 				},
 			},
 			deadlineAt,

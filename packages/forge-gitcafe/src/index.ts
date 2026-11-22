@@ -25,7 +25,9 @@ export {
 	normalizeGitCafePushRef,
 } from "./events.ts";
 export {
+	type GitCafeAuthorizedBinaryRequest,
 	type GitCafeAuthorizedJsonRequest,
+	type GitCafeAuthorizedRequest,
 	GitCafeInstallationClient,
 	type GitCafeInstallationClientOptions,
 	type GitCafeInstallationFailure,
