@@ -989,7 +989,7 @@ export async function recoverGitCafeEvents(
 			 WHERE e.forge = 'gitcafe' AND e.processed_at IS NULL AND
 			 (e.next_recovery_at IS NULL OR e.next_recovery_at <= now()) AND
 			 NOT EXISTS (SELECT 1 FROM adopted WHERE adopted.id = e.id) AND
-			 (r.status = 'dispatched' OR (r.id IS NULL AND e.raw_kind = 'schedule.matched')) AND NOT EXISTS (
+			 (r.status IN ('dispatched', 'applied') OR r.id IS NULL) AND NOT EXISTS (
 			 SELECT 1 FROM pgboss.job j WHERE j.name = $1 AND j.data->>'eventId' = e.id
 			 AND j.state IN ('created','retry','active')) ORDER BY e.received_at, e.id LIMIT 100 FOR UPDATE OF e`,
 			[GITCAFE_PROCESS_EVENT_QUEUE],

@@ -611,3 +611,47 @@ test("invalid retained schedule event cannot stall recovery readiness", async ()
 			.unprocessedEvents,
 	).toBe(0);
 });
+
+test("orphaned forge event cannot stall recovery readiness", async () => {
+	const eventId = generateId();
+	await database.pool.query(
+		`INSERT INTO events (id, forge, delivery_id, raw_kind, raw, received_at)
+		 VALUES ($1, 'gitcafe', $2, 'issue.created', $3, now() - interval '5 minutes')`,
+		[
+			eventId,
+			JSON.stringify([payload.installation.id, generateId()]),
+			JSON.stringify({ ...payload, id: `evt_${generateId()}` }),
+		],
+	);
+
+	expect(await lifecycle.recoverGitCafeEvents(database.db, boss)).toBe(1);
+	expect(
+		(
+			await database.pool.query(
+				"SELECT processed_at IS NOT NULL AS processed, quarantined, quarantine_reason FROM events WHERE id = $1",
+				[eventId],
+			)
+		).rows[0],
+	).toEqual({
+		processed: true,
+		quarantined: true,
+		quarantine_reason: "invalid-retained-data",
+	});
+});
+
+test("applied receipt with an unsettled event is replayed", async () => {
+	const admitted = await admit();
+	await lifecycle.dispatchGitCafeRepositoryReceipt(
+		database.db,
+		boss,
+		admitted.receiptId,
+	);
+	await database.pool.query("TRUNCATE pgboss.job");
+	await database.pool.query(
+		"UPDATE gitcafe_receipts SET status = 'applied' WHERE id = $1",
+		[admitted.receiptId],
+	);
+
+	expect(await lifecycle.recoverGitCafeEvents(database.db, boss)).toBe(1);
+	expect(await jobs(GITCAFE_PROCESS_EVENT_QUEUE)).toHaveLength(1);
+});
