@@ -141,6 +141,7 @@ let container: TestDatabase;
 let database: ReturnType<typeof createDb>;
 let boss: Awaited<ReturnType<typeof createBoss>>;
 let actionId: string;
+let eventId: string;
 let repoId: string;
 let operation: GitCafeActionOperation;
 
@@ -203,6 +204,7 @@ beforeEach(async () => {
 		raw: event,
 	});
 	if (!inserted.eventId) throw new Error("Event was not inserted");
+	eventId = inserted.eventId;
 	await eventServices.markEventNormalized(
 		database.db,
 		database.pool,
@@ -243,6 +245,57 @@ beforeEach(async () => {
 		dispatched: false,
 		command: { kind: "comment", body: "recorded body" },
 	});
+});
+
+test("processing comments retain one durable event-scoped dispatch claim", async () => {
+	const binding = await gitCafeActionServices.getGitCafeEventActionBinding(
+		database.db,
+		eventId,
+	);
+	expect(binding).not.toBeNull();
+	if (!binding) throw new Error("Missing event action binding");
+	const processing = gitCafeActionOperationSchema.parse({
+		...binding,
+		format: "gitcafe-action@1",
+		dispatched: false,
+		command: { kind: "comment", body: "Checking" },
+	});
+	expect(
+		await gitCafeActionServices.prepareGitCafeProcessingComment(
+			database.db,
+			processing,
+		),
+	).toEqual(processing);
+	expect(
+		await gitCafeActionServices.claimGitCafeProcessingComment(
+			database.db,
+			eventId,
+		),
+	).toBe(true);
+	expect(
+		await gitCafeActionServices.claimGitCafeProcessingComment(
+			database.db,
+			eventId,
+		),
+	).toBe(false);
+	expect(
+		(
+			await gitCafeActionServices.readGitCafeProcessingComment(
+				database.db,
+				eventId,
+			)
+		)?.dispatched,
+	).toBe(true);
+	await gitCafeActionServices.releaseGitCafeProcessingComment(
+		database.db,
+		eventId,
+	);
+	expect(
+		await gitCafeActionServices.claimGitCafeProcessingComment(
+			database.db,
+			eventId,
+		),
+	).toBe(true);
 });
 
 afterAll(async () => {

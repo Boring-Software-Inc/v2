@@ -17,6 +17,7 @@ import {
 	gitCafeRefreshSurfacesJobSchema,
 	gitCafeResumeRunJobSchema,
 	gitCafeScheduleTickJobSchema,
+	normalizedEventSchema,
 	rerunChangeRequestJobSchema,
 	scheduleTickSlot,
 } from "@tripwire/contracts";
@@ -48,6 +49,7 @@ import {
 } from "./gitcafe-recovery-monitor.ts";
 import { buildGitCafeRuntime, type GitCafeRuntime } from "./gitcafe-runtime.ts";
 import { backfillRepo } from "./jobs/backfill-repo.ts";
+import { emitGitCafeProcessingComment } from "./jobs/pr-surface.ts";
 import { type ProcessEventDeps, processEvent } from "./jobs/process-event.ts";
 import { refreshGitCafeCatalogs } from "./jobs/refresh-suggestions.ts";
 import { refreshRepoSurfaces } from "./jobs/refresh-surfaces.ts";
@@ -55,6 +57,7 @@ import { rerunChangeRequest } from "./jobs/rerun.ts";
 import { resumeRun } from "./jobs/resume-run.ts";
 import { scheduleTick } from "./jobs/schedule-tick.ts";
 import { sweepActions } from "./jobs/sweep-actions.ts";
+import { reportGitCafeStallToSentry } from "./report-gitcafe-stall.ts";
 
 const PROTECTION_QUEUES = [
 	GITCAFE_PROCESS_EVENT_QUEUE,
@@ -223,7 +226,10 @@ export async function registerGitCafeProtectionQueues(
 					}),
 				};
 				eventDeps.logger.info(
-					{ event: "gitcafe.process.started" },
+					{
+						event: "gitcafe.process.started",
+						queueLatencyMs: Date.now() - event.receivedAt.getTime(),
+					},
 					"GitCafe processing started",
 				);
 				let settlement: GitCafeEventSettlement;
@@ -279,7 +285,11 @@ export async function registerGitCafeProtectionQueues(
 					settlement,
 				);
 				eventDeps.logger.info(
-					{ event: "gitcafe.process.settled", ...settlement },
+					{
+						event: "gitcafe.process.settled",
+						totalLatencyMs: Date.now() - event.receivedAt.getTime(),
+						...settlement,
+					},
 					"GitCafe processing settled",
 				);
 			} finally {
@@ -354,6 +364,43 @@ export async function registerGitCafeProtectionQueues(
 				deps.db,
 				boss,
 			);
+			const stalled =
+				await gitCafeOperationalServices.claimStalledGitCafeEvents(deps.db);
+			for (const item of stalled) {
+				const ageMs = Date.now() - item.receivedAt.getTime();
+				deps.logger.error(
+					{
+						event: "gitcafe.process.stalled",
+						eventId: item.id,
+						deliveryId: item.deliveryId,
+						rawKind: item.rawKind,
+						ageMs,
+						recoveryAttempts: item.recoveryAttempts,
+					},
+					"GitCafe event exceeded its processing deadline",
+				);
+				reportGitCafeStallToSentry({
+					eventId: item.id,
+					deliveryId: item.deliveryId,
+					rawKind: item.rawKind,
+					ageMs,
+					recoveryAttempts: item.recoveryAttempts,
+				});
+				const event = await eventServices.getEventById(deps.db, item.id);
+				const normalized = normalizedEventSchema.safeParse(event?.normalized);
+				if (normalized.success)
+					await emitGitCafeProcessingComment(
+						{
+							db: deps.db,
+							adapter: deps.resolveForge("gitcafe")?.adapter ?? null,
+							logger: deps.logger,
+							appUrl: deps.appUrl,
+						},
+						normalized.data,
+						item.id,
+						"failed",
+					);
+			}
 			await queueTick();
 			await sweepActions(
 				{

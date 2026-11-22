@@ -12,6 +12,8 @@ export const GITCAFE_REFRESH_SURFACES_QUEUE = "gitcafe-refresh-surfaces";
 export const GITCAFE_REFRESH_CATALOGS_QUEUE = "gitcafe-refresh-catalogs";
 export const GITCAFE_SCHEDULE_TICK_QUEUE = "gitcafe-schedule-tick";
 export const GITCAFE_BACKFILL_REPO_QUEUE = "gitcafe-backfill-repo";
+export const GITCAFE_PROCESS_EVENT_EXPIRE_SECONDS = 90;
+export const GITCAFE_STALL_REPORT_INTERVAL_SECONDS = 900;
 export const gitCafeScheduleTickJobSchema = z.strictObject({
 	requestId: z.uuid(),
 });
