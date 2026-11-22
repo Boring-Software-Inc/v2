@@ -218,6 +218,11 @@ beforeEach(async () => {
 		status: "completed",
 		verdict: "block",
 	});
+	await gitCafeLifecycleServices.finishGitCafeEvent(
+		database.db,
+		inserted.eventId,
+		{ status: "completed", runId },
+	);
 	const [action] = await runServices.recordActions(database.db, runId, [
 		{
 			kind: "comment",
@@ -315,6 +320,11 @@ for (const drift of ["none", "pickup", "commit"] as const) {
 			throw new Error("Missing captured pull projection");
 		const ids: string[] = [];
 		for (const repositoryId of [event.repository.id, `repo_${generateId()}`]) {
+			const raw = gitCafePullEventSchema.parse({
+				...event,
+				pull: { ...event.pull, number: 987 },
+				repository: { ...event.repository, id: repositoryId },
+			});
 			const normalized = normalizedEventSchema.parse({
 				...source,
 				deliveryId: generateId(),
@@ -325,7 +335,7 @@ for (const drift of ["none", "pickup", "commit"] as const) {
 				deliveryId: normalized.deliveryId,
 				forge: "gitcafe",
 				rawKind: event.type,
-				raw: event,
+				raw,
 			});
 			if (!inserted.eventId) throw new Error("Missing backfill source");
 			ids.push(inserted.eventId);
@@ -334,6 +344,10 @@ for (const drift of ["none", "pickup", "commit"] as const) {
 				database.pool,
 				inserted.eventId,
 				normalized,
+			);
+			await database.pool.query(
+				"UPDATE events SET next_recovery_at=now() + interval '1 hour' WHERE id=$1",
+				[inserted.eventId],
 			);
 		}
 		const [validId, foreignId] = ids;
