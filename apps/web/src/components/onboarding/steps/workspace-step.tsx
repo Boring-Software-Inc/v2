@@ -21,7 +21,7 @@ import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { useDebouncedValue } from "#/hooks/use-debounced-value";
 import { orgSlugCheckQueryOptions } from "#/lib/onboarding-flow.query";
 import { createOrg } from "#/lib/org.functions";
-import { orgQueryKeys } from "#/lib/org.query";
+import { myOrgsQueryOptions, orgQueryKeys } from "#/lib/org.query";
 
 const copy = ONBOARDING_COPY.workspace;
 
@@ -185,31 +185,38 @@ export function WorkspacePreview({ flow }: StepViewProps) {
 	const [draft] = useOnboardingDraft();
 	const user = usePreviewUser();
 	const { slug } = useWorkspaceSlug();
-	const name = draft.workspaceName.trim() || "Acme";
+	const { data: orgs } = useQuery(myOrgsQueryOptions());
+	const personal = orgs?.find((org) => org.isPersonal);
+	// A workspace made earlier in onboarding shows as itself; until then the
+	// menu follows what is typed.
+	const existing = orgs?.find(
+		(org) => !org.isPersonal && org.slug === flow.state.orgSlug,
+	);
+	const name = existing?.name ?? (draft.workspaceName.trim() || "Acme");
 	return (
 		<HomePreview
-			org={slug || flow.state.personalOrgSlug}
+			org={existing?.slug ?? (slug || flow.state.personalOrgSlug)}
 			overlay={
 				<div data-layout-role="onboarding-menu-callout">
 					<div data-part="menu">
 						<div data-part="group">
 							<span data-part="label">Active workspace</span>
 							<div data-part="item" data-current="true">
-								<OrgAvatar name={name} size="sm" />
+								<OrgAvatar hue={existing?.avatarHue} name={name} size="sm" />
 								<span data-part="name">{name}</span>
 								<Icon icon={Check} size={14} />
 							</div>
 						</div>
 						<div data-part="group">
 							<span data-part="label">Other workspaces</span>
-							{flow.state.personalOrgSlug ? (
+							{personal ? (
 								<div data-part="item">
-									<Avatar
-										decorative
-										name={flow.state.personalOrgSlug}
+									<OrgAvatar
+										hue={personal.avatarHue}
+										name={personal.name}
 										size="sm"
 									/>
-									<span data-part="name">{flow.state.personalOrgSlug}</span>
+									<span data-part="name">{personal.name}</span>
 									<Badge size="small" variant="outline">
 										Personal
 									</Badge>
@@ -228,7 +235,12 @@ export function WorkspacePreview({ flow }: StepViewProps) {
 									size="sm"
 									src={user.image || undefined}
 								/>
-								<span data-part="name">{user.name}</span>
+								<span data-part="text">
+									<span data-part="name">{user.name}</span>
+									{user.identity ? (
+										<span data-part="description">{user.identity}</span>
+									) : null}
+								</span>
 							</div>
 						</div>
 					</div>

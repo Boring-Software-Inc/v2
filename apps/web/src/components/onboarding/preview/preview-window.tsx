@@ -1,5 +1,6 @@
 import {
 	Add,
+	BrowserSidebar,
 	ChevronLeft,
 	ChevronRight,
 	Icon,
@@ -35,6 +36,9 @@ export function PreviewWindow({
 					<span />
 				</div>
 				<div data-layout-role="onboarding-window-nav">
+					<span>
+						<Icon icon={BrowserSidebar} size={16} />
+					</span>
 					<span>
 						<Icon icon={ChevronLeft} size={16} />
 					</span>

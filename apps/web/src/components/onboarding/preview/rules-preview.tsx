@@ -1,53 +1,40 @@
-import {
-	jsonValueSchema,
-	type OnboardingRepo,
-	RULE_CATALOG,
-} from "@tripwire/contracts";
+import { useQuery } from "@tanstack/react-query";
+import type { OnboardingRepo } from "@tripwire/contracts";
+import { Button } from "@tripwire/ui/button";
+import { Add, Icon } from "@tripwire/ui/icon";
 import { SegmentedControl } from "@tripwire/ui/radio-group";
+import { useMemo } from "react";
+import { Collection } from "#/components/collection/collection";
+import {
+	EmptyState,
+	EmptyStateContent,
+	EmptyStateHeader,
+	EmptyStateTitle,
+} from "#/components/common/empty-state";
 import { Page, PageBody, PageHeader } from "#/components/layouts/page";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import { PreviewApp } from "#/components/onboarding/preview/preview-app";
+import { RepoModerationSettings } from "#/components/rules/repo-moderation-settings";
 import { RuleCard } from "#/components/rules/rule-card";
+import { RuleHeaderStats } from "#/components/rules/rule-header-stats";
+import { libraryRules } from "#/components/rules/rule-library";
+import { RULES_COLLECTION } from "#/components/rules/rules-collection";
+import { RuleGridSkeleton } from "#/components/rules/rules-page-skeleton";
 import { SaveQueueProvider } from "#/components/save-queue/save-queue-context";
-import type { RuleConfigView } from "#/lib/rules.functions";
+import { useCollection } from "#/hooks/use-collection";
+import {
+	ruleConfigsQueryOptions,
+	rulesStatsQueryOptions,
+} from "#/lib/rules.query";
 
 const NO_SAVED_VALUES = {};
 /** The preview never saves; the step installs the rules for real. */
 const noCommit = async () => ({ ok: true }) as const;
 
-/** A just-installed standalone rule as the Rules page lists it. */
-function installedView(ruleId: string): RuleConfigView | null {
-	const entry = RULE_CATALOG.find((rule) => rule.ruleId === ruleId);
-	if (!entry) {
-		return null;
-	}
-	const config = jsonValueSchema.parse(entry.defaultConfig);
-	return {
-		ruleId,
-		forgeBlockReason: null,
-		unavailableReason: null,
-		version: entry.version,
-		held: false,
-		changeNote: null,
-		name: entry.name,
-		blurb: entry.blurb,
-		enabled: true,
-		config,
-		defaultConfig: config,
-		management: "standalone",
-		workflowId: null,
-		optIn: false,
-		matches24h: 0,
-		trend: [],
-		source: "built-in",
-		sentence: null,
-		blockingWorkflows: [],
-		usedIn: [],
-	};
-}
-
 /**
- * The repo's Rules page with the picked rules installed: the real rule cards,
- * filling in as picks are switched on and off.
+ * The repo's Rules page as it will look with the picked rules installed: the
+ * repo's real rule list with the picks switched on, through the page's own
+ * header, tabs, stats, collection and cards. Picks fill in as they change.
  */
 export function RulesPreviewPage({
 	org,
@@ -58,11 +45,31 @@ export function RulesPreviewPage({
 	repo: OnboardingRepo | null;
 	ruleIds: readonly string[];
 }) {
-	const rules = ruleIds.flatMap((ruleId) => installedView(ruleId) ?? []);
+	const repoId = repo?.id ?? "";
+	const rulesQuery = useQuery(ruleConfigsQueryOptions(org, repoId));
+	const statsQuery = useQuery(rulesStatsQueryOptions(org, repoId));
+	const rules = useMemo(
+		() =>
+			rulesQuery.data?.map((rule) =>
+				rule.source === "built-in"
+					? { ...rule, enabled: ruleIds.includes(rule.ruleId) }
+					: rule,
+			),
+		[rulesQuery.data, ruleIds],
+	);
+	const installed = (rules ?? []).filter((rule) => rule.enabled);
+	const custom = (rules ?? []).filter((rule) => rule.source === "custom");
+	const collection = useCollection(
+		RULES_COLLECTION,
+		rules === undefined ? undefined : installed,
+		{ store: "local" },
+	);
+	const forge = repo?.forge;
+
 	return (
 		<PreviewApp
 			active="rules"
-			forge={repo?.forge}
+			forge={forge}
 			repo={repo?.fullName ?? null}
 			url={{
 				host: "app.tripwire.sh",
@@ -72,6 +79,21 @@ export function RulesPreviewPage({
 			<SaveQueueProvider commit={noCommit} savedValues={NO_SAVED_VALUES}>
 				<Page purpose="task">
 					<PageHeader
+						actions={
+							<>
+								{repo && (forge === "github" || forge === "gitcafe") ? (
+									<RepoModerationSettings
+										canManage
+										org={org}
+										repo={repo.name}
+									/>
+								) : null}
+								<Button variant="secondary">
+									<Icon icon={Add} />
+									Create rule
+								</Button>
+							</>
+						}
 						description="Manage the checks Tripwire runs on contributions to this repository."
 						title="Rules"
 					/>
@@ -81,28 +103,52 @@ export function RulesPreviewPage({
 								ariaLabel="Rules to show"
 								options={[
 									{
-										count: rules.length,
+										count: installed.length,
 										label: "Installed",
 										value: "installed",
 									},
-									{ label: "Library", value: "library" },
-									{ label: "Custom", value: "custom" },
+									{
+										count: libraryRules(rules ?? []).length,
+										label: "Library",
+										value: "library",
+									},
+									{ count: custom.length, label: "Custom", value: "custom" },
 								]}
 								readOnly
 								value="installed"
 							/>
 						</div>
-						<div data-layout-role="onboarding-rule-grid">
-							{rules.map((rule) => (
-								<RuleCard
-									canEdit
-									key={rule.ruleId}
-									org={org}
-									repo={repo?.name ?? ""}
-									rule={rule}
-								/>
-							))}
-						</div>
+						<RuleHeaderStats stats={statsQuery.data} />
+						<Collection
+							collection={collection}
+							empty={
+								<EmptyState art={<MascotArt mood="rules-empty" />}>
+									<EmptyStateHeader>
+										<EmptyStateTitle>No rules installed</EmptyStateTitle>
+									</EmptyStateHeader>
+									<EmptyStateContent>
+										<Button size="small" variant="secondary">
+											Browse rules
+										</Button>
+									</EmptyStateContent>
+								</EmptyState>
+							}
+							skeleton={<RuleGridSkeleton />}
+						>
+							{(visible) => (
+								<div data-layout-role="onboarding-rule-grid">
+									{visible.map((rule) => (
+										<RuleCard
+											canEdit
+											key={rule.ruleId}
+											org={org}
+											repo={repo?.name ?? ""}
+											rule={rule}
+										/>
+									))}
+								</div>
+							)}
+						</Collection>
 					</PageBody>
 				</Page>
 			</SaveQueueProvider>

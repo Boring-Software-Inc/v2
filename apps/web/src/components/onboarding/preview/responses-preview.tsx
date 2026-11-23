@@ -3,24 +3,20 @@ import type {
 	RedactionPolicy,
 	ResponseConfig,
 } from "@tripwire/contracts";
-import { Icon } from "@tripwire/ui/icon";
-import { Skeleton } from "@tripwire/ui/skeleton";
 import { PreviewApp } from "#/components/onboarding/preview/preview-app";
-import { BLOCK_META } from "#/components/responses/blocks/block-catalog";
-import { GithubCommentMock } from "#/components/responses/github-comment-mock";
-import {
-	OUTCOMES,
-	outcomeBlocks,
-	outcomeMeta,
-	responsePreview,
-} from "#/components/responses/responses-model";
+import { ResponseBuilder } from "#/components/responses/blocks/response-builder";
+import { PreviewLinkProvider } from "#/components/responses/preview-link";
+import { outcomeMeta } from "#/components/responses/responses-model";
+import { BuilderSkeleton } from "#/components/responses/responses-page-skeleton";
 
 const BLOCK_OUTCOME = outcomeMeta("block");
+/** The preview is read-only; the step saves the choices for real. */
+const noOp = () => undefined;
 
 /**
- * The repo's Responses page on the Block tab: the blocks a block response is
- * made of, and the review Tripwire would post, rendered by the same planner
- * the real page uses so a switch on the left changes it here.
+ * The repo's Responses page on the Block outcome: the page's own builder,
+ * read-only, fed the config the switches on the left describe, so its block
+ * list and the comment preview change as they do.
  */
 export function ResponsesPreviewPage({
 	org,
@@ -33,14 +29,7 @@ export function ResponsesPreviewPage({
 	config: ResponseConfig | null;
 	policy: RedactionPolicy;
 }) {
-	const blocks = config ? outcomeBlocks(config, BLOCK_OUTCOME) : [];
-	const preview = config
-		? responsePreview(config, BLOCK_OUTCOME, policy, "outsider", repo?.forge)
-		: null;
-	const comment =
-		preview?.outputs
-			.flatMap((output) => (output.body ? [output.body] : []))
-			.join("\n\n") ?? "";
+	const forge = repo?.forge ?? null;
 	return (
 		<PreviewApp
 			active="responses"
@@ -52,44 +41,28 @@ export function ResponsesPreviewPage({
 				path: repo ? `/${org}/${repo.name}/responses` : `/${org}/home`,
 			}}
 		>
-			<div data-layout-role="onboarding-responses-page">
-				<aside data-part="builder">
-					<div data-part="tabs">
-						{OUTCOMES.map((outcome) => (
-							<span
-								data-selected={outcome.value === "block" ? "true" : "false"}
-								key={outcome.value}
-							>
-								{outcome.label}
-							</span>
-						))}
-					</div>
-					<div data-part="blocks">
-						<span data-part="heading">Response blocks</span>
-						{config ? (
-							blocks.map((block) => {
-								const meta = BLOCK_META[block.type];
-								return (
-									<div data-part="block" key={block.id}>
-										<Icon icon={meta.icon} size={16} />
-										<span data-part="text">
-											<span data-part="label">{meta.label}</span>
-											<span data-part="description">{meta.description}</span>
-										</span>
-									</div>
-								);
-							})
-						) : (
-							<Skeleton />
-						)}
-					</div>
-				</aside>
-				<div data-part="stage">
-					{preview ? (
-						<GithubCommentMock body={preview.posting ? comment : null} />
-					) : null}
+			<PreviewLinkProvider>
+				<div data-layout-role="responses-shell">
+					{config ? (
+						<div data-layout-role="response-workspace">
+							<ResponseBuilder
+								canEdit={false}
+								config={config}
+								forge={forge}
+								onOutcomeChange={noOp}
+								org={org}
+								orgPolicy={policy}
+								outcome={BLOCK_OUTCOME}
+								policy={policy}
+								saveToolbar={null}
+								setField={noOp}
+							/>
+						</div>
+					) : (
+						<BuilderSkeleton forge={forge} />
+					)}
 				</div>
-			</div>
+			</PreviewLinkProvider>
 		</PreviewApp>
 	);
 }

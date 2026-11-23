@@ -10,11 +10,17 @@ import {
 	PreviewWindow,
 } from "#/components/onboarding/preview/preview-window";
 import { currentUserQueryOptions } from "#/lib/auth.query";
+import { accountIdentity } from "#/lib/current-user";
 
 /** The signed-in user as the preview's account trigger shows them. */
 export function usePreviewUser() {
 	const { data: user } = useQuery(currentUserQueryOptions());
-	return { name: user?.name ?? "", image: user?.image ?? null };
+	return {
+		name: user?.name ?? "",
+		image: user?.image ?? null,
+		/** The line under the name in the account menu. */
+		identity: user ? accountIdentity(user) : null,
+	};
 }
 
 /**

@@ -16,6 +16,11 @@ export const UI_MOTION = {
 		duration: 0.36,
 		ease: [0.22, 1, 0.36, 1],
 	},
+	/** The column leaving: quicker and accelerating, so it clears the way. */
+	columnExit: {
+		duration: 0.18,
+		ease: [0.4, 0, 1, 1],
+	},
 	/**
 	 * Content riding one continuous track: the outgoing and incoming pages
 	 * share this curve so they move as one strip, never leaving a gap.

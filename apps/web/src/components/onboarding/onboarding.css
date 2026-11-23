@@ -3,8 +3,11 @@
  * preview column takes the rest and hides once it is too narrow to read a
  * miniature page in.
  */
+/* A container, so widths below can be set from the whole page, not the
+   column that is resizing around them. */
 [data-layout-role="onboarding-shell"] {
 	display: flex;
+	container-type: inline-size;
 	min-block-size: 100dvh;
 	overflow-x: clip;
 	background-color: var(--page);
@@ -49,10 +52,34 @@
 	letter-spacing: -0.02em;
 }
 
+/*
+ * The column body takes the width the column is heading to. While the
+ * column grows or shrinks, the form stays put and only rises or sinks, and
+ * the preview panel covers or uncovers whatever overhangs.
+ */
+[data-layout-role="onboarding-column-body"] {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	inline-size: calc(100cqi - 2 * var(--space-4));
+
+	&[data-preview="true"] {
+		inline-size: calc(37.5rem - 2 * var(--space-4));
+	}
+
+	@media (max-width: 63.99rem) {
+		&,
+		&[data-preview="true"] {
+			inline-size: auto;
+		}
+	}
+}
+
 [data-layout-role="onboarding-stage"] {
 	position: relative;
 	display: grid;
 	flex: 1;
+	grid-template-columns: minmax(0, 1fr);
 	align-items: center;
 	justify-items: center;
 	padding-block: var(--space-8);
@@ -67,6 +94,13 @@
 
 	&[data-wide="true"] {
 		inline-size: min(100%, 54.5rem);
+	}
+
+	/* A leaving step, lifted out by motion and placed at its measured offset.
+	   With a grid area set, the area would be its containing block and that
+	   offset would land a padding lower. */
+	&[data-motion-pop-id] {
+		grid-area: auto;
 	}
 }
 
@@ -147,7 +181,7 @@
 	position: absolute;
 	inset-block: 0;
 	inset-inline-start: 0;
-	inline-size: calc(100vw - 37.5rem - var(--space-4));
+	inline-size: calc(100cqi - 37.5rem - var(--space-4));
 	pointer-events: none;
 }
 
@@ -253,7 +287,7 @@
 	display: flex;
 	flex: 1;
 	min-block-size: 0;
-	padding: 0 var(--space-2) var(--space-2) 0;
+	padding: var(--space-2) var(--space-2) var(--space-2) 0;
 }
 
 [data-layout-role="onboarding-tiles"] {
@@ -428,6 +462,14 @@
 	margin: 0;
 	padding: 0;
 	border: 0;
+
+	/* Five team sizes share a phone's width: tighter label padding keeps
+	   each label whole instead of cutting it short. */
+	@media (max-width: 30rem) {
+		& [data-slot="segmented-control"] [data-slot="radio-label"] {
+			padding-inline: var(--space-1);
+		}
+	}
 }
 
 [data-layout-role="onboarding-field-legend"] {
@@ -619,6 +661,22 @@
 		flex: 1;
 		min-inline-size: 0;
 		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	/* The account row: name over the email or handle, as the real menu has. */
+	& [data-part="text"] {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		min-inline-size: 0;
+	}
+
+	& [data-part="description"] {
+		overflow: hidden;
+		color: var(--text-2);
+		font: var(--type-body);
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}

@@ -5,6 +5,7 @@ import {
 	type WorkflowDefinition,
 } from "@tripwire/contracts";
 import { Badge } from "@tripwire/ui/badge";
+import { Icon, Pending } from "@tripwire/ui/icon";
 import { ReactFlow, ReactFlowProvider } from "@xyflow/react";
 import { useMemo } from "react";
 import { PreviewWindow } from "#/components/onboarding/preview/preview-window";
@@ -91,7 +92,12 @@ export function WorkflowPreviewPage({
 								zoomOnScroll={false}
 							/>
 						</ReactFlowProvider>
-					) : null}
+					) : (
+						// Still drafting: the editor's own loading state.
+						<span data-part="spinner">
+							<Icon icon={Pending} motion="spin" />
+						</span>
+					)}
 				</div>
 			</div>
 		</PreviewWindow>

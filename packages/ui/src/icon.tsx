@@ -137,6 +137,7 @@ export {
 	SealCheckIcon as Verified,
 	ShieldCheckIcon as Protected,
 	ShieldSlashIcon as NoAccess,
+	SidebarSimpleIcon as BrowserSidebar,
 	SignOutIcon as SignOut,
 	SlidersHorizontalIcon as Customize,
 	SmileyIcon as Emoji,

@@ -22,11 +22,18 @@ import { useMediaQuery } from "#/hooks/use-media-query";
 import "./onboarding.css";
 import "./onboarding-steps.css";
 
-/** Rises in, sinks out; going back runs it the other way. */
+/**
+ * Rises in, sinks out; going back runs it the other way. The leaving step
+ * goes quickly so the two never sit on top of each other at half strength.
+ */
 const COLUMN_VARIANTS = {
 	enter: (direction: StepDirection) => ({ opacity: 0, y: 16 * direction }),
-	center: { opacity: 1, y: 0 },
-	exit: (direction: StepDirection) => ({ opacity: 0, y: 16 * direction }),
+	center: { opacity: 1, y: 0, transition: UI_MOTION.column },
+	exit: (direction: StepDirection) => ({
+		opacity: 0,
+		y: 16 * direction,
+		transition: UI_MOTION.columnExit,
+	}),
 };
 
 /** Reduced motion: the column only fades. */
@@ -83,25 +90,38 @@ function OnboardingLayout({
 				transition={resize}
 			>
 				<BrandLockup />
-				<div data-layout-role="onboarding-stage">
-					<AnimatePresence custom={flow.direction} initial={false}>
-						<motion.section
-							animate="center"
-							aria-label={view.label}
+				{/* Sized to where the column ends up, not where it is mid-resize, so
+				    the form only rises and falls and never slides sideways. */}
+				<div
+					data-layout-role="onboarding-column-body"
+					data-preview={showPreview ? "true" : "false"}
+				>
+					<div data-layout-role="onboarding-stage">
+						{/* popLayout lifts the leaving step out of the layout, so the
+						    arriving one is centred on its own height from the first frame. */}
+						<AnimatePresence
 							custom={flow.direction}
-							data-layout-role="onboarding-step"
-							data-wide={view.wide ? "true" : "false"}
-							exit="exit"
-							initial="enter"
-							key={flow.step}
-							transition={reduceMotion ? UI_MOTION.state : UI_MOTION.column}
-							variants={reduceMotion ? COLUMN_FADE_VARIANTS : COLUMN_VARIANTS}
+							initial={false}
+							mode="popLayout"
 						>
-							<Form flow={flow} />
-						</motion.section>
-					</AnimatePresence>
+							<motion.section
+								animate="center"
+								aria-label={view.label}
+								custom={flow.direction}
+								data-layout-role="onboarding-step"
+								data-wide={view.wide ? "true" : "false"}
+								exit="exit"
+								initial="enter"
+								key={flow.step}
+								transition={reduceMotion ? UI_MOTION.state : UI_MOTION.column}
+								variants={reduceMotion ? COLUMN_FADE_VARIANTS : COLUMN_VARIANTS}
+							>
+								<Form flow={flow} />
+							</motion.section>
+						</AnimatePresence>
+					</div>
+					<SkipSetup flow={flow} label={ONBOARDING_COPY.skipSetup} />
 				</div>
-				<SkipSetup flow={flow} label={ONBOARDING_COPY.skipSetup} />
 			</motion.main>
 			<motion.div
 				animate={{ flexGrow: showPreview ? 1 : 0 }}

@@ -18,6 +18,10 @@ export function SkipSetup({
 	flow: ReturnType<typeof useOnboardingFlow>;
 	label: string;
 }) {
+	// Step 1 has its own Skip for the question; skipping setup starts at step 2.
+	if (flow.step === "problems") {
+		return null;
+	}
 	const skip = () => flow.finish("skipped");
 	const trigger = (
 		<button

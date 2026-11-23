@@ -49,12 +49,25 @@ export function PreviewStage({
 	const reduceMotion = useReducedMotion();
 	return (
 		<aside data-layout-role="onboarding-preview">
+			{/* The dither and the page fade in once, when the page first knows it
+			    can show them, rather than popping in. Step changes then ride the
+			    track. */}
 			{live ? (
 				<>
-					<div data-layout-role="onboarding-preview-dither">
+					<motion.div
+						animate={{ opacity: 1 }}
+						data-layout-role="onboarding-preview-dither"
+						initial={{ opacity: 0 }}
+						transition={UI_MOTION.column}
+					>
 						<ShaderDither mask="edges" tone="faint" />
-					</div>
-					<div data-layout-role="onboarding-track">
+					</motion.div>
+					<motion.div
+						animate={{ opacity: 1 }}
+						data-layout-role="onboarding-track"
+						initial={{ opacity: 0 }}
+						transition={UI_MOTION.column}
+					>
 						<AnimatePresence custom={direction} initial={false}>
 							{slide ? (
 								<motion.div
@@ -71,7 +84,7 @@ export function PreviewStage({
 								</motion.div>
 							) : null}
 						</AnimatePresence>
-					</div>
+					</motion.div>
 				</>
 			) : null}
 		</aside>

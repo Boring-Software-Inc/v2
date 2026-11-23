@@ -8,6 +8,7 @@ describe("UI_MOTION", () => {
 			"position",
 			"slide",
 			"column",
+			"columnExit",
 			"track",
 		]);
 		expect(UI_MOTION.state).toEqual({
@@ -23,6 +24,9 @@ describe("UI_MOTION", () => {
 
 	test("keeps guided-flow motion short enough to stay out of the way", () => {
 		expect(UI_MOTION.column.duration).toBeLessThanOrEqual(0.4);
+		expect(UI_MOTION.columnExit.duration).toBeLessThan(
+			UI_MOTION.column.duration,
+		);
 		expect(UI_MOTION.track.duration).toBeLessThanOrEqual(0.7);
 	});
 });
