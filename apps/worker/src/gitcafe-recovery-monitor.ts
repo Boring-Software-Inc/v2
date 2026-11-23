@@ -9,7 +9,7 @@ export function createGitCafeRecoveryMonitor(
 ) {
 	const successes = new Map<string, number>();
 	const failures = new Set<string>();
-	const running = new Map<string, Promise<unknown>>();
+	const running = new Map<string, Promise<number>>();
 	let registered = false;
 	let stopped = false;
 	let lastReady = false;
@@ -51,7 +51,7 @@ export function createGitCafeRecoveryMonitor(
 			failures.add("queue");
 			transition();
 		},
-		async run(stage: "lifecycle" | "protection", work: () => Promise<unknown>) {
+		async run(stage: "lifecycle" | "protection", work: () => Promise<number>) {
 			if (stopped) throw new Error("GitCafe recovery stopped");
 			if (running.has(stage)) throw new Error("GitCafe recovery still running");
 			const started = now();
@@ -77,7 +77,7 @@ export function createGitCafeRecoveryMonitor(
 						event: "gitcafe.recovery.succeeded",
 						stage,
 						durationMs: now() - started,
-						recovered: typeof result === "number" ? result : undefined,
+						recovered: result,
 					},
 					"GitCafe recovery succeeded",
 				);
