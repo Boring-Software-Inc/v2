@@ -84,6 +84,8 @@ export class GitCafeInstallationClientState {
 	readonly tokens = new Map<string, CachedToken>();
 	readonly mints = new Map<string, PendingToken>();
 	readonly generations = new Map<string, number>();
+	readonly requestWaiters: Array<() => void> = [];
+	activeRequests = 0;
 	rateLimitedUntil = 0;
 
 	constructor(credentials: Pick<GitCafeAppCredentials, "appId" | "keyId">) {
@@ -100,6 +102,7 @@ interface InstallationSnapshot {
 const TOKEN_SAFETY_MS = 60_000;
 const TOKEN_MAX_LIFETIME_MS = 15 * 60_000;
 const MAX_RESPONSE_BYTES = 1024 * 1024;
+const MAX_CONCURRENT_REQUESTS = 2;
 const DEFAULT_RATE_LIMIT_BACKOFF_MS = 60_000;
 const MAX_RATE_LIMIT_BACKOFF_MS = 15 * 60_000;
 const PERMISSION_RANK = { read: 1, write: 2, admin: 3 };
@@ -831,6 +834,33 @@ export class GitCafeInstallationClient {
 	}
 
 	private async send(
+		request: GitCafeInstallationRequest,
+		deadlineAt?: number,
+	): Promise<GitCafeInstallationResult<unknown>> {
+		const release = await this.acquireRequestSlot();
+		try {
+			return await this.sendSerialized(request, deadlineAt);
+		} finally {
+			release();
+		}
+	}
+
+	private async acquireRequestSlot(): Promise<() => void> {
+		if (this.state.activeRequests < MAX_CONCURRENT_REQUESTS) {
+			this.state.activeRequests++;
+		} else {
+			await new Promise<void>((resolve) => {
+				this.state.requestWaiters.push(resolve);
+			});
+		}
+		return () => {
+			const next = this.state.requestWaiters.shift();
+			if (next) next();
+			else this.state.activeRequests--;
+		};
+	}
+
+	private async sendSerialized(
 		request: GitCafeInstallationRequest,
 		deadlineAt?: number,
 	): Promise<GitCafeInstallationResult<unknown>> {

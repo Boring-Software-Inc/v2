@@ -404,6 +404,54 @@ describe("GitCafe installation client", () => {
 		expect(requests).toBe(2);
 	});
 
+	test("bounds provider requests across runtime-scoped clients", async () => {
+		const h = harness();
+		const state = new GitCafeInstallationClientState(credentials);
+		const firstResponse = deferred<Response>();
+		const secondResponse = deferred<Response>();
+		let requests = 0;
+		const fetch = async () => {
+			requests++;
+			if (requests === 1) return firstResponse.promise;
+			if (requests === 2) return secondResponse.promise;
+			return Response.json(installationFixture);
+		};
+		const first = new GitCafeInstallationClient({
+			credentials,
+			now: h.now,
+			fetch,
+			state,
+		});
+		const second = new GitCafeInstallationClient({
+			credentials,
+			now: h.now,
+			fetch,
+			state,
+		});
+		const third = new GitCafeInstallationClient({
+			credentials,
+			now: h.now,
+			fetch,
+			state,
+		});
+
+		const firstLookup = first.getInstallation(installation.id);
+		await Promise.resolve();
+		const secondLookup = second.getInstallation(installation.id);
+		await Promise.resolve();
+		const thirdLookup = third.getInstallation(installation.id);
+		await Promise.resolve();
+		expect(requests).toBe(2);
+
+		firstResponse.resolve(Response.json(installationFixture));
+		expect((await firstLookup).ok).toBe(true);
+		await Promise.resolve();
+		expect(requests).toBe(3);
+		secondResponse.resolve(Response.json(installationFixture));
+		expect((await secondLookup).ok).toBe(true);
+		expect((await thirdLookup).ok).toBe(true);
+	});
+
 	test("reuses a token only after a fresh installation lookup", async () => {
 		const h = harness();
 		const client = clientFor(h);

@@ -107,10 +107,11 @@ export async function registerGitCafeProtectionQueues(
 		boss.work<unknown>(queue, workOptions(queue), async (jobs) => {
 			try {
 				return await handler(jobs);
-			} catch {
+			} catch (error) {
 				monitor?.degrade();
 				deps.logger.error(
 					{
+						err: error,
 						event: "gitcafe.process.retrying",
 						forge: "gitcafe",
 						queue,
@@ -119,10 +120,14 @@ export async function registerGitCafeProtectionQueues(
 					},
 					"GitCafe queue job failed",
 				);
-				captureException(new Error("GitCafe queue job failed"), {
+				const cause =
+					error instanceof Error
+						? error
+						: new Error("GitCafe queue job failed", { cause: error });
+				captureException(cause, {
 					tags: { queue, forge: "gitcafe" },
 				});
-				throw new Error("GitCafe queue job failed");
+				throw cause;
 			}
 		});
 	for (const name of PROTECTION_QUEUES) {
