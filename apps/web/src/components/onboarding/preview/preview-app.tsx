@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ForgeId } from "@tripwire/contracts";
+import { UI_MOTION } from "@tripwire/ui/motion";
+import { AnimatePresence, motion } from "motion/react";
 import type { ReactNode } from "react";
 import {
 	type PreviewNavKey,
@@ -59,7 +61,30 @@ export function PreviewApp({
 			<div data-layout-role="onboarding-preview-panel">
 				<div data-part="body">{children}</div>
 			</div>
-			{overlay}
+			{/* An open menu dims the page under it and scales up from where it
+			    opens, as the real popover does, and leaves the same way. */}
+			<AnimatePresence initial={false}>
+				{overlay ? (
+					<motion.div
+						animate={{ opacity: 1 }}
+						data-layout-role="onboarding-preview-overlay"
+						exit={{ opacity: 0 }}
+						initial={{ opacity: 0 }}
+						key="overlay"
+						transition={UI_MOTION.column}
+					>
+						<motion.div
+							animate={{ scale: 1 }}
+							data-part="content"
+							exit={{ scale: 0.96 }}
+							initial={{ scale: 0.96 }}
+							transition={UI_MOTION.column}
+						>
+							{overlay}
+						</motion.div>
+					</motion.div>
+				) : null}
+			</AnimatePresence>
 		</PreviewWindow>
 	);
 }

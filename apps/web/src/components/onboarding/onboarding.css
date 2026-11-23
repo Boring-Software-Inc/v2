@@ -132,12 +132,13 @@
 	align-self: center;
 	padding: var(--space-2) var(--space-3);
 	border-radius: var(--radius-pill);
-	color: var(--text-3);
+	/* text-2, so it still reads at 4.5:1 in both themes. */
+	color: var(--text-2);
 	font: var(--type-label);
 	transition: color var(--dur-state) var(--ease-out);
 
 	&:hover {
-		color: var(--text-2);
+		color: var(--text-1);
 	}
 
 	&:focus-visible {
@@ -169,14 +170,30 @@
 [data-layout-role="onboarding-track"] {
 	position: absolute;
 	inset: 0;
-	display: grid;
 }
 
-[data-layout-role="onboarding-track-item"] {
-	grid-area: 1 / 1;
-	position: relative;
-	padding: var(--space-10) 0 0 var(--space-6);
+/* The strip the pages ride on; it is what moves. */
+[data-layout-role="onboarding-track-strip"] {
+	position: absolute;
+	inset: 0;
 	will-change: transform;
+}
+
+/* Pages sit on the strip one track span apart (the window's inset plus its
+   width): the arriving page waits just out of view, before or after the one
+   on show. */
+[data-layout-role="onboarding-track-item"] {
+	position: absolute;
+	inset: 0;
+	padding: var(--space-10) 0 0 var(--space-6);
+
+	&[data-position="before"] {
+		translate: -1024px 0;
+	}
+
+	&[data-position="after"] {
+		translate: 1024px 0;
+	}
 }
 
 [data-layout-role="onboarding-window"] {
@@ -590,10 +607,31 @@
 	font: var(--type-body-sm);
 }
 
+/* Floats over the preview's page: a menu or popover open on it. */
+[data-layout-role="onboarding-preview-overlay"] {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+
+	& > [data-part="content"] {
+		position: absolute;
+		inset: 0;
+		transform-origin: 0 100%;
+	}
+}
+
+/* Dims the page under an open menu. */
+[data-layout-role="onboarding-preview-scrim"] {
+	position: absolute;
+	inset: 0;
+	background-color: var(--scrim);
+}
+
 /* The account menu, enlarged over the preview's home like a callout. */
 [data-layout-role="onboarding-menu-callout"] {
 	position: absolute;
-	inset-block-end: var(--space-6);
+	/* Low enough that its account button covers the rail's, which it opens from. */
+	inset-block-end: var(--space-4);
 	inset-inline-start: var(--space-2);
 	display: flex;
 	flex-direction: column;
@@ -1197,12 +1235,12 @@
 [data-layout-role="onboarding-progress"] {
 	display: flex;
 	align-items: center;
-	margin-block-end: var(--space-1);
+	margin-block: calc(-1 * var(--space-1)) 0;
 
 	& > [data-part="step"] {
 		display: grid;
 		place-items: center;
-		block-size: var(--space-4);
+		block-size: var(--space-6);
 		padding-inline: 2px;
 		border-radius: var(--radius-pill);
 	}

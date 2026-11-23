@@ -35,6 +35,15 @@
 		font: var(--type-label);
 		text-overflow: ellipsis;
 		white-space: nowrap;
+
+		/* On phones the repo prefix would leave room for a few letters of the
+		   title, so it wraps to two lines instead. */
+		@media (max-width: 30rem) {
+			display: -webkit-box;
+			-webkit-box-orient: vertical;
+			-webkit-line-clamp: 2;
+			white-space: normal;
+		}
 	}
 
 	& [data-part="repo"] {
@@ -107,6 +116,8 @@
 		& [data-type-role="code-text"] {
 			overflow: hidden;
 			color: var(--text-2);
+			/* No ligatures: "--transport" must not read as a dash. */
+			font-variant-ligatures: none;
 			text-overflow: ellipsis;
 			white-space: nowrap;
 		}
@@ -133,10 +144,15 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: var(--space-3);
-		padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+		/* The same 12px inset as the agent rows, so every action lines up. */
+		padding: var(--space-2) var(--space-3);
 		border-radius: var(--radius-panel);
 		background-color: var(--code-surface);
 		box-shadow: 0 0 0 var(--line-width) var(--line-faint);
+
+		& [data-type-role="code-text"] {
+			font-variant-ligatures: none;
+		}
 	}
 }
 

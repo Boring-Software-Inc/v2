@@ -70,7 +70,7 @@ export function RulesPreviewPage({
 		<PreviewApp
 			active="rules"
 			forge={forge}
-			repo={repo?.fullName ?? null}
+			repo={repo?.name ?? null}
 			url={{
 				host: "app.tripwire.sh",
 				path: repo ? `/${org}/${repo.name}/rules` : `/${org}/home`,

@@ -107,7 +107,14 @@ export function PreviewRail({
 							tabIndex={-1}
 						/>
 					)}
-					<SidebarSearchTrigger collapsed={collapsed} tabIndex={-1} />
+					{/* The real rail wraps the wide trigger for its filled look. */}
+					<div
+						data-layout-role={
+							collapsed ? undefined : "command-palette-wide-trigger"
+						}
+					>
+						<SidebarSearchTrigger collapsed={collapsed} tabIndex={-1} />
+					</div>
 					<SidebarNav>
 						{nav.map((item) => (
 							<span

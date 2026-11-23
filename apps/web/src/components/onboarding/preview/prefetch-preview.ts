@@ -3,9 +3,11 @@ import type { OnboardingStep } from "@tripwire/contracts";
 import type { OnboardingState } from "#/lib/onboarding-flow.functions";
 import {
 	onboardingLatestRunQueryOptions,
+	onboardingReportedQueryOptions,
 	onboardingReposQueryOptions,
 	onboardingWorkflowQueryOptions,
 } from "#/lib/onboarding-flow.query";
+import { myOrgsQueryOptions } from "#/lib/org.query";
 import {
 	orgResponseDefaultsQueryOptions,
 	responseConfigQueryOptions,
@@ -33,6 +35,9 @@ export async function prefetchStepPreview(
 		return;
 	}
 	switch (step) {
+		case "workspace":
+			await queryClient.prefetchQuery(myOrgsQueryOptions());
+			return;
 		case "connect":
 			await queryClient.prefetchQuery(onboardingReposQueryOptions(org));
 			return;
@@ -45,7 +50,17 @@ export async function prefetchStepPreview(
 			}
 			return;
 		case "check":
-			if (repo) {
+			if (repo && state.answers.reported.length > 0) {
+				const reported = await queryClient.fetchQuery(
+					onboardingReportedQueryOptions(org, repo.id, state.answers.reported),
+				);
+				const runId = reported.findLast(
+					(changeRequest) => changeRequest.latestRunId !== null,
+				)?.latestRunId;
+				if (runId) {
+					await queryClient.prefetchQuery(runQueryOptions(runId));
+				}
+			} else if (repo) {
 				const runId = await queryClient.fetchQuery(
 					onboardingLatestRunQueryOptions(org, repo.name),
 				);

@@ -8,23 +8,27 @@ import { runQueryOptions } from "#/lib/runs.query";
 
 /**
  * The run page for a reported change request, polling while the rules run.
- * Before anything is reported it shows the repo's latest run, and Human
- * review when the repo has none.
+ * With no run given it shows the repo's latest run, unless told not to, and
+ * Human review when there is none.
  */
 export function RunPreview({
 	org,
 	repo,
 	runId,
+	latestWhenNone = true,
 }: {
 	org: string;
 	repo: OnboardingRepo | null;
 	runId: string | null;
+	/** False once the user has reported change requests: an unrelated run would
+	 * contradict what the step says about theirs. */
+	latestWhenNone?: boolean;
 }) {
 	const latest = useQuery({
 		...onboardingLatestRunQueryOptions(org, repo?.name ?? ""),
-		enabled: runId === null && repo !== null,
+		enabled: runId === null && repo !== null && latestWhenNone,
 	});
-	const shown = runId ?? latest.data ?? null;
+	const shown = runId ?? (latestWhenNone ? (latest.data ?? null) : null);
 	const run = useQuery({
 		...runQueryOptions(shown ?? ""),
 		enabled: shown !== null,
@@ -37,7 +41,7 @@ export function RunPreview({
 			active="activity"
 			collapsed
 			forge={repo?.forge}
-			repo={repo?.fullName ?? null}
+			repo={repo?.name ?? null}
 			url={{ host: "app.tripwire.sh", path: `/runs/${run.data.id}` }}
 		>
 			<RunBody run={run.data} />

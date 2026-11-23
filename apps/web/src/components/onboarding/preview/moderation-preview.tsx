@@ -40,7 +40,7 @@ export function ModerationPreview({
 									key={repo.id}
 								>
 									<ForgeMark className="size-3.5 shrink-0" forge={repo.forge} />
-									<span data-part="name">{repo.fullName}</span>
+									<span data-part="name">{repo.name}</span>
 									{selected.includes(repo.id) ? (
 										<Icon icon={Check} size={14} />
 									) : (
@@ -56,7 +56,7 @@ export function ModerationPreview({
 					</div>
 				) : null
 			}
-			repo={current?.fullName ?? null}
+			repo={current?.name ?? null}
 			url={{
 				host: "app.tripwire.sh",
 				path: current ? `/${org}/${current.name}/moderation` : `/${org}/home`,

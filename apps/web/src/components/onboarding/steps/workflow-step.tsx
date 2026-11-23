@@ -1,7 +1,9 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@tripwire/ui/button";
+import { UI_MOTION } from "@tripwire/ui/motion";
 import { Skeleton } from "@tripwire/ui/skeleton";
 import { notify } from "@tripwire/ui/toast";
+import { AnimatePresence, motion } from "motion/react";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { ONBOARDING_COPY } from "#/components/onboarding/onboarding-copy";
 import { OnboardingStepHeader } from "#/components/onboarding/onboarding-frame";
@@ -131,14 +133,39 @@ export function WorkflowStep({ flow }: StepViewProps) {
 
 export function WorkflowPreview({ flow }: StepViewProps) {
 	const { org, repo, draft } = useWorkflowDraft(flow);
-	if (draft.isSuccess && draft.data.definition === null) {
-		return <RunPreview org={org} repo={repo} runId={null} />;
-	}
+	// Nothing to draft: the run on the newest reported change request, which
+	// shows why. It crossfades in over the drafting canvas rather than cutting.
+	const nothing = draft.isSuccess && draft.data.definition === null;
+	const runId = nothing
+		? ([...draft.data.builtFrom]
+				.reverse()
+				.map((changeRequest) => changeRequest.latestRunId)
+				.find((id) => id !== null) ?? null)
+		: null;
 	return (
-		<WorkflowPreviewPage
-			definition={draft.data?.definition ?? null}
-			org={org}
-			repo={repo}
-		/>
+		<AnimatePresence initial={false} mode="popLayout">
+			<motion.div
+				animate={{ opacity: 1 }}
+				exit={{ opacity: 0 }}
+				initial={{ opacity: 0 }}
+				key={nothing ? "run" : "draft"}
+				transition={UI_MOTION.column}
+			>
+				{nothing ? (
+					<RunPreview
+						latestWhenNone={false}
+						org={org}
+						repo={repo}
+						runId={runId}
+					/>
+				) : (
+					<WorkflowPreviewPage
+						definition={draft.data?.definition ?? null}
+						org={org}
+						repo={repo}
+					/>
+				)}
+			</motion.div>
+		</AnimatePresence>
 	);
 }

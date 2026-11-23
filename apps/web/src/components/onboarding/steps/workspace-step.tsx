@@ -193,67 +193,72 @@ export function WorkspacePreview({ flow }: StepViewProps) {
 		(org) => !org.isPersonal && org.slug === flow.state.orgSlug,
 	);
 	const name = existing?.name ?? (draft.workspaceName.trim() || "Acme");
+	// The personal workspace row holds its place while the list loads, so the
+	// menu never grows under the pointer.
+	const personalName =
+		personal?.name ?? (flow.state.personalOrgSlug ? user.name : null);
 	return (
 		<HomePreview
-			org={existing?.slug ?? (slug || flow.state.personalOrgSlug)}
+			org={existing?.slug ?? (slug || "acme")}
 			overlay={
-				<div data-layout-role="onboarding-menu-callout">
-					<div data-part="menu">
-						<div data-part="group">
-							<span data-part="label">Active workspace</span>
-							<div data-part="item" data-current="true">
-								<OrgAvatar hue={existing?.avatarHue} name={name} size="sm" />
-								<span data-part="name">{name}</span>
-								<Icon icon={Check} size={14} />
-							</div>
-						</div>
-						<div data-part="group">
-							<span data-part="label">Other workspaces</span>
-							{personal ? (
-								<div data-part="item">
-									<OrgAvatar
-										hue={personal.avatarHue}
-										name={personal.name}
-										size="sm"
-									/>
-									<span data-part="name">{personal.name}</span>
-									<Badge size="small" variant="outline">
-										Personal
-									</Badge>
+				<>
+					<div data-layout-role="onboarding-preview-scrim" />
+					<div data-layout-role="onboarding-menu-callout">
+						<div data-part="menu">
+							<div data-part="group">
+								<span data-part="label">Active workspace</span>
+								<div data-part="item" data-current="true">
+									<OrgAvatar hue={existing?.avatarHue} name={name} size="sm" />
+									<span data-part="name">{name}</span>
+									<Icon icon={Check} size={14} />
 								</div>
-							) : null}
-							<div data-part="item">
-								<Icon icon={Add} size={16} />
-								<span data-part="name">Create org</span>
+							</div>
+							<div data-part="group">
+								<span data-part="label">Other workspaces</span>
+								{personalName ? (
+									<div data-part="item">
+										<OrgAvatar
+											hue={personal?.avatarHue}
+											name={personalName}
+											size="sm"
+										/>
+										<span data-part="name">{personalName}</span>
+										<Badge size="small" variant="outline">
+											Personal
+										</Badge>
+									</div>
+								) : null}
+								<div data-part="item">
+									<Icon icon={Add} size={16} />
+									<span data-part="name">Create org</span>
+								</div>
+							</div>
+							<div data-part="group">
+								<div data-part="item">
+									<Avatar
+										decorative
+										name={user.name}
+										src={user.image || undefined}
+									/>
+									<span data-part="text">
+										<span data-part="name">{user.name}</span>
+										{user.identity ? (
+											<span data-part="description">{user.identity}</span>
+										) : null}
+									</span>
+								</div>
 							</div>
 						</div>
-						<div data-part="group">
-							<div data-part="item">
-								<Avatar
-									decorative
-									name={user.name}
-									size="sm"
-									src={user.image || undefined}
-								/>
-								<span data-part="text">
-									<span data-part="name">{user.name}</span>
-									{user.identity ? (
-										<span data-part="description">{user.identity}</span>
-									) : null}
-								</span>
-							</div>
+						<div data-part="trigger">
+							<Avatar
+								decorative
+								name={user.name}
+								src={user.image || undefined}
+							/>
+							<span data-part="name">{user.name}</span>
 						</div>
 					</div>
-					<div data-part="trigger">
-						<Avatar
-							decorative
-							name={user.name}
-							size="sm"
-							src={user.image || undefined}
-						/>
-						<span data-part="name">{user.name}</span>
-					</div>
-				</div>
+				</>
 			}
 		/>
 	);

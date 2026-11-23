@@ -238,11 +238,23 @@ async function orgRepo(orgId: string, repoId: string) {
 
 export const listOnboardingChangeRequests = createServerFn({ method: "GET" })
 	.middleware([accessGuardMiddleware, orgPermissionMiddleware("activity:read")])
-	.inputValidator((input: { org: string; repoId: string; query?: string }) => ({
-		org: z.string().parse(input.org),
-		repoId: z.string().parse(input.repoId),
-		query: z.string().max(200).optional().parse(input.query),
-	}))
+	.inputValidator(
+		(input: {
+			org: string;
+			repoId: string;
+			query?: string;
+			numbers?: number[];
+		}) => ({
+			org: z.string().parse(input.org),
+			repoId: z.string().parse(input.repoId),
+			query: z.string().max(200).optional().parse(input.query),
+			numbers: z
+				.array(z.number().int().positive())
+				.max(ONBOARDING_MAX_REPORTED)
+				.optional()
+				.parse(input.numbers),
+		}),
+	)
 	.handler(async ({ data, context }): Promise<StoredChangeRequest[]> => {
 		const org = (context as { org: OrgWithRole }).org;
 		const repo = await orgRepo(org.id, data.repoId);
@@ -250,7 +262,7 @@ export const listOnboardingChangeRequests = createServerFn({ method: "GET" })
 		return userOnboardingServices.listStoredChangeRequests(
 			await database(),
 			{ fullName: repo.fullName, forge: repo.forge },
-			{ query: data.query, limit: 8 },
+			{ query: data.query, numbers: data.numbers, limit: 8 },
 		);
 	});
 

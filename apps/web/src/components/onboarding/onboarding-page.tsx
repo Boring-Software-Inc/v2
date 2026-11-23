@@ -3,6 +3,7 @@ import { UI_MOTION } from "@tripwire/ui/motion";
 import {
 	AnimatePresence,
 	LayoutGroup,
+	MotionConfig,
 	motion,
 	useReducedMotion,
 } from "motion/react";
@@ -65,23 +66,27 @@ export function OnboardingPage() {
 	// rather than already in place.
 	const openedOnWelcome = useRef(flow.step === "welcome");
 	return (
-		<OnboardingDraftProvider answers={flow.state.answers}>
-			{/* The welcome fades out over the flow while its wordmark travels into
+		// Reduced motion: transform and layout animations are dropped across the
+		// flow, the welcome hand-off included; fades stay.
+		<MotionConfig reducedMotion="user">
+			<OnboardingDraftProvider answers={flow.state.answers}>
+				{/* The welcome fades out over the flow while its wordmark travels into
 			    the brand lockup, so the hand-off has no cut. */}
-			<LayoutGroup>
-				<AnimatePresence initial={false}>
-					{flow.step === "welcome" ? (
-						<WelcomeIntro key="welcome" onDone={() => flow.advance()} />
-					) : (
-						<OnboardingLayout
-							arriving={openedOnWelcome.current}
-							flow={flow}
-							key="flow"
-						/>
-					)}
-				</AnimatePresence>
-			</LayoutGroup>
-		</OnboardingDraftProvider>
+				<LayoutGroup>
+					<AnimatePresence initial={false}>
+						{flow.step === "welcome" ? (
+							<WelcomeIntro key="welcome" onDone={() => flow.advance()} />
+						) : (
+							<OnboardingLayout
+								arriving={openedOnWelcome.current}
+								flow={flow}
+								key="flow"
+							/>
+						)}
+					</AnimatePresence>
+				</LayoutGroup>
+			</OnboardingDraftProvider>
+		</MotionConfig>
 	);
 }
 
@@ -143,15 +148,11 @@ function OnboardingLayout({
 					initial={false}
 					transition={resize}
 				>
-					<motion.div
-						data-layout-role="onboarding-brand-slot"
-						layoutId={ONBOARDING_BRAND_LAYOUT_ID}
-						transition={{ layout: UI_MOTION.track }}
-					>
-						<BrandLockup />
-					</motion.div>
+					<div data-layout-role="onboarding-brand-slot">
+						<BrandLockup markLayoutId={ONBOARDING_BRAND_LAYOUT_ID} />
+					</div>
 					{/* Sized to where the column ends up, not where it is mid-resize, so
-				    the form only rises and falls and never slides sideways. */}
+					    the form only rises and falls and never slides sideways. */}
 					<div
 						data-layout-role="onboarding-column-body"
 						data-preview={showPreview ? "true" : "false"}

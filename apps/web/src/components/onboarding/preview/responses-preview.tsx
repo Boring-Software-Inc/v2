@@ -10,13 +10,14 @@ import { outcomeMeta } from "#/components/responses/responses-model";
 import { BuilderSkeleton } from "#/components/responses/responses-page-skeleton";
 
 const BLOCK_OUTCOME = outcomeMeta("block");
-/** The preview is read-only; the step saves the choices for real. */
+/** Shown as an admin sees it; the window is inert and the step saves the
+ * choices for real. */
 const noOp = () => undefined;
 
 /**
- * The repo's Responses page on the Block outcome: the page's own builder,
- * read-only, fed the config the switches on the left describe, so its block
- * list and the comment preview change as they do.
+ * The repo's Responses page on the Block outcome: the page's own builder as
+ * an admin sees it, fed the config the switches on the left describe, so its
+ * block list and the comment preview change as they do.
  */
 export function ResponsesPreviewPage({
 	org,
@@ -35,7 +36,7 @@ export function ResponsesPreviewPage({
 			active="responses"
 			collapsed
 			forge={repo?.forge}
-			repo={repo?.fullName ?? null}
+			repo={repo?.name ?? null}
 			url={{
 				host: "app.tripwire.sh",
 				path: repo ? `/${org}/${repo.name}/responses` : `/${org}/home`,
@@ -46,7 +47,7 @@ export function ResponsesPreviewPage({
 					{config ? (
 						<div data-layout-role="response-workspace">
 							<ResponseBuilder
-								canEdit={false}
+								canEdit
 								config={config}
 								forge={forge}
 								onOutcomeChange={noOp}

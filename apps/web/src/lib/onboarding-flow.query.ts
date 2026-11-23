@@ -18,6 +18,8 @@ export const onboardingFlowKeys = {
 		[...onboardingFlowKeys.all, "latest-run", org, repo] as const,
 	changeRequests: (org: string, repoId: string, query: string) =>
 		[...onboardingFlowKeys.all, "change-requests", org, repoId, query] as const,
+	reported: (org: string, repoId: string, numbers: readonly number[]) =>
+		[...onboardingFlowKeys.all, "reported", org, repoId, ...numbers] as const,
 	workflow: (org: string, repoId: string, numbers: readonly number[]) =>
 		[...onboardingFlowKeys.all, "workflow", org, repoId, ...numbers] as const,
 };
@@ -48,6 +50,22 @@ export const onboardingChangeRequestsQueryOptions = (
 			listOnboardingChangeRequests({ data: { org, repoId, query }, signal }),
 		staleTime: 15_000,
 		placeholderData: keepPreviousData,
+	});
+
+/** The reported change requests, each with its newest run. */
+export const onboardingReportedQueryOptions = (
+	org: string,
+	repoId: string,
+	numbers: readonly number[],
+) =>
+	queryOptions({
+		queryKey: onboardingFlowKeys.reported(org, repoId, numbers),
+		queryFn: ({ signal }) =>
+			listOnboardingChangeRequests({
+				data: { org, repoId, numbers: [...numbers] },
+				signal,
+			}),
+		staleTime: 15_000,
 	});
 
 export const onboardingWorkflowQueryOptions = (

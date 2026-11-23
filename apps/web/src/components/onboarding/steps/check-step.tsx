@@ -21,7 +21,10 @@ import { RunPreview } from "#/components/onboarding/preview/run-preview";
 import { useDebouncedValue } from "#/hooks/use-debounced-value";
 import { rerunChangeRequest } from "#/lib/activity.functions";
 import { formatRelativeTime } from "#/lib/format-relative-time";
-import { onboardingChangeRequestsQueryOptions } from "#/lib/onboarding-flow.query";
+import {
+	onboardingChangeRequestsQueryOptions,
+	onboardingReportedQueryOptions,
+} from "#/lib/onboarding-flow.query";
 import { runQueryOptions } from "#/lib/runs.query";
 
 const copy = ONBOARDING_COPY.check;
@@ -227,18 +230,36 @@ function ReportStatus({ run }: { run: ReportRun }) {
 	);
 }
 
-/** The run page for the latest reported change request, filling in live. */
+/**
+ * The run page for the newest reported change request, filling in live: the
+ * re-run started here, or after a reload the newest run stored on it. Before
+ * anything is reported it shows the repo's latest run.
+ */
 export function CheckPreview({ flow }: StepViewProps) {
 	const [draft] = useOnboardingDraft();
-	const latest = [...draft.reported]
-		.reverse()
-		.map((number) => draft.runs[number])
-		.find((run) => run?.status === "queued");
+	const org = flow.state.orgSlug ?? flow.state.personalOrgSlug ?? "";
+	const repo = flow.state.repo;
+	const stored = useQuery({
+		...onboardingReportedQueryOptions(org, repo?.id ?? "", draft.reported),
+		enabled: repo !== null && draft.reported.length > 0,
+	});
+	const runId =
+		[...draft.reported]
+			.reverse()
+			.map((number) => {
+				const run = draft.runs[number];
+				return run?.status === "queued"
+					? run.runId
+					: (stored.data?.find((cr) => cr.number === number)?.latestRunId ??
+							null);
+			})
+			.find((id) => id !== null) ?? null;
 	return (
 		<RunPreview
-			org={flow.state.orgSlug ?? flow.state.personalOrgSlug ?? ""}
-			repo={flow.state.repo}
-			runId={latest?.status === "queued" ? latest.runId : null}
+			latestWhenNone={draft.reported.length === 0}
+			org={org}
+			repo={repo}
+			runId={runId}
 		/>
 	);
 }
