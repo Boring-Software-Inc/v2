@@ -1,7 +1,10 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { OnboardingPage } from "#/components/onboarding/onboarding-page";
 import { OnboardingPageSkeleton } from "#/components/onboarding/onboarding-page-skeleton";
-import { sessionInfoQueryOptions } from "#/lib/auth.query";
+import {
+	currentUserQueryOptions,
+	sessionInfoQueryOptions,
+} from "#/lib/auth.query";
 import { onboardingStateQueryOptions } from "#/lib/onboarding-flow.query";
 import { onboardingSearchSchema } from "#/lib/onboarding-search";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
@@ -16,8 +19,13 @@ export const Route = createFileRoute("/onboarding/")({
 			throw redirect({ to: "/" });
 		}
 	},
+	// The signed-in user too: the previews show them in the rail and the
+	// account menu from the first paint.
 	loader: ({ context }) =>
-		context.queryClient.ensureQueryData(onboardingStateQueryOptions()),
+		Promise.all([
+			context.queryClient.ensureQueryData(onboardingStateQueryOptions()),
+			context.queryClient.ensureQueryData(currentUserQueryOptions()),
+		]),
 	component: OnboardingPage,
 	pendingComponent: OnboardingPageSkeleton,
 	head: ({ match }) =>

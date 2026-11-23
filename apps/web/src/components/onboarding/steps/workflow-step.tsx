@@ -8,6 +8,7 @@ import { ForgeMark } from "#/components/common/forge-marks";
 import { ONBOARDING_COPY } from "#/components/onboarding/onboarding-copy";
 import { OnboardingStepHeader } from "#/components/onboarding/onboarding-frame";
 import type { StepViewProps } from "#/components/onboarding/onboarding-steps";
+import { newestReportedRunId } from "#/components/onboarding/preview/reported-run";
 import { RunPreview } from "#/components/onboarding/preview/run-preview";
 import { WorkflowPreviewPage } from "#/components/onboarding/preview/workflow-preview";
 import { formatRelativeTime } from "#/lib/format-relative-time";
@@ -132,15 +133,12 @@ export function WorkflowStep({ flow }: StepViewProps) {
 }
 
 export function WorkflowPreview({ flow }: StepViewProps) {
-	const { org, repo, draft } = useWorkflowDraft(flow);
+	const { org, repo, reported, draft } = useWorkflowDraft(flow);
 	// Nothing to draft: the run on the newest reported change request, which
 	// shows why. It crossfades in over the drafting canvas rather than cutting.
 	const nothing = draft.isSuccess && draft.data.definition === null;
 	const runId = nothing
-		? ([...draft.data.builtFrom]
-				.reverse()
-				.map((changeRequest) => changeRequest.latestRunId)
-				.find((id) => id !== null) ?? null)
+		? newestReportedRunId(reported, draft.data.builtFrom)
 		: null;
 	return (
 		<AnimatePresence initial={false} mode="popLayout">

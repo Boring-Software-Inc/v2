@@ -29,6 +29,7 @@ import {
 	ONBOARDING_BRAND_LAYOUT_ID,
 	WelcomeIntro,
 } from "#/components/onboarding/steps/welcome-intro";
+import { WorkspacePreview } from "#/components/onboarding/steps/workspace-step";
 import {
 	type StepDirection,
 	useOnboardingFlow,
@@ -104,7 +105,9 @@ function OnboardingLayout({
 	const view: StepView = ONBOARDING_STEP_VIEWS[flow.step];
 	const previewKey = view.previewKey?.({ state: flow.state, draft }) ?? null;
 	const showPreview = previewKey !== null;
-	const Preview = view.Preview;
+	// Every step showing the workspace home renders it through one component,
+	// so the page persists between them and only its menu opens and closes.
+	const Preview = previewKey === "home" ? WorkspacePreview : view.Preview;
 	const Form = view.Form;
 	// The column and preview resize only when the step changes. A width that
 	// settles on mount or on a window resize snaps instead of growing in.

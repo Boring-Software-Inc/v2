@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { OnboardingStep } from "@tripwire/contracts";
+import { newestReportedRunId } from "#/components/onboarding/preview/reported-run";
 import type { OnboardingState } from "#/lib/onboarding-flow.functions";
 import {
 	onboardingLatestRunQueryOptions,
@@ -54,9 +55,7 @@ export async function prefetchStepPreview(
 				const reported = await queryClient.fetchQuery(
 					onboardingReportedQueryOptions(org, repo.id, state.answers.reported),
 				);
-				const runId = reported.findLast(
-					(changeRequest) => changeRequest.latestRunId !== null,
-				)?.latestRunId;
+				const runId = newestReportedRunId(state.answers.reported, reported);
 				if (runId) {
 					await queryClient.prefetchQuery(runQueryOptions(runId));
 				}
@@ -79,9 +78,17 @@ export async function prefetchStepPreview(
 			return;
 		case "workflow":
 			if (repo && state.answers.reported.length > 0) {
-				await queryClient.prefetchQuery(
+				const draft = await queryClient.fetchQuery(
 					onboardingWorkflowQueryOptions(org, repo.id, state.answers.reported),
 				);
+				// Nothing to draft shows the run instead: load that too.
+				const runId =
+					draft.definition === null
+						? newestReportedRunId(state.answers.reported, draft.builtFrom)
+						: null;
+				if (runId) {
+					await queryClient.prefetchQuery(runQueryOptions(runId));
+				}
 			}
 			return;
 		default:

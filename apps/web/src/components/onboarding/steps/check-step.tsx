@@ -17,6 +17,7 @@ import {
 } from "#/components/onboarding/onboarding-draft";
 import { OnboardingStepHeader } from "#/components/onboarding/onboarding-frame";
 import type { StepViewProps } from "#/components/onboarding/onboarding-steps";
+import { newestReportedRunId } from "#/components/onboarding/preview/reported-run";
 import { RunPreview } from "#/components/onboarding/preview/run-preview";
 import { useDebouncedValue } from "#/hooks/use-debounced-value";
 import { rerunChangeRequest } from "#/lib/activity.functions";
@@ -243,19 +244,10 @@ export function CheckPreview({ flow }: StepViewProps) {
 		...onboardingReportedQueryOptions(org, repo?.id ?? "", draft.reported),
 		enabled: repo !== null && draft.reported.length > 0,
 	});
-	const runId =
-		[...draft.reported]
-			.reverse()
-			.map((number) => {
-				const run = draft.runs[number];
-				return run?.status === "queued"
-					? run.runId
-					: (stored.data?.find((cr) => cr.number === number)?.latestRunId ??
-							null);
-			})
-			.find((id) => id !== null) ?? null;
+	const runId = newestReportedRunId(draft.reported, stored.data, draft.runs);
 	return (
 		<RunPreview
+			expecting={draft.reported.length > 0 && stored.isPending}
 			latestWhenNone={draft.reported.length === 0}
 			org={org}
 			repo={repo}

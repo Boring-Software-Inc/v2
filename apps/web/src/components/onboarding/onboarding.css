@@ -630,8 +630,9 @@
 /* The account menu, enlarged over the preview's home like a callout. */
 [data-layout-role="onboarding-menu-callout"] {
 	position: absolute;
-	/* Low enough that its account button covers the rail's, which it opens from. */
-	inset-block-end: var(--space-4);
+	/* Low enough that its account button covers the rail's, which it opens
+	   from, and high enough that its ring clears the window's edge. */
+	inset-block-end: var(--space-5);
 	inset-inline-start: var(--space-2);
 	display: flex;
 	flex-direction: column;

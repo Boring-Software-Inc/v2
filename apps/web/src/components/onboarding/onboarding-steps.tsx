@@ -2,7 +2,6 @@ import type { OnboardingStep } from "@tripwire/contracts";
 import type { ComponentType } from "react";
 import { ONBOARDING_COPY } from "#/components/onboarding/onboarding-copy";
 import type { OnboardingDraft } from "#/components/onboarding/onboarding-draft";
-import { HomePreview } from "#/components/onboarding/preview/home-preview";
 import { AboutStep } from "#/components/onboarding/steps/about-step";
 import {
 	AgentsPreview,
@@ -56,10 +55,6 @@ export interface StepView {
 	wide?: boolean;
 }
 
-function OrgHomePreview({ flow }: StepViewProps) {
-	return <HomePreview org={flow.state.orgSlug ?? flow.state.personalOrgSlug} />;
-}
-
 export const ONBOARDING_STEP_VIEWS = {
 	welcome: {
 		label: ONBOARDING_COPY.problems.title,
@@ -74,7 +69,8 @@ export const ONBOARDING_STEP_VIEWS = {
 	about: {
 		label: ONBOARDING_COPY.about.title,
 		Form: AboutStep,
-		Preview: OrgHomePreview,
+		// The same page as Workspace's, so the account menu opens on it.
+		Preview: WorkspacePreview,
 		previewKey: () => "home",
 	},
 	workspace: {
