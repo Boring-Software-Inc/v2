@@ -54,4 +54,22 @@ describe("forge action failure reporting", () => {
 			"gitcafe comment action failed: http HTTP 415",
 		);
 	});
+
+	test("reports one retry per action and bounded interval", () => {
+		let clock = 300_000;
+		const calls: Parameters<typeof captureException>[] = [];
+		const report = forgeActionFailureReporter(
+			(...args) => {
+				calls.push(args);
+				return "event-id";
+			},
+			() => clock,
+		);
+		const retry = { ...failure, phase: "retry" as const };
+		report(retry);
+		report(retry);
+		clock += 5 * 60_000;
+		report(retry);
+		expect(calls).toHaveLength(2);
+	});
 });
