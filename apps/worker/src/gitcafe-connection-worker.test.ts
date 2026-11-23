@@ -7,7 +7,7 @@ import {
 import { resolveGitCafeProtectionEnv } from "./gitcafe-protection-worker.ts";
 import { GITCAFE_STAGING_APP_ID } from "./jobs/gitcafe-connect.ts";
 
-test("isolated connection mode requires actual preview environment and dedicated staging app", () => {
+test("isolated connection mode accepts dedicated preview and production staging apps", () => {
 	const environment = {
 		UNKEY_ENVIRONMENT_SLUG: "preview",
 		GITCAFE_APP_ID: GITCAFE_STAGING_APP_ID,
@@ -18,8 +18,13 @@ test("isolated connection mode requires actual preview environment and dedicated
 	expect(gitCafeConnectionWorkerEnvSchema.safeParse(environment).success).toBe(
 		true,
 	);
+	expect(
+		gitCafeConnectionWorkerEnvSchema.safeParse({
+			...environment,
+			UNKEY_ENVIRONMENT_SLUG: "production",
+		}).success,
+	).toBe(true);
 	for (const change of [
-		{ UNKEY_ENVIRONMENT_SLUG: "production" },
 		{ UNKEY_ENVIRONMENT_SLUG: "staging" },
 		{ GITCAFE_APP_ID: "another-app" },
 		{ PORT: 3000 },
@@ -72,6 +77,12 @@ test("standard worker activation cannot silently omit the GitCafe protection run
 	expect(resolveGitCafeProtectionEnv(environment)?.GITCAFE_APP_ID).toBe(
 		GITCAFE_STAGING_APP_ID,
 	);
+	expect(
+		resolveGitCafeProtectionEnv({
+			...environment,
+			UNKEY_ENVIRONMENT_SLUG: "production",
+		})?.GITCAFE_APP_ID,
+	).toBe(GITCAFE_STAGING_APP_ID);
 	expect(
 		resolveGitCafeProtectionEnv({
 			...environment,

@@ -28,7 +28,7 @@ export const workerModeSchema = z.enum([
 export type WorkerMode = z.infer<typeof workerModeSchema>;
 
 export const gitCafeConnectionWorkerEnvSchema = z.object({
-	UNKEY_ENVIRONMENT_SLUG: z.literal("preview"),
+	UNKEY_ENVIRONMENT_SLUG: z.enum(["preview", "production"]),
 	GITCAFE_APP_ID: z.literal(GITCAFE_STAGING_APP_ID),
 	GITCAFE_APP_KEY_ID: z.string().regex(/^[A-Za-z0-9._-]{1,64}$/),
 	GITCAFE_APP_PRIVATE_KEY: z.string().min(1),
