@@ -13,10 +13,10 @@ export const Route = createFileRoute("/$org/$repo/activity")({
 	search: { middlewares: [stripSearchParams(ACTIVITY_SEARCH_DEFAULTS)] },
 	component: ActivityPage,
 	pendingComponent: ActivityPageSkeleton,
-	head: ({ params, match }) =>
+	head: ({ match }) =>
 		buildSeo({
 			path: match.pathname,
-			title: formatPageTitle(`${params.repo} | Activity`),
+			title: formatPageTitle(`${match.context.repo.name} | Activity`),
 			description: "Every change request in this repo and its verdict.",
 			noindex: true,
 		}),

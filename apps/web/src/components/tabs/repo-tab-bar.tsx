@@ -3,7 +3,12 @@ import { Button } from "@tripwire/ui/button";
 import { Close, Folder, Icon } from "@tripwire/ui/icon";
 import { useRepoTabTarget } from "#/components/tabs/repo-tab-target";
 import { useRepoTabs } from "#/components/tabs/repo-tabs-provider";
-import type { RepoTab } from "#/components/tabs/repo-tabs-state";
+import {
+	compactRepoTabLabel,
+	type RepoTab,
+} from "#/components/tabs/repo-tabs-state";
+import { duplicateRepoNames, qualifiedRepoLabel } from "#/lib/repo-label";
+import { parseRepoRouteKey } from "#/lib/repo-route";
 import { cn } from "#/lib/utils";
 
 export function RepoTabBar({
@@ -16,6 +21,15 @@ export function RepoTabBar({
 	const { hydrated, tabs, closeTab } = useRepoTabs();
 	const target = useRepoTabTarget();
 	const navigate = useNavigate();
+	const identities = tabs.flatMap((tab) => {
+		const identity = parseRepoRouteKey(tab.repo);
+		return identity ? [{ ...identity, org: tab.org }] : [];
+	});
+	const duplicateNames = duplicateRepoNames(
+		identities.map((identity) => ({
+			name: `${identity.org}/${identity.name}`,
+		})),
+	);
 
 	if (!hydrated || tabs.length === 0) {
 		return null;
@@ -45,26 +59,36 @@ export function RepoTabBar({
 				className,
 			)}
 		>
-			{tabs.map((tab) => (
-				<RepoTabItem
-					active={tab.id === target?.id}
-					key={tab.id}
-					onClose={() => handleClose(tab)}
-					orientation={orientation}
-					tab={tab}
-				/>
-			))}
+			{tabs.map((tab) => {
+				const identity = parseRepoRouteKey(tab.repo);
+				const label =
+					identity && duplicateNames.has(`${tab.org}/${identity.name}`)
+						? `${tab.org}/${qualifiedRepoLabel(identity)}`
+						: tab.label;
+				return (
+					<RepoTabItem
+						active={tab.id === target?.id}
+						key={tab.id}
+						label={label}
+						onClose={() => handleClose(tab)}
+						orientation={orientation}
+						tab={tab}
+					/>
+				);
+			})}
 		</nav>
 	);
 }
 
 function RepoTabItem({
 	tab,
+	label,
 	active,
 	onClose,
 	orientation,
 }: {
 	tab: RepoTab;
+	label: string;
 	active: boolean;
 	onClose: () => void;
 	orientation: "row" | "column";
@@ -86,12 +110,12 @@ function RepoTabItem({
 					"flex h-full min-w-0 items-center gap-1.5",
 					column ? "flex-1 rounded-tag ps-2" : "rounded-pill ps-3",
 				)}
-				title={tab.id}
+				title={label}
 				to={tab.path}
 			>
 				<Icon icon={Folder} />
 				<span className="min-w-0 max-w-48 truncate">
-					{column ? tab.id.split("/").at(-1) : tab.id}
+					{column ? compactRepoTabLabel(label) : label}
 				</span>
 			</Link>
 			<span
@@ -102,7 +126,7 @@ function RepoTabItem({
 				)}
 			>
 				<Button
-					ariaLabel={`Close ${tab.id} tab`}
+					ariaLabel={`Close ${label} tab`}
 					onAction={onClose}
 					size="small"
 					variant="ghost"

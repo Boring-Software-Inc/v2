@@ -28,10 +28,10 @@ export const Route = createFileRoute("/$org/$repo/responses")({
 	},
 	component: ResponsesRoutePage,
 	pendingComponent: ResponsesPageSkeleton,
-	head: ({ params, match }) =>
+	head: ({ match }) =>
 		buildSeo({
 			path: match.pathname,
-			title: formatPageTitle(`${params.repo} | Responses`),
+			title: formatPageTitle(`${match.context.repo.name} | Responses`),
 			description: PAGE_COPY.seoDescription,
 			noindex: true,
 		}),

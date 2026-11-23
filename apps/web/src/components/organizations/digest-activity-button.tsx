@@ -6,6 +6,7 @@ import type {
 } from "@tripwire/contracts";
 import { Button } from "@tripwire/ui/button";
 import { Menu, type MenuProps } from "@tripwire/ui/menu";
+import { repoRouteKey } from "#/lib/repo-route";
 
 interface DigestActivityButtonProps {
 	org: string;
@@ -24,12 +25,13 @@ export function DigestActivityButton({
 		return null;
 	}
 	if (repos.length === 1) {
+		const routeRepo = repoRouteKey(repo);
 		return (
 			<Button
-				href={`/${encodeURIComponent(org)}/${encodeURIComponent(repo.name)}/activity`}
+				href={`/${encodeURIComponent(org)}/${encodeURIComponent(routeRepo)}/activity`}
 				onNavigate={() =>
 					void navigate({
-						params: { org, repo: repo.name },
+						params: { org, repo: routeRepo },
 						search: { verdict: "all", ...period },
 						to: "/$org/$repo/activity",
 					})
@@ -71,7 +73,7 @@ export function DigestActivityMenu({
 				label: `Open ${repo.name} run history`,
 				onAction: () =>
 					void navigate({
-						params: { org, repo: repo.name },
+						params: { org, repo: repoRouteKey(repo) },
 						search: { verdict, ...period },
 						to: "/$org/$repo/activity",
 					}),

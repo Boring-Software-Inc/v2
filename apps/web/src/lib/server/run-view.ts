@@ -22,6 +22,7 @@ import {
 	workflowServices,
 } from "@tripwire/db";
 import { z } from "zod";
+import { repoRouteKey } from "#/lib/repo-route";
 import {
 	resolveRunAccess,
 	toFullRunView,
@@ -81,15 +82,17 @@ export async function loadRunView(
 		return null;
 	}
 
-	// §6 — re-run needs activity manage and is addressed by org slug + repo name. Resolve
-	// the scope for the full view only; the public view carries none of it and
-	// `canRerun` stays false. Open-dev (auth disabled) offers it.
+	/**
+	 * §6 — re-run needs activity manage and is addressed by org slug + repo
+	 * route key. Resolve the scope for the full view only; the public view carries
+	 * none of it and `canRerun` stays false. Open-dev (auth disabled) offers it.
+	 */
 	let orgSlug: string | null = null;
 	let repoName: string | null = null;
 	let canRerun = false;
 	if (access === "full" && repo?.orgId) {
 		orgSlug = await orgSlugById(db, repo.orgId);
-		repoName = repo.name;
+		repoName = repoRouteKey(repo);
 		const rerunner =
 			!session.authEnabled || permissions.includes("activity:manage");
 		canRerun = rerunner && result.run.subjectNumber !== null;

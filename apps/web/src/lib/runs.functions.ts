@@ -117,7 +117,7 @@ export interface RunView {
 	/** The triggering admin's display name — full view only (§10). */
 	rerunBy: string | null;
 	/**
-	 * §6 re-run scope — the org slug + repo name the admin-gated re-run mutation
+	 * §6 re-run scope — the org slug + canonical repo route key the admin-gated re-run mutation
 	 * is addressed by. The run route carries only a runId, so the full view
 	 * surfaces the scope; the public view carries none of it (both null).
 	 */

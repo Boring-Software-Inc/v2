@@ -14,6 +14,7 @@ import {
 import { Item, ItemContent, ItemTitle } from "@tripwire/ui/item";
 import { ItemRouterLink } from "#/components/common/router-links";
 import { DigestActivityMenu } from "#/components/organizations/digest-activity-button";
+import { repoRouteKey } from "#/lib/repo-route";
 
 const VERDICTS = {
 	block: { label: "Blocked", icon: FailedMark, tone: "primary" },
@@ -48,7 +49,7 @@ export function DigestVerdictRow({
 		label
 	) : repos.length === 1 ? (
 		<ItemRouterLink
-			params={{ org, repo: repo.name }}
+			params={{ org, repo: repoRouteKey(repo) }}
 			search={{ verdict, ...period }}
 			to="/$org/$repo/activity"
 		>

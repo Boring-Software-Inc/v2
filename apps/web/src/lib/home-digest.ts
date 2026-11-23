@@ -81,7 +81,12 @@ export function aggregateHomeDigest(
 		from: from.toISOString(),
 		to: to.toISOString(),
 		total: counts.reduce((sum, row) => sum + row.count, 0),
-		repos: repos.map(({ id, name }) => ({ id, name })),
+		repos: repos.map(({ id, forge, owner, name }) => ({
+			id,
+			forge,
+			owner,
+			name,
+		})),
 		counts,
 		caught,
 	};

@@ -12,10 +12,10 @@ export const Route = createFileRoute("/$org/$repo/workflows/")({
 	validateSearch: collectionSearchSchema(WORKFLOWS_COLLECTION),
 	component: WorkflowsGridPage,
 	pendingComponent: WorkflowsGridPageSkeleton,
-	head: ({ params, match }) =>
+	head: ({ match }) =>
 		buildSeo({
 			path: match.pathname,
-			title: formatPageTitle(`${params.repo} | Workflows`),
+			title: formatPageTitle(`${match.context.repo.name} | Workflows`),
 			description: "The workflows this repo runs.",
 			noindex: true,
 		}),

@@ -13,10 +13,10 @@ export const Route = createFileRoute("/$org/$repo/analytics")({
 	search: { middlewares: [stripSearchParams(ANALYTICS_SEARCH_DEFAULTS)] },
 	component: AnalyticsPage,
 	pendingComponent: AnalyticsPageSkeleton,
-	head: ({ params, match }) =>
+	head: ({ match }) =>
 		buildSeo({
 			path: match.pathname,
-			title: formatPageTitle(`${params.repo} | Analytics`),
+			title: formatPageTitle(`${match.context.repo.name} | Analytics`),
 			description: "Verdicts and trends for this repo.",
 			noindex: true,
 		}),

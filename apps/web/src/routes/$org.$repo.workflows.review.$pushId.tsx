@@ -7,10 +7,10 @@ export const Route = createFileRoute("/$org/$repo/workflows/review/$pushId")({
 	staticData: { region: "workflows" },
 	component: WorkflowPushReviewPage,
 	pendingComponent: WorkflowPushReviewPageSkeleton,
-	head: ({ params, match }) =>
+	head: ({ match }) =>
 		buildSeo({
 			path: match.pathname,
-			title: formatPageTitle(`${params.repo} | Review push`),
+			title: formatPageTitle(`${match.context.repo.name} | Review push`),
 			description: "Review workflows pushed from the CLI.",
 			noindex: true,
 		}),
