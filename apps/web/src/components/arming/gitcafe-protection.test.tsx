@@ -78,6 +78,11 @@ describe("GitCafe protection controls", () => {
 			expect(html).toContain("GitCafe checks do not block merges on GitHub");
 			expect(html).toContain("Turn on Tripwire");
 			expect(html).toContain("<button");
+			if (variant === "banner") {
+				expect(html).toContain('data-layout-role="arm-callout-card"');
+				expect(html).toContain('data-layout-role="arm-callout-header"');
+				expect(html).toContain('data-layout-role="arm-callout-footer"');
+			}
 		}
 		const root = createRootRoute({
 			component: () => (

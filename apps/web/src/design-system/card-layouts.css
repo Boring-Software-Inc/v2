@@ -23,6 +23,34 @@
 	letter-spacing: var(--tracking-heading);
 }
 
+[data-layout-role="arm-callout-card"] {
+	border: var(--line-width) solid var(--line-faint);
+	background-color: var(--shell);
+}
+
+[data-layout-role="arm-callout-panel"] {
+	border-color: var(--line-faint);
+}
+
+[data-layout-role="arm-callout-header"] {
+	border-block-end: var(--line-width) solid var(--line-faint);
+	padding: var(--space-2) var(--space-3);
+	font: var(--type-label-lg);
+	color: var(--text-1);
+}
+
+[data-layout-role="arm-callout-body"] {
+	padding: var(--space-2) var(--space-3);
+	font: var(--type-body-sm);
+	color: var(--text-2);
+}
+
+[data-layout-role="arm-callout-footer"] {
+	justify-content: flex-start;
+	padding-block: var(--space-2) var(--space-1-5);
+	padding-inline: calc(var(--space-3) + var(--line-width));
+}
+
 [data-layout-role="repo-card-header-link"] {
 	display: block;
 	border-radius: var(--radius-panel);

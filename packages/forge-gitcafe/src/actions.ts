@@ -1,11 +1,18 @@
 import {
 	COMMENT_MARKER,
+	GITCAFE_PROCESSING_COMMENT,
+	GITCAFE_PROCESSING_COMPLETE_COMMENT,
+	GITCAFE_PROCESSING_FAILED_COMMENT,
 	type GitCafeActionBinding,
 	type GitCafeActionComment,
 	type GitCafeActionOperation,
 	type GitCafeActionReview,
+	type GitCafeActionSubject,
+	type GitCafeHydratedIssueEvent,
 	type GitCafeInstallation,
 	type GitCafeReadBoundary,
+	gitCafeActionAttachmentReserveSchema,
+	gitCafeActionAttachmentSchema,
 	gitCafeActionBindingSchema,
 	gitCafeActionCommentPageSchema,
 	gitCafeActionCommentSchema,
@@ -31,6 +38,11 @@ import type {
 	GitCafeInstallationClient,
 	GitCafeInstallationFailure,
 } from "./installation-client.ts";
+import {
+	loadGitCafeRunBadge,
+	needsGitCafeRunBadge,
+	renderGitCafeRunBadge,
+} from "./run-button.ts";
 
 export type GitCafeActionResult<T> =
 	| { ok: true; value: T }
@@ -44,6 +56,9 @@ export type GitCafeActionResult<T> =
 				| "uncertain"
 				| "incomplete"
 				| "conflict"
+				| "appeal-subject-changed"
+				| "appeal-head-changed"
+				| "appeal-effect-no-longer-owned"
 				| "target-unavailable";
 	  };
 
@@ -68,6 +83,7 @@ export interface GitCafeActionsOptions {
 	installation: GitCafeInstallation;
 	store: GitCafeActionStore;
 	deadlineAt?: number;
+	issueEvidence?: GitCafeHydratedIssueEvent | null;
 }
 
 /** Installed writes share the read transport's authority fences and persist create inputs before dispatch. */
@@ -81,8 +97,6 @@ export class GitCafeActions {
 		action: ForgeAction,
 		input: GitCafeActionBinding,
 	): Promise<GitCafeActionResult<{ externalId: string | null }>> {
-		if (action.kind === "reopen" || action.kind === "unlock")
-			return { ok: false, reason: "configuration" };
 		const parsed = gitCafeActionBindingSchema.safeParse(input);
 		if (!parsed.success) return { ok: false, reason: "invalid-response" };
 		const binding = parsed.data;
@@ -159,8 +173,12 @@ export class GitCafeActions {
 				);
 			case "close":
 				return this.close(binding);
+			case "reopen":
+				return this.reopen(binding, action);
 			case "lock":
 				return this.lock(binding, action.reason);
+			case "unlock":
+				return this.unlock(binding, action);
 			default:
 				action satisfies never;
 				return { ok: false, reason: "configuration" };
@@ -216,6 +234,17 @@ export class GitCafeActions {
 		);
 		if (!result.ok) return result;
 		if (result.value.repoId !== binding.repositoryId)
+			return { ok: false as const, reason: "identity-mismatch" as const };
+		const issue = this.options.issueEvidence;
+		if (
+			issue &&
+			binding.subject === "issue" &&
+			(result.value.id !== issue.event.issue.id ||
+				result.value.authorActorId !== issue.author.externalId ||
+				binding.number !== issue.event.issue.number ||
+				binding.repositoryId !== issue.event.repository.id ||
+				binding.installationId !== issue.event.installation.id)
+		)
 			return { ok: false as const, reason: "identity-mismatch" as const };
 		if (
 			binding.subject === "change-request" &&
@@ -479,8 +508,10 @@ export class GitCafeActions {
 			gitCafeActionCommentPageSchema,
 		);
 		if (!comments.ok) return comments;
+		const renderedBody = await this.gitCafeCommentBody(binding, action.body);
+		if (!renderedBody.ok) return renderedBody;
 		const marker = `<!-- tripwire-action:${binding.actionId} -->`;
-		const body = `${action.body}\n\n${action.kind === "post-comment" ? action.marker : ""}\n${marker}`;
+		const body = `${renderedBody.value}\n\n${action.kind === "post-comment" ? action.marker : ""}\n${marker}`;
 		const owned = comments.value.filter(
 			(comment) =>
 				comment.authorActorId === this.options.installation.bot.actorId &&
@@ -502,12 +533,28 @@ export class GitCafeActions {
 						.reverse()
 						.find((comment) => comment.body?.includes(COMMENT_MARKER))
 				: undefined;
+		const activeIsProcessing = [
+			GITCAFE_PROCESSING_COMMENT,
+			GITCAFE_PROCESSING_COMPLETE_COMMENT,
+			GITCAFE_PROCESSING_FAILED_COMMENT,
+		].some((candidate) => active?.body?.startsWith(candidate));
+		const terminalProcessingUpdate = [
+			GITCAFE_PROCESSING_COMPLETE_COMMENT,
+			GITCAFE_PROCESSING_FAILED_COMMENT,
+		].some((candidate) => renderedBody.value.startsWith(candidate));
+		if (
+			active &&
+			terminalProcessingUpdate &&
+			!active.body?.startsWith(GITCAFE_PROCESSING_COMMENT)
+		)
+			return { ok: true as const, value: { externalId: active.id } };
 		const prior = await this.options.store.read(binding.actionId);
 		if (action.kind === "comment" && action.onlyIfPresent && !active && !prior)
 			return { ok: true as const, value: { externalId: null } };
 		if (
 			active &&
 			action.kind === "comment" &&
+			prior &&
 			(action.previousVerdict === null ||
 				action.previousVerdict === action.verdict)
 		)
@@ -523,6 +570,14 @@ export class GitCafeActions {
 		if (!operation) return { ok: false as const, reason: "inactive" as const };
 		if (operation.command.kind !== "comment" || operation.command.body !== body)
 			return { ok: false as const, reason: "identity-mismatch" as const };
+		if (
+			active &&
+			action.kind === "comment" &&
+			(activeIsProcessing ||
+				action.previousVerdict === null ||
+				action.previousVerdict === action.verdict)
+		)
+			return this.editComment(binding, active, body);
 		if (active) {
 			const old = await this.editComment(
 				binding,
@@ -561,6 +616,71 @@ export class GitCafeActions {
 		)
 			return { ok: false as const, reason: "identity-mismatch" as const };
 		return { ok: true as const, value: { externalId: created.data.id } };
+	}
+
+	private async gitCafeCommentBody(
+		binding: GitCafeActionBinding,
+		body: string,
+	): Promise<GitCafeActionResult<string>> {
+		if (!needsGitCafeRunBadge(body)) return { ok: true, value: body };
+		const badge = await loadGitCafeRunBadge();
+		const reserveInput = gitCafeActionAttachmentReserveSchema.parse({
+			requestKey: `tripwire-${binding.actionId}-view-run-v1`,
+			sha256: badge.sha256,
+			size: badge.bytes.byteLength,
+		});
+		const root = `repos/${binding.repoFullName}/attachments/`;
+		const reserved = await this.options.client.request(
+			binding.installationId,
+			{
+				method: "POST",
+				resourcePath: root,
+				body: JSON.stringify(reserveInput),
+			},
+			this.options.installation,
+			this.deadlineAt,
+		);
+		if (!reserved.ok) return reserved;
+		const parsed = gitCafeActionAttachmentSchema.safeParse(reserved.value);
+		if (!parsed.success || parsed.data.size !== badge.bytes.byteLength)
+			return { ok: false, reason: "invalid-response" };
+		let attachment = parsed.data;
+		if (attachment.state === "reserved") {
+			const reservedId = attachment.id;
+			const uploaded = await this.options.client.request(
+				binding.installationId,
+				{
+					method: "PUT",
+					resourcePath: `${root}${encodeURIComponent(attachment.id)}`,
+					body: badge.bytes,
+				},
+				this.options.installation,
+				this.deadlineAt,
+			);
+			if (!uploaded.ok) return uploaded;
+			const uploadedAttachment = gitCafeActionAttachmentSchema.safeParse(
+				uploaded.value,
+			);
+			if (
+				!uploadedAttachment.success ||
+				uploadedAttachment.data.id !== reservedId
+			) {
+				return { ok: false, reason: "invalid-response" };
+			}
+			attachment = uploadedAttachment.data;
+		}
+		if (
+			attachment.state !== "ready" ||
+			attachment.contentType !== "image/png" ||
+			attachment.size !== badge.bytes.byteLength
+		) {
+			return { ok: false, reason: "incomplete" };
+		}
+		const attachmentUrl = `/api/repos/${binding.repoFullName}/attachments/${attachment.id}`;
+		return {
+			ok: true,
+			value: renderGitCafeRunBadge(body, attachmentUrl),
+		};
 	}
 
 	private async editComment(
@@ -765,6 +885,82 @@ export class GitCafeActions {
 			: { ok: false as const, reason: "conflict" as const };
 	}
 
+	private restorationGuard(
+		binding: GitCafeActionBinding,
+		action: Extract<ForgeAction, { kind: "reopen" | "unlock" }>,
+		subject: GitCafeActionSubject,
+		effectPresent: boolean,
+	): GitCafeActionResult<null> {
+		if (
+			action.guard.subject !== binding.subject ||
+			subject.authorActorId !== action.guard.authorId
+		)
+			return { ok: false, reason: "appeal-subject-changed" };
+		if (
+			binding.subject === "change-request" &&
+			(subject.mergedAt !== null ||
+				action.guard.headSha === undefined ||
+				subject.headOid !== action.guard.headSha)
+		)
+			return { ok: false, reason: "appeal-head-changed" };
+		if (!effectPresent) return { ok: true, value: null };
+		const appliedAfter = Date.parse(action.guard.appliedAfter) - 1000;
+		const appliedBefore = Date.parse(action.guard.appliedBefore) + 1000;
+		const appliedAt = Date.parse(
+			action.kind === "reopen"
+				? (subject.closedAt ?? "")
+				: (subject.lockedAt ?? ""),
+		);
+		const owned =
+			action.kind === "reopen"
+				? subject.closedByActorId === this.options.installation.bot.actorId &&
+					subject.closedByViaInstallationId === this.options.installation.id
+				: subject.lockedByActorId === this.options.installation.bot.actorId;
+		return owned && appliedAt >= appliedAfter && appliedAt <= appliedBefore
+			? { ok: true, value: null }
+			: { ok: false, reason: "appeal-effect-no-longer-owned" };
+	}
+
+	private async reopen(
+		binding: GitCafeActionBinding,
+		action: Extract<ForgeAction, { kind: "reopen" }>,
+	) {
+		const before = await this.subject(binding);
+		if (!before.ok) return before;
+		const open =
+			binding.subject === "change-request"
+				? before.value.state === "open"
+				: !["completed", "canceled"].includes(before.value.stateType ?? "");
+		const guarded = this.restorationGuard(binding, action, before.value, !open);
+		if (!guarded.ok) return guarded;
+		if (open)
+			return { ok: true as const, value: { externalId: before.value.id } };
+		const response = await this.options.client.request(
+			binding.installationId,
+			{
+				method: "POST",
+				resourcePath: `${this.root(binding)}/reopen`,
+				body: JSON.stringify(
+					gitCafeActionVersionInputSchema.parse({
+						expectedVersion: before.value.version,
+					}),
+				),
+			},
+			this.options.installation,
+			this.deadlineAt,
+		);
+		if (!response.ok) return response;
+		const after = await this.subject(binding);
+		if (!after.ok) return after;
+		return (
+			binding.subject === "change-request"
+				? after.value.state === "open"
+				: !["completed", "canceled"].includes(after.value.stateType ?? "")
+		)
+			? { ok: true as const, value: { externalId: after.value.id } }
+			: { ok: false as const, reason: "conflict" as const };
+	}
+
 	private async lock(
 		binding: GitCafeActionBinding,
 		reason?: Extract<ForgeAction, { kind: "lock" }>["reason"],
@@ -797,6 +993,43 @@ export class GitCafeActions {
 		const after = await this.subject(binding);
 		if (!after.ok) return after;
 		return after.value.lockedAt !== null
+			? { ok: true as const, value: { externalId: after.value.id } }
+			: { ok: false as const, reason: "conflict" as const };
+	}
+
+	private async unlock(
+		binding: GitCafeActionBinding,
+		action: Extract<ForgeAction, { kind: "unlock" }>,
+	) {
+		const before = await this.subject(binding);
+		if (!before.ok) return before;
+		const guarded = this.restorationGuard(
+			binding,
+			action,
+			before.value,
+			before.value.lockedAt !== null,
+		);
+		if (!guarded.ok) return guarded;
+		if (before.value.lockedAt === null)
+			return { ok: true as const, value: { externalId: before.value.id } };
+		const response = await this.options.client.request(
+			binding.installationId,
+			{
+				method: binding.subject === "issue" ? "DELETE" : "POST",
+				resourcePath: `${this.root(binding)}/${binding.subject === "issue" ? "lock" : "unlock"}`,
+				body: JSON.stringify(
+					gitCafeActionVersionInputSchema.parse({
+						expectedVersion: before.value.version,
+					}),
+				),
+			},
+			this.options.installation,
+			this.deadlineAt,
+		);
+		if (!response.ok) return response;
+		const after = await this.subject(binding);
+		if (!after.ok) return after;
+		return after.value.lockedAt === null
 			? { ok: true as const, value: { externalId: after.value.id } }
 			: { ok: false as const, reason: "conflict" as const };
 	}

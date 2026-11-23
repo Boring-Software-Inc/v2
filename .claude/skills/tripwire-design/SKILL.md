@@ -10,6 +10,15 @@ All values below are lifted from `apps/web/src/styles.css` and the demo's
 components — treat them as the source, not suggestions. Everything is Tailwind v4
 tokens (`@theme`), light + `.dark`, OKLCH.
 
+## Visual evidence gate
+
+Any implementation using this skill must also use
+`.agents/skills/before-and-after/SKILL.md`. Capture the approved existing
+surface before the first edit and the matching result after the edit. Cover
+each materially changed route, theme, breakpoint, and state; use recordings or
+frame sequences for motion. A UI deliverable or PR without published and
+verified visual evidence is unfinished.
+
 ## Color tokens (use the token, never a raw hex/oklch)
 Semantic surface + text tokens, resolved per theme via CSS variables:
 - Structure: `background`, `foreground`, `card`, `popover`, `border`, `input`,

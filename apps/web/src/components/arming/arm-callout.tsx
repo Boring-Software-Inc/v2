@@ -1,11 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Forge } from "@tripwire/contracts";
-import {
-	Alert,
-	AlertAction,
-	AlertDescription,
-	AlertTitle,
-} from "@tripwire/ui/alert";
 import { Button } from "@tripwire/ui/button";
 import {
 	Card,
@@ -14,6 +8,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@tripwire/ui/card";
+import { Panel } from "@tripwire/ui/panel";
 import { notify } from "@tripwire/ui/toast";
 import { GitCafeMirrorNotice } from "#/components/forges/gitcafe-mirror-notice";
 import { useOrgPermission } from "#/hooks/use-org-permission";
@@ -106,16 +101,18 @@ export function ArmCallout({
 	}
 
 	return (
-		<Alert status="warning">
-			<AlertTitle>Tripwire is off</AlertTitle>
-			<AlertDescription>
-				{canArm || !orgContext
-					? "Tripwire ignores every change request here until you turn it on."
-					: "Tripwire ignores every change request here until an org admin turns it on."}
-				{forge === "gitcafe" ? <GitCafeMirrorNotice /> : null}
-			</AlertDescription>
+		<Card data-layout-role="arm-callout-card">
+			<Panel data-layout-role="arm-callout-panel" padding="none">
+				<div data-layout-role="arm-callout-header">Tripwire is off</div>
+				<div data-layout-role="arm-callout-body">
+					{canArm || !orgContext
+						? "Tripwire ignores every change request here until you turn it on."
+						: "Tripwire ignores every change request here until an org admin turns it on."}
+					{forge === "gitcafe" ? <GitCafeMirrorNotice /> : null}
+				</div>
+			</Panel>
 			{canArm ? (
-				<AlertAction>
+				<CardFooter data-layout-role="arm-callout-footer">
 					<Button
 						onAction={() => arm.mutate()}
 						pending={arm.isPending}
@@ -125,8 +122,8 @@ export function ArmCallout({
 					>
 						Turn on Tripwire
 					</Button>
-				</AlertAction>
+				</CardFooter>
 			) : null}
-		</Alert>
+		</Card>
 	);
 }

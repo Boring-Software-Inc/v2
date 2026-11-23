@@ -29,6 +29,7 @@ import {
 } from "../schema/repos.ts";
 import type { DbLike } from "./access.ts";
 import { syncIsStale } from "./sync-age.ts";
+import { settleWorkflowGifs } from "./workflow-gifs.ts";
 
 /** Repo + config persistence (§4): installation sync, config CRUD, workflows. */
 
@@ -461,7 +462,10 @@ export async function saveWorkflowDefinition(
 	repoId: string,
 	definition: WorkflowDefinition,
 ): Promise<string> {
-	const valid = workflowDefinitionSchema.parse(definition);
+	const valid = await settleWorkflowGifs(
+		db,
+		workflowDefinitionSchema.parse(definition),
+	);
 	const existing = await db
 		.select()
 		.from(workflowDefinitions)

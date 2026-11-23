@@ -1365,24 +1365,14 @@ test("different-repo reinstall hides the stale known claim and leaves other orgs
 	).toBe("reconcile-required");
 });
 
-for (const mismatch of [
-	"active",
-	"foreign-org",
-	"wrong-owner",
-	"no-claim",
-] as const) {
+for (const mismatch of ["active", "wrong-owner", "no-claim"] as const) {
 	test(`reclaim refuses a removed row with ${mismatch} prior ownership`, async () => {
 		deps.lifecycleEnabled = true;
 		const oldId = `ins_${generateId()}`;
-		const orgId = mismatch === "foreign-org" ? generateId() : job.orgId;
-		if (orgId !== job.orgId)
-			await db
-				.insert(organization)
-				.values({ id: orgId, name: "Other", slug: `other-${orgId}` });
 		if (mismatch !== "no-claim")
 			await db.insert(organizationInstallations).values({
 				id: generateId(),
-				organizationId: orgId,
+				organizationId: job.orgId,
 				forge: "gitcafe",
 				installationId: oldId,
 				accountLogin:
@@ -1401,7 +1391,7 @@ for (const mismatch of [
 			owner: repository.owner,
 			name: repository.name,
 			fullName: `${repository.owner}/${repository.name}`,
-			orgId,
+			orgId: job.orgId,
 			installationId: oldId,
 			removedAt: new Date(),
 			armed: false,
@@ -1418,6 +1408,67 @@ for (const mismatch of [
 		expect(await db.select().from(repos)).toEqual(before);
 	});
 }
+
+test("reinstallation reclaims a removed repository from a retired claim in another Tripwire org", async () => {
+	deps.lifecycleEnabled = true;
+	const oldInstallationId = `ins_${generateId()}`;
+	const oldOrgId = generateId();
+	await db
+		.insert(organization)
+		.values({ id: oldOrgId, name: "Old", slug: `old-${oldOrgId}` });
+	const oldClaimId = generateId();
+	await db.insert(organizationInstallations).values({
+		id: oldClaimId,
+		organizationId: oldOrgId,
+		forge: "gitcafe",
+		installationId: oldInstallationId,
+		accountLogin: repository.owner,
+	});
+	await db.insert(gitCafeInstallationLifecycle).values({
+		installationId: oldInstallationId,
+		status: "reconcile-required",
+		authorityAt: new Date(),
+	});
+	const repoId = generateId();
+	const installedAt = new Date(Date.now() - 60_000);
+	await db.insert(repos).values({
+		id: repoId,
+		forge: "gitcafe",
+		externalId: repository.id,
+		owner: repository.owner,
+		name: repository.name,
+		fullName: `${repository.owner}/${repository.name}`,
+		orgId: oldOrgId,
+		installationId: oldInstallationId,
+		installedAt,
+		removedAt: new Date(),
+		armed: false,
+	});
+	deps.client.getInstallation = async (lookupId) => ({
+		ok: true,
+		value: { ...installation, id: lookupId },
+	});
+
+	expect(await connectGitCafeInstallation(deps, job)).toEqual({
+		ok: true,
+		repoCount: 1,
+	});
+	expect((await db.select().from(repos))[0]).toMatchObject({
+		id: repoId,
+		installationId: job.installationId,
+		orgId: job.orgId,
+		installedAt,
+		removedAt: null,
+		armed: false,
+	});
+	expect(
+		await db
+			.select()
+			.from(organizationInstallations)
+			.where(eq(organizationInstallations.id, oldClaimId)),
+	).toHaveLength(1);
+	expect(await db.select().from(organizationInstallations)).toHaveLength(2);
+});
 
 for (const type of [
 	"installation.uninstalled",

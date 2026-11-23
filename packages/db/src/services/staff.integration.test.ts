@@ -181,7 +181,7 @@ beforeAll(async () => {
 		verdict: "block",
 		createdAt: ago(2 * DAY),
 	});
-});
+}, 120_000);
 
 afterAll(async () => {
 	await pool.end();

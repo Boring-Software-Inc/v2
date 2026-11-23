@@ -1,4 +1,5 @@
 import type { ResponseBlock, ResponseBlockType } from "@tripwire/contracts";
+import { generateId } from "@tripwire/utils/id";
 import { useReducer } from "react";
 import { newBlock } from "#/components/responses/blocks/block-catalog";
 import {
@@ -13,12 +14,13 @@ import {
 } from "#/lib/block-builder";
 
 function blockId(): string {
-	return crypto.randomUUID();
+	return generateId();
 }
 
 export function useBlockBuilder(
 	blocks: ResponseBlock[],
 	onChange: (next: ResponseBlock[]) => void,
+	autoSelect = true,
 ) {
 	const [ui, dispatchUi] = useReducer(reduceBuilderUi, IDLE_UI);
 
@@ -31,11 +33,15 @@ export function useBlockBuilder(
 	};
 
 	const dragged = ui.drag?.item.source === "palette" ? ui.drag.item.type : null;
+	const selectedId =
+		ui.selectedId ??
+		(autoSelect && !ui.paletteOpen ? blocks[0]?.id : undefined) ??
+		null;
 
 	return {
 		blocks,
-		selectedId: ui.selectedId,
-		selected: blocks.find((block) => block.id === ui.selectedId) ?? null,
+		selectedId,
+		selected: blocks.find((block) => block.id === selectedId) ?? null,
 		drag: ui.drag,
 		dropLine: dropLineIndex({ blocks, ...ui }),
 		full: isFull(blocks),
@@ -47,6 +53,7 @@ export function useBlockBuilder(
 		update: (block: ResponseBlock) => dispatch({ type: "update", block }),
 		remove: (id: string) => dispatch({ type: "remove", id }),
 		select: (id: string | null) => dispatch({ type: "select", id }),
+		focus: (id: string) => dispatch({ type: "focus", id }),
 		browse: (index?: number) => dispatch({ type: "browse", index }),
 		showPalette: (open: boolean) => dispatch({ type: "palette", open }),
 		setView: (view: Partial<PreviewView>) => dispatch({ type: "view", view }),

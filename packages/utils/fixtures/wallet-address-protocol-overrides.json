@@ -1,0 +1,50 @@
+[
+	{
+		"id": "btc-12",
+		"expectedValid": true,
+		"finding": "A valid Bech32m Taproot address was labelled invalid by the upstream registry.",
+		"source": "https://bips.dev/350/"
+	},
+	{
+		"id": "btc-testnet-1",
+		"expectedValid": false,
+		"finding": "Decoded version 38 is not a Bitcoin testnet address version (111 or 196).",
+		"source": "https://github.com/bitcoin/bitcoin/blob/master/src/kernel/chainparams.cpp"
+	},
+	{
+		"id": "btc-testnet-6",
+		"expectedValid": false,
+		"finding": "Duplicate version-38 vector is not Bitcoin testnet.",
+		"source": "https://github.com/bitcoin/bitcoin/blob/master/src/kernel/chainparams.cpp"
+	},
+	{
+		"id": "ltc-testnet-7",
+		"expectedValid": false,
+		"finding": "Decoded version 113 is Dogecoin testnet, not Litecoin testnet.",
+		"source": "https://github.com/litecoin-project/litecoin/blob/master/src/chainparams.cpp"
+	},
+	{
+		"id": "polkadot-3",
+		"expectedValid": false,
+		"finding": "SS58 prefix 2 identifies Kusama, not Polkadot mainnet prefix 0.",
+		"source": "https://github.com/paritytech/ss58-registry/blob/main/ss58-registry.json"
+	},
+	{
+		"id": "polkadot-5",
+		"expectedValid": false,
+		"finding": "SS58 prefix 2 identifies Kusama, not Polkadot mainnet prefix 0.",
+		"source": "https://github.com/paritytech/ss58-registry/blob/main/ss58-registry.json"
+	},
+	{
+		"id": "cip19-0",
+		"expectedValid": false,
+		"finding": "The introductory example uses mainnet HRP addr with testnet header 0x60. Dedicated CIP-19 vectors are consistent.",
+		"source": "https://cips.cardano.org/cip/CIP-19"
+	},
+	{
+		"id": "cip19-1",
+		"expectedValid": false,
+		"finding": "The introductory stake example has enterprise-address header 0x60 rather than a stake header, and mismatched network HRP.",
+		"source": "https://cips.cardano.org/cip/CIP-19"
+	}
+]

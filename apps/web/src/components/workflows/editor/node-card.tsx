@@ -31,6 +31,7 @@ import {
 	useCustomRuleName,
 	useEditField,
 } from "#/components/workflows/editor/node-issues";
+import { PostCommentNode } from "#/components/workflows/editor/post-comment-node";
 import { stepIcon, stepName } from "#/components/workflows/editor/step-meta";
 import {
 	useDragPlan,
@@ -38,6 +39,7 @@ import {
 } from "#/components/workflows/editor/typed-connections";
 import { WorkflowNodeFrame } from "#/components/workflows/editor/workflow-node-frame";
 import { triggerPath } from "#/lib/trigger-kinds";
+import "#/components/workflows/editor/post-comment-node.css";
 
 /** The one node data shape the canvas renders. */
 export type TripwireFlowNode = Node<{ node: WorkflowNode }, "tripwire">;
@@ -177,6 +179,11 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 		<WorkflowNodeFrame
 			nodeId={node.id}
 			selected={selected}
+			surface={
+				node.type === "action" && node.action === "post-comment"
+					? "comment"
+					: "default"
+			}
 			cornerOutput={Boolean(cornerPort)}
 			dropState={nodeDrop}
 		>
@@ -196,72 +203,83 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 					type="target"
 				/>
 			) : null}
-			<div data-layout-role="workflow-node-heading">
-				<Icon
-					data-layout-role="workflow-node-icon"
-					data-has-input={Boolean(input) || undefined}
-					icon={stepIcon(node)}
+			{node.type === "action" && node.action === "post-comment" ? (
+				<PostCommentNode
+					node={node}
+					onEdit={() => editField(node.id, "message")}
 				/>
-				<Label data-layout-role="workflow-node-title">
-					{faceTitle(node, customName)}
-				</Label>
-				{node.type === "gate" ? (
-					<Caption data-layout-role="workflow-node-kind">Gate</Caption>
-				) : null}
-				{topPort && node.type !== "trigger" ? (
-					<span data-layout-role="workflow-node-top-output">
-						<PortCaption linked={topLinked} port={topPort} />
-					</span>
-				) : null}
-			</div>
-			{detail ? (
-				<CodeText as="span" data-layout-role="workflow-node-detail">
-					{detail}
-				</CodeText>
-			) : null}
-			{fields.length > 0 ? (
-				<div data-layout-role="workflow-node-fields">
-					{fields.map(({ field, value }) => {
-						const unset = value === undefined || value === null;
-						const bare = field.key === "message" && !unset;
-						const items = fieldListItems(field, value);
-						return (
-							<div data-layout-role="workflow-node-field" key={field.key}>
-								<div data-layout-role="workflow-node-field-action">
-									<Button
-										ariaLabel={`Edit ${field.label}`}
-										onAction={() => editField(node.id, field.key)}
-										size="small"
-										variant="ghost"
-									>
-										{bare ? null : (
-											<span data-layout-role="workflow-node-field-label">
-												{field.label}
-											</span>
-										)}
-										<span
-											data-layout-role="workflow-node-field-value"
-											data-message={bare || undefined}
-											data-unset={unset || undefined}
-										>
-											{items
-												? items.map((item, index) => (
-														<Fragment key={item}>
-															{index > 0 ? " " : null}
-															<span data-layout-role="workflow-node-field-item">
-																{index < items.length - 1 ? `${item},` : item}
-															</span>
-														</Fragment>
-													))
-												: summarizeFieldValue(field, value)}
-										</span>
-									</Button>
-								</div>
-							</div>
-						);
-					})}
-				</div>
-			) : null}
+			) : (
+				<>
+					<div data-layout-role="workflow-node-heading">
+						<Icon
+							data-layout-role="workflow-node-icon"
+							data-has-input={Boolean(input) || undefined}
+							icon={stepIcon(node)}
+						/>
+						<Label data-layout-role="workflow-node-title">
+							{faceTitle(node, customName)}
+						</Label>
+						{node.type === "gate" ? (
+							<Caption data-layout-role="workflow-node-kind">Gate</Caption>
+						) : null}
+						{topPort && node.type !== "trigger" ? (
+							<span data-layout-role="workflow-node-top-output">
+								<PortCaption linked={topLinked} port={topPort} />
+							</span>
+						) : null}
+					</div>
+					{detail ? (
+						<CodeText as="span" data-layout-role="workflow-node-detail">
+							{detail}
+						</CodeText>
+					) : null}
+					{fields.length > 0 ? (
+						<div data-layout-role="workflow-node-fields">
+							{fields.map(({ field, value }) => {
+								const unset = value === undefined || value === null;
+								const bare = field.key === "message" && !unset;
+								const items = fieldListItems(field, value);
+								return (
+									<div data-layout-role="workflow-node-field" key={field.key}>
+										<div data-layout-role="workflow-node-field-action">
+											<Button
+												ariaLabel={`Edit ${field.label}`}
+												onAction={() => editField(node.id, field.key)}
+												size="small"
+												variant="ghost"
+											>
+												{bare ? null : (
+													<span data-layout-role="workflow-node-field-label">
+														{field.label}
+													</span>
+												)}
+												<span
+													data-layout-role="workflow-node-field-value"
+													data-message={bare || undefined}
+													data-unset={unset || undefined}
+												>
+													{items
+														? items.map((item, index) => (
+																<Fragment key={item}>
+																	{index > 0 ? " " : null}
+																	<span data-layout-role="workflow-node-field-item">
+																		{index < items.length - 1
+																			? `${item},`
+																			: item}
+																	</span>
+																</Fragment>
+															))
+														: summarizeFieldValue(field, value)}
+												</span>
+											</Button>
+										</div>
+									</div>
+								);
+							})}
+						</div>
+					) : null}
+				</>
+			)}
 			{cornerPort ? (
 				<div data-layout-role="workflow-node-corner-output">
 					<PortCaption linked={cornerLinked} port={cornerPort} />

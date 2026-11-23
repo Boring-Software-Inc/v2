@@ -53,7 +53,10 @@ import {
 	workerModeSchema,
 } from "./gitcafe-connection-worker.ts";
 import { startGitCafeLifecycleWorker } from "./gitcafe-lifecycle-worker.ts";
-import { startGitCafeProtectionWorker } from "./gitcafe-protection-worker.ts";
+import {
+	startGitCafeProtectionRuntime,
+	startGitCafeProtectionWorker,
+} from "./gitcafe-protection-worker.ts";
 import {
 	AUDIT_INSTALLATION_CLAIMS_QUEUE,
 	auditInstallationClaims,
@@ -147,6 +150,10 @@ if (import.meta.main && workerMode === "standard") {
 	 */
 	const directPool = createDirectPool();
 	const boss = await createBoss(undefined, logger);
+	const gitCafeProtection = await startGitCafeProtectionRuntime(
+		logger.child({ name: "gitcafe-protection-worker" }),
+		boss,
+	);
 
 	const appId = process.env.GITHUB_APP_ID;
 	const privateKey = process.env.GITHUB_APP_PRIVATE_KEY?.replaceAll(
@@ -650,12 +657,23 @@ if (import.meta.main && workerMode === "standard") {
 		fetch(req) {
 			const { pathname } = new URL(req.url);
 			if (pathname === "/healthz") {
-				return Response.json({
-					ok: true,
-					github: githubAdapter ? "live" : "disabled",
-					aiReview: makeGenerate ? "wired" : "disabled",
-					leader: fence.leader(),
-				});
+				const gitCafeHealthy = gitCafeProtection?.healthy() ?? true;
+				return Response.json(
+					{
+						ok: gitCafeHealthy,
+						live: true,
+						ready: gitCafeHealthy,
+						github: githubAdapter ? "live" : "disabled",
+						gitcafe: gitCafeProtection
+							? gitCafeHealthy
+								? "live"
+								: "degraded"
+							: "disabled",
+						aiReview: makeGenerate ? "wired" : "disabled",
+						leader: fence.leader(),
+					},
+					{ status: gitCafeHealthy ? 200 : 503 },
+				);
 			}
 			return new Response("not found", { status: 404 });
 		},
@@ -692,4 +710,9 @@ if (import.meta.main && workerMode === "standard") {
 		},
 		"worker up",
 	);
+	if (gitCafeProtection) {
+		const stopGitCafeProtection = () => gitCafeProtection.stop();
+		process.once("SIGTERM", stopGitCafeProtection);
+		process.once("SIGINT", stopGitCafeProtection);
+	}
 }

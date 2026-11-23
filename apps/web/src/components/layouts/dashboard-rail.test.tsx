@@ -3,17 +3,15 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { CollapsedSidebarToggle } from "#/components/layouts/dashboard-rail";
 
 describe("DashboardRail brand transition", () => {
-	test("keeps the expand glyph hidden beneath the fixed-size mark at rest", () => {
+	test("slides the expand glyph up beneath the compact mark", () => {
 		const html = renderToStaticMarkup(
 			<CollapsedSidebarToggle label="Expand sidebar" onAction={() => {}} />,
 		);
 
-		expect(html).toContain('data-layout-role="sidebar-brand-toggle"');
-		expect(html).toContain('data-layout-role="sidebar-brand-mark"');
-		expect(html).toContain('height="18"');
-		expect(html).toContain('width="28"');
-		expect(html).toMatch(
-			/class="[^"]*opacity-0" data-layout-role="sidebar-brand-expand-icon"/,
-		);
+		expect(html).toContain("group/sidebar-toggle");
+		expect(html).toContain('height="22"');
+		expect(html).toContain('width="22"');
+		expect(html).toContain("group-hover/sidebar-toggle:translate-y-0");
+		expect(html).toMatch(/class="[^"]*-translate-y-2[^"]*opacity-0/);
 	});
 });

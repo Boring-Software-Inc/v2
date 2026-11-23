@@ -10,6 +10,7 @@ import {
 } from "@tripwire/db";
 import type { PgBoss } from "pg-boss";
 import type { Logger } from "pino";
+import type { GitCafeRecoveryMonitor } from "./gitcafe-recovery-monitor.ts";
 
 export function observeGitCafeQueueHealth(boss: PgBoss) {
 	const health = {
@@ -30,20 +31,23 @@ export async function registerGitCafeLifecycleConsumer(
 	logger: Logger,
 	onError: () => void = () => {},
 	dispatchRepositoryEvents = false,
+	monitor?: GitCafeRecoveryMonitor,
 ): Promise<void> {
 	await db.select().from(gitCafeReceipts).limit(0);
 	await db.select().from(gitCafeInstallationLifecycle).limit(0);
 	await boss.createQueue(GITCAFE_LIFECYCLE_QUEUE);
 	/** The installed supervise(name) API scopes expiry and retention to this queue; global supervision stays disabled. */
-	await boss.supervise(GITCAFE_LIFECYCLE_QUEUE);
-	await gitCafeLifecycleServices.recoverPendingGitCafeReceipts(db, boss);
+	const recover = async () => {
+		await boss.supervise(GITCAFE_LIFECYCLE_QUEUE);
+		return gitCafeLifecycleServices.recoverPendingGitCafeReceipts(db, boss);
+	};
+	await (monitor ? monitor.run("lifecycle", recover) : recover());
 	let recovering = false;
 	const recovery = setInterval(async () => {
 		if (recovering) return;
 		recovering = true;
 		try {
-			await boss.supervise(GITCAFE_LIFECYCLE_QUEUE);
-			await gitCafeLifecycleServices.recoverPendingGitCafeReceipts(db, boss);
+			await (monitor ? monitor.run("lifecycle", recover) : recover());
 		} catch {
 			onError();
 			logger.error(
@@ -55,6 +59,9 @@ export async function registerGitCafeLifecycleConsumer(
 		}
 	}, 30_000);
 	recovery.unref();
+	monitor?.signal.addEventListener("abort", () => clearInterval(recovery), {
+		once: true,
+	});
 	boss.once("stopped", () => clearInterval(recovery));
 	await boss.work<unknown>(
 		GITCAFE_LIFECYCLE_QUEUE,
@@ -81,6 +88,9 @@ export async function registerGitCafeLifecycleConsumer(
 							: dispatched;
 					logger.info(
 						{
+							event: `gitcafe.receipt.${status}`,
+							forge: "gitcafe",
+							queue: GITCAFE_LIFECYCLE_QUEUE,
 							jobId: job.id,
 							requestId: parsedJob.data.requestId,
 							receiptId: parsedJob.data.receiptId,

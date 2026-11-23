@@ -20,6 +20,7 @@ export * from "./check.ts";
 export * from "./comment-render.ts";
 export * from "./contribution-appeals.ts";
 export * from "./contributor.ts";
+export * from "./crypto-address.ts";
 export * from "./custom-rules.ts";
 export * from "./custom-rules-display.ts";
 export * from "./economics.ts";
@@ -64,10 +65,12 @@ export {
 	type GitCafeDispatchableRepositoryEvent,
 	type GitCafeDispatchableRepositoryEventType,
 	type GitCafeHydratedCommentEvent,
+	type GitCafeHydratedIssueEvent,
 	type GitCafeHydratedPullEvent,
 	type GitCafeHydratedPushRef,
 	type GitCafeIssueCommentEvent,
 	type GitCafeIssueCommentPage,
+	type GitCafeIssueEvent,
 	type GitCafePullCommentEvent,
 	type GitCafePullEvent,
 	type GitCafePullIdentity,
@@ -83,10 +86,12 @@ export {
 	gitCafeDispatchableRepositoryEventSchema,
 	gitCafeDispatchableRepositoryEventTypeSchema,
 	gitCafeHydratedCommentEventSchema,
+	gitCafeHydratedIssueEventSchema,
 	gitCafeHydratedPullEventSchema,
 	gitCafeHydratedPushRefSchema,
 	gitCafeIssueCommentEventSchema,
 	gitCafeIssueCommentPageSchema,
+	gitCafeIssueEventSchema,
 	gitCafePullCommentEventSchema,
 	gitCafePullEventSchema,
 	gitCafePullIdentitySchema,
@@ -219,6 +224,7 @@ export * from "./setup.ts";
 export * from "./shared-blocklist.ts";
 export * from "./staff-user.ts";
 export * from "./verdict-join.ts";
+export * from "./wallet-address.ts";
 export * from "./webhook-payload.ts";
 export * from "./workflow.ts";
 export * from "./workflow-authoring.ts";

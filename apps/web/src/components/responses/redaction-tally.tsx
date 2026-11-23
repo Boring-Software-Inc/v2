@@ -57,7 +57,7 @@ export function RedactionTally({
 	return (
 		<MotionConfig reducedMotion="user">
 			<ul
-				aria-label="Hidden from people outside the org"
+				aria-label="Hidden from people outside the workspace"
 				className="flex flex-col"
 			>
 				<AnimatePresence custom={step} initial={false}>

@@ -930,3 +930,72 @@ interaction.
 Shared component agent policy and semantic metadata belong in `@tripwire/ui`.
 Page-level agent permissions, WebMCP operations, data access, and product policy
 remain in the consuming app.
+
+## 2026-11-19 · Sortable response blocks
+
+**Decision:** The web app uses `@dnd-kit/sortable` for reordering response
+blocks in the Responses editor. The existing `@dnd-kit/core` context continues
+to own sensors, accessibility announcements, the drag overlay, and palette
+insertion.
+
+**Why:** The core package exposes drag events but does not provide sortable-list
+layout transforms, keyboard coordinates, or displacement animation. The former
+manual index and drop-line implementation made the lifted row feel disconnected
+from the list and allowed rapid pointer movement to produce abrupt placement.
+The official sortable package adds those missing behaviors without introducing
+a second drag-and-drop system or changing persisted response data.
+
+## 2026-11-19 | GitCafe queues start with the standard worker
+
+The standard worker registers GitCafe's isolated protection, lifecycle, and
+connection queues whenever staging receipt admission is enabled. Both forge
+runtimes share the process's single pg-boss instance but retain separate queue
+names, supervision, action locks, and recovery contracts. The dedicated
+GitCafe worker modes remain available for focused verification.
+
+Activation fails closed. Enabling GitCafe receipt admission without the exact
+staging application identity and complete credentials prevents the worker from
+starting. The standard health check reports GitCafe as live, degraded, or
+disabled and returns an unhealthy response when an enabled GitCafe runtime is
+not healthy.
+
+This replaces the staging requirement to change `WORKER_MODE` by hand. A
+routine pause, resume, or redeploy now restores GitHub and GitCafe consumers
+together from the same saved configuration.
+
+## 2026-11-19 | Retired GitCafe claims do not strand repositories
+
+A fresh GitCafe installation may reclaim a removed repository row from another
+Tripwire organization only when the old installation has a stored claim for
+the same forge owner and its lifecycle is paused, uninstalled, or requires
+reconciliation. The current connection must still pass complete provider
+authority, local permission, generation, repository identity, and final
+revalidation checks.
+
+Active claims, owner mismatches, and rows without a verified prior claim remain
+ownership conflicts. Historical claims and repository creation timestamps are
+preserved when the live repository binding moves. This prevents an abandoned
+staging connection from requiring a database repair without weakening the
+cross-organization ownership fence.
+
+## 2026-11-20 · Wallet address validation primitives
+
+**Decision:** `@tripwire/utils` uses pinned `@scure/base@2.4.0`,
+`@noble/hashes@2.2.0`, and `cborg@7.0.0` for wallet address validation.
+The public API separates format/network validation from injected chain reads.
+It stays in the existing package layout; no package, app, route or UI is added.
+
+**Replaces:** Hand-written Keccak, Base58 and Bech32 implementations. Noble's
+version already exists in the workspace lockfile. Scure supplies checked
+base encodings, and cborg validates legacy Cardano CBOR without a custom parser.
+
+**Why the existing stack cannot do this:** Web Crypto lacks Keccak-256 and
+Blake2b, and neither Zod nor the existing utilities provide Bech32/Bech32m,
+Base58Check or CBOR decoding. The reference multi-wallet libraries omit TON or
+have Taproot and Cardano network-validation gaps. These dependencies provide
+the missing primitives without importing their currency policy or reimplementing
+cryptographic functions. Chain/network rules remain explicit and tested here.
+
+`@tripwire/utils` also declares the workspace's existing Zod version directly:
+the decoder uses numeric schemas at the CBOR boundary. This replaces manual
+runtime type guards and uses the stack's existing validation library.

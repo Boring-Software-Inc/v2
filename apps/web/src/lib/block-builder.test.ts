@@ -11,7 +11,6 @@ import {
 	OPEN_VIEW,
 	reduceBuilder,
 	reduceBuilderUi,
-	verticalStep,
 } from "#/lib/block-builder";
 
 const A: ResponseBlock = { id: "a", type: "headline" };
@@ -149,6 +148,15 @@ describe("update, remove, select", () => {
 				.selectedId,
 		).toBeNull();
 	});
+
+	test("focus selects a preview block without opening the properties sheet", () => {
+		const focused = reduceBuilder(state({ paletteOpen: true }), {
+			type: "focus",
+			id: "b",
+		});
+		expect(focused.selectedId).toBe("b");
+		expect(focused.paletteOpen).toBe(false);
+	});
 });
 
 describe("drag and drop", () => {
@@ -223,23 +231,6 @@ describe("announced position", () => {
 		const item = { source: "palette", type: "text" } as const;
 		expect(dropPosition(blocks, item, 0)).toEqual({ position: 1, total: 4 });
 		expect(dropPosition(blocks, item, 3)).toEqual({ position: 4, total: 4 });
-	});
-});
-
-describe("keyboard steps", () => {
-	const centers = [10, 50, 90];
-
-	test("down lands just past the next block's center", () => {
-		expect(verticalStep("down", 40, 20, centers)).toBe(81);
-	});
-
-	test("up lands just before the previous block's center", () => {
-		expect(verticalStep("up", 40, 20, centers)).toBe(-1);
-	});
-
-	test("stops at the ends", () => {
-		expect(verticalStep("down", 90, 20, centers)).toBeNull();
-		expect(verticalStep("up", -10, 20, centers)).toBeNull();
 	});
 });
 

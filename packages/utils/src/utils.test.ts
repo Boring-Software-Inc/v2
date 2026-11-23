@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { getErrorMessage, toError } from "./errors.ts";
 import { generateId } from "./id.ts";
-import { backoffWithJitter } from "./retry.ts";
+import { backoffWithJitter, isRetryableForgeStatus } from "./retry.ts";
 import { truncate } from "./string.ts";
 
 describe("generateId", () => {
@@ -49,4 +49,13 @@ describe("backoffWithJitter", () => {
 			expect(d).toBeLessThanOrEqual(Math.min(1000, 100 * 2 ** attempt));
 		}
 	});
+});
+
+test("forge retry statuses include read-after-write visibility failures", () => {
+	for (const status of [404, 408, 409, 425, 429, 500, 503]) {
+		expect(isRetryableForgeStatus(status)).toBe(true);
+	}
+	for (const status of [undefined, 400, 401, 403, 410, 422]) {
+		expect(isRetryableForgeStatus(status)).toBe(false);
+	}
 });

@@ -168,6 +168,30 @@ describe("schedule trigger schema", () => {
 		expect(postCommentParamsSchema.safeParse({ message: "  " }).success).toBe(
 			false,
 		);
+		expect(
+			postCommentParamsSchema.safeParse({
+				message: "Closing this.",
+				gif: {
+					id: "abc123",
+					url: "https://media2.giphy.com/media/abc123/giphy.gif",
+					width: 480,
+					height: 270,
+					title: "Ship it",
+				},
+			}).success,
+		).toBe(true);
+		expect(
+			postCommentParamsSchema.safeParse({
+				message: "Closing this.",
+				gif: {
+					id: "abc123",
+					url: "https://example.com/not-allowlisted.gif",
+					width: 480,
+					height: 270,
+					title: "Not GIPHY",
+				},
+			}).success,
+		).toBe(false);
 	});
 
 	test("lock params accept GitHub lock reasons only", () => {

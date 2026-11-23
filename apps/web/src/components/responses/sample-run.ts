@@ -1,4 +1,4 @@
-import type { SurfacePlan } from "@tripwire/contracts";
+import type { ForgeId, SurfacePlan } from "@tripwire/contracts";
 import type {
 	CheckPreview,
 	OutcomeMeta,
@@ -58,7 +58,7 @@ export const SAMPLE_RUN: RunView = {
 	rerunBy: null,
 	orgSlug: null,
 	repoName: null,
-	forge: "github",
+	forge: null,
 	subjectUrl: null,
 	canRerun: false,
 	stepsHidden: false,
@@ -163,6 +163,7 @@ export function sampleRunFor(
 	outcome: OutcomeMeta,
 	plan: SurfacePlan,
 	check: CheckPreview,
+	forge: ForgeId | null = null,
 ): RunView {
 	const at = SAMPLE_RUN.completedAt ?? SAMPLE_RUN.createdAt;
 	const action = (kind: string): RunActionView => ({
@@ -173,6 +174,11 @@ export function sampleRunFor(
 	});
 	return {
 		...SAMPLE_RUN,
+		forge,
+		steps:
+			forge === "gitcafe"
+				? SAMPLE_RUN.steps.filter((step) => step.ruleRef !== "account-age@1")
+				: SAMPLE_RUN.steps,
 		verdict: outcome.verdict,
 		workflows: SAMPLE_RUN.workflows.map((workflow) => ({
 			...workflow,

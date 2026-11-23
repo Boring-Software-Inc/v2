@@ -30,6 +30,7 @@ export interface GitCafeInstallationClientOptions {
 	credentials: GitCafeAppCredentials;
 	fetch?: (url: string, init: RequestInit) => Promise<Response>;
 	now?: () => number;
+	state?: GitCafeInstallationClientState;
 	/** Local persisted lifecycle authority is checked before credentials and token use. */
 	lifecycleGuard?: (installationId: string) => Promise<boolean>;
 }
@@ -55,6 +56,16 @@ export interface GitCafeAuthorizedJsonRequest {
 	body?: string;
 }
 
+export interface GitCafeAuthorizedBinaryRequest {
+	method: "PUT";
+	resourcePath: string;
+	body: Uint8Array;
+}
+
+export type GitCafeAuthorizedRequest =
+	| GitCafeAuthorizedJsonRequest
+	| GitCafeAuthorizedBinaryRequest;
+
 interface CachedToken {
 	token: string;
 	expiresAt: number;
@@ -67,6 +78,22 @@ interface PendingToken {
 	promise: Promise<GitCafeInstallationResult<string>>;
 }
 
+export class GitCafeInstallationClientState {
+	readonly appId: string;
+	readonly keyId: string;
+	readonly tokens = new Map<string, CachedToken>();
+	readonly mints = new Map<string, PendingToken>();
+	readonly generations = new Map<string, number>();
+	readonly requestWaiters: Array<() => void> = [];
+	activeRequests = 0;
+	rateLimitedUntil = 0;
+
+	constructor(credentials: Pick<GitCafeAppCredentials, "appId" | "keyId">) {
+		this.appId = credentials.appId;
+		this.keyId = credentials.keyId;
+	}
+}
+
 interface InstallationSnapshot {
 	installation: GitCafeInstallation;
 	generation: number;
@@ -75,21 +102,41 @@ interface InstallationSnapshot {
 const TOKEN_SAFETY_MS = 60_000;
 const TOKEN_MAX_LIFETIME_MS = 15 * 60_000;
 const MAX_RESPONSE_BYTES = 1024 * 1024;
+const MAX_CONCURRENT_REQUESTS = 2;
+const DEFAULT_RATE_LIMIT_BACKOFF_MS = 60_000;
+const MAX_RATE_LIMIT_BACKOFF_MS = 15 * 60_000;
 const PERMISSION_RANK = { read: 1, write: 2, admin: 3 };
 const PATH_SEGMENT = /^(?!\.{1,2}$)[A-Za-z0-9_.-]+$/;
+
+function rateLimitBackoffMs(response: Response, now: number): number {
+	const retryAfter = response.headers.get("retry-after");
+	if (retryAfter) {
+		const seconds = Number(retryAfter);
+		const delay = Number.isFinite(seconds)
+			? seconds * 1_000
+			: Date.parse(retryAfter) - now;
+		if (Number.isFinite(delay) && delay > 0)
+			return Math.min(delay, MAX_RATE_LIMIT_BACKOFF_MS);
+	}
+	for (const name of ["ratelimit-reset", "x-ratelimit-reset"]) {
+		const reset = Number(response.headers.get(name));
+		if (!Number.isFinite(reset)) continue;
+		const delay = reset * 1_000 - now;
+		if (delay > 0) return Math.min(delay, MAX_RATE_LIMIT_BACKOFF_MS);
+	}
+	return DEFAULT_RATE_LIMIT_BACKOFF_MS;
+}
 
 export class GitCafeInstallationClient {
 	private readonly fetch: NonNullable<
 		GitCafeInstallationClientOptions["fetch"]
 	>;
 	private readonly now: () => number;
-	private readonly tokens = new Map<string, CachedToken>();
+	private readonly state: GitCafeInstallationClientState;
 	private readonly lookups = new Map<
 		string,
 		Promise<GitCafeInstallationResult<InstallationSnapshot>>
 	>();
-	private readonly mints = new Map<string, PendingToken>();
-	private readonly generations = new Map<string, number>();
 	private readonly snapshots = new WeakMap<
 		GitCafeInstallation,
 		{
@@ -101,14 +148,24 @@ export class GitCafeInstallationClient {
 	constructor(private readonly options: GitCafeInstallationClientOptions) {
 		this.fetch = options.fetch ?? fetch;
 		this.now = options.now ?? Date.now;
+		this.state =
+			options.state ?? new GitCafeInstallationClientState(options.credentials);
+		if (
+			this.state.appId !== options.credentials.appId ||
+			this.state.keyId !== options.credentials.keyId
+		)
+			throw new Error("GitCafe client state belongs to different credentials");
 	}
 
 	/** Invalidated in-flight credentials must never repopulate the cache. */
 	invalidate(installationId: string): void {
-		this.generations.set(installationId, this.generation(installationId) + 1);
-		this.tokens.delete(installationId);
+		this.state.generations.set(
+			installationId,
+			this.generation(installationId) + 1,
+		);
+		this.state.tokens.delete(installationId);
 		this.lookups.delete(installationId);
-		this.mints.delete(installationId);
+		this.state.mints.delete(installationId);
 	}
 
 	async getInstallation(
@@ -386,7 +443,7 @@ export class GitCafeInstallationClient {
 
 	async request(
 		installationId: string,
-		request: GitCafeAuthorizedJsonRequest,
+		request: GitCafeAuthorizedRequest,
 		expectedInstallation: GitCafeInstallation,
 		deadlineAt?: number,
 	): Promise<GitCafeInstallationResult<unknown>> {
@@ -483,7 +540,7 @@ export class GitCafeInstallationClient {
 		path: string,
 		expectedInstallation?: GitCafeInstallation,
 		deadlineAt?: number,
-		request?: GitCafeAuthorizedJsonRequest,
+		request?: GitCafeAuthorizedRequest,
 	): Promise<GitCafeInstallationResult<unknown>> {
 		if (this.options.lifecycleGuard && !(await this.permitted(installationId)))
 			return { ok: false, reason: "inactive" };
@@ -502,15 +559,24 @@ export class GitCafeInstallationClient {
 			accept: "application/json",
 			authorization: `Bearer ${credential.value}`,
 		});
-		if (request?.body !== undefined)
-			headers.set("content-type", "application/json");
+		if (request?.body !== undefined) {
+			if (request.body instanceof Uint8Array) {
+				headers.set("content-type", "application/octet-stream");
+				headers.set("content-length", String(request.body.byteLength));
+			} else {
+				headers.set("content-type", "application/json");
+			}
+		}
 		const response = await this.send(
 			{
 				url: `https://git.cafe/api/${path}`,
 				init: {
 					method: request?.method ?? "GET",
 					headers,
-					body: request?.body,
+					body:
+						request?.body instanceof Uint8Array
+							? Buffer.from(request.body)
+							: request?.body,
 				},
 			},
 			deadlineAt,
@@ -588,32 +654,32 @@ export class GitCafeInstallationClient {
 			return { ok: false, reason: "inactive" };
 		}
 		const scope = JSON.stringify(installation);
-		const cached = this.tokens.get(installationId);
+		const cached = this.state.tokens.get(installationId);
 		if (
 			cached?.scope === scope &&
 			cached.expiresAt - TOKEN_SAFETY_MS > this.now()
 		) {
 			return { ok: true, value: cached.token };
 		}
-		const pending = this.mints.get(installationId);
-		this.tokens.delete(installationId);
+		const pending = this.state.mints.get(installationId);
+		this.state.tokens.delete(installationId);
 		if (pending?.scope === scope && pending.generation === generation) {
 			return this.withDeadline(pending.promise, deadlineAt);
 		}
 		const promise = this.mint(installation, scope, generation, deadlineAt);
 		const entry = { scope, generation, promise };
-		this.mints.set(installationId, entry);
+		this.state.mints.set(installationId, entry);
 		try {
 			return await promise;
 		} finally {
-			if (this.mints.get(installationId) === entry) {
-				this.mints.delete(installationId);
+			if (this.state.mints.get(installationId) === entry) {
+				this.state.mints.delete(installationId);
 			}
 		}
 	}
 
 	generation(installationId: string): number {
-		return this.generations.get(installationId) ?? 0;
+		return this.state.generations.get(installationId) ?? 0;
 	}
 
 	private expired(deadlineAt?: number): boolean {
@@ -679,8 +745,8 @@ export class GitCafeInstallationClient {
 		}
 		const installation = parsed.data;
 		const scope = JSON.stringify(installation);
-		const cached = this.tokens.get(installationId);
-		const pending = this.mints.get(installationId);
+		const cached = this.state.tokens.get(installationId);
+		const pending = this.state.mints.get(installationId);
 		if (
 			installation.pausedAt !== null ||
 			installation.suspendedAt !== null ||
@@ -735,7 +801,7 @@ export class GitCafeInstallationClient {
 		) {
 			return { ok: false, reason: "invalid-response" };
 		}
-		this.tokens.set(installation.id, {
+		this.state.tokens.set(installation.id, {
 			token: token.token,
 			expiresAt: Math.min(expiresAt, now + TOKEN_MAX_LIFETIME_MS),
 			scope,
@@ -771,7 +837,36 @@ export class GitCafeInstallationClient {
 		request: GitCafeInstallationRequest,
 		deadlineAt?: number,
 	): Promise<GitCafeInstallationResult<unknown>> {
+		const release = await this.acquireRequestSlot();
+		try {
+			return await this.sendSerialized(request, deadlineAt);
+		} finally {
+			release();
+		}
+	}
+
+	private async acquireRequestSlot(): Promise<() => void> {
+		if (this.state.activeRequests < MAX_CONCURRENT_REQUESTS) {
+			this.state.activeRequests++;
+		} else {
+			await new Promise<void>((resolve) => {
+				this.state.requestWaiters.push(resolve);
+			});
+		}
+		return () => {
+			const next = this.state.requestWaiters.shift();
+			if (next) next();
+			else this.state.activeRequests--;
+		};
+	}
+
+	private async sendSerialized(
+		request: GitCafeInstallationRequest,
+		deadlineAt?: number,
+	): Promise<GitCafeInstallationResult<unknown>> {
 		if (this.expired(deadlineAt)) return { ok: false, reason: "expired" };
+		if (this.now() < this.state.rateLimitedUntil)
+			return { ok: false, reason: "http", status: 429 };
 		const remaining =
 			deadlineAt === undefined ? Infinity : deadlineAt - this.now();
 		const deadlineLimited = remaining <= 10_000;
@@ -810,6 +905,11 @@ export class GitCafeInstallationClient {
 				};
 			}
 			if (!response.ok) {
+				if (response.status === 429)
+					this.state.rateLimitedUntil = Math.max(
+						this.state.rateLimitedUntil,
+						this.now() + rateLimitBackoffMs(response, this.now()),
+					);
 				await response.body?.cancel().catch(() => {});
 				return { ok: false, reason: "http", status: response.status };
 			}

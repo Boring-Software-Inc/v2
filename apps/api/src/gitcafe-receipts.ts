@@ -17,8 +17,6 @@ export function resolveGitCafeReceiptConfig(
 	env: Record<string, string | undefined>,
 ): GitCafeReceiptConfig | null {
 	if (env.GITCAFE_WEBHOOK_RECEIPTS_ENABLED !== "true") return null;
-	if (env.UNKEY_ENVIRONMENT_SLUG !== "preview")
-		throw new Error("GitCafe receipt admission requires preview environment");
 	const parsed = gitCafeReceiptConfigSchema.safeParse({
 		appId: env.GITCAFE_APP_ID,
 		keyVersion: env.GITCAFE_WEBHOOK_KEY_VERSION,
@@ -115,14 +113,39 @@ export async function receiveGitCafeReceipt(c: Context<ApiEnv>) {
 		signedAt: timestamp,
 		requestId,
 	});
-	const result = await gitCafeLifecycleServices.insertGitCafeReceipt(
-		pool,
-		boss,
-		receipt,
-	);
+	let result: Awaited<
+		ReturnType<typeof gitCafeLifecycleServices.insertGitCafeReceipt>
+	>;
+	try {
+		result = await gitCafeLifecycleServices.insertGitCafeReceipt(
+			pool,
+			boss,
+			receipt,
+		);
+	} catch (error) {
+		logger.error(
+			{
+				error,
+				forge: "gitcafe",
+				deliveryId,
+				eventType,
+				requestId,
+				apiRequestId: c.get("requestId"),
+			},
+			"GitCafe webhook ingest failed",
+		);
+		throw error;
+	}
 	logger.info(
 		{
+			event: result.inserted
+				? "gitcafe.receipt.accepted"
+				: "gitcafe.receipt.duplicate",
+			service: "api",
+			forge: "gitcafe",
+			release: process.env.UNKEY_GIT_COMMIT_SHA ?? "unknown",
 			requestId,
+			apiRequestId: c.get("requestId"),
 			receiptId: result.receiptId,
 			eventType,
 			inserted: result.inserted,

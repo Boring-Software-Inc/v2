@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { fileURLToPath } from "node:url";
 import {
 	applyMigrations,
@@ -149,6 +149,53 @@ describe("POST /webhooks/github", () => {
 			body,
 		});
 		expect(noHeaders.status).toBe(400);
+	});
+
+	test("queue failure reports webhook correlation context and rolls back", async () => {
+		const output: string[] = [];
+		const failure = spyOn(boss, "insert").mockRejectedValueOnce(
+			new Error("injected queue failure"),
+		);
+		const target = createApi({
+			auth: null,
+			db,
+			pool,
+			directPool: pool,
+			boss,
+			webhookSecret: SECRET,
+			webOrigin: "http://localhost:3000",
+			logger: pino(
+				{ level: "error" },
+				{ write: (chunk: string) => output.push(chunk) },
+			),
+		});
+		try {
+			const body = await fixtureBody();
+			const headers = new Headers({
+				"x-github-delivery": "delivery-failure",
+				"x-github-event": "pull_request",
+				"x-hub-signature-256": signWebhookBody(body, SECRET),
+			});
+			const response = await target.request("/webhooks/github", {
+				method: "POST",
+				headers,
+				body,
+			});
+			expect(response.status).toBe(500);
+			const requestId = response.headers.get("x-request-id");
+			expect(requestId).toBeString();
+			const logged = output.join("");
+			expect(logged).toContain("webhook ingest failed");
+			expect(logged).toContain("delivery-failure");
+			expect(logged).toContain(`"requestId":"${requestId}"`);
+		} finally {
+			failure.mockRestore();
+		}
+		const rows = await pool.query(
+			"SELECT count(*)::int AS n FROM events WHERE delivery_id = $1",
+			["delivery-failure"],
+		);
+		expect(rows.rows[0].n).toBe(0);
 	});
 });
 

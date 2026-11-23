@@ -1,5 +1,14 @@
 import { GITCAFE_CONNECT_QUEUE } from "@tripwire/contracts";
-import { PgBoss } from "pg-boss";
+import { type ConstructorOptions, PgBoss } from "pg-boss";
+
+/** Keeps queue maintenance inside the smallest supported database connection budget. */
+export const QUEUE_POOL_MAX = 4;
+
+export function queueDatabaseOptions(
+	databaseUrl: string,
+): Pick<ConstructorOptions, "connectionString" | "max"> {
+	return { connectionString: databaseUrl, max: QUEUE_POOL_MAX };
+}
 
 /** Ingest → worker handoff (§5). */
 export const PROCESS_EVENT_QUEUE = "process-event";
@@ -143,7 +152,7 @@ export async function createGitCafeConnectionBoss(
 	logger: BossErrorLogger,
 ): Promise<PgBoss> {
 	const boss = new PgBoss({
-		connectionString: databaseUrl,
+		...queueDatabaseOptions(databaseUrl),
 		schedule: false,
 		supervise: false,
 		migrate: false,
@@ -185,7 +194,7 @@ export async function createBoss(
 	if (!databaseUrl) {
 		throw new Error("DATABASE_URL is not set");
 	}
-	const boss = new PgBoss({ connectionString: databaseUrl });
+	const boss = new PgBoss(queueDatabaseOptions(databaseUrl));
 	boss.on("error", (error) => {
 		if (logger) {
 			logger.error({ error }, "pg-boss error (queue maintenance/fetch)");

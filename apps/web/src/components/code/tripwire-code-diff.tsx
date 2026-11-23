@@ -2,19 +2,16 @@ import { IconButton } from "@tripwire/ui/button";
 import { CopyButton } from "@tripwire/ui/copy-button";
 import { ChevronDown, ChevronRight, Copy, Icon } from "@tripwire/ui/icon";
 import { SegmentedControl } from "@tripwire/ui/radio-group";
-import { lazy, type ReactNode, Suspense, useId, useState } from "react";
+import { type ReactNode, Suspense, useId, useState } from "react";
 import { useCodeDark, WrapToggle } from "#/components/code/code-controls";
 import { CodeHeader, type DiffStats } from "#/components/code/code-header";
-import { PlainCode } from "#/components/code/plain-code";
+import {
+	CodeRendererLoading,
+	LazyPierreDiff,
+} from "#/components/code/pierre-code-loader";
 import { useMediaQuery } from "#/hooks/use-media-query";
 import { cn } from "#/lib/utils";
 import "./tripwire-code-diff.css";
-
-const PierreDiff = lazy(() =>
-	import("#/components/code/pierre-code").then((module) => ({
-		default: module.PierreDiff,
-	})),
-);
 
 export type CodeDiffLayout = "unified" | "split";
 
@@ -93,16 +90,9 @@ export function TripwireCodeDiff({
 			</span>
 		</CodeHeader>
 	);
-	const plain = (
-		<>
-			{header()}
-			<div hidden={!expanded} id={contentId}>
-				<PlainCode code={after} />
-			</div>
-		</>
-	);
 	return (
 		<div
+			aria-busy={!mounted ? true : undefined}
 			className={cn(
 				"code-surface min-w-0 rounded-lg",
 				review ? "overflow-clip rounded-shell" : "overflow-hidden",
@@ -114,8 +104,15 @@ export function TripwireCodeDiff({
 			}
 		>
 			{mounted ? (
-				<Suspense fallback={plain}>
-					<PierreDiff
+				<Suspense
+					fallback={
+						<>
+							{header()}
+							<CodeRendererLoading />
+						</>
+					}
+				>
+					<LazyPierreDiff
 						after={after}
 						before={before}
 						dark={dark}
@@ -128,7 +125,10 @@ export function TripwireCodeDiff({
 					/>
 				</Suspense>
 			) : (
-				plain
+				<>
+					{header()}
+					<CodeRendererLoading />
+				</>
 			)}
 		</div>
 	);

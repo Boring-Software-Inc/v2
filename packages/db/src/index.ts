@@ -30,6 +30,7 @@ export {
 	getRerunCooldownSeconds,
 	PROCESS_EVENT_QUEUE,
 	type ProcessEventJob,
+	QUEUE_POOL_MAX,
 	RECOVER_INSTALLATION_QUEUE,
 	REFRESH_SURFACES_QUEUE,
 	RERUN_COOLDOWN_SECONDS,
@@ -153,6 +154,7 @@ export * as giphyServices from "./services/giphy.ts";
 export * as gitCafeActionServices from "./services/gitcafe-actions.ts";
 export * as gitCafeConnectionServices from "./services/gitcafe-connection.ts";
 export * as gitCafeLifecycleServices from "./services/gitcafe-lifecycle.ts";
+export * as gitCafeOperationalServices from "./services/gitcafe-operations.ts";
 export * as homeDigestServices from "./services/home-digest.ts";
 export * as insightServices from "./services/insights.ts";
 export type {

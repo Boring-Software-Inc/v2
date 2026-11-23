@@ -75,6 +75,30 @@ function capturedRoute(url: URL): Response {
 	return new Response("unexpected request", { status: 500 });
 }
 
+for (const unavailable of [null, "members", "collaborators"] as const) {
+	test(`non-maintainer evidence requires both complete authority lists: ${unavailable ?? "complete"}`, async () => {
+		const h = harness((url) => {
+			if (
+				url.pathname.endsWith("/members/") ||
+				url.pathname.endsWith("/collaborators/")
+			) {
+				return url.pathname.endsWith(`/${unavailable}/`)
+					? new Response(null, { status: 503 })
+					: Response.json(collaborators);
+			}
+			return capturedRoute(url);
+		});
+		const result = await h.reads.getContributorProfile(
+			REPO,
+			"grim",
+			profile.actorId,
+		);
+		expect(result.ok).toBe(true);
+		if (!result.ok) throw new Error("Expected captured contributor profile");
+		expect(result.value.isMaintainer).toBe(unavailable === null ? false : null);
+	});
+}
+
 const THREAD_QUERY: ThreadListQuery = {
 	subjects: ["issue", "change-request"],
 	state: "any",
@@ -1049,7 +1073,7 @@ describe("adversarial protocol peers (not provider fixtures)", () => {
 			"adversarial-other-actor",
 		);
 		expect(result.ok && result.value.isOrgMember).toBe(false);
-		expect(result.ok && result.value.isMaintainer).toBeNull();
+		expect(result.ok && result.value.isMaintainer).toBe(false);
 	});
 	test("a failed membership read stays unknown, separate from direct collaborator authority", async () => {
 		const h = harness(

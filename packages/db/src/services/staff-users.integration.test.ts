@@ -227,7 +227,7 @@ beforeAll(async () => {
 		userId: mara,
 		role: "admin",
 	});
-});
+}, 120_000);
 
 afterAll(async () => {
 	await pool.end();

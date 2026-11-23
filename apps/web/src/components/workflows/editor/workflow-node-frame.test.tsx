@@ -265,18 +265,31 @@ test("TripwireNode content roles keep the title, compact reference and unset fie
 	expect(html).toContain('data-layout-role="workflow-node-corner-output"');
 });
 
-test("TripwireNode message summaries preserve literal multiline text without a redundant label", () => {
+test("TripwireNode comment surface keeps authored content in one interactive panel", () => {
 	const message = "Review <b>this</b>\nمرحبا بالعالم";
 	const html = renderNode("tripwire", GROUPS, {
 		id: "rule",
 		type: "action",
 		action: "post-comment",
-		params: { message },
+		params: {
+			message,
+			gif: {
+				id: "abc123",
+				url: "https://media2.giphy.com/media/abc123/giphy.gif",
+				width: 480,
+				height: 270,
+				title: "Ship it",
+			},
+		},
 	});
-	expect(html).toContain('data-message="true"');
+	expect(html).toContain('data-node-surface="comment"');
+	expect(html).toContain('data-layout-role="post-comment-panel"');
+	expect(html).toContain('aria-label="Edit comment"');
 	expect(html).toContain("Review &lt;b&gt;this&lt;/b&gt;\nمرحبا بالعالم");
-	expect(html).not.toContain('data-layout-role="workflow-node-field-label"');
-	expect(html).not.toContain('data-unset="true"');
+	expect(html).toContain('data-layout-role="post-comment-gif"');
+	expect(html).toContain('data-layout-role="post-comment-footer"');
+	expect(html).toContain("Post comment");
+	expect(html).not.toContain('data-layout-role="workflow-node-fields"');
 });
 
 test("TripwireNode list summaries preserve item boundaries and edit targets", () => {

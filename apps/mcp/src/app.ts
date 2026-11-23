@@ -1,8 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { captureException } from "@sentry/bun";
 import { assertApproved } from "@tripwire/auth/access-gate";
 import { type Forge, mcpToolCallScopeProbeSchema } from "@tripwire/contracts";
 import { agentServices, type Db } from "@tripwire/db";
+import { toError } from "@tripwire/utils";
 import { type Context, Hono } from "hono";
 import { cors } from "hono/cors";
 import type { Pool } from "pg";
@@ -32,6 +34,17 @@ export interface McpDeps {
 	config: McpConfig;
 	logger: Logger;
 	verifyToken?: typeof verifyAgentToken;
+	reportError?: (
+		error: Error,
+		context: {
+			phase: "request" | "protocol" | "tool";
+			method?: string;
+			path?: string;
+			tools?: ToolName[];
+			userId?: string;
+			clientId?: string;
+		},
+	) => void;
 }
 
 /** Only Request.json output is inspected; the original body remains SDK-owned. */
@@ -52,6 +65,41 @@ export function createApp(deps: McpDeps) {
 	const verifyToken = deps.verifyToken ?? verifyAgentToken;
 	const mcpPath = new URL(config.resource).pathname || "/mcp";
 	const app = new Hono();
+	const reportError =
+		deps.reportError ??
+		((error, context) => {
+			const tags = {
+				service: "mcp",
+				phase: context.phase,
+				method: context.method ?? "none",
+				path: context.path ?? "none",
+			};
+			captureException(error, {
+				tags,
+				extra: {
+					tools: context.tools,
+					user_id: context.userId,
+					client_id: context.clientId,
+				},
+			});
+		});
+
+	app.onError((error, c) => {
+		logger.error({ error }, "unhandled mcp request error");
+		reportError(toError(error), {
+			phase: "request",
+			method: c.req.method,
+			path: c.req.path,
+		});
+		return c.json(
+			{
+				jsonrpc: "2.0",
+				error: { code: -32603, message: "Internal error" },
+				id: null,
+			},
+			500,
+		);
+	});
 
 	app.use(
 		"*",
@@ -136,11 +184,19 @@ export function createApp(deps: McpDeps) {
 				logger.warn({ error }, "agent grant touch failed");
 			});
 
+		const tools = calledTools(body);
 		const permissions =
-			calledTools(body).length === 0
-				? await grantedPermissions(db, agent)
-				: undefined;
+			tools.length === 0 ? await grantedPermissions(db, agent) : undefined;
 		const server = new McpServer({ name: "tripwire", version: pkg.version });
+		server.server.onerror = (error) => {
+			logger.error({ error }, "mcp protocol error");
+			reportError(error, {
+				phase: "protocol",
+				tools,
+				userId: agent.userId,
+				clientId: agent.clientId,
+			});
+		};
 		registerTools(
 			server,
 			{
@@ -152,6 +208,15 @@ export function createApp(deps: McpDeps) {
 				accessDenied: denial
 					? `Your Tripwire access is not approved yet. Request access at ${config.appUrl}/queue and try again once you are in.`
 					: null,
+				reportError: (error) => {
+					logger.error({ error, tools }, "mcp tool failed");
+					reportError(error, {
+						phase: "tool",
+						tools,
+						userId: agent.userId,
+						clientId: agent.clientId,
+					});
+				},
 			},
 			{ ...selection, permissions },
 		);

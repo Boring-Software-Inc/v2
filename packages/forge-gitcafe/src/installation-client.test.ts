@@ -12,6 +12,7 @@ import {
 import {
 	GitCafeInstallationClient,
 	type GitCafeInstallationClientOptions,
+	GitCafeInstallationClientState,
 } from "@tripwire/forge-gitcafe";
 import { generateId } from "@tripwire/utils";
 import membersFixture from "../fixtures/gitcafe-connection-members.json";
@@ -372,12 +373,130 @@ describe("GitCafe installation client", () => {
 		expect(h.calls.every((c) => c.init.redirect === "manual")).toBe(true);
 	});
 
+	test("backs off every transport after a provider rate limit", async () => {
+		const h = harness();
+		let requests = 0;
+		const client = clientFor(h, async () => {
+			requests++;
+			return requests === 1
+				? new Response(null, {
+						status: 429,
+						headers: { "retry-after": "120" },
+					})
+				: Response.json(installationFixture);
+		});
+		expect(await client.getInstallation(installation.id)).toEqual({
+			ok: false,
+			reason: "http",
+			status: 429,
+		});
+		expect(await client.getInstallation(installation.id)).toEqual({
+			ok: false,
+			reason: "http",
+			status: 429,
+		});
+		expect(requests).toBe(1);
+		h.advance(120_000);
+		expect(await client.getInstallation(installation.id)).toEqual({
+			ok: true,
+			value: installation,
+		});
+		expect(requests).toBe(2);
+	});
+
+	test("bounds provider requests across runtime-scoped clients", async () => {
+		const h = harness();
+		const state = new GitCafeInstallationClientState(credentials);
+		const firstResponse = deferred<Response>();
+		const secondResponse = deferred<Response>();
+		let requests = 0;
+		const fetch = async () => {
+			requests++;
+			if (requests === 1) return firstResponse.promise;
+			if (requests === 2) return secondResponse.promise;
+			return Response.json(installationFixture);
+		};
+		const first = new GitCafeInstallationClient({
+			credentials,
+			now: h.now,
+			fetch,
+			state,
+		});
+		const second = new GitCafeInstallationClient({
+			credentials,
+			now: h.now,
+			fetch,
+			state,
+		});
+		const third = new GitCafeInstallationClient({
+			credentials,
+			now: h.now,
+			fetch,
+			state,
+		});
+
+		const firstLookup = first.getInstallation(installation.id);
+		await Promise.resolve();
+		const secondLookup = second.getInstallation(installation.id);
+		await Promise.resolve();
+		const thirdLookup = third.getInstallation(installation.id);
+		await Promise.resolve();
+		expect(requests).toBe(2);
+
+		firstResponse.resolve(Response.json(installationFixture));
+		expect((await firstLookup).ok).toBe(true);
+		await Promise.resolve();
+		expect(requests).toBe(3);
+		secondResponse.resolve(Response.json(installationFixture));
+		expect((await secondLookup).ok).toBe(true);
+		expect((await thirdLookup).ok).toBe(true);
+	});
+
 	test("reuses a token only after a fresh installation lookup", async () => {
 		const h = harness();
 		const client = clientFor(h);
 		await client.getToken(installation.id);
 		await client.getToken(installation.id);
 		expect(h.calls.map((c) => c.init.method)).toEqual(["GET", "POST", "GET"]);
+	});
+
+	test("reuses one installation token across runtime-scoped clients", async () => {
+		const h = harness();
+		const state = new GitCafeInstallationClientState(credentials);
+		const first = new GitCafeInstallationClient({
+			credentials,
+			now: h.now,
+			fetch: h.fetch,
+			state,
+		});
+		const second = new GitCafeInstallationClient({
+			credentials,
+			now: h.now,
+			fetch: h.fetch,
+			state,
+		});
+
+		expect((await first.getToken(installation.id)).ok).toBe(true);
+		expect((await second.getToken(installation.id)).ok).toBe(true);
+		expect(h.calls.map((call) => call.init.method)).toEqual([
+			"GET",
+			"POST",
+			"GET",
+		]);
+	});
+
+	test("refuses shared state from different app credentials", () => {
+		const h = harness();
+		const state = new GitCafeInstallationClientState(credentials);
+		expect(
+			() =>
+				new GitCafeInstallationClient({
+					credentials: { ...credentials, keyId: "another-key" },
+					now: h.now,
+					fetch: h.fetch,
+					state,
+				}),
+		).toThrow("GitCafe client state belongs to different credentials");
 	});
 
 	test("coalesces concurrent lookup and mint calls", async () => {

@@ -1,5 +1,9 @@
 import type { RedactionPolicy, RedactionSurface } from "@tripwire/contracts";
-import { REDACTION_SURFACES } from "@tripwire/contracts";
+import {
+	FORGE_BY_ID,
+	type ForgeId,
+	REDACTION_SURFACES,
+} from "@tripwire/contracts";
 import { Collapsible } from "@tripwire/ui/collapsible";
 import { StepSlider } from "@tripwire/ui/slider";
 import { useId } from "react";
@@ -14,6 +18,7 @@ import { RedactionTally } from "#/components/responses/redaction-tally";
 import { SettingToggle } from "#/components/responses/setting-rows";
 
 export interface RedactionControlsProps {
+	forge?: ForgeId | null;
 	policy: RedactionPolicy;
 	disabled: boolean;
 	onLevel: (level: number) => void;
@@ -22,6 +27,7 @@ export interface RedactionControlsProps {
 }
 
 export function RedactionControls({
+	forge,
 	policy,
 	disabled,
 	onLevel,
@@ -82,7 +88,11 @@ export function RedactionControls({
 							checked={policy.surfaces.includes(surface)}
 							disabled={disabled}
 							key={surface}
-							label={REDACTION_SURFACE_LABELS[surface]}
+							label={
+								surface === "review" && forge
+									? `${FORGE_BY_ID[forge].label} review`
+									: REDACTION_SURFACE_LABELS[surface]
+							}
 							onChange={(on) =>
 								onSurfaces(toggleSurface(policy.surfaces, surface, on))
 							}

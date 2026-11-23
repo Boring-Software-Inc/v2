@@ -1,4 +1,8 @@
-import type { RedactionPolicy, ResponseConfig } from "@tripwire/contracts";
+import type {
+	ForgeId,
+	RedactionPolicy,
+	ResponseConfig,
+} from "@tripwire/contracts";
 import { RedactionControls } from "#/components/responses/redaction-controls";
 import { encodeSurfaces } from "#/components/responses/redaction-model";
 import {
@@ -8,6 +12,7 @@ import {
 import type { useSaveQueue } from "#/components/save-queue";
 
 export interface RedactionSettingsProps {
+	forge?: ForgeId | null;
 	config: ResponseConfig;
 	orgPolicy: RedactionPolicy;
 	effective: RedactionPolicy;
@@ -16,6 +21,7 @@ export interface RedactionSettingsProps {
 }
 
 export function RedactionSettings({
+	forge,
 	config,
 	orgPolicy,
 	effective,
@@ -35,18 +41,19 @@ export function RedactionSettings({
 
 	return (
 		<SettingSection
-			description="What people outside your org see."
+			description="What people outside your workspace see."
 			id="redaction"
 			title="Redaction"
 		>
 			<SettingToggle
 				checked={inherit}
 				disabled={!canEdit}
-				label="Use org defaults"
+				label="Use workspace defaults"
 				onChange={setInherit}
 				setting="redaction"
 			/>
 			<RedactionControls
+				forge={forge}
 				disabled={!canEdit || inherit}
 				onLevel={(level) => setField("redaction.level", level)}
 				onShowHelp={(on) => setField("redaction.showHelp", on)}

@@ -15,6 +15,7 @@ import {
 	GITCAFE_RECEIPT_MAX_BYTES,
 	gitCafeInstallationCreatedSchema,
 	gitCafeInstallationSchema,
+	gitCafePermissionsAcceptedSchema,
 } from "@tripwire/contracts";
 import {
 	applyMigrations,
@@ -48,6 +49,11 @@ const installation = gitCafeInstallationSchema.parse(
 const created = gitCafeInstallationCreatedSchema.parse(
 	await Bun.file(
 		new URL("gitcafe-installation-created.json", fixtureRoot),
+	).json(),
+);
+const permissionsAccepted = gitCafePermissionsAcceptedSchema.parse(
+	await Bun.file(
+		new URL("gitcafe-installation-permissions-accepted.json", fixtureRoot),
 	).json(),
 );
 
@@ -110,6 +116,15 @@ async function fixtureBody() {
 	return Bun.file(
 		new URL(
 			"../../../packages/forge-gitcafe/fixtures/gitcafe-installation-created.json",
+			import.meta.url,
+		),
+	).text();
+}
+
+async function permissionsAcceptedBody() {
+	return Bun.file(
+		new URL(
+			"../../../packages/forge-gitcafe/fixtures/gitcafe-installation-permissions-accepted.json",
 			import.meta.url,
 		),
 	).text();
@@ -219,11 +234,26 @@ describe("GitCafe isolated receipt admission", () => {
 	});
 
 	test("queue failure rolls the receipt back", async () => {
+		const output: string[] = [];
+		const target = createApi({
+			...dependencies(),
+			logger: pino(
+				{ level: "error" },
+				{ write: (chunk: string) => output.push(chunk) },
+			),
+		});
 		const fail = spyOn(boss, "insert").mockRejectedValueOnce(
 			new Error("injected queue failure"),
 		);
 		try {
-			expect((await deliver(await fixtureBody())).status).toBe(500);
+			const response = await deliver(await fixtureBody(), {}, target);
+			expect(response.status).toBe(500);
+			const requestId = response.headers.get("x-request-id");
+			expect(requestId).toBeString();
+			const logged = output.join("");
+			expect(logged).toContain("GitCafe webhook ingest failed");
+			expect(logged).toContain("test-delivery");
+			expect(logged).toContain(`"apiRequestId":"${requestId}"`);
 		} finally {
 			fail.mockRestore();
 		}
@@ -292,7 +322,7 @@ describe("GitCafe isolated receipt admission", () => {
 		expect((await db.select().from(gitCafeReceipts)).length).toBe(0);
 	});
 
-	test("disabled receipt admission stays 404; production and wrong app refuse configuration", async () => {
+	test("disabled receipt admission stays 404; deployment environment does not replace application identity", async () => {
 		const disabled = createApi({ ...dependencies(), gitCafeReceipts: null });
 		expect((await deliver(await fixtureBody(), {}, disabled)).status).toBe(404);
 		expect(resolveGitCafeReceiptConfig({})).toBeNull();
@@ -306,8 +336,13 @@ describe("GitCafe isolated receipt admission", () => {
 		expect(resolveGitCafeReceiptConfig(env)?.appId).toBe(
 			GITCAFE_RECEIPT_APP_ID,
 		);
+		expect(
+			resolveGitCafeReceiptConfig({
+				...env,
+				UNKEY_ENVIRONMENT_SLUG: "production",
+			})?.appId,
+		).toBe(GITCAFE_RECEIPT_APP_ID);
 		for (const change of [
-			{ UNKEY_ENVIRONMENT_SLUG: "production" },
 			{ GITCAFE_APP_ID: "wrong-app" },
 			{ GITCAFE_WEBHOOK_SECRET: undefined },
 		])
@@ -372,6 +407,45 @@ describe("GitCafe isolated receipt admission", () => {
 });
 
 describe("GitCafe lifecycle repair from captured installation authority", () => {
+	test("accepted app permissions refresh active authority without changing repository scope", async () => {
+		const repoId = await seedRepo({
+			installationId: permissionsAccepted.installation.id,
+		});
+		await db.insert(gitCafeInstallationLifecycle).values({
+			installationId: permissionsAccepted.installation.id,
+			status: "active",
+			generation: 4,
+			authorityAt: new Date("2026-11-22T05:00:00.000Z"),
+			providerRevision: 4,
+		});
+		await deliver(await permissionsAcceptedBody(), {
+			"x-gitcafe-delivery": permissionsAccepted.id,
+			"x-gitcafe-event": permissionsAccepted.type,
+		});
+		const [receipt] = await db.select().from(gitCafeReceipts);
+		if (!receipt) throw new Error("receipt missing");
+		expect(
+			await gitCafeLifecycleServices.processGitCafeReceipt(db, receipt.id),
+		).toBe("applied");
+		expect(
+			await gitCafeLifecycleServices.processGitCafeReceipt(db, receipt.id),
+		).toBe("applied");
+		expect(
+			await gitCafeLifecycleServices.getGitCafeActionAuthority(
+				db,
+				permissionsAccepted.installation.id,
+			),
+		).toMatchObject({
+			allowed: true,
+			generation: 5,
+			providerRevision: permissionsAccepted.revision,
+		});
+		expect(await readRepo(repoId)).toMatchObject({
+			armed: true,
+			removedAt: null,
+		});
+	});
+
 	test("an event sharing the authority timestamp withdraws authority rather than assuming an order", async () => {
 		await db.insert(gitCafeInstallationLifecycle).values({
 			installationId: installation.id,

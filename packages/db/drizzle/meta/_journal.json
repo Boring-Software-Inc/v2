@@ -386,6 +386,20 @@
       "when": 1794461544998,
       "tag": "0054_fast_smasher",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1795212613178,
+      "tag": "0055_gitcafe-runtime-hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1795388770475,
+      "tag": "0056_wandering_sugar_man",
+      "breakpoints": true
     }
   ]
 }

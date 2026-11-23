@@ -7,6 +7,9 @@ import {
 	checkSummary,
 	commentObservedEvidenceSchema,
 	commentRuleEnvelopeSchema,
+	GITCAFE_PROCESSING_COMMENT,
+	GITCAFE_PROCESSING_COMPLETE_COMMENT,
+	GITCAFE_PROCESSING_FAILED_COMMENT,
 	planSurfaces,
 	REASON_LIMIT,
 	REVIEW_POINTER,
@@ -44,6 +47,18 @@ const AGE: CommentReason = {
 	ruleId: "account-age",
 	ruleName: "Account age",
 };
+
+test("GitCafe processing comments use one editable disclosure surface", () => {
+	for (const body of [
+		GITCAFE_PROCESSING_COMMENT,
+		GITCAFE_PROCESSING_COMPLETE_COMMENT,
+		GITCAFE_PROCESSING_FAILED_COMMENT,
+	]) {
+		expect(body).toContain("<details");
+		expect(body).toContain("<summary>");
+		expect(body.trim().endsWith(COMMENT_MARKER)).toBe(true);
+	}
+});
 const CRYPTO: CommentReason = {
 	text: "It adds 2 crypto wallet addresses to DONATE.md.",
 	remedy: "revise",

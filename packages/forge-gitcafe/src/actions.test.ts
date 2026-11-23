@@ -3,6 +3,8 @@ import { generateKeyPairSync } from "node:crypto";
 import {
 	COMMENT_MARKER,
 	type GitCafeActionOperation,
+	type GitCafeHydratedIssueEvent,
+	gitCafeActionAttachmentReserveSchema,
 	gitCafeActionBindingSchema,
 	gitCafeActionCommentPageSchema,
 	gitCafeActionCommentSchema,
@@ -15,8 +17,10 @@ import {
 	gitCafeActionReviewPageSchema,
 	gitCafeActionReviewSchema,
 	gitCafeActionSubjectSchema,
+	gitCafeHydratedIssueEventSchema,
 	gitCafeInstallationSchema,
 	gitCafeInstallationTokenSchema,
+	runButton,
 } from "@tripwire/contracts";
 import type { ForgeAction } from "@tripwire/forge";
 import { generateId } from "@tripwire/utils";
@@ -35,6 +39,8 @@ import candidatesFixture from "../fixtures/gitcafe-action-reviewer-candidates.js
 import reviewersFixture from "../fixtures/gitcafe-action-reviewers-current.json";
 import reviewsPopulated from "../fixtures/gitcafe-action-reviews-populated.json";
 import tokenFixture from "../fixtures/gitcafe-action-token-current.json";
+import issueCreated from "../fixtures/gitcafe-issue-created-webhook.json";
+import issueFixture from "../fixtures/gitcafe-read-issue-4.json";
 import pullFixture from "../fixtures/gitcafe-read-scratch-pull.json";
 import { GitCafeActions } from "./actions.ts";
 import { GitCafeInstallationClient } from "./installation-client.ts";
@@ -53,10 +59,13 @@ const root = "https://git.cafe/api/repos/boring/scratch/pulls/1";
 
 async function harness(
 	resource: (url: string, init: RequestInit) => Promise<Response>,
+	issueEvidence?: GitCafeHydratedIssueEvent,
+	now: () => number = Date.now,
 ) {
 	const client = new GitCafeInstallationClient({
 		credentials,
 		lifecycleGuard: async () => true,
+		now,
 		fetch: async (url, init) => {
 			if (url.includes("/api/apps/"))
 				return Response.json(
@@ -116,8 +125,58 @@ async function harness(
 	return {
 		binding,
 		operation: () => operation,
-		actions: new GitCafeActions({ client, installation: lookup.value, store }),
+		actions: new GitCafeActions({
+			client,
+			installation: lookup.value,
+			store,
+			issueEvidence,
+		}),
 	};
+}
+
+for (const changed of ["id", "authorActorId", "repoId"] as const) {
+	test(`issue creation evidence refuses a changed ${changed} before writes`, async () => {
+		const evidence = gitCafeHydratedIssueEventSchema.parse({
+			event: issueCreated,
+			author: {
+				login: issueFixture.author.handle,
+				externalId: issueFixture.authorActorId,
+			},
+			maintainer: false,
+		});
+		let writes = 0;
+		const h = await harness(async (_url, init) => {
+			if (init.method !== "GET") writes++;
+			return Response.json({ ...issueFixture, [changed]: pull.id });
+		}, evidence);
+		const binding = {
+			...h.binding,
+			subject: "issue" as const,
+			number: issueFixture.number,
+			headOid: null,
+		};
+		for (const action of ["close", "lock", "post-comment"] as const) {
+			const command =
+				action === "post-comment"
+					? {
+							kind: action,
+							body: "Captured issue check",
+							marker: "controlled-test",
+						}
+					: { kind: action };
+			expect(
+				await h.actions.execute(
+					{
+						...command,
+						repoFullName: "boring/scratch",
+						number: issueFixture.number,
+					},
+					binding,
+				),
+			).toEqual({ ok: false, reason: "identity-mismatch" });
+		}
+		expect(writes).toBe(0);
+	});
 }
 
 for (const source of ["github", "provider", "unsupported"] as const) {
@@ -336,6 +395,95 @@ for (const accepted of [true, false]) {
 		expect(posted).toBe(1);
 	});
 }
+
+test("uploads the shared run badge and posts GitCafe-safe linked image markdown", async () => {
+	const attachmentId = "attach_01m80dwekjezc9asafppafrc10";
+	const runUrl = "https://staging.tripwire.sh/runs/01a200de";
+	let reserved = 0;
+	let uploaded = 0;
+	let postedBody: string | undefined;
+	const requests: string[] = [];
+	const h = await harness(async (url, init) => {
+		requests.push(`${init.method} ${url}`);
+		if (url === root) return Response.json(pullFixture);
+		if (init.method === "GET" && url.startsWith(`${root}/comments/`))
+			return Response.json(commentsBefore);
+		if (
+			init.method === "POST" &&
+			url === "https://git.cafe/api/repos/boring/scratch/attachments/"
+		) {
+			reserved++;
+			const input = gitCafeActionAttachmentReserveSchema.parse(
+				JSON.parse(String(init.body)),
+			);
+			expect(input.requestKey).toBe(
+				`tripwire-${h.binding.actionId}-view-run-v1`,
+			);
+			return Response.json({
+				id: attachmentId,
+				state: "reserved",
+				size: input.size,
+				contentType: null,
+			});
+		}
+		if (
+			init.method === "PUT" &&
+			url ===
+				`https://git.cafe/api/repos/boring/scratch/attachments/${attachmentId}`
+		) {
+			uploaded++;
+			const headers = new Headers(init.headers);
+			expect(headers.get("content-type")).toBe("application/octet-stream");
+			expect(headers.get("content-length")).toBe("28953");
+			expect(init.body).toBeInstanceOf(Uint8Array);
+			const bytes = init.body as Uint8Array;
+			expect(bytes.byteLength).toBe(28_953);
+			return Response.json({
+				id: attachmentId,
+				state: "ready",
+				size: bytes.byteLength,
+				contentType: "image/png",
+			});
+		}
+		if (init.method === "POST" && url === `${root}/comments/`) {
+			postedBody = gitCafeActionCommentWriteSchema.parse(
+				JSON.parse(String(init.body)),
+			).body;
+			return Response.json({ ...commentCreated, body: postedBody });
+		}
+		return Response.json({}, { status: 418 });
+	});
+
+	const result = await h.actions.execute(
+		{
+			kind: "comment",
+			repoFullName: "boring/scratch",
+			number: 1,
+			body: `Tripwire blocked this change request.\n\n${runButton(runUrl)}`,
+			verdict: "block",
+			previousVerdict: null,
+		},
+		h.binding,
+	);
+	expect(requests).toEqual([
+		`GET ${root}`,
+		`GET ${root}/comments/?limit=100`,
+		"POST https://git.cafe/api/repos/boring/scratch/attachments/",
+		`PUT https://git.cafe/api/repos/boring/scratch/attachments/${attachmentId}`,
+		`GET ${root}`,
+		`POST ${root}/comments/`,
+	]);
+	expect(result).toEqual({
+		ok: true,
+		value: { externalId: commentCreated.id },
+	});
+	expect(reserved).toBe(1);
+	expect(uploaded).toBe(1);
+	expect(postedBody).toContain(
+		`[![View on Tripwire](/api/repos/boring/scratch/attachments/${attachmentId})](${runUrl})`,
+	);
+	expect(postedBody).not.toContain("<img");
+});
 
 test("observed delete refusal never becomes a successful receipt", async () => {
 	let writes = 0;
@@ -636,6 +784,165 @@ for (const kind of ["close", "lock"] as const) {
 	});
 }
 
+for (const kind of ["reopen", "unlock"] as const) {
+	test(`${kind} uses a fresh subject version and checks the restored state`, async () => {
+		const now = new Date().toISOString();
+		const guard = {
+			authorId: pull.authorActorId ?? "",
+			subject: "change-request" as const,
+			headSha: pull.headOid ?? undefined,
+			appliedAfter: now,
+			appliedBefore: now,
+		};
+		const action: ForgeAction =
+			kind === "reopen"
+				? { kind: "reopen", repoFullName: "boring/scratch", number: 1, guard }
+				: { kind: "unlock", repoFullName: "boring/scratch", number: 1, guard };
+		let subject = gitCafeActionSubjectSchema.parse({
+			...pullFixture,
+			state: kind === "reopen" ? "closed" : pullFixture.state,
+			closedAt: kind === "reopen" ? now : pullFixture.closedAt,
+			closedByActorId:
+				kind === "reopen"
+					? installation.bot.actorId
+					: pullFixture.closedByActorId,
+			closedByViaInstallationId:
+				kind === "reopen"
+					? installation.id
+					: pullFixture.closedByViaInstallationId,
+			lockedAt: kind === "unlock" ? now : pullFixture.lockedAt,
+			lockedByActorId:
+				kind === "unlock"
+					? installation.bot.actorId
+					: pullFixture.lockedByActorId,
+		});
+		let writes = 0;
+		const h = await harness(async (url, init) => {
+			if (init.method === "GET") return Response.json(subject);
+			expect(url).toBe(kind === "reopen" ? `${root}/reopen` : `${root}/unlock`);
+			expect(init.method).toBe("POST");
+			expect(JSON.parse(String(init.body))).toEqual({
+				expectedVersion: subject.version,
+			});
+			writes++;
+			subject = {
+				...subject,
+				version: subject.version + 1,
+				state: kind === "reopen" ? "open" : subject.state,
+				lockedAt: kind === "unlock" ? null : subject.lockedAt,
+			};
+			return Response.json(subject);
+		});
+		expect(await h.actions.execute(action, h.binding)).toEqual({
+			ok: true,
+			value: { externalId: pull.id },
+		});
+		expect(writes).toBe(1);
+		expect(await h.actions.execute(action, h.binding)).toEqual({
+			ok: true,
+			value: { externalId: pull.id },
+		});
+		expect(writes).toBe(1);
+	});
+}
+
+test("issue unlock uses the issue lock endpoint and verifies readback", async () => {
+	const issueRoot = root.replace("/pulls/", "/issues/");
+	const now = new Date().toISOString();
+	let subject = gitCafeActionSubjectSchema.parse({
+		...pullFixture,
+		headOid: null,
+		state: undefined,
+		stateType: "started",
+		lockedAt: now,
+		lockedByActorId: installation.bot.actorId,
+	});
+	const h = await harness(async (url, init) => {
+		if (init.method === "GET") return Response.json(subject);
+		expect(url).toBe(`${issueRoot}/lock`);
+		expect(init.method).toBe("DELETE");
+		expect(JSON.parse(String(init.body))).toEqual({
+			expectedVersion: subject.version,
+		});
+		subject = { ...subject, version: subject.version + 1, lockedAt: null };
+		return Response.json(subject);
+	});
+	expect(
+		await h.actions.execute(
+			{
+				kind: "unlock",
+				repoFullName: "boring/scratch",
+				number: 1,
+				guard: {
+					authorId: pull.authorActorId ?? "",
+					subject: "issue",
+					appliedAfter: now,
+					appliedBefore: now,
+				},
+			},
+			{ ...h.binding, subject: "issue", headOid: null },
+		),
+	).toEqual({ ok: true, value: { externalId: pull.id } });
+});
+
+test("appeal restoration refuses a changed subject, head, owner, or time window", async () => {
+	const now = new Date().toISOString();
+	const base = gitCafeActionSubjectSchema.parse({
+		...pullFixture,
+		state: "closed",
+		closedAt: now,
+		closedByActorId: installation.bot.actorId,
+		closedByViaInstallationId: installation.id,
+	});
+	const cases = [
+		{
+			name: "subject",
+			subject: { ...base, authorActorId: "act_other" },
+			reason: "appeal-subject-changed",
+		},
+		{
+			name: "head",
+			subject: { ...base, headOid: "a".repeat(40) },
+			reason: "stale",
+		},
+		{
+			name: "owner",
+			subject: { ...base, closedByActorId: "act_other" },
+			reason: "appeal-effect-no-longer-owned",
+		},
+		{
+			name: "time",
+			subject: { ...base, closedAt: "2026-01-01T00:00:00.000Z" },
+			reason: "appeal-effect-no-longer-owned",
+		},
+	] as const;
+	for (const current of cases) {
+		let writes = 0;
+		const h = await harness(async (_url, init) => {
+			if (init.method === "GET") return Response.json(current.subject);
+			writes++;
+			return Response.json(current.subject);
+		});
+		const result = await h.actions.execute(
+			{
+				kind: "reopen",
+				repoFullName: "boring/scratch",
+				number: 1,
+				guard: {
+					authorId: pull.authorActorId ?? "",
+					subject: "change-request",
+					headSha: pull.headOid ?? undefined,
+					appliedAfter: now,
+					appliedBefore: now,
+				},
+			},
+			h.binding,
+		);
+		expect(result, current.name).toEqual({ ok: false, reason: current.reason });
+		expect(writes, current.name).toBe(0);
+	}
+});
+
 test("deletion never trusts another author's marker or claims a refused deletion succeeded", async () => {
 	let writes = 0;
 	for (const own of [true, false]) {
@@ -705,16 +1012,21 @@ test("an issue comment deletion accepts a 204 and still requires complete readba
 for (const status of [403, 429, 500]) {
 	test(`comment transport ${status} ${status === 500 ? "retains uncertainty" : "permits retry after a definitive refusal"}`, async () => {
 		let posts = 0;
-		const h = await harness(async (url, init) => {
-			if (url === root) return Response.json(pullFixture);
-			if (init.method === "GET") return Response.json(commentsBefore);
-			posts++;
-			if (posts === 1) return new Response(null, { status });
-			const input = gitCafeActionCommentWriteSchema.parse(
-				JSON.parse(String(init.body)),
-			);
-			return Response.json({ ...commentCreated, body: input.body });
-		});
+		let now = Date.now();
+		const h = await harness(
+			async (url, init) => {
+				if (url === root) return Response.json(pullFixture);
+				if (init.method === "GET") return Response.json(commentsBefore);
+				posts++;
+				if (posts === 1) return new Response(null, { status });
+				const input = gitCafeActionCommentWriteSchema.parse(
+					JSON.parse(String(init.body)),
+				);
+				return Response.json({ ...commentCreated, body: input.body });
+			},
+			undefined,
+			() => now,
+		);
 		const action = {
 			kind: "post-comment" as const,
 			repoFullName: "boring/scratch",
@@ -727,6 +1039,7 @@ for (const status of [403, 429, 500]) {
 			reason: "http",
 			status,
 		});
+		if (status === 429) now += 60_000;
 		expect(await h.actions.execute(action, h.binding)).toEqual(
 			status === 500
 				? { ok: false, reason: "uncertain" }

@@ -170,6 +170,31 @@ describe("redactCommentReasons", () => {
 });
 
 describe("redactEvidence", () => {
+	test("crypto activity observations obey matched-value redaction", () => {
+		const evidence = {
+			matches: [
+				{
+					kind: "sol",
+					value: "wallet",
+					location: "README.md",
+					confirmation: "chain-activity",
+				},
+			],
+			checks: [
+				{
+					kind: "sol",
+					value: "wallet",
+					network: "solana-mainnet",
+					status: "observed",
+				},
+			],
+		};
+		const redacted = redactEvidence("crypto-address@3", evidence, 1);
+		expect(JSON.stringify(redacted)).not.toContain("wallet");
+		expect(redacted).toMatchObject({
+			checks: [{ network: "solana-mainnet", status: "observed" }],
+		});
+	});
 	const crypto = {
 		matches: [{ kind: "eth", value: "0xdEaD", location: "DONATE.md" }],
 	};

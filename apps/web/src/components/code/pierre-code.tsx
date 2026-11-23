@@ -69,7 +69,7 @@ export interface PierreDiffProps {
 	split: boolean;
 	contentId: string;
 	hidden: boolean;
-	renderHeader: (stats: DiffStats) => ReactNode;
+	renderHeader: (stats?: DiffStats) => ReactNode;
 }
 
 export function PierreDiff({

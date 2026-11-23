@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useParams } from "@tanstack/react-router";
+import { getRouteApi, useParams } from "@tanstack/react-router";
 import {
 	type ReactNode,
 	useCallback,
@@ -18,6 +18,7 @@ import { type NestedNavItem, ShellNav } from "#/components/layouts/shell-nav";
 import { useMediaQuery } from "#/hooks/use-media-query";
 import type { RouteScope } from "#/lib/active-scope";
 import { currentUserQueryOptions } from "#/lib/auth.query";
+import { SIDEBAR_COLLAPSED_COOKIE } from "#/lib/sidebar-preference";
 import { cn } from "#/lib/utils";
 import { CommandPaletteLauncher } from "./command-palette-launcher";
 import { DashboardRail } from "./dashboard-rail";
@@ -35,11 +36,11 @@ interface DashboardLayoutProps {
 	nav?: boolean;
 	nestedNavItem?: NestedNavItem;
 	scope?: RouteScope;
-	settingsNav?: (collapsed: boolean) => ReactNode;
+	secondarySidebar?: ReactNode;
+	onSecondarySidebarExitComplete?: () => void;
 	children: ReactNode;
 }
 
-const SIDEBAR_COLLAPSED_COOKIE = "tripwire-sidebar-collapsed";
 const sidebarListeners = new Set<() => void>();
 let sidebarCollapsedOverride: boolean | null = null;
 
@@ -57,11 +58,13 @@ function readSidebarState(): boolean {
 		.some((entry) => entry === `${SIDEBAR_COLLAPSED_COOKIE}=1`);
 }
 
-function useSidebarCollapsed(): [boolean, (collapsed: boolean) => void] {
+function useSidebarCollapsed(
+	initialCollapsed: boolean,
+): [boolean, (collapsed: boolean) => void] {
 	const collapsed = useSyncExternalStore(
 		subscribeToSidebarState,
 		readSidebarState,
-		() => false,
+		() => initialCollapsed,
 	);
 	const setCollapsed = useCallback((next: boolean) => {
 		sidebarCollapsedOverride = next;
@@ -96,15 +99,21 @@ function DashboardShell({
 	nav = true,
 	nestedNavItem,
 	scope,
-	settingsNav,
+	secondarySidebar,
+	onSecondarySidebarExitComplete,
 	children,
 }: DashboardLayoutProps) {
-	const { data: user } = useQuery(currentUserQueryOptions());
-	const [sidebarCollapsed, setSidebarCollapsed] = useSidebarCollapsed();
+	const { sidebarCollapsed: initialSidebarCollapsed } =
+		getRouteApi("__root__").useLoaderData();
+	const { data: user, isPending: userPending } = useQuery(
+		currentUserQueryOptions(),
+	);
+	const [sidebarCollapsed, setSidebarCollapsed] = useSidebarCollapsed(
+		initialSidebarCollapsed,
+	);
 	const { content, collapsed } = useSidePanel();
 	const isDesktop = useMediaQuery("(min-width: 768px)");
 	const showPanel = isDesktop && Boolean(content) && !collapsed;
-	const rail = isDesktop;
 	const params = useParams({ strict: false });
 	const inset = Boolean(params.repo || scope);
 
@@ -139,7 +148,7 @@ function DashboardShell({
 			<div
 				className={cn(
 					"isolate flex h-[calc(100dvh-var(--impersonation-bar,0rem))] origin-top flex-col transition-[background-color,scale,translate] duration-(--dur-overlay) ease-out inert:translate-y-3 inert:scale-(--scale-overlay)",
-					inset || rail ? "bg-page" : "bg-paper",
+					inset ? "bg-page" : "bg-paper md:bg-page",
 				)}
 				data-shell=""
 			>
@@ -161,22 +170,24 @@ function DashboardShell({
 				</div>
 				<RouteProgress />
 
-				<div className={cn("flex min-h-0 flex-1", rail && "py-2 pe-2")}>
-					{rail ? (
+				<div className="flex min-h-0 flex-1 md:py-2 md:pe-2">
+					<div className="hidden md:flex">
 						<DashboardRail
 							collapsed={sidebarCollapsed}
 							counts={counts}
+							loading={userPending}
 							nestedNavItem={nestedNavItem}
 							onCollapsedChange={setSidebarCollapsed}
 							scope={scope}
-							settingsNav={settingsNav}
+							secondarySidebar={secondarySidebar}
+							onSecondarySidebarExitComplete={onSecondarySidebarExitComplete}
 							user={user ?? null}
 						/>
-					) : null}
+					</div>
 					<div
 						className={cn(
 							"grid min-h-0 flex-1 transition-[padding] duration-(--dur-overlay) ease-out",
-							rail ? "p-0" : inset ? "px-2 pt-2 pb-2" : "px-0 pb-0",
+							inset ? "px-2 pt-2 pb-2 md:p-0" : "px-0 pb-0",
 							showPanel
 								? "grid-cols-[minmax(0,1fr)_--spacing(82)]"
 								: "grid-cols-[minmax(0,1fr)]",
@@ -185,9 +196,9 @@ function DashboardShell({
 						<div
 							className={cn(
 								"relative flex min-h-0 flex-col overflow-hidden bg-paper transition-[border-radius] duration-(--dur-overlay) ease-out",
-								inset || rail
+								inset
 									? "rounded-shell border border-line-faint"
-									: "rounded-none border-0",
+									: "rounded-none border-0 md:rounded-shell md:border md:border-line-faint",
 							)}
 						>
 							<main

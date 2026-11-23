@@ -1,0 +1,692 @@
+{
+	"capturedAt": "2026-11-20T22:33:57.475Z",
+	"purpose": "Live read-only wallet lookup observations. Activity is a snapshot, not a CI requirement or proof of key ownership.",
+	"cases": [
+		{
+			"chain": "bitcoin",
+			"network": "mainnet",
+			"address": "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
+			"result": {
+				"validation": {
+					"status": "valid",
+					"chain": "bitcoin",
+					"network": "mainnet",
+					"canonicalAddress": "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
+					"format": "p2pkh",
+					"compatibleNetworks": ["mainnet"],
+					"networkDiscrimination": "encoded"
+				},
+				"activity": {
+					"status": "observed",
+					"chain": "bitcoin",
+					"network": "mainnet",
+					"address": "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
+					"checkedAt": "2026-11-20T22:33:54.637Z",
+					"transactionCount": 67576
+				}
+			}
+		},
+		{
+			"chain": "bitcoin",
+			"network": "testnet",
+			"address": "mzBc4XEFSdzCDcTxAgf6EZXgsZWpztRhef",
+			"result": {
+				"validation": {
+					"status": "valid",
+					"chain": "bitcoin",
+					"network": "testnet",
+					"canonicalAddress": "mzBc4XEFSdzCDcTxAgf6EZXgsZWpztRhef",
+					"format": "p2pkh",
+					"compatibleNetworks": ["testnet", "regtest"],
+					"networkDiscrimination": "shared"
+				},
+				"activity": {
+					"status": "observed",
+					"chain": "bitcoin",
+					"network": "testnet",
+					"address": "mzBc4XEFSdzCDcTxAgf6EZXgsZWpztRhef",
+					"checkedAt": "2026-11-20T22:33:54.808Z",
+					"transactionCount": 11
+				}
+			}
+		},
+		{
+			"chain": "evm",
+			"network": "mainnet",
+			"address": "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B",
+			"result": {
+				"validation": {
+					"status": "valid",
+					"chain": "evm",
+					"network": "mainnet",
+					"canonicalAddress": "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B",
+					"format": "evm-20-byte",
+					"compatibleNetworks": ["mainnet", "testnet"],
+					"networkDiscrimination": "shared"
+				},
+				"activity": {
+					"status": "observed",
+					"chain": "evm",
+					"network": "mainnet",
+					"address": "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B",
+					"checkedAt": "2026-11-20T22:33:54.844Z",
+					"balance": "16686166264189920319",
+					"nonce": "1281",
+					"codePresent": true
+				}
+			}
+		},
+		{
+			"chain": "evm",
+			"network": "testnet",
+			"address": "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B",
+			"result": {
+				"validation": {
+					"status": "valid",
+					"chain": "evm",
+					"network": "testnet",
+					"canonicalAddress": "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B",
+					"format": "evm-20-byte",
+					"compatibleNetworks": ["mainnet", "testnet"],
+					"networkDiscrimination": "shared"
+				},
+				"activity": {
+					"status": "observed",
+					"chain": "evm",
+					"network": "testnet",
+					"address": "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B",
+					"checkedAt": "2026-11-20T22:33:55.337Z",
+					"balance": "11767354524680234384",
+					"nonce": "0",
+					"codePresent": false
+				}
+			}
+		},
+		{
+			"chain": "solana",
+			"network": "mainnet",
+			"address": "S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH",
+			"result": {
+				"validation": {
+					"status": "valid",
+					"chain": "solana",
+					"network": "mainnet",
+					"canonicalAddress": "S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH",
+					"format": "solana-public-key",
+					"compatibleNetworks": ["mainnet", "testnet", "devnet"],
+					"networkDiscrimination": "shared"
+				},
+				"activity": {
+					"status": "not-observed",
+					"chain": "solana",
+					"network": "mainnet",
+					"address": "S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH",
+					"checkedAt": "2026-11-20T22:33:55.803Z",
+					"transactionCount": 0,
+					"historyLimit": 1
+				}
+			}
+		},
+		{
+			"chain": "solana",
+			"network": "mainnet",
+			"address": "vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg",
+			"result": {
+				"validation": {
+					"status": "valid",
+					"chain": "solana",
+					"network": "mainnet",
+					"canonicalAddress": "vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg",
+					"format": "solana-public-key",
+					"compatibleNetworks": ["mainnet", "testnet", "devnet"],
+					"networkDiscrimination": "shared"
+				},
+				"activity": {
+					"status": "observed",
+					"chain": "solana",
+					"network": "mainnet",
+					"address": "vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg",
+					"checkedAt": "2026-11-20T22:33:56.384Z",
+					"balance": "39869364",
+					"transactionCount": 1,
+					"historyLimit": 1,
+					"accountOwner": "11111111111111111111111111111111",
+					"executable": false
+				}
+			}
+		},
+		{
+			"chain": "solana",
+			"network": "testnet",
+			"address": "Vote111111111111111111111111111111111111111",
+			"result": {
+				"validation": {
+					"status": "valid",
+					"chain": "solana",
+					"network": "testnet",
+					"canonicalAddress": "Vote111111111111111111111111111111111111111",
+					"format": "solana-public-key",
+					"compatibleNetworks": ["mainnet", "testnet", "devnet"],
+					"networkDiscrimination": "shared"
+				},
+				"activity": {
+					"status": "observed",
+					"chain": "solana",
+					"network": "testnet",
+					"address": "Vote111111111111111111111111111111111111111",
+					"checkedAt": "2026-11-20T22:33:56.765Z",
+					"balance": "1",
+					"transactionCount": 1,
+					"historyLimit": 1,
+					"accountOwner": "NativeLoader1111111111111111111111111111111",
+					"executable": true
+				}
+			}
+		},
+		{
+			"chain": "solana",
+			"network": "devnet",
+			"address": "Vote111111111111111111111111111111111111111",
+			"result": {
+				"validation": {
+					"status": "valid",
+					"chain": "solana",
+					"network": "devnet",
+					"canonicalAddress": "Vote111111111111111111111111111111111111111",
+					"format": "solana-public-key",
+					"compatibleNetworks": ["mainnet", "testnet", "devnet"],
+					"networkDiscrimination": "shared"
+				},
+				"activity": {
+					"status": "observed",
+					"chain": "solana",
+					"network": "devnet",
+					"address": "Vote111111111111111111111111111111111111111",
+					"checkedAt": "2026-11-20T22:33:57.141Z",
+					"balance": "1",
+					"transactionCount": 1,
+					"historyLimit": 1,
+					"accountOwner": "NativeLoader1111111111111111111111111111111",
+					"executable": true
+				}
+			}
+		}
+	],
+	"responses": [
+		{
+			"url": "https://blockstream.info/api/address/1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
+			"method": "GET",
+			"status": 200,
+			"capturedAt": "2026-11-20T22:33:54.793Z",
+			"sha256": "6207b63f1ac2a7ffb2968605c9cd7d9b5d7769442657ba4cc0b241d58c863149",
+			"response": {
+				"address": "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
+				"chain_stats": {
+					"funded_txo_count": 83553,
+					"funded_txo_sum": 5771681680,
+					"spent_txo_count": 0,
+					"spent_txo_sum": 0,
+					"tx_count": 67576
+				},
+				"mempool_stats": {
+					"funded_txo_count": 0,
+					"funded_txo_sum": 0,
+					"spent_txo_count": 0,
+					"spent_txo_sum": 0,
+					"tx_count": 0
+				}
+			}
+		},
+		{
+			"url": "https://blockstream.info/testnet/api/address/mzBc4XEFSdzCDcTxAgf6EZXgsZWpztRhef",
+			"method": "GET",
+			"status": 200,
+			"capturedAt": "2026-11-20T22:33:54.839Z",
+			"sha256": "f04969bd9e9607271539d3c363a64e78d10ccfa1a6839a4300d487224a8dd9b1",
+			"response": {
+				"address": "mzBc4XEFSdzCDcTxAgf6EZXgsZWpztRhef",
+				"chain_stats": {
+					"funded_txo_count": 11,
+					"funded_txo_sum": 20492292,
+					"spent_txo_count": 0,
+					"spent_txo_sum": 0,
+					"tx_count": 11
+				},
+				"mempool_stats": {
+					"funded_txo_count": 0,
+					"funded_txo_sum": 0,
+					"spent_txo_count": 0,
+					"spent_txo_sum": 0,
+					"tx_count": 0
+				}
+			}
+		},
+		{
+			"url": "https://ethereum-rpc.publicnode.com",
+			"method": "POST",
+			"request": {
+				"jsonrpc": "2.0",
+				"id": 1,
+				"method": "eth_chainId",
+				"params": []
+			},
+			"status": 200,
+			"capturedAt": "2026-11-20T22:33:55.089Z",
+			"sha256": "208c0be5a34cd9b241311e625b3035aa89cb237969cbc1a0c9cbd8c8517087eb",
+			"response": {
+				"jsonrpc": "2.0",
+				"result": "0x1",
+				"id": 1
+			}
+		},
+		{
+			"url": "https://ethereum-rpc.publicnode.com",
+			"method": "POST",
+			"request": {
+				"jsonrpc": "2.0",
+				"id": 1,
+				"method": "eth_getBalance",
+				"params": ["0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B", "latest"]
+			},
+			"status": 200,
+			"capturedAt": "2026-11-20T22:33:55.264Z",
+			"sha256": "ec3a2431f090fd1caa692cf439d415356df3ec226d2627ed807abcd2b2d67eeb",
+			"response": {
+				"jsonrpc": "2.0",
+				"id": 1,
+				"result": "0xe7912bcf6825a43f"
+			}
+		},
+		{
+			"url": "https://ethereum-rpc.publicnode.com",
+			"method": "POST",
+			"request": {
+				"jsonrpc": "2.0",
+				"id": 1,
+				"method": "eth_getCode",
+				"params": ["0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B", "latest"]
+			},
+			"status": 200,
+			"capturedAt": "2026-11-20T22:33:55.295Z",
+			"sha256": "3e3d9eae514d0c07686ae1c3f7eea67a75e1a6599a4c4b4112a41bc2043748bc",
+			"response": {
+				"jsonrpc": "2.0",
+				"id": 1,
+				"result": "0xef01005a7fc11397e9a8ad41bf10bf13f22b0a63f96f6d"
+			}
+		},
+		{
+			"url": "https://ethereum-rpc.publicnode.com",
+			"method": "POST",
+			"request": {
+				"jsonrpc": "2.0",
+				"id": 1,
+				"method": "eth_getTransactionCount",
+				"params": ["0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B", "latest"]
+			},
+			"status": 200,
+			"capturedAt": "2026-11-20T22:33:55.335Z",
+			"sha256": "fc0b527be6f0ee5dbb9989dba96ac3d5e6b9dc3e4b160e70c7f8390c0318edee",
+			"response": {
+				"jsonrpc": "2.0",
+				"id": 1,
+				"result": "0x501"
+			}
+		},
+		{
+			"url": "https://ethereum-sepolia-rpc.publicnode.com",
+			"method": "POST",
+			"request": {
+				"jsonrpc": "2.0",
+				"id": 1,
+				"method": "eth_chainId",
+				"params": []
+			},
+			"status": 200,
+			"capturedAt": "2026-11-20T22:33:55.587Z",
+			"sha256": "e45416df4ab7338a4d3bb6bb75e584a2e7898a60a011e0bd4e8e21a4266f71dd",
+			"response": {
+				"jsonrpc": "2.0",
+				"result": "0xaa36a7",
+				"id": 1
+			}
+		},
+		{
+			"url": "https://ethereum-sepolia-rpc.publicnode.com",
+			"method": "POST",
+			"request": {
+				"jsonrpc": "2.0",
+				"id": 1,
+				"method": "eth_getBalance",
+				"params": ["0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B", "latest"]
+			},
+			"status": 200,
+			"capturedAt": "2026-11-20T22:33:55.725Z",
+			"sha256": "d12a9f4ea92ac82a23e40c6e4889de9b72bd65cf104cbcd383a3dc9253349ac2",
+			"response": {
+				"jsonrpc": "2.0",
+				"id": 1,
+				"result": "0xa34e0a9815a6a590"
+			}
+		},
+		{
+			"url": "https://ethereum-sepolia-rpc.publicnode.com",
+			"method": "POST",
+			"request": {
+				"jsonrpc": "2.0",
+				"id": 1,
+				"method": "eth_getTransactionCount",
+				"params": ["0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B", "latest"]
+			},
+			"status": 200,
+			"capturedAt": "2026-11-20T22:33:55.798Z",
+			"sha256": "b2f1f2440efe85b924be1f873fb1ccd6f3ef9c6bfeef3cfef6bb70ae6ddcb3fc",
+			"response": {
+				"jsonrpc": "2.0",
+				"id": 1,
+				"result": "0x0"
+			}
+		},
+		{
+			"url": "https://ethereum-sepolia-rpc.publicnode.com",
+			"method": "POST",
+			"request": {
+				"jsonrpc": "2.0",
+				"id": 1,
+				"method": "eth_getCode",
+				"params": ["0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B", "latest"]
+			},
+			"status": 200,
+			"capturedAt": "2026-11-20T22:33:55.803Z",
+			"sha256": "693e8930e72658ce36bc3e1df09149339c713fea3a1175042642cd57d690de71",
+			"response": {
+				"jsonrpc": "2.0",
+				"id": 1,
+				"result": "0x"
+			}
+		},
+		{
+			"url": "https://api.mainnet-beta.solana.com",
+			"method": "POST",
+			"request": {
+				"jsonrpc": "2.0",
+				"id": 1,
+				"method": "getAccountInfo",
+				"params": [
+					"S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH",
+					{
+						"encoding": "base64",
+						"dataSlice": {
+							"offset": 0,
+							"length": 0
+						},
+						"commitment": "finalized"
+					}
+				]
+			},
+			"status": 200,
+			"capturedAt": "2026-11-20T22:33:56.087Z",
+			"sha256": "5abf8b8f8136236b8f4f983b85ed6a5a03d211da9fe5b6626c69a81d8c41956f",
+			"response": {
+				"jsonrpc": "2.0",
+				"result": {
+					"context": {
+						"apiVersion": "4.4.0",
+						"slot": 471906210
+					},
+					"value": null
+				},
+				"id": 1
+			}
+		},
+		{
+			"url": "https://api.mainnet-beta.solana.com",
+			"method": "POST",
+			"request": {
+				"jsonrpc": "2.0",
+				"id": 1,
+				"method": "getSignaturesForAddress",
+				"params": [
+					"S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH",
+					{
+						"limit": 1,
+						"commitment": "finalized"
+					}
+				]
+			},
+			"status": 200,
+			"capturedAt": "2026-11-20T22:33:56.383Z",
+			"sha256": "d5d4570915ae356dcee912806f2822465692ce1aa3533894cc2fc1e8385455f6",
+			"response": {
+				"jsonrpc": "2.0",
+				"result": [],
+				"id": 1
+			}
+		},
+		{
+			"url": "https://api.mainnet-beta.solana.com",
+			"method": "POST",
+			"request": {
+				"jsonrpc": "2.0",
+				"id": 1,
+				"method": "getAccountInfo",
+				"params": [
+					"vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg",
+					{
+						"encoding": "base64",
+						"dataSlice": {
+							"offset": 0,
+							"length": 0
+						},
+						"commitment": "finalized"
+					}
+				]
+			},
+			"status": 200,
+			"capturedAt": "2026-11-20T22:33:56.447Z",
+			"sha256": "76062599e940c1adbba6f522023da007d97fa88e8879ebe3d0a63d47c687574f",
+			"response": {
+				"jsonrpc": "2.0",
+				"result": {
+					"context": {
+						"apiVersion": "4.4.0",
+						"slot": 471906212
+					},
+					"value": {
+						"data": ["", "base64"],
+						"executable": false,
+						"lamports": 39869364,
+						"owner": "11111111111111111111111111111111",
+						"rentEpoch": 18446744073709552000,
+						"space": 0
+					}
+				},
+				"id": 1
+			}
+		},
+		{
+			"url": "https://api.mainnet-beta.solana.com",
+			"method": "POST",
+			"request": {
+				"jsonrpc": "2.0",
+				"id": 1,
+				"method": "getSignaturesForAddress",
+				"params": [
+					"vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg",
+					{
+						"limit": 1,
+						"commitment": "finalized"
+					}
+				]
+			},
+			"status": 200,
+			"capturedAt": "2026-11-20T22:33:56.764Z",
+			"sha256": "313334021b9630ec148bb0e00829b8d3bfabb77fcdee92fc26b31b2e2d9e917a",
+			"response": {
+				"jsonrpc": "2.0",
+				"result": [
+					{
+						"blockTime": 1794188391,
+						"confirmationStatus": "finalized",
+						"err": null,
+						"memo": null,
+						"signature": "4HN7ezsMhUnJcvbqyvdcUVyv5vWmh5mDzk3dW9zNWCrEw7Yqau5DZWzynGTbhVNKv36bKPGzwzK29XcAyCNuaHLy",
+						"slot": 467136279,
+						"transactionIndex": 188
+					}
+				],
+				"id": 1
+			}
+		},
+		{
+			"url": "https://api.testnet.solana.com",
+			"method": "POST",
+			"request": {
+				"jsonrpc": "2.0",
+				"id": 1,
+				"method": "getSignaturesForAddress",
+				"params": [
+					"Vote111111111111111111111111111111111111111",
+					{
+						"limit": 1,
+						"commitment": "finalized"
+					}
+				]
+			},
+			"status": 200,
+			"capturedAt": "2026-11-20T22:33:57.118Z",
+			"sha256": "91ac7f7a5402a6e93488ab8b72da01e3746ca5ee2982edf1639e3ee4ee0d983c",
+			"response": {
+				"jsonrpc": "2.0",
+				"result": [
+					{
+						"blockTime": 1795199113,
+						"confirmationStatus": "finalized",
+						"err": null,
+						"memo": null,
+						"signature": "4MZxfX956ggse5ppWKmeDr9vhtFMLaKv3T6GP7SEfJJnHZXSywbhPyGQXeC84PLpymYHgBU5FxmbqAiykSkxeheo",
+						"slot": 466958091,
+						"transactionIndex": 0
+					}
+				],
+				"id": 1
+			}
+		},
+		{
+			"url": "https://api.testnet.solana.com",
+			"method": "POST",
+			"request": {
+				"jsonrpc": "2.0",
+				"id": 1,
+				"method": "getAccountInfo",
+				"params": [
+					"Vote111111111111111111111111111111111111111",
+					{
+						"encoding": "base64",
+						"dataSlice": {
+							"offset": 0,
+							"length": 0
+						},
+						"commitment": "finalized"
+					}
+				]
+			},
+			"status": 200,
+			"capturedAt": "2026-11-20T22:33:57.140Z",
+			"sha256": "6e6961436f61343823edc4aec4b459456489c7d6946eb8c6f128f2be5f413f05",
+			"response": {
+				"jsonrpc": "2.0",
+				"result": {
+					"context": {
+						"apiVersion": "4.5.0-beta.0",
+						"slot": 467027295
+					},
+					"value": {
+						"data": ["", "base64"],
+						"executable": true,
+						"lamports": 1,
+						"owner": "NativeLoader1111111111111111111111111111111",
+						"rentEpoch": 18446744073709552000,
+						"space": 19
+					}
+				},
+				"id": 1
+			}
+		},
+		{
+			"url": "https://api.devnet.solana.com",
+			"method": "POST",
+			"request": {
+				"jsonrpc": "2.0",
+				"id": 1,
+				"method": "getAccountInfo",
+				"params": [
+					"Vote111111111111111111111111111111111111111",
+					{
+						"encoding": "base64",
+						"dataSlice": {
+							"offset": 0,
+							"length": 0
+						},
+						"commitment": "finalized"
+					}
+				]
+			},
+			"status": 200,
+			"capturedAt": "2026-11-20T22:33:57.474Z",
+			"sha256": "9dfa271dce8c36e1ee97af4bbf6fb56d155f574926329bf3fafd68d9568d7536",
+			"response": {
+				"jsonrpc": "2.0",
+				"result": {
+					"context": {
+						"apiVersion": "4.5.0-beta.0",
+						"slot": 524503931
+					},
+					"value": {
+						"data": ["", "base64"],
+						"executable": true,
+						"lamports": 1,
+						"owner": "NativeLoader1111111111111111111111111111111",
+						"rentEpoch": 18446744073709552000,
+						"space": 12
+					}
+				},
+				"id": 1
+			}
+		},
+		{
+			"url": "https://api.devnet.solana.com",
+			"method": "POST",
+			"request": {
+				"jsonrpc": "2.0",
+				"id": 1,
+				"method": "getSignaturesForAddress",
+				"params": [
+					"Vote111111111111111111111111111111111111111",
+					{
+						"limit": 1,
+						"commitment": "finalized"
+					}
+				]
+			},
+			"status": 200,
+			"capturedAt": "2026-11-20T22:33:57.475Z",
+			"sha256": "e8fd9eeb1623ca0d2db07a59b905ea4463c9d6694107b8322c0e83abfdf1cb15",
+			"response": {
+				"jsonrpc": "2.0",
+				"result": [
+					{
+						"blockTime": 1795211530,
+						"confirmationStatus": "finalized",
+						"err": null,
+						"memo": "[42] bnc:e9c1cd6f-0d14-4f15-b331-36bed4e8113f:0",
+						"signature": "3eEHZRxRyiSrsMVQdpRbNZGJNtUzxQ4gAEP6FFk5UbdehsjqNRnDPe8cz1kKGN2uKgkmupJGmtBS14BKcw1FZ7FW",
+						"slot": 524493498,
+						"transactionIndex": 14
+					}
+				],
+				"id": 1
+			}
+		}
+	]
+}

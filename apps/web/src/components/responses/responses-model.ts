@@ -5,6 +5,7 @@ import type {
 	CloseGif,
 	CommentInput,
 	CommentReason,
+	ForgeId,
 	RedactionPolicy,
 	ResponseBlock,
 	ResponseConfig,
@@ -277,10 +278,17 @@ export function postsComment(config: ResponseConfig, outcome: OutcomeMeta) {
 	return config[outcome.surface] === "comment";
 }
 
-export function sampleInput(outcome: OutcomeMeta): CommentInput {
+export function sampleInput(
+	outcome: OutcomeMeta,
+	forge?: ForgeId | null,
+): CommentInput {
+	const reasons =
+		forge === "gitcafe"
+			? SAMPLE_REASONS.filter((reason) => reason.ruleId !== "account-age")
+			: SAMPLE_REASONS;
 	const base = {
 		verdict: outcome.verdict,
-		contributorLogin: "contributor",
+		contributorLogin: "genesisrevelationinc-debug",
 		reasons: [] as CommentReason[],
 		runUrl: "https://tripwire.sh/runs/sample",
 		title: "Add sponsor wallet",
@@ -288,9 +296,12 @@ export function sampleInput(outcome: OutcomeMeta): CommentInput {
 	};
 	switch (outcome.value) {
 		case "block":
-			return { ...base, reasons: SAMPLE_REASONS };
+			return { ...base, reasons };
 		case "close":
-			return { ...base, reasons: CLOSE_REASONS };
+			return {
+				...base,
+				reasons: forge === "gitcafe" ? reasons.slice(0, 1) : CLOSE_REASONS,
+			};
 		case "changes_required":
 			return { ...base, fixes: [{ message: SAMPLE_FIX, reasons: [] }] };
 		case "note":
@@ -304,8 +315,9 @@ export function previewPlan(
 	config: ResponseConfig,
 	outcome: OutcomeMeta,
 	policy: RedactionPolicy,
+	forge?: ForgeId | null,
 ): SurfacePlan {
-	return planSurfaces(sampleInput(outcome), config, policy, {
+	return planSurfaces(sampleInput(outcome, forge), config, policy, {
 		reviewPosted: outcome.value === "block",
 	});
 }
@@ -320,8 +332,9 @@ export function previewCheck(
 	config: ResponseConfig,
 	outcome: OutcomeMeta,
 	policy: RedactionPolicy,
+	forge?: ForgeId | null,
 ): CheckPreview {
-	const input = sampleInput(outcome);
+	const input = sampleInput(outcome, forge);
 	return {
 		posted: wantsCheck(config, outcome.verdict),
 		verdict: outcome.verdict,
@@ -351,11 +364,12 @@ export function responsePreview(
 	outcome: OutcomeMeta,
 	policy: RedactionPolicy,
 	viewer: BlockViewer,
+	forge?: ForgeId | null,
 ): ResponsePreview {
 	const blocks = outcomeBlocks(config, outcome);
 	const seen: RedactionPolicy =
 		viewer === "member" ? { ...policy, level: 0 } : policy;
-	const plan = previewPlan(config, outcome, seen);
+	const plan = previewPlan(config, outcome, seen, forge);
 	const posting = postsComment(config, outcome);
 	const surface =
 		posting && plan.comment !== "upsert" && plan.review !== null
@@ -369,9 +383,9 @@ export function responsePreview(
 	return {
 		blocks,
 		lens,
-		outputs: renderBlockOutputs(blocks, sampleInput(outcome), lens),
+		outputs: renderBlockOutputs(blocks, sampleInput(outcome, forge), lens),
 		plan,
-		check: previewCheck(config, outcome, seen),
+		check: previewCheck(config, outcome, seen, forge),
 		posting,
 		runPageLevel: redactionLevelFor(seen, "run-page"),
 	};

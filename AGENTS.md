@@ -74,6 +74,22 @@ These rules are mandatory whenever an agent touches `apps/web/**`,
 root `DESIGN.md`, applicable scoped `agents.md`, `.claude/rules/frontend.md`,
 `.claude/skills/tripwire-design/SKILL.md`, and the antislop files named below.
 
+### Visual evidence is part of the implementation
+
+Every change that can affect rendered UI must use
+`.agents/skills/before-and-after/SKILL.md`. Capture the current surface before
+the first edit and capture the result afterward at matching routes, viewports,
+themes, data, and interaction states. Motion changes require a recording or
+frame sequence. Net-new surfaces use an after-only preview. Preserve-only
+refactors require a pair proving parity.
+
+The screenshots or recordings must be published in the PR through the skill's
+marked block and verified on the rendered PR. A UI task is not done, and its PR
+must not be handed to the user, while that evidence is missing. Tests, DOM
+inspection, and the independent visual audit supplement this evidence; they do
+not replace it. Capture files stay out of the product commit unless the user
+explicitly asks to version them.
+
 ### Compose the system in layers
 
 Do not infer a design-system component from its root HTML element. A product
@@ -263,3 +279,20 @@ Only an explicit choice of antislop during or after selects a session mode. A re
 If the mode is unresolved, ask during/after and end the response; wait for the answer before any UI review, planning, or concept. For read-only tasks, put the active-mode notice only at the start of the final answer, never in progress messages. For editing tasks, announce before the first edit and omit it from the final answer.
 To update antislop later: `npx antislop-ai --update`, or run `npx antislop-ai` and pick Overwrite them.
 <!-- antislop:end -->
+
+<!-- visual-evidence:start -->
+## UI visual evidence
+For every task that edits rendered UI, read
+`.agents/skills/before-and-after/SKILL.md` before the first edit. This includes
+layout, styles, tokens, components, visible copy, responsive behavior, motion,
+states, and preserve-only UI refactors.
+
+Before editing, say `visual evidence active: before/after required for every
+changed UI surface.` once. Capture the existing surface before editing, then
+capture the matching result after editing. Use an after-only Preview for a
+net-new surface and a recording or frame sequence for motion. Do not hand off a
+UI change or its PR until the marked evidence block is published and verified
+on the rendered PR. If a draft PR is needed to obtain a preview deployment,
+create it without handing it off, attach the evidence, verify it, then report
+the PR. Tests and written descriptions never replace the media.
+<!-- visual-evidence:end -->

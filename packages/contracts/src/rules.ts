@@ -367,9 +367,9 @@ export const RULE_CATALOG = [
 		/** reads the diff; open-git exposes no files endpoint — see the forge-capability audit in
 		 * `core/src/rules/forge-support.test.ts`. */
 		forges: ["github", "gitcafe"],
-		version: 2,
+		version: 3,
 		changeNote:
-			"skips clean verdicts when patch evidence is explicitly unavailable",
+			"validates address formats, scans added lines, and corroborates ambiguous Solana addresses on-chain",
 		name: "Crypto address",
 		blurb: "blocks cryptocurrency addresses in titles, comments, and diffs.",
 		configSchema: cryptoAddressConfigSchema,
@@ -382,7 +382,7 @@ export const RULE_CATALOG = [
 			"this change request adds crypto wallet addresses. Remove them.",
 		summaryReveals: ["file-paths"],
 		evidenceRedaction: {
-			"matched-values": ["matches.*.value"],
+			"matched-values": ["matches.*.value", "checks.*.value"],
 			"file-paths": ["matches.*.location"],
 		},
 	},
@@ -511,6 +511,7 @@ export const HISTORICAL_RULE_CONFIG_SCHEMAS = {
 	"ai-review@1": aiReviewConfigSchema,
 	"ai-review@2": aiReviewConfigSchema,
 	"crypto-address@1": cryptoAddressConfigSchema,
+	"crypto-address@2": cryptoAddressConfigSchema,
 } satisfies Readonly<Record<string, z.ZodType>>;
 
 /**

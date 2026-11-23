@@ -114,6 +114,7 @@ export type GitCafeEvaluationPhase = z.infer<
 export const GITCAFE_VERDICT_ACTION_KINDS: ReadonlySet<string> = new Set([
 	"block",
 	"close",
+	"lock",
 	"comment",
 	"delete-comment",
 	"set-check",
@@ -142,10 +143,16 @@ export const gitCafeActionSubjectSchema = z.object({
 	id: ID,
 	repoId: ID,
 	version: VERSION,
+	authorActorId: ID.nullable().optional(),
 	headOid: OID.nullable().optional(),
 	state: z.string().optional(),
 	stateType: z.string().optional(),
+	closedAt: z.iso.datetime().nullable().optional(),
+	closedByActorId: ID.nullable().optional(),
+	closedByViaInstallationId: ID.nullable().optional(),
 	lockedAt: z.iso.datetime().nullable(),
+	lockedByActorId: ID.nullable().optional(),
+	mergedAt: z.iso.datetime().nullable().optional(),
 	github: z.object({}).nullable().optional(),
 	mergeRoute: z.enum(["native", "provider", "unsupported"]).optional(),
 });
@@ -187,6 +194,43 @@ export const gitCafeActionCommentWriteSchema = z.strictObject({
 export type GitCafeActionCommentWrite = z.infer<
 	typeof gitCafeActionCommentWriteSchema
 >;
+
+export const gitCafeActionAttachmentReserveSchema = z.strictObject({
+	requestKey: z.string().min(1).max(128),
+	sha256: z.string().regex(/^[0-9a-f]{64}$/),
+	size: z
+		.number()
+		.int()
+		.min(1)
+		.max(10 * 1024 * 1024),
+});
+export type GitCafeActionAttachmentReserve = z.infer<
+	typeof gitCafeActionAttachmentReserveSchema
+>;
+
+export const gitCafeActionAttachmentSchema = z.object({
+	id: z.string().regex(/^attach_[0-9a-hjkmnp-tv-z]{26}$/),
+	state: z.enum([
+		"reserved",
+		"writing",
+		"ready",
+		"deleting",
+		"deleted",
+		"rejected",
+	]),
+	size: z
+		.number()
+		.int()
+		.positive()
+		.max(10 * 1024 * 1024),
+	contentType: z
+		.enum(["image/png", "image/jpeg", "image/gif", "image/webp"])
+		.nullable(),
+});
+export type GitCafeActionAttachment = z.infer<
+	typeof gitCafeActionAttachmentSchema
+>;
+
 export const gitCafeActionDismissInputSchema = z.strictObject({
 	expectedVersion: VERSION,
 	expectedPullVersion: VERSION,

@@ -29,6 +29,12 @@ async function githubRepoId(orgId: string, repoName: string) {
 	return repo.id;
 }
 
+async function moderatedRepoId(orgId: string, repoName: string) {
+	const repo = await resolveOrgRepo(orgId, repoName);
+	if (repo.forge !== "github" && repo.forge !== "gitcafe") throw notFound();
+	return repo.id;
+}
+
 export const getOrgModerationPolicy = createServerFn({ method: "GET" })
 	.middleware([accessGuardMiddleware, orgPermissionMiddleware("settings:read")])
 	.inputValidator(orgInput)
@@ -62,7 +68,7 @@ export const getRepoModerationSettings = createServerFn({ method: "GET" })
 	.middleware([accessGuardMiddleware, orgPermissionMiddleware("rules:read")])
 	.inputValidator(repoInput)
 	.handler(async ({ context, data }) => {
-		const id = await githubRepoId(context.org.id, data.repo);
+		const id = await moderatedRepoId(context.org.id, data.repo);
 		const { services, db } = await policyStore();
 		const [policy, orgPolicy, allowlist] = await Promise.all([
 			services.getRepoPolicy(db, id),
@@ -76,7 +82,7 @@ export const saveRepoModerationPolicy = createServerFn({ method: "POST" })
 	.middleware([accessGuardMiddleware, orgPermissionMiddleware("rules:manage")])
 	.inputValidator(repoInput.extend({ patch: repoModerationPolicyPatchSchema }))
 	.handler(async ({ context, data }) => {
-		const id = await githubRepoId(context.org.id, data.repo);
+		const id = await moderatedRepoId(context.org.id, data.repo);
 		const { services, db } = await policyStore();
 		await services.updateRepoPolicy(db, id, data.patch);
 	});

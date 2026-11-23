@@ -4,22 +4,35 @@ import {
 	GITCAFE_BACKFILL_REPO_QUEUE,
 	GITCAFE_LIFECYCLE_QUEUE,
 	GITCAFE_PROCESS_EVENT_QUEUE,
+	GITCAFE_PROCESSING_COMMENT,
 	GITCAFE_RECEIPT_APP_ID,
 	type GitCafeActionOperation,
 	type GitCafeCheckRerequestedEvent,
 	type GitCafeDispatchableRepositoryEvent,
+	gitCafeActionAttachmentReserveSchema,
+	gitCafeActionCommentSchema,
+	gitCafeActionCommentWriteSchema,
 	gitCafeActionOperationSchema,
 	gitCafeActionPayloadSchema,
 	gitCafeCheckRerequestedEventSchema,
 	gitCafeCommentEventSchema,
 	gitCafeInstallationSchema,
+	gitCafeInstallationTokenSchema,
+	gitCafeIssueEventSchema,
 	gitCafePullEventSchema,
 	gitCafePullIdentitySchema,
+	gitCafeReadIssueThreadSchema,
+	gitCafeReadProfileSchema,
 	gitCafeReadPullSchema,
 	gitCafeReceiptSchema,
 	normalizedEventSchema,
+	orgResponseDefaultsSchema,
+	redactEvidence,
+	redactSummary,
+	repoModerationPolicySchema,
 	responseConfigSchema,
 	storedActionPayloadSchema,
+	unrunnableIssues,
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
 import { deriveDefaultWorkflow } from "@tripwire/core";
@@ -33,11 +46,13 @@ import {
 	gitCafeActionServices,
 	gitCafeInstallationLifecycle,
 	gitCafeLifecycleServices,
+	moderationPolicyServices,
 	moderationServices,
 	organization,
 	organizationInstallations,
 	repoServices,
 	repos,
+	responseServices,
 	runActions,
 	runServices,
 	type TestDatabase,
@@ -60,6 +75,7 @@ import { processEvent } from "./jobs/process-event.ts";
 import { refreshRepoSurfaces } from "./jobs/refresh-surfaces.ts";
 import { rerunChangeRequest } from "./jobs/rerun.ts";
 import { resumeRun } from "./jobs/resume-run.ts";
+import { runWorkflows } from "./jobs/run-workflows.ts";
 import { sweepActions } from "./jobs/sweep-actions.ts";
 
 const base = new URL(
@@ -74,10 +90,59 @@ const installation = gitCafeInstallationSchema.parse(
 const event = gitCafePullEventSchema.parse(
 	await Bun.file(new URL("gitcafe-pull-created-webhook.json", base)).json(),
 );
+
+function createAttachmentTransport() {
+	const attachments = new Map<
+		string,
+		{ id: string; size: number; state: "reserved" | "ready" }
+	>();
+	return (path: string, init: RequestInit): Response | null => {
+		const root = "/api/repos/boring/scratch/attachments/";
+		if (path === root && init.method === "POST") {
+			const input = gitCafeActionAttachmentReserveSchema.parse(
+				JSON.parse(String(init.body)),
+			);
+			const prior = attachments.get(input.requestKey);
+			const attachment = prior ?? {
+				id: `attach_${createHash("sha256").update(input.requestKey).digest("hex").slice(0, 26)}`,
+				size: input.size,
+				state: "reserved" as const,
+			};
+			attachments.set(input.requestKey, attachment);
+			return Response.json({
+				...attachment,
+				contentType: attachment.state === "ready" ? "image/png" : null,
+			});
+		}
+		if (path.startsWith(root) && init.method === "PUT") {
+			const headers = new Headers(init.headers);
+			if (
+				headers.get("content-type") !== "application/octet-stream" ||
+				headers.get("content-length") !== "28953"
+			)
+				return new Response(null, { status: 400 });
+			const id = decodeURIComponent(path.slice(root.length));
+			const entry = [...attachments.entries()].find(
+				([, attachment]) => attachment.id === id,
+			);
+			if (!entry || !(init.body instanceof Uint8Array))
+				return new Response(null, { status: 404 });
+			const [key, attachment] = entry;
+			const ready = { ...attachment, state: "ready" as const };
+			attachments.set(key, ready);
+			return Response.json({
+				...ready,
+				contentType: "image/png",
+			});
+		}
+		return null;
+	};
+}
 let container: TestDatabase;
 let database: ReturnType<typeof createDb>;
 let boss: Awaited<ReturnType<typeof createBoss>>;
 let actionId: string;
+let eventId: string;
 let repoId: string;
 let operation: GitCafeActionOperation;
 
@@ -140,6 +205,7 @@ beforeEach(async () => {
 		raw: event,
 	});
 	if (!inserted.eventId) throw new Error("Event was not inserted");
+	eventId = inserted.eventId;
 	await eventServices.markEventNormalized(
 		database.db,
 		database.pool,
@@ -155,6 +221,11 @@ beforeEach(async () => {
 		status: "completed",
 		verdict: "block",
 	});
+	await gitCafeLifecycleServices.finishGitCafeEvent(
+		database.db,
+		inserted.eventId,
+		{ status: "completed", runId },
+	);
 	const [action] = await runServices.recordActions(database.db, runId, [
 		{
 			kind: "comment",
@@ -175,6 +246,57 @@ beforeEach(async () => {
 		dispatched: false,
 		command: { kind: "comment", body: "recorded body" },
 	});
+});
+
+test("processing comments retain one durable event-scoped dispatch claim", async () => {
+	const binding = await gitCafeActionServices.getGitCafeEventActionBinding(
+		database.db,
+		eventId,
+	);
+	expect(binding).not.toBeNull();
+	if (!binding) throw new Error("Missing event action binding");
+	const processing = gitCafeActionOperationSchema.parse({
+		...binding,
+		format: "gitcafe-action@1",
+		dispatched: false,
+		command: { kind: "comment", body: "Checking" },
+	});
+	expect(
+		await gitCafeActionServices.prepareGitCafeProcessingComment(
+			database.db,
+			processing,
+		),
+	).toEqual(processing);
+	expect(
+		await gitCafeActionServices.claimGitCafeProcessingComment(
+			database.db,
+			eventId,
+		),
+	).toBe(true);
+	expect(
+		await gitCafeActionServices.claimGitCafeProcessingComment(
+			database.db,
+			eventId,
+		),
+	).toBe(false);
+	expect(
+		(
+			await gitCafeActionServices.readGitCafeProcessingComment(
+				database.db,
+				eventId,
+			)
+		)?.dispatched,
+	).toBe(true);
+	await gitCafeActionServices.releaseGitCafeProcessingComment(
+		database.db,
+		eventId,
+	);
+	expect(
+		await gitCafeActionServices.claimGitCafeProcessingComment(
+			database.db,
+			eventId,
+		),
+	).toBe(true);
 });
 
 afterAll(async () => {
@@ -252,6 +374,11 @@ for (const drift of ["none", "pickup", "commit"] as const) {
 			throw new Error("Missing captured pull projection");
 		const ids: string[] = [];
 		for (const repositoryId of [event.repository.id, `repo_${generateId()}`]) {
+			const raw = gitCafePullEventSchema.parse({
+				...event,
+				pull: { ...event.pull, number: 987 },
+				repository: { ...event.repository, id: repositoryId },
+			});
 			const normalized = normalizedEventSchema.parse({
 				...source,
 				deliveryId: generateId(),
@@ -262,7 +389,7 @@ for (const drift of ["none", "pickup", "commit"] as const) {
 				deliveryId: normalized.deliveryId,
 				forge: "gitcafe",
 				rawKind: event.type,
-				raw: event,
+				raw,
 			});
 			if (!inserted.eventId) throw new Error("Missing backfill source");
 			ids.push(inserted.eventId);
@@ -271,6 +398,10 @@ for (const drift of ["none", "pickup", "commit"] as const) {
 				database.pool,
 				inserted.eventId,
 				normalized,
+			);
+			await database.pool.query(
+				"UPDATE events SET next_recovery_at=now() + interval '1 hour' WHERE id=$1",
+				[inserted.eventId],
 			);
 		}
 		const [validId, foreignId] = ids;
@@ -880,6 +1011,746 @@ async function admitPullReceipt(
 	return { ...inserted, receipt, payload };
 }
 
+test("a newly-created GitCafe subject retries read-after-write 404s", async () => {
+	const admitted = await admitPullReceipt();
+	expect(
+		await gitCafeLifecycleServices.dispatchGitCafeRepositoryReceipt(
+			database.db,
+			boss,
+			admitted.receiptId,
+		),
+	).toBe("dispatched");
+	const [row] = (
+		await database.pool.query<{ id: string }>(
+			"SELECT id FROM events WHERE delivery_id=$1",
+			[JSON.stringify([event.installation.id, admitted.payload.id])],
+		)
+	).rows;
+	if (!row) throw new Error("Missing GitCafe visibility event");
+	const reported: { retryable: boolean; status?: number }[] = [];
+	const result = await processEvent(
+		{
+			db: database.db,
+			pool: database.pool,
+			logger: pino({ level: "silent" }),
+			makeGenerate: null,
+			appUrl: "https://tripwire.test",
+			resumeNormalized: true,
+			reportGitCafePreparationFailure: (failure) => reported.push(failure),
+			resolveForge: () => ({
+				adapter: null,
+				reads: null,
+				signalHttp: null,
+				installationRepos: null,
+				isRepoPublic: null,
+				listThreads: null,
+				prepareEvent: async () => ({
+					ok: false,
+					reason: "http" as const,
+					status: 404,
+				}),
+			}),
+		},
+		{ eventId: row.id },
+	);
+	expect(result).toEqual({ retry: true, reason: "http" });
+	expect(reported).toEqual([
+		expect.objectContaining({ retryable: true, status: 404 }),
+	]);
+	expect(await eventServices.getEventById(database.db, row.id)).toMatchObject({
+		quarantined: false,
+		processedAt: null,
+	});
+});
+
+test("signed issue.created reaches the worker as issue moderation evidence", async () => {
+	const fixture = (name: string): Promise<unknown> =>
+		Bun.file(new URL(`${name}.json`, base)).json();
+	const [
+		raw,
+		issue,
+		repository,
+		token,
+		profile,
+		members,
+		collaborators,
+		merged,
+	] = await Promise.all(
+		[
+			"gitcafe-issue-created-webhook",
+			"gitcafe-read-issue-4",
+			"gitcafe-connection-repository",
+			"gitcafe-action-token-current",
+			"gitcafe-read-profile",
+			"gitcafe-connection-members",
+			"gitcafe-read-collaborators",
+			"gitcafe-read-pulls",
+		].map(fixture),
+	);
+	const source = gitCafeIssueEventSchema.parse(raw);
+	const admitted = await admitPullReceipt(source);
+	expect(
+		await gitCafeLifecycleServices.dispatchGitCafeRepositoryReceipt(
+			database.db,
+			boss,
+			admitted.receiptId,
+		),
+	).toBe("dispatched");
+	const [row] = (
+		await database.pool.query<{ id: string }>(
+			"SELECT id FROM events WHERE delivery_id=$1",
+			[JSON.stringify([source.installation.id, admitted.payload.id])],
+		)
+	).rows;
+	if (!row) throw new Error("Missing issue event");
+	const {
+		gitCafeInstallationTokenSchema,
+		gitCafeReadCollaboratorsSchema,
+		gitCafeReadIssueThreadSchema,
+		gitCafeReadProfileSchema,
+		gitCafeReadPullPageSchema,
+	} = await import("@tripwire/contracts");
+	const runtime = buildGitCafeRuntime(
+		database.db,
+		{
+			appId: installation.appId,
+			keyId: "issue-created-runtime-test",
+			privateKey: generateKeyPairSync("ec", { namedCurve: "prime256v1" })
+				.privateKey.export({ format: "pem", type: "pkcs8" })
+				.toString(),
+		},
+		async (url, init) => {
+			const path = new URL(url).pathname;
+			if (path.includes("/api/apps/"))
+				return Response.json(
+					init.method === "GET"
+						? installation
+						: {
+								...gitCafeInstallationTokenSchema.parse(token),
+								token: "issue-created-runtime-token",
+								expiresAt: new Date(Date.now() + 900_000).toISOString(),
+							},
+				);
+			if (path === "/api/repos/boring/scratch")
+				return Response.json(repository);
+			if (path === "/api/repos/boring/scratch/issues/4")
+				return Response.json(gitCafeReadIssueThreadSchema.parse(issue));
+			if (path === "/api/users/grim")
+				return Response.json(gitCafeReadProfileSchema.parse(profile));
+			if (path === "/api/orgs/boring/members/") return Response.json(members);
+			if (path.endsWith("/collaborators/"))
+				return Response.json(
+					gitCafeReadCollaboratorsSchema.parse(collaborators),
+				);
+			if (path.endsWith("/pulls/"))
+				return Response.json(gitCafeReadPullPageSchema.parse(merged));
+			throw new Error(`Unexpected issue-created path: ${path}`);
+		},
+	);
+	await processEvent(
+		{
+			db: database.db,
+			pool: database.pool,
+			logger: pino({ level: "silent" }),
+			resolveForge: () => runtime,
+			makeGenerate: null,
+			appUrl: "https://tripwire.test",
+			resumeNormalized: true,
+		},
+		{ eventId: row.id },
+	);
+	const saved = await eventServices.getEventById(database.db, row.id);
+	expect(saved?.raw).toEqual(admitted.payload);
+	expect(normalizedEventSchema.parse(saved?.normalized)).toMatchObject({
+		forge: "gitcafe",
+		kind: "issue.opened",
+		actor: { login: "grim", externalId: source.actor?.id },
+		issue: {
+			number: 4,
+			body: source.issue.description,
+			maintainer: true,
+		},
+	});
+});
+
+for (const scenario of [
+	"warn",
+	"block",
+	"close",
+	"human-review-approve",
+	"human-review-deny",
+	"authored",
+	"pass",
+	"maintainer",
+	"unarmed",
+	"unknown-permissions",
+	"skipped-rule",
+	"close-retry",
+	"lost-comment",
+	"obsolete-phase",
+	"lock-phase-retry",
+	"comment-outage",
+	"same-number-pull-trap",
+	"no-matching-workflow",
+	"foreign-repository",
+	"foreign-installation",
+	"foreign-tenant",
+	...[0, 1, 2, 3, 4, 5, 6, 7, 8].map((level) => `redaction-${level}` as const),
+] as const) {
+	test(`captured issue with controlled permission state: ${scenario}`, async () => {
+		const fixture = (name: string): Promise<unknown> =>
+			Bun.file(new URL(`${name}.json`, base)).json();
+		const [
+			raw,
+			issueRead,
+			repository,
+			token,
+			profile,
+			members,
+			emptyAuthority,
+			merged,
+			comment,
+		] = await Promise.all(
+			[
+				"gitcafe-issue-created-webhook",
+				"gitcafe-read-issue-4",
+				"gitcafe-connection-repository",
+				"gitcafe-action-token-current",
+				"gitcafe-read-profile",
+				"gitcafe-connection-members",
+				"gitcafe-read-collaborators",
+				"gitcafe-read-pulls",
+				"gitcafe-action-comment-created",
+			].map(fixture),
+		);
+		const source = gitCafeIssueEventSchema.parse(raw);
+		const level = scenario.startsWith("redaction-")
+			? Number(scenario.slice(10))
+			: null;
+		if (level !== null) {
+			const repo = await repoServices.getRepoByFullName(
+				database.db,
+				"boring/scratch",
+				"gitcafe",
+			);
+			if (!repo?.orgId) throw new Error("Missing organization claim");
+			await responseServices.upsertOrgResponseDefaults(
+				database.db,
+				repo.orgId,
+				orgResponseDefaultsSchema.parse({
+					redaction: { level: level % 2 === 0 ? level : 8 },
+				}),
+			);
+			if (level % 2 !== 0)
+				await repoServices.upsertResponseConfig(
+					database.db,
+					repoId,
+					responseConfigSchema.parse({ redaction: { inherit: false, level } }),
+				);
+			expect(
+				(await responseServices.getRedactionPolicy(database.db, repoId)).level,
+			).toBe(level);
+		}
+		let current = gitCafeReadIssueThreadSchema.parse(issueRead);
+		const commentData = gitCafeActionCommentSchema.parse(comment);
+		const comments: (typeof commentData)[] = [];
+		const calls: string[] = [];
+		let commentPosts = 0;
+		let closeAttempts = 0;
+		let profileReads = 0;
+		let deliveryEnabled =
+			scenario !== "obsolete-phase" &&
+			scenario !== "lock-phase-retry" &&
+			scenario !== "comment-outage";
+		const attachmentTransport = createAttachmentTransport();
+		const runtime = buildGitCafeRuntime(
+			database.db,
+			{
+				appId: installation.appId,
+				keyId: "issue-policy-test",
+				privateKey: generateKeyPairSync("ec", { namedCurve: "prime256v1" })
+					.privateKey.export({ format: "pem", type: "pkcs8" })
+					.toString(),
+			},
+			async (url, init) => {
+				const path = new URL(url).pathname;
+				calls.push(`${init.method} ${path}`);
+				const attachmentResponse = attachmentTransport(path, init);
+				if (attachmentResponse) return attachmentResponse;
+				if (path.includes("/api/apps/"))
+					return Response.json(
+						init.method === "GET"
+							? installation
+							: {
+									...gitCafeInstallationTokenSchema.parse(token),
+									token: "controlled-issue-test",
+									expiresAt: new Date(Date.now() + 900_000).toISOString(),
+								},
+					);
+				if (path === "/api/repos/boring/scratch")
+					return Response.json(repository);
+				if (path === "/api/users/grim") {
+					profileReads++;
+					return Response.json(profile, {
+						status: scenario === "skipped-rule" && profileReads > 1 ? 503 : 200,
+					});
+				}
+				if (path === "/api/orgs/boring/members/")
+					return Response.json(
+						scenario === "maintainer" ? members : emptyAuthority,
+						{ status: scenario === "unknown-permissions" ? 503 : 200 },
+					);
+				if (path.endsWith("/collaborators/"))
+					return Response.json(emptyAuthority);
+				if (path.endsWith("/pulls/")) return Response.json(merged);
+				const target = "/api/repos/boring/scratch/issues/4";
+				if (path === target) return Response.json(current);
+				if (path === `${target}/comments/`) {
+					if (init.method === "GET")
+						return Response.json({ items: comments, next: null });
+					if (!deliveryEnabled)
+						return new Response(null, {
+							status: scenario === "comment-outage" ? 429 : 503,
+							headers:
+								scenario === "comment-outage"
+									? { "retry-after": "0.001" }
+									: undefined,
+						});
+					const input = gitCafeActionCommentWriteSchema.parse(
+						JSON.parse(String(init.body)),
+					);
+					commentPosts++;
+					const created = { ...commentData, body: input.body };
+					comments.push(created);
+					if (scenario === "lost-comment" && commentPosts === 1)
+						throw new Error("Controlled response loss after committed comment");
+					return Response.json(created);
+				}
+				if (path.startsWith(`${target}/comments/`) && init.method === "PATCH") {
+					const input = gitCafeActionCommentWriteSchema.parse(
+						JSON.parse(String(init.body)),
+					);
+					const owned = comments[0];
+					if (!owned) throw new Error("Missing owned issue comment");
+					comments[0] = {
+						...owned,
+						body: input.body,
+						version: owned.version + 1,
+					};
+					return Response.json(comments[0]);
+				}
+				if (path === `${target}/close`) {
+					closeAttempts++;
+					if (scenario === "close-retry" && closeAttempts === 1)
+						return new Response(null, { status: 503 });
+					current = {
+						...current,
+						stateType: "completed",
+						version: current.version + 1,
+					};
+					return Response.json(current);
+				}
+				if (path === `${target}/lock`) {
+					if (!deliveryEnabled) return new Response(null, { status: 503 });
+					current = {
+						...current,
+						lockedAt: new Date().toISOString(),
+						version: current.version + 1,
+					};
+					return Response.json(current);
+				}
+				throw new Error(
+					`Unexpected issue endpoint, including same-number pull trap: ${path}`,
+				);
+			},
+		);
+		if (scenario === "unarmed")
+			await database.db
+				.update(repos)
+				.set({ armed: false })
+				.where(eq(repos.id, repoId));
+		if (scenario === "foreign-repository")
+			await database.db
+				.update(repos)
+				.set({ externalId: generateId() })
+				.where(eq(repos.id, repoId));
+		if (scenario === "foreign-installation")
+			await database.db
+				.update(repos)
+				.set({ installationId: generateId() })
+				.where(eq(repos.id, repoId));
+		if (scenario === "foreign-tenant")
+			await database.db.delete(organizationInstallations);
+		await repoServices.upsertRuleConfig(database.db, repoId, {
+			ruleId: "profile-readme",
+			version: 1,
+			enabled: true,
+			config: { minLength: scenario === "pass" ? 1 : 100000 },
+		});
+		const outcome = scenario.startsWith("human-review")
+			? "human-review"
+			: scenario.startsWith("close") ||
+					scenario === "comment-outage" ||
+					scenario === "unknown-permissions" ||
+					scenario === "skipped-rule"
+				? "close"
+				: scenario === "obsolete-phase" || scenario === "lock-phase-retry"
+					? "block"
+					: scenario === "block"
+						? "block"
+						: "warn";
+		await moderationPolicyServices.upsertRepoPolicy(
+			database.db,
+			repoId,
+			repoModerationPolicySchema.parse({
+				issueRulesEnabled: scenario !== "no-matching-workflow",
+				defaults: { issue: outcome },
+			}),
+		);
+		if (scenario === "authored") {
+			const definition = workflowDefinitionSchema.parse({
+				id: generateId(),
+				name: "Captured issue explicit workflow",
+				version: 1,
+				nodes: [
+					{ id: "issue", type: "trigger", kinds: ["issue.opened"] },
+					{
+						id: "rule",
+						type: "rule",
+						ref: "profile-readme@1",
+						config: { minLength: 100000 },
+					},
+					{
+						id: "comment",
+						type: "action",
+						action: "post-comment",
+						params: { message: "Captured issue workflow" },
+					},
+					{ id: "close", type: "action", action: "close", params: {} },
+				],
+				edges: [
+					{ id: "rule", from: "issue", to: "rule" },
+					{ id: "comment", from: "rule", to: "comment", when: "fail" },
+					{ id: "close", from: "rule", to: "close", when: "fail" },
+				],
+			});
+			expect(unrunnableIssues(definition)).toEqual([]);
+			const workflow = await workflowServices.createWorkflow(database.db, {
+				repoId,
+				definition,
+			});
+			await database.db
+				.update(workflowDefinitions)
+				.set({ enabled: true })
+				.where(eq(workflowDefinitions.id, workflow.id));
+		}
+		const admitted = await admitPullReceipt(source);
+		expect(
+			await gitCafeLifecycleServices.dispatchGitCafeRepositoryReceipt(
+				database.db,
+				boss,
+				admitted.receiptId,
+			),
+		).toBe("dispatched");
+		const [row] = (
+			await database.pool.query<{ id: string }>(
+				"SELECT id FROM events WHERE delivery_id=$1",
+				[JSON.stringify([source.installation.id, admitted.payload.id])],
+			)
+		).rows;
+		if (!row) throw new Error("Missing captured issue dispatch");
+		expect(
+			(
+				await database.pool.query(
+					"SELECT id FROM pgboss.job WHERE name=$1 AND data->>'eventId'=$2",
+					[GITCAFE_PROCESS_EVENT_QUEUE, row.id],
+				)
+			).rowCount,
+		).toBe(1);
+		const deps = {
+			db: database.db,
+			pool: database.pool,
+			logger: pino({ level: "silent" }),
+			resolveForge: () => runtime,
+			makeGenerate: null,
+			appUrl: "https://tripwire.test",
+			resumeNormalized: true,
+		};
+		await processEvent(deps, { eventId: row.id });
+		const saved = await runServices.getRunForEvent(database.db, row.id);
+		if (scenario.startsWith("foreign-")) {
+			expect(saved).toBeNull();
+			expect(comments).toHaveLength(0);
+			return;
+		}
+		if (
+			scenario === "maintainer" ||
+			scenario === "unarmed" ||
+			scenario === "no-matching-workflow"
+		) {
+			expect(saved).toBeNull();
+			expect(comments).toHaveLength(0);
+			{
+				const normalized = normalizedEventSchema.parse(
+					(await eventServices.getEventById(database.db, row.id))?.normalized,
+				);
+				if (!("repo" in normalized))
+					throw new Error("Expected repo-scoped issue");
+				expect(
+					(
+						await runWorkflows(
+							{
+								db: database.db,
+								logger: deps.logger,
+								reads: runtime.reads,
+								makeGenerate: null,
+							},
+							normalized,
+							row.id,
+						)
+					).skipReason,
+				).toBe(
+					scenario === "maintainer"
+						? "maintainer-exemption"
+						: scenario === "unarmed"
+							? "unarmed"
+							: "no-matching-workflow",
+				);
+			}
+			return;
+		}
+		if (!saved) throw new Error("Missing issue moderation run");
+		expect(saved).toMatchObject({
+			subjectKind: "issue",
+			subjectNumber: 4,
+			headSha: null,
+		});
+		const audit = await runServices.getRunWithSteps(database.db, saved.id);
+		expect(
+			audit?.steps.some((step) => step.ruleId === "profile-readme@1"),
+		).toBe(true);
+		if (scenario === "unknown-permissions" || scenario === "skipped-rule") {
+			expect(current.stateType).toBe("backlog");
+			expect(current.lockedAt).toBeNull();
+			expect(comments).toHaveLength(1);
+			expect(comments[0]?.body).not.toContain(
+				"Tripwire is checking this contribution",
+			);
+			await processEvent(deps, { eventId: row.id });
+			expect(comments).toHaveLength(1);
+			expect(
+				(await runServices.getRunWithSteps(database.db, saved.id))?.actions,
+			).toHaveLength(0);
+			return;
+		}
+		if (scenario === "same-number-pull-trap") {
+			const [pullEvent] = (
+				await database.pool.query<{ id: string }>(
+					"SELECT id FROM events WHERE raw_kind='pull.created' LIMIT 1",
+				)
+			).rows;
+			if (!pullEvent) throw new Error("Missing captured PR event trap");
+			await runServices.createRun(database.db, {
+				eventId: pullEvent.id,
+				repoFullName: saved.repoFullName,
+				subjectNumber: 4,
+				subjectKind: "change-request",
+				headSha: event.pull.headOid,
+				snapshot: [deriveDefaultWorkflow([])],
+				status: "completed",
+				verdict: "block",
+			});
+			const issueComment = (
+				await runServices.getRunWithSteps(database.db, saved.id)
+			)?.actions.find((action) => action.kind === "comment");
+			if (!issueComment) throw new Error("Missing issue response intent");
+			expect(
+				await gitCafeActionServices.getGitCafeIssueActionEvidence(
+					database.db,
+					issueComment.id,
+				),
+			).toMatchObject({
+				event: {
+					issue: { id: source.issue.id, number: 4 },
+					repository: { id: source.repository.id },
+					installation: { id: source.installation.id },
+				},
+				author: { externalId: source.actor?.id },
+			});
+		}
+		if (scenario.startsWith("human-review")) {
+			expect(saved.status).toBe("paused");
+			const [item] = await moderationServices.listModerationItemsForRun(
+				database.db,
+				saved.id,
+			);
+			if (!item) throw new Error("Missing issue moderation item");
+			await database.pool.query(
+				"UPDATE moderation_items SET status=$2 WHERE id=$1",
+				[item.id, scenario.endsWith("deny") ? "denied" : "approved"],
+			);
+			await resumeRun(deps, {
+				itemId: item.id,
+				decision: scenario.endsWith("deny") ? "deny" : "approve",
+			});
+			expect(
+				(await runServices.getRunById(database.db, saved.id))?.verdict,
+			).toBe(scenario.endsWith("deny") ? "block" : "pass");
+		}
+		if (scenario === "comment-outage") {
+			expect(closeAttempts).toBe(0);
+			deliveryEnabled = true;
+		}
+		if (scenario === "lock-phase-retry") {
+			expect(current.lockedAt).toBeNull();
+			await runServices.pauseRun(database.db, saved.id);
+			const itemId = await moderationServices.createModerationItem(
+				database.db,
+				{ runId: saved.id, nodeId: "run:degraded" },
+			);
+			await database.pool.query(
+				"UPDATE moderation_items SET status='approved' WHERE id=$1",
+				[itemId],
+			);
+			deliveryEnabled = true;
+			await resumeRun(deps, { itemId, decision: "approve" });
+			expect(
+				(await runServices.getRunById(database.db, saved.id))?.verdict,
+			).toBe("block");
+			expect(current.lockedAt).not.toBeNull();
+		}
+		if (scenario === "obsolete-phase") {
+			const [oldLock] =
+				(
+					await runServices.getRunWithSteps(database.db, saved.id)
+				)?.actions.filter((action) => action.kind === "lock") ?? [];
+			if (!oldLock) throw new Error("Missing held lock intent");
+			const oldPhase = gitCafeActionPayloadSchema.parse(
+				oldLock.payload,
+			).gitCafePhase;
+			expect(oldPhase?.verdict).toBe("block");
+			await database.pool.query("UPDATE runs SET verdict='pass' WHERE id=$1", [
+				saved.id,
+			]);
+			deliveryEnabled = true;
+			expect(
+				await gitCafeActionServices.getGitCafeActionBinding(
+					database.db,
+					oldLock.id,
+				),
+			).toBeNull();
+			const normalized = normalizedEventSchema.parse(
+				(await eventServices.getEventById(database.db, row.id))?.normalized,
+			);
+			if (!oldPhase) throw new Error("Missing phase");
+			expect(
+				await runServices.recordGitCafeSurfaceActions(
+					database.db,
+					saved.id,
+					oldPhase,
+					[],
+					[],
+					[],
+				),
+			).toBeNull();
+			await recoverGitCafeRunSurface(
+				{
+					db: database.db,
+					adapter: runtime.adapter,
+					logger: deps.logger,
+					appUrl: deps.appUrl,
+				},
+				saved.id,
+				normalized,
+			);
+			expect(current.lockedAt).toBeNull();
+			expect(
+				comments.every((comment) => !comment.body?.includes("/appeals/")),
+			).toBe(true);
+		}
+		const beforeRetry = profileReads;
+		await processEvent(deps, { eventId: row.id });
+		expect(profileReads).toBe(beforeRetry);
+		expect(await runServices.getRunForEvent(database.db, row.id)).toMatchObject(
+			{ id: saved.id },
+		);
+		if (
+			scenario === "close" ||
+			scenario === "close-retry" ||
+			scenario === "authored" ||
+			scenario === "comment-outage"
+		)
+			expect(current.stateType).toBe("completed");
+		if (scenario === "block" || scenario === "human-review-deny")
+			expect(current.lockedAt).not.toBeNull();
+		if (scenario === "lost-comment") expect(commentPosts).toBe(1);
+		if (scenario === "authored") {
+			expect(comments).toHaveLength(2);
+			expect(
+				comments.every(
+					(comment) =>
+						!comment.body?.includes("Tripwire is checking this contribution"),
+				),
+			).toBe(true);
+		} else if (scenario.startsWith("human-review"))
+			expect(comments).toHaveLength(2);
+		else if (scenario !== "pass" && scenario !== "obsolete-phase")
+			expect(comments).toHaveLength(1);
+		expect(
+			comments.every((comment) => !comment.body?.includes("/appeals/")),
+		).toBe(true);
+		const complete = await runServices.getRunWithSteps(database.db, saved.id);
+		if (level !== null) {
+			const step = complete?.steps.find(
+				(step) => step.ruleId === "profile-readme@1",
+			);
+			if (!step) throw new Error("Missing profile public projection");
+			const projected = {
+				hasProfileText: true,
+				length: gitCafeReadProfileSchema.parse(profile).bio?.trim().length ?? 0,
+			};
+			expect(step.publicEvidence).toEqual(projected);
+			expect(JSON.stringify(step.publicEvidence)).not.toContain("100000");
+			expect(redactEvidence(step.ruleId, projected, level)).toEqual(
+				level >= 3 ? null : projected,
+			);
+			const body = comments[0]?.body ?? "";
+			if (!step.summary) throw new Error("Missing profile summary");
+			if (level >= 5) expect(body).not.toContain(step.summary);
+			expect(redactSummary(step.ruleId, step.summary, level)).toBe(
+				level < 5 ? step.summary : null,
+			);
+			expect(body).not.toContain("100000");
+			const posted = complete?.actions.find(
+				(action) => action.kind === "comment",
+			);
+			const operation = gitCafeActionPayloadSchema.parse(
+				posted?.payload,
+			).gitCafeOperation;
+			expect(operation?.command).toEqual({ kind: "comment", body });
+		}
+		expect(
+			complete?.actions.some((action) =>
+				["set-check", "block", "dismiss-review"].includes(action.kind),
+			),
+		).toBe(false);
+		for (const action of complete?.actions ?? []) {
+			const operation = gitCafeActionPayloadSchema.parse(
+				action.payload,
+			).gitCafeOperation;
+			if (operation)
+				expect(operation).toMatchObject({
+					subject: "issue",
+					number: 4,
+					repositoryId: source.repository.id,
+					installationId: source.installation.id,
+					headOid: null,
+				});
+		}
+		expect(calls.some((call) => call.includes("/pulls/4"))).toBe(false);
+	}, 60_000);
+}
+
 const COMMENT_SCENARIOS = [
 	"healthy",
 	"self",
@@ -1486,6 +2357,13 @@ test("dispatched receipts restore exhausted or missing process jobs once and sto
 	);
 	expect(
 		await gitCafeLifecycleServices.recoverGitCafeEvents(database.db, boss),
+	).toBe(0);
+	await database.pool.query(
+		"UPDATE events SET next_recovery_at = now() - interval '1 second' WHERE id=$1",
+		[row.id],
+	);
+	expect(
+		await gitCafeLifecycleServices.recoverGitCafeEvents(database.db, boss),
 	).toBe(1);
 	await gitCafeLifecycleServices.finishGitCafeEvent(database.db, row.id);
 	await database.pool.query(
@@ -1504,6 +2382,14 @@ test("dispatched receipts restore exhausted or missing process jobs once and sto
 
 for (const { verdict, scenario } of [
 	{ verdict: "pass", scenario: "healthy" },
+	{ verdict: "pass", scenario: "policy-warn" },
+	{ verdict: "block", scenario: "policy-block" },
+	{ verdict: "pass", scenario: "policy-human-review" },
+	{ verdict: "pass", scenario: "policy-close" },
+	...[0, 1, 2, 3, 4, 5, 6, 7, 8].map((level) => ({
+		verdict: "block" as const,
+		scenario: `redaction-${level}` as const,
+	})),
 	{ verdict: "block", scenario: "healthy" },
 	{ verdict: "pass", scenario: "step-outage" },
 	{ verdict: "block", scenario: "step-outage" },
@@ -1585,12 +2471,25 @@ for (const { verdict, scenario } of [
 			gitCafeActionReviewCreateSchema,
 		} = await import("@tripwire/contracts");
 		const tokenData = gitCafeInstallationTokenSchema.parse(token);
+		const redactionLevel = scenario.startsWith("redaction-")
+			? Number(scenario.slice(10))
+			: null;
+		if (redactionLevel !== null) {
+			await repoServices.upsertResponseConfig(
+				database.db,
+				repoId,
+				responseConfigSchema.parse({
+					redaction: { inherit: false, level: redactionLevel },
+				}),
+			);
+		}
 		const commentData = gitCafeActionCommentSchema.parse(comment);
 		const reviewData = gitCafeActionReviewSchema.parse(review);
 		const createdData = gitCafeActionCreatedReviewSchema.parse(createdReview);
 		const reportData = gitCafeCheckReportResponseSchema.parse(report);
 		const checks: (typeof reportData.checkRun)[] = [];
 		const comments: (typeof commentData)[] = [];
+		const commentBodies: string[] = [];
 		const reviews: (typeof reviewData)[] = [];
 		const reviewRequests = new Map<
 			string,
@@ -1605,6 +2504,7 @@ for (const { verdict, scenario } of [
 		let driftLookups = 0;
 		let changeRevisionAfterCheck = false;
 		let changeHead = false;
+		let pullClosed = false;
 		let checkReads = 0;
 		let lostReview = false;
 		let refuseCleanup = false;
@@ -1616,11 +2516,14 @@ for (const { verdict, scenario } of [
 				.privateKey.export({ format: "pem", type: "pkcs8" })
 				.toString(),
 		};
+		const attachmentTransport = createAttachmentTransport();
 		const runtime = buildGitCafeRuntime(
 			database.db,
 			credentials,
 			async (url, init) => {
 				const path = new URL(url).pathname;
+				const attachmentResponse = attachmentTransport(path, init);
+				if (attachmentResponse) return attachmentResponse;
 				if (path.includes("/api/apps/")) {
 					if (init.method === "GET" && driftInstallation && ++driftLookups >= 2)
 						installationRevision = installation.revision + 1;
@@ -1640,7 +2543,10 @@ for (const { verdict, scenario } of [
 					profileReads++;
 					return Response.json(profile);
 				}
-				if (path === "/api/orgs/boring/members/") return Response.json(members);
+				if (path === "/api/orgs/boring/members/")
+					return Response.json(
+						scenario.startsWith("policy-") ? collaborators : members,
+					);
 				if (path.endsWith("/collaborators/"))
 					return Response.json(collaborators);
 				if (path.endsWith("/pulls/")) return Response.json(merged);
@@ -1671,6 +2577,13 @@ for (const { verdict, scenario } of [
 				if (path.endsWith("/pulls/1/changes")) return Response.json(changes);
 				if (path.includes("/pulls/1/diff/")) return Response.json(diff);
 				if (path.endsWith("/pulls/1/commits")) return Response.json(commits);
+				if (path.endsWith("/pulls/1/close")) {
+					pullClosed = true;
+					return Response.json({
+						...gitCafeReadPullSchema.parse(pull),
+						state: "closed",
+					});
+				}
 				if (
 					path.includes("/commits/") &&
 					path.endsWith("/check-runs/tripwire")
@@ -1710,6 +2623,7 @@ for (const { verdict, scenario } of [
 						body: body.body,
 					});
 					comments.push(posted);
+					commentBodies.push(body.body);
 					return Response.json(posted);
 				}
 				if (path.includes("/comments/") && init.method === "PATCH") {
@@ -1728,7 +2642,16 @@ for (const { verdict, scenario } of [
 						version: comment.version + 1,
 					};
 					comments[index] = updated;
+					commentBodies.push(input.body);
 					return Response.json(updated);
+				}
+				if (path.includes("/comments/") && init.method === "DELETE") {
+					const index = comments.findIndex((comment) =>
+						path.endsWith(comment.id),
+					);
+					if (index >= 0) comments.splice(index, 1);
+					commentBodies.push("[deleted]");
+					return new Response(null, { status: 204 });
 				}
 				if (path.endsWith("/reviews")) {
 					if (init.method === "GET")
@@ -1785,12 +2708,21 @@ for (const { verdict, scenario } of [
 				return new Response("Unexpected local runtime path", { status: 500 });
 			},
 		);
+		const failsProfile = verdict === "block" || scenario.startsWith("policy-");
 		await repoServices.upsertRuleConfig(database.db, repoId, {
-			ruleId: verdict === "pass" ? "max-files-changed" : "profile-readme",
+			ruleId: failsProfile ? "profile-readme" : "max-files-changed",
 			version: 1,
 			enabled: true,
-			config: verdict === "pass" ? { max: 1 } : { minLength: 100000 },
+			config: failsProfile ? { minLength: 100000 } : { max: 1 },
 		});
+		if (scenario.startsWith("policy-"))
+			await moderationPolicyServices.upsertRepoPolicy(
+				database.db,
+				repoId,
+				repoModerationPolicySchema.parse({
+					defaults: { "change-request": scenario.slice(7) },
+				}),
+			);
 		if (scenario === "review-only")
 			await repoServices.upsertResponseConfig(
 				database.db,
@@ -1814,6 +2746,8 @@ for (const { verdict, scenario } of [
 		if (!row) throw new Error("Missing dispatched event");
 		const previous = process.env.TRIPWIRE_DISABLE_EXEMPTION;
 		process.env.TRIPWIRE_DISABLE_EXEMPTION = "true";
+		if (scenario.startsWith("policy-"))
+			delete process.env.TRIPWIRE_DISABLE_EXEMPTION;
 		try {
 			const deps = {
 				db: database.db,
@@ -1857,6 +2791,75 @@ for (const { verdict, scenario } of [
 			const previousReads = profileReads;
 			await processEvent(deps, { eventId: row.id });
 			const saved = await runServices.getRunForEvent(database.db, row.id);
+			if (redactionLevel !== null) {
+				if (!saved) throw new Error("Missing redaction PR run");
+				if (redactionLevel < 5) {
+					expect(commentBodies[0]?.startsWith(GITCAFE_PROCESSING_COMMENT)).toBe(
+						true,
+					);
+					expect(commentBodies.at(-1)).toBe(comments[0]?.body ?? undefined);
+				} else expect(commentBodies).toEqual([]);
+				const audit = await runServices.getRunWithSteps(database.db, saved.id);
+				const step = audit?.steps.find(
+					(step) => step.ruleId === "profile-readme@1",
+				);
+				if (!step?.summary)
+					throw new Error("Missing profile public projection");
+				expect(JSON.stringify(step.publicEvidence)).not.toContain("100000");
+				expect(comments).toHaveLength(redactionLevel < 5 ? 1 : 0);
+				expect(reviews).toHaveLength(1);
+				expect(
+					[comments[0]?.body, reviews[0]?.body, checks.at(-1)?.output?.summary]
+						.join("\n")
+						.includes(step.summary),
+				).toBe(redactionLevel < 5);
+				for (const action of audit?.actions ?? []) {
+					if (action.kind === "set-check")
+						expect(checks.at(-1)?.output?.summary).toBe(
+							String(storedActionPayloadSchema.parse(action.payload).summary),
+						);
+					const operation = gitCafeActionPayloadSchema.parse(
+						action.payload,
+					).gitCafeOperation;
+					if (!operation) continue;
+					expect(operation.subject).toBe("change-request");
+					if (operation.command.kind === "comment")
+						expect(comments[0]?.body).toBe(operation.command.body);
+					if (operation.command.kind === "review")
+						expect(reviews[0]?.body).toBe(operation.command.input.body);
+				}
+				const beforeRetry = comments.length;
+				await processEvent(deps, { eventId: row.id });
+				expect(comments).toHaveLength(beforeRetry);
+				return;
+			}
+			if (scenario.startsWith("policy-")) {
+				if (!saved) throw new Error("Missing standalone PR run");
+				expect(saved.subjectKind).toBe("change-request");
+				expect(saved.verdict).toBe(
+					scenario === "policy-warn"
+						? "pass"
+						: scenario === "policy-human-review"
+							? "needs_review"
+							: scenario === "policy-close"
+								? "close"
+								: "block",
+				);
+				const audit = await runServices.getRunWithSteps(database.db, saved.id);
+				expect(
+					audit?.steps.some((step) =>
+						step.nodeId.endsWith(":moderation-outcome"),
+					),
+				).toBe(true);
+				expect(comments).toHaveLength(1);
+				expect(comments[0]?.body).not.toContain("/appeals/");
+				expect(reviews).toHaveLength(scenario === "policy-block" ? 1 : 0);
+				expect(pullClosed).toBe(scenario === "policy-close");
+				const readsBefore = profileReads;
+				await processEvent(deps, { eventId: row.id });
+				expect(profileReads).toBe(readsBefore);
+				return;
+			}
 			if (scenario.startsWith("native-rerequest")) {
 				if (!saved) throw new Error("Missing initial run");
 				const check = checks.at(-1);
@@ -2853,10 +3856,7 @@ for (const { verdict, scenario } of [
 			expect(checks.at(-1)?.conclusion).toBe(
 				verdict === "pass" ? "success" : "failure",
 			);
-		if (scenario !== "lost-review")
-			expect(comments).toHaveLength(
-				verdict === "block" && scenario !== "review-only" ? 1 : 0,
-			);
+		if (scenario !== "lost-review") expect(comments).toHaveLength(1);
 		if (scenario === "review-only") {
 			expect(reviews[0]?.body).toContain("https://staging.tripwire.sh/runs/");
 			expect(reviews[0]?.body).not.toBe(

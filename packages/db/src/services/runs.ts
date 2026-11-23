@@ -418,8 +418,9 @@ export async function recordGitCafeSurfaceActions(
 				.set({ status: "superseded" })
 				.where(eq(runActions.id, row.id));
 			if (
-				(row.kind === "block" || row.kind === "close") &&
-				expected.verdict === row.kind &&
+				(((row.kind === "block" || row.kind === "close") &&
+					expected.verdict === row.kind) ||
+					(row.kind === "lock" && expected.verdict === "block")) &&
 				pendingIds.includes(row.id)
 			) {
 				const body =

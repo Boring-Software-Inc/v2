@@ -1,0 +1,8 @@
+{
+	"source": "https://api.github.com/repos/collection-of-things/Col/compare/22713a5bf900018c623ed0511a2a4059249196f9...6b3ba326410e2b5c9d0d4529f2aef3167816ea4e",
+	"method": "GET",
+	"capturedOn": "2026-11-20",
+	"captureMethod": "GitHub connector fetch; retained the bun.lock entry from files without changing its fields",
+	"scrubbed": [],
+	"reason": "Run 01a1f905-b076-7000-abcf-0f5259308ef0 falsely matched an unchanged SHA-512 integrity digest as a Solana wallet. This captures the exact base and head from its webhook, not the PR's later diff."
+}

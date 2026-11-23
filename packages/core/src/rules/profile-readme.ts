@@ -53,8 +53,8 @@ export const profileReadme = defineRule({
 		passed
 			? null
 			: e.hasProfileText
-				? "Your GitHub profile README is too short."
-				: "Your GitHub profile has no README.",
+				? "Your profile description is too short."
+				: "Your profile has no description.",
 	// Fixable off-change — add a profile readme/bio (not this PR, but the person's).
 	remedy: "revise",
 	fixHint: (e) =>

@@ -372,7 +372,7 @@ export function RulesPage() {
 					<PageHeader
 						actions={
 							<>
-								{repo?.forge === "github" && (
+								{(repo?.forge === "github" || repo?.forge === "gitcafe") && (
 									<RepoModerationSettings
 										canManage={isAdmin}
 										key={repo.id}

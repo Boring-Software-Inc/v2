@@ -5,6 +5,7 @@
  */
 
 export { pendingCheckIsStale, supersededBy } from "./action-supersession.ts";
+export { cryptoAddressCandidates, isCryptoAddress } from "./crypto-address.ts";
 export {
 	createDatabuddyApi,
 	DATABUDDY_API_URL,
@@ -35,7 +36,7 @@ export {
 	generateWorkflowName,
 	pickWorkflowName,
 } from "./names.ts";
-export { backoffWithJitter } from "./retry.ts";
+export { backoffWithJitter, isRetryableForgeStatus } from "./retry.ts";
 export { skipWhenDraft } from "./skip-when-draft.ts";
 export {
 	type DitherChartOptions,
@@ -46,4 +47,13 @@ export {
 	type SparkSeries,
 } from "./sparkline-png.ts";
 export { truncate } from "./string.ts";
-export { sleep } from "./time.ts";
+export { sleep, withTimeout } from "./time.ts";
+export {
+	validateWalletAddress,
+	WALLET_ADDRESS_CHAINS,
+} from "./wallet-address.ts";
+export {
+	createWalletAddressInspector,
+	type WalletAddressInspectorOptions,
+	type WalletAddressReader,
+} from "./wallet-address-inspector.ts";

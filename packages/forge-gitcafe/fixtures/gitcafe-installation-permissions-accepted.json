@@ -1,0 +1,47 @@
+{
+	"id": "evt_01m80wkq2zf25r0atfhtvggmtb",
+	"version": "1",
+	"createdAt": "2026-11-22T05:45:36.095Z",
+	"actor": {
+		"id": "act_01m08gfttrfw3ba3xpz50vq38h"
+	},
+	"installation": {
+		"id": "ins_01m7vxye33fvevyr8d0vv24gzz"
+	},
+	"organization": {
+		"id": "org_01m601398vfdztay7fh3vaenpn"
+	},
+	"type": "installation.permissions_accepted",
+	"revision": 5,
+	"permissions": [
+		{ "kind": "repo", "family": "contents", "level": "read" },
+		{ "kind": "repo", "family": "metadata", "level": "read" },
+		{ "kind": "repo", "family": "rulesets", "level": "read" },
+		{ "kind": "repo", "family": "attachments", "level": "write" },
+		{ "kind": "repo", "family": "collaborators", "level": "read" },
+		{ "kind": "repo", "family": "catalog", "level": "read" },
+		{ "kind": "repo", "family": "checks", "level": "write" },
+		{ "kind": "pr", "family": "contents", "level": "read" },
+		{ "kind": "pr", "family": "review", "level": "write" },
+		{ "kind": "pr", "family": "labels", "level": "write" },
+		{ "kind": "pr", "family": "state", "level": "write" },
+		{ "kind": "pr", "family": "lock", "level": "write" },
+		{ "kind": "pr", "family": "verdict", "level": "write" },
+		{ "kind": "pr", "family": "dismiss", "level": "write" },
+		{ "kind": "pr", "family": "reviewers", "level": "write" },
+		{ "kind": "issue", "family": "contents", "level": "read" },
+		{ "kind": "issue", "family": "labels", "level": "write" },
+		{ "kind": "issue", "family": "state", "level": "write" },
+		{ "kind": "issue", "family": "lock", "level": "write" },
+		{ "kind": "comment", "family": "contents", "level": "write" },
+		{ "kind": "comment", "family": "moderation", "level": "write" },
+		{ "kind": "org", "family": "metadata", "level": "read" },
+		{ "kind": "org", "family": "membership", "level": "read" },
+		{ "kind": "team", "family": "metadata", "level": "read" },
+		{ "kind": "team", "family": "membership", "level": "read" }
+	],
+	"user": {
+		"permissions": [{ "kind": "repo", "family": "metadata", "level": "read" }],
+		"audiences": ["api"]
+	}
+}

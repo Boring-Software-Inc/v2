@@ -13,9 +13,7 @@ export function SettingsLayoutSkeleton() {
 	return (
 		<DashboardLayout
 			counts={{}}
-			settingsNav={(collapsed) => (
-				<SettingsNavSkeleton collapsed={collapsed} variant="rail" />
-			)}
+			secondarySidebar={<SettingsNavSkeleton variant="rail" />}
 		>
 			<SettingsFrame nav={<SettingsNavSkeleton />}>
 				<SettingsSectionSkeleton />

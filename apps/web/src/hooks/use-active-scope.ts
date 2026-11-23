@@ -11,6 +11,7 @@ export interface ActiveScope {
 	repo: string | null;
 	repoCandidate: string | null;
 	repoForge: ForgeId | null;
+	isPending: boolean;
 }
 
 export function useActiveScope(): ActiveScope {
@@ -20,8 +21,10 @@ export function useActiveScope(): ActiveScope {
 		shouldThrow: false,
 		select: (match) => match.loaderData?.scope ?? null,
 	});
-	const { data: orgs } = useQuery(myOrgsQueryOptions());
-	const { data: session } = useQuery(sessionInfoQueryOptions());
+	const { data: orgs, isPending: orgsPending } = useQuery(myOrgsQueryOptions());
+	const { data: session, isPending: sessionPending } = useQuery(
+		sessionInfoQueryOptions(),
+	);
 
 	const { org, repoCandidate } = resolveActiveScope({
 		orgs,
@@ -31,7 +34,11 @@ export function useActiveScope(): ActiveScope {
 		defaultOrgSlug: session?.defaultOrgSlug,
 	});
 
-	const { data: resolvedRepo, isSuccess: repoResolved } = useQuery({
+	const {
+		data: resolvedRepo,
+		isPending: repoPending,
+		isSuccess: repoResolved,
+	} = useQuery({
 		...orgRepoQueryOptions(org?.slug ?? "", repoCandidate ?? ""),
 		enabled: Boolean(org && repoCandidate),
 		retry: false,
@@ -42,5 +49,9 @@ export function useActiveScope(): ActiveScope {
 		repo: repoCandidate && repoResolved ? repoCandidate : null,
 		repoCandidate,
 		repoForge: resolvedRepo?.forge ?? null,
+		isPending:
+			orgsPending ||
+			sessionPending ||
+			(Boolean(org && repoCandidate) && repoPending),
 	};
 }

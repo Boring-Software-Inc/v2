@@ -1,0 +1,249 @@
+[
+	{
+		"name": "sol-empty-account",
+		"url": "https://api.mainnet-beta.solana.com",
+		"method": "POST",
+		"request": {
+			"jsonrpc": "2.0",
+			"id": 1,
+			"method": "getAccountInfo",
+			"params": [
+				"S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH",
+				{
+					"encoding": "base64",
+					"dataSlice": {
+						"offset": 0,
+						"length": 0
+					},
+					"commitment": "finalized"
+				}
+			]
+		},
+		"capturedAt": "2026-11-20T21:45:59.628Z",
+		"status": 200,
+		"contentType": "application/json; charset=utf-8",
+		"sha256": "1e60f014786f5bff1e9ba6de93a27f653bed79b711c06d179db652874b0e56e3",
+		"response": {
+			"jsonrpc": "2.0",
+			"result": {
+				"context": {
+					"apiVersion": "4.4.0",
+					"slot": 471892878
+				},
+				"value": null
+			},
+			"id": 1
+		}
+	},
+	{
+		"name": "sol-empty-history",
+		"url": "https://api.mainnet-beta.solana.com",
+		"method": "POST",
+		"request": {
+			"jsonrpc": "2.0",
+			"id": 1,
+			"method": "getSignaturesForAddress",
+			"params": [
+				"S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH",
+				{
+					"limit": 1,
+					"commitment": "finalized"
+				}
+			]
+		},
+		"capturedAt": "2026-11-20T21:46:00.044Z",
+		"status": 200,
+		"contentType": "application/json; charset=utf-8",
+		"sha256": "d5d4570915ae356dcee912806f2822465692ce1aa3533894cc2fc1e8385455f6",
+		"response": {
+			"jsonrpc": "2.0",
+			"result": [],
+			"id": 1
+		}
+	},
+	{
+		"name": "sol-active-account",
+		"url": "https://api.mainnet-beta.solana.com",
+		"method": "POST",
+		"request": {
+			"jsonrpc": "2.0",
+			"id": 1,
+			"method": "getAccountInfo",
+			"params": [
+				"Vote111111111111111111111111111111111111111",
+				{
+					"encoding": "base64",
+					"dataSlice": {
+						"offset": 0,
+						"length": 0
+					},
+					"commitment": "finalized"
+				}
+			]
+		},
+		"capturedAt": "2026-11-20T21:46:00.095Z",
+		"status": 200,
+		"contentType": "application/json; charset=utf-8",
+		"sha256": "e66ffc69c1e882de3376d34daf011b94b1275bf0a54c469c3dc1027f56dcafac",
+		"response": {
+			"jsonrpc": "2.0",
+			"result": {
+				"context": {
+					"apiVersion": "4.4.0",
+					"slot": 471892882
+				},
+				"value": {
+					"data": ["", "base64"],
+					"executable": true,
+					"lamports": 1,
+					"owner": "NativeLoader1111111111111111111111111111111",
+					"rentEpoch": 18446744073709552000,
+					"space": 19
+				}
+			},
+			"id": 1
+		}
+	},
+	{
+		"name": "sol-active-history",
+		"url": "https://api.mainnet-beta.solana.com",
+		"method": "POST",
+		"request": {
+			"jsonrpc": "2.0",
+			"id": 1,
+			"method": "getSignaturesForAddress",
+			"params": [
+				"Vote111111111111111111111111111111111111111",
+				{
+					"limit": 1,
+					"commitment": "finalized"
+				}
+			]
+		},
+		"capturedAt": "2026-11-20T21:46:00.156Z",
+		"status": 200,
+		"contentType": "application/json; charset=utf-8",
+		"sha256": "326c5ec2c22629cc9fb9fcaa189a64366667dd6b57866492ecef92166f18848b",
+		"response": {
+			"jsonrpc": "2.0",
+			"result": [
+				{
+					"blockTime": 1795209662,
+					"confirmationStatus": "finalized",
+					"err": null,
+					"memo": null,
+					"signature": "pCTcBMmiZ35d8ZtroYYy2Nj2Yid8zJ5YZKDCp7wMT2g7EPeSAjYeFjB2sknYegNavpPij1XKMrY2NcnHgFupKLM",
+					"slot": 471885953,
+					"transactionIndex": 95
+				}
+			],
+			"id": 1
+		}
+	},
+	{
+		"name": "btc-active",
+		"url": "https://blockstream.info/api/address/1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
+		"method": "GET",
+		"capturedAt": "2026-11-20T21:46:00.278Z",
+		"status": 200,
+		"contentType": "application/json",
+		"sha256": "6207b63f1ac2a7ffb2968605c9cd7d9b5d7769442657ba4cc0b241d58c863149",
+		"response": {
+			"address": "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
+			"chain_stats": {
+				"funded_txo_count": 83553,
+				"funded_txo_sum": 5771681680,
+				"spent_txo_count": 0,
+				"spent_txo_sum": 0,
+				"tx_count": 67576
+			},
+			"mempool_stats": {
+				"funded_txo_count": 0,
+				"funded_txo_sum": 0,
+				"spent_txo_count": 0,
+				"spent_txo_sum": 0,
+				"tx_count": 0
+			}
+		}
+	},
+	{
+		"name": "eth_getBalance",
+		"url": "https://ethereum-rpc.publicnode.com",
+		"method": "POST",
+		"request": {
+			"jsonrpc": "2.0",
+			"id": 1,
+			"method": "eth_getBalance",
+			"params": ["0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B", "latest"]
+		},
+		"capturedAt": "2026-11-20T21:46:00.510Z",
+		"status": 200,
+		"contentType": "application/json",
+		"sha256": "ec3a2431f090fd1caa692cf439d415356df3ec226d2627ed807abcd2b2d67eeb",
+		"response": {
+			"jsonrpc": "2.0",
+			"id": 1,
+			"result": "0xe7912bcf6825a43f"
+		}
+	},
+	{
+		"name": "eth_getTransactionCount",
+		"url": "https://ethereum-rpc.publicnode.com",
+		"method": "POST",
+		"request": {
+			"jsonrpc": "2.0",
+			"id": 1,
+			"method": "eth_getTransactionCount",
+			"params": ["0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B", "latest"]
+		},
+		"capturedAt": "2026-11-20T21:46:00.646Z",
+		"status": 200,
+		"contentType": "application/json",
+		"sha256": "fc0b527be6f0ee5dbb9989dba96ac3d5e6b9dc3e4b160e70c7f8390c0318edee",
+		"response": {
+			"jsonrpc": "2.0",
+			"id": 1,
+			"result": "0x501"
+		}
+	},
+	{
+		"name": "eth_getCode",
+		"url": "https://ethereum-rpc.publicnode.com",
+		"method": "POST",
+		"request": {
+			"jsonrpc": "2.0",
+			"id": 1,
+			"method": "eth_getCode",
+			"params": ["0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B", "latest"]
+		},
+		"capturedAt": "2026-11-20T21:46:00.768Z",
+		"status": 200,
+		"contentType": "application/json",
+		"sha256": "3e3d9eae514d0c07686ae1c3f7eea67a75e1a6599a4c4b4112a41bc2043748bc",
+		"response": {
+			"jsonrpc": "2.0",
+			"id": 1,
+			"result": "0xef01005a7fc11397e9a8ad41bf10bf13f22b0a63f96f6d"
+		}
+	},
+	{
+		"name": "eth_chainId",
+		"url": "https://ethereum-rpc.publicnode.com",
+		"method": "POST",
+		"request": {
+			"jsonrpc": "2.0",
+			"id": 1,
+			"method": "eth_chainId",
+			"params": []
+		},
+		"capturedAt": "2026-11-20T22:26:13.570Z",
+		"status": 200,
+		"contentType": "application/json",
+		"sha256": "208c0be5a34cd9b241311e625b3035aa89cb237969cbc1a0c9cbd8c8517087eb",
+		"response": {
+			"jsonrpc": "2.0",
+			"result": "0x1",
+			"id": 1
+		}
+	}
+]

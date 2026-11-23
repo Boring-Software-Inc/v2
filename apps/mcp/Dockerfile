@@ -28,4 +28,4 @@ COPY --from=install /app ./
 COPY packages ./packages
 COPY apps/mcp ./apps/mcp
 EXPOSE 8080
-CMD ["bun", "apps/mcp/src/index.ts"]
+CMD ["bun", "--preload", "./apps/mcp/instrument.ts", "apps/mcp/src/index.ts"]

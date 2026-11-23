@@ -21,7 +21,6 @@ const OUTCOME_PRIORITY = {
 
 const PULL_REQUEST_RULES = new Set([
 	"ai-review",
-	"crypto-address",
 	"english-only",
 	"honeypot",
 	"max-files-changed",

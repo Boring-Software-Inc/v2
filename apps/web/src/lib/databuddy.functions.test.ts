@@ -69,7 +69,8 @@ test("root loader covers public routes independently of session early returns an
 		new URL("../routes/__root.tsx", import.meta.url),
 		"utf8",
 	);
-	expect(root).toContain("loader: () => getPublicDatabuddyConfig()");
+	expect(root).toContain("loader: async () =>");
+	expect(root).toContain("getPublicDatabuddyConfig(),");
 	expect(root).toContain(
 		"const { databuddyWebsiteId } = Route.useLoaderData()",
 	);

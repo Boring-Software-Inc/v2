@@ -2,26 +2,38 @@ import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import {
 	GITCAFE_LIFECYCLE_QUEUE,
+	GITCAFE_PROCESS_EVENT_EXPIRE_SECONDS,
 	GITCAFE_PROCESS_EVENT_QUEUE,
 	GITCAFE_RECEIPT_MAX_BYTES,
 	GITCAFE_REFRESH_CATALOGS_QUEUE,
 	type GitCafeCatalogValues,
+	type GitCafeEventSettlement,
 	type GitCafeLifecycleLookup,
 	type GitCafeReceipt,
 	type GitCafeReceiptStatus,
+	type GitCafeRecoveryItem,
+	type GitCafeRecoveryRequest,
+	type GitCafeRecoverySelection,
 	type GitCafeRepositoryBinding,
 	type GitCafeRetirement,
 	gitCafeCatalogValuesSchema,
 	gitCafeCompletePushEventSchema,
+	gitCafeConnectionRepositorySchema,
 	gitCafeDispatchableRepositoryEventTypeSchema,
+	gitCafeEventSettlementSchema,
 	gitCafeInstallationCreatedSchema,
 	gitCafeLifecycleEventSchema,
 	gitCafeLifecycleEventTypeSchema,
 	gitCafeLifecycleLookupSchema,
+	gitCafePermissionsAcceptedSchema,
 	gitCafeProcessEventJobSchema,
 	gitCafePushRefDeliverySchema,
 	gitCafeReceiptJobSchema,
 	gitCafeReceiptSchema,
+	gitCafeRecoveryAuditSchema,
+	gitCafeRecoveryItemSchema,
+	gitCafeRecoveryRequestSchema,
+	gitCafeRecoverySelectionSchema,
 	gitCafeRefreshCatalogsJobSchema,
 	gitCafeRepositoriesUpdatedSchema,
 	gitCafeRepositoryBindingSchema,
@@ -31,10 +43,10 @@ import {
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
 import { and, eq, inArray, ne, notExists, sql } from "drizzle-orm";
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { PgBoss } from "pg-boss";
 import { type Db, requirePostgresPool } from "../client.ts";
-import type { BossErrorLogger } from "../queue.ts";
+import { type BossErrorLogger, queueDatabaseOptions } from "../queue.ts";
 import {
 	gitCafeInstallationLifecycle,
 	gitCafeReceipts,
@@ -117,6 +129,7 @@ export async function insertGitCafeScheduledEvent(
 						retryLimit: 10,
 						retryDelay: 15,
 						retryBackoff: true,
+						expireInSeconds: GITCAFE_PROCESS_EVENT_EXPIRE_SECONDS,
 					},
 				],
 				{
@@ -284,7 +297,7 @@ export async function createGitCafeLifecycleBoss(
 	logger: BossErrorLogger,
 ): Promise<PgBoss> {
 	const boss = new PgBoss({
-		connectionString: databaseUrl,
+		...queueDatabaseOptions(databaseUrl),
 		schedule: false,
 		supervise: false,
 		migrate: false,
@@ -388,37 +401,63 @@ export async function recoverPendingGitCafeReceipts(
 	const client = await requirePostgresPool(db).connect();
 	try {
 		await client.query("BEGIN");
+		await client.query("SET LOCAL statement_timeout = '10s'");
+		await client.query("SET LOCAL lock_timeout = '2s'");
 		await client.query(
 			"SELECT pg_advisory_xact_lock(hashtext('gitcafe-connection'))",
 		);
-		const pending = await client.query<{ id: string; receipt: unknown }>(
+		const pending = await client.query<{
+			id: string;
+			receipt: unknown;
+			status: GitCafeReceiptStatus;
+		}>(
 			`SELECT r.id, r.receipt FROM gitcafe_receipts r
-			 WHERE r.status = 'pending' AND NOT EXISTS (
+			 WHERE (r.status = 'pending' OR (r.status = 'parked' AND r.event_type = ANY($2::text[])))
+			 AND (r.next_recovery_at IS NULL OR r.next_recovery_at <= now()) AND NOT EXISTS (
 			   SELECT 1 FROM pgboss.job j WHERE j.name = $1
 			   AND j.data->>'receiptId' = r.id AND j.state IN ('created', 'retry', 'active')
 			 ) ORDER BY r.received_at, r.id LIMIT 100 FOR UPDATE OF r`,
-			[GITCAFE_LIFECYCLE_QUEUE],
+			[GITCAFE_LIFECYCLE_QUEUE, gitCafeLifecycleEventTypeSchema.options],
 		);
 		if (pending.rows.length > 0) {
-			const jobs = pending.rows.map((row) => ({
-				id: generateId(),
-				data: gitCafeReceiptJobSchema.parse({
-					receiptId: row.id,
-					requestId: gitCafeReceiptSchema.parse(row.receipt).requestId,
-				}),
-				retryLimit: 5,
-				retryDelay: 15,
-				retryBackoff: true,
-			}));
-			const inserted = await boss.insert(GITCAFE_LIFECYCLE_QUEUE, jobs, {
-				returnId: true,
-				db: {
-					executeSql: (text: string, values?: unknown[]) =>
-						client.query(text, values),
-				},
-			});
-			if (inserted?.length !== jobs.length)
-				throw new Error("GitCafe receipt recovery did not restore its jobs");
+			const jobs = [];
+			for (const row of pending.rows) {
+				const parsed = gitCafeReceiptSchema.safeParse(row.receipt);
+				if (!parsed.success || !receiptBytesMatch(parsed.data)) {
+					await client.query(
+						"UPDATE gitcafe_receipts SET status = 'malformed', processed_at = now() WHERE id = $1",
+						[row.id],
+					);
+					continue;
+				}
+				jobs.push({
+					id: generateId(),
+					data: gitCafeReceiptJobSchema.parse({
+						receiptId: row.id,
+						requestId: parsed.data.requestId,
+					}),
+					retryLimit: 5,
+					retryDelay: 15,
+					retryBackoff: true,
+				});
+				await client.query(
+					`UPDATE gitcafe_receipts SET status = 'pending', processed_at = NULL,
+					recovery_attempts = recovery_attempts + 1,
+					next_recovery_at = now() + make_interval(secs => least(3600, 30 * power(2, least(recovery_attempts, 7)))::int) WHERE id = $1`,
+					[row.id],
+				);
+			}
+			if (jobs.length) {
+				const inserted = await boss.insert(GITCAFE_LIFECYCLE_QUEUE, jobs, {
+					returnId: true,
+					db: {
+						executeSql: (text: string, values?: unknown[]) =>
+							client.query(text, values),
+					},
+				});
+				if (inserted?.length !== jobs.length)
+					throw new Error("GitCafe receipt recovery did not restore its jobs");
+			}
 		}
 		await client.query("COMMIT");
 		return pending.rows.length;
@@ -446,15 +485,220 @@ function receiptBytesMatch(receipt: GitCafeReceipt): boolean {
 	}
 }
 
+async function inspectRecoveryReceipt(
+	client: Pick<PoolClient, "query">,
+	selection: GitCafeRecoverySelection,
+	receiptId: string,
+): Promise<GitCafeRecoveryItem> {
+	const result = await client.query<{
+		status: GitCafeReceiptStatus;
+		receipt: unknown;
+		installation_id: string;
+		event_id: string;
+		event_type: string;
+		delivery_id: string;
+		received_at: Date;
+	}>(
+		"SELECT status, receipt, installation_id, event_id, event_type, delivery_id, received_at FROM gitcafe_receipts WHERE id = $1",
+		[receiptId],
+	);
+	const row = result.rows[0];
+	const item: GitCafeRecoveryItem = {
+		receiptId,
+		classification: "missing",
+		status: row?.status ?? null,
+		bodySha256: null,
+		eventIds: [],
+		runIds: [],
+		providerEventId: row?.event_id ?? null,
+		deliveryId: row?.delivery_id ?? null,
+		eventType: row?.event_type ?? null,
+		receivedAt: row?.received_at.toISOString() ?? null,
+		events: [],
+		jobs: [],
+		actions: [],
+	};
+	if (!row) return item;
+	const parsed = gitCafeReceiptSchema.safeParse(row.receipt);
+	if (
+		!parsed.success ||
+		!receiptBytesMatch(parsed.data) ||
+		parsed.data.payload.id !== row.event_id ||
+		parsed.data.payload.type !== row.event_type ||
+		parsed.data.payload.installation.id !== row.installation_id
+	)
+		return { ...item, classification: "quarantined" };
+	item.bodySha256 = parsed.data.bodySha256;
+	const payload = parsed.data.payload;
+	const repository = gitCafeConnectionRepositorySchema
+		.pick({ id: true, owner: true, name: true })
+		.safeParse(payload.repository);
+	if (
+		row.installation_id !== selection.installationId ||
+		parsed.data.appId !== selection.appId ||
+		!repository.success ||
+		repository.data.id !== selection.repositoryId
+	)
+		return { ...item, classification: "binding-mismatch" };
+	if (
+		!(
+			gitCafeDispatchableRepositoryEventTypeSchema.safeParse(row.event_type)
+				.success || ["git.push", "check.rerequested"].includes(row.event_type)
+		)
+	)
+		return { ...item, classification: "unsupported" };
+	const binding = await client.query<{ id: string }>(
+		`SELECT r.id FROM repos r JOIN organization_installations i ON i.forge = r.forge AND i.installation_id = r.installation_id AND i.organization_id = r.org_id JOIN gitcafe_installation_lifecycle l ON l.installation_id = r.installation_id WHERE r.forge = 'gitcafe' AND r.external_id = $1 AND r.installation_id = $2 AND r.org_id = $3 AND r.full_name = $4 AND r.removed_at IS NULL AND r.armed AND l.status = 'active' AND l.authority_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM gitcafe_receipts revocation WHERE revocation.installation_id = r.installation_id AND revocation.status = 'pending' AND revocation.event_type IN ('installation.repositories_updated', 'installation.paused', 'installation.uninstalled'))`,
+		[
+			selection.repositoryId,
+			selection.installationId,
+			selection.organizationId,
+			`${repository.data.owner}/${repository.data.name}`,
+		],
+	);
+	if (binding.rowCount !== 1)
+		return { ...item, classification: "revoked-authority" };
+	const events = await client.query<{
+		id: string;
+		processed_at: Date | null;
+		quarantined: boolean;
+		processing_settlement: unknown;
+		normalized_at: Date | null;
+	}>(
+		`SELECT id, normalized_at, processed_at, quarantined, processing_settlement FROM events WHERE forge = 'gitcafe' AND raw->>'id' = $1 AND raw#>>'{installation,id}' = $2 ORDER BY id`,
+		[row.event_id, row.installation_id],
+	);
+	item.eventIds = events.rows.map((event) => event.id);
+	item.events = events.rows.map((event) => ({
+		id: event.id,
+		normalized: event.normalized_at !== null,
+		processed: event.processed_at !== null,
+		quarantined: event.quarantined,
+		settlement:
+			gitCafeEventSettlementSchema.safeParse(event.processing_settlement)
+				.data ?? null,
+	}));
+	const runs = await client.query<{ id: string }>(
+		"SELECT id FROM runs WHERE event_id = ANY($1::text[]) ORDER BY id",
+		[item.eventIds],
+	);
+	item.runIds = runs.rows.map((run) => run.id);
+	const jobs = await client.query<{
+		id: string;
+		name: string;
+		state: string;
+		retry_count: number;
+	}>(
+		`SELECT id, name, state, retry_count FROM pgboss.job WHERE ((name = $1 AND data->>'receiptId' = $2) OR (name = $3 AND data->>'eventId' = ANY($4::text[]))) ORDER BY (state IN ('created', 'retry', 'active')) DESC, created_on DESC LIMIT 100`,
+		[
+			GITCAFE_LIFECYCLE_QUEUE,
+			receiptId,
+			GITCAFE_PROCESS_EVENT_QUEUE,
+			item.eventIds,
+		],
+	);
+	item.jobs = jobs.rows.map((job) => ({
+		id: job.id,
+		queue: job.name,
+		state: job.state,
+		attempts: job.retry_count,
+	}));
+	const actions = await client.query<{
+		id: string;
+		run_id: string;
+		status: string;
+		external_id: string | null;
+	}>(
+		"SELECT id, run_id, status, external_id FROM run_actions WHERE run_id = ANY($1::text[]) ORDER BY recorded_at DESC LIMIT 100",
+		[item.runIds],
+	);
+	item.actions = actions.rows.map((action) => ({
+		id: action.id,
+		runId: action.run_id,
+		status: action.status,
+		externalId: action.external_id,
+	}));
+	if (
+		jobs.rows.some((job) => ["created", "retry", "active"].includes(job.state))
+	)
+		item.classification = "already-pending";
+	else if (
+		row.status === "malformed" ||
+		events.rows.some((event) => event.quarantined)
+	)
+		item.classification = "quarantined";
+	else if (item.runIds.length) item.classification = "completed-with-run";
+	else if (row.status === "parked")
+		item.classification = "supported-but-parked";
+	else if (
+		events.rows.some(
+			(event) =>
+				event.processed_at !== null &&
+				(() => {
+					const settlement = gitCafeEventSettlementSchema.safeParse(
+						event.processing_settlement,
+					);
+					return (
+						settlement.success &&
+						settlement.data.status === "skipped" &&
+						!["legacy-unclassified", "unsupported-event"].includes(
+							settlement.data.reason,
+						)
+					);
+				})(),
+		)
+	)
+		item.classification = "deliberately-skipped";
+	else if (
+		row.status === "applied" ||
+		events.rows.some((event) => event.processed_at !== null)
+	)
+		item.classification = "completed-without-run";
+	else if (["pending", "dispatched"].includes(row.status))
+		item.classification = "eligible";
+	else item.classification = "unsupported";
+	return gitCafeRecoveryItemSchema.parse(item);
+}
+
+export async function planGitCafeReceiptRecovery(
+	db: Db,
+	input: GitCafeRecoverySelection,
+): Promise<GitCafeRecoveryItem[]> {
+	const selection = gitCafeRecoverySelectionSchema.parse(input);
+	const client = await requirePostgresPool(db).connect();
+	try {
+		await client.query("BEGIN READ ONLY");
+		await client.query("SET LOCAL statement_timeout = '3s'");
+		const items = [];
+		for (const receiptId of new Set(selection.receiptIds))
+			items.push(await inspectRecoveryReceipt(client, selection, receiptId));
+		await client.query("COMMIT");
+		return items;
+	} catch (error) {
+		await client.query("ROLLBACK");
+		throw error;
+	} finally {
+		client.release();
+	}
+}
+
 /** Dispatch only freshly admitted signed receipts; historical parked deliveries remain inert. */
 export async function dispatchGitCafeRepositoryReceipt(
 	db: Db,
 	boss: PgBoss,
 	receiptId: string,
+	operatorRequest?: GitCafeRecoveryRequest,
 ): Promise<GitCafeReceiptStatus | "lifecycle"> {
+	const recovery = operatorRequest
+		? gitCafeRecoveryRequestSchema.parse(operatorRequest)
+		: null;
+	if (recovery && !recovery.selection.receiptIds.includes(receiptId))
+		throw new Error("Receipt is not explicitly selected for recovery");
 	const client = await requirePostgresPool(db).connect();
 	try {
 		await client.query("BEGIN");
+		await client.query("SET LOCAL statement_timeout = '10s'");
+		await client.query("SET LOCAL lock_timeout = '2s'");
 		await client.query(
 			"SELECT pg_advisory_xact_lock(hashtext('gitcafe-connection'))",
 		);
@@ -471,6 +715,65 @@ export async function dispatchGitCafeRepositoryReceipt(
 		);
 		const row = found.rows[0];
 		if (!row) throw new Error("GitCafe receipt not found");
+		if (recovery) {
+			const previous = await client.query(
+				"SELECT id FROM gitcafe_recovery_audit WHERE request_id = $1 AND receipt_id = $2",
+				[recovery.requestId, receiptId],
+			);
+			if (previous.rowCount) {
+				await client.query("COMMIT");
+				return row.status;
+			}
+			const item = await inspectRecoveryReceipt(
+				client,
+				recovery.selection,
+				receiptId,
+			);
+			const audit = gitCafeRecoveryAuditSchema.parse({
+				requestId: recovery.requestId,
+				operator: recovery.operator,
+				reason: recovery.reason,
+				selection: recovery.selection,
+				receiptId,
+				originalStatus: row.status,
+				classification: item.classification,
+				retryWithoutRun: recovery.retryWithoutRun,
+				bodySha256: item.bodySha256,
+				eventIds: item.eventIds,
+				runIds: item.runIds,
+				originalSettlements: item.events.map((event) => ({
+					eventId: event.id,
+					settlement: event.settlement,
+				})),
+			});
+			await client.query(
+				"INSERT INTO gitcafe_recovery_audit (id, receipt_id, request_id, audit) VALUES ($1, $2, $3, $4)",
+				[generateId(), receiptId, recovery.requestId, JSON.stringify(audit)],
+			);
+			const retryNoRun =
+				recovery.retryWithoutRun &&
+				item.classification === "completed-without-run";
+			if (
+				!(
+					["eligible", "supported-but-parked"].includes(item.classification) ||
+					retryNoRun
+				)
+			) {
+				await client.query("COMMIT");
+				return row.status;
+			}
+			if (retryNoRun) {
+				await client.query(
+					"UPDATE events SET processed_at = NULL, processing_settlement = NULL, next_recovery_at = NULL WHERE id = ANY($1::text[]) AND NOT EXISTS (SELECT 1 FROM runs WHERE event_id = events.id)",
+					[item.eventIds],
+				);
+			}
+			await client.query(
+				"UPDATE gitcafe_receipts SET status = 'pending', processed_at = NULL, next_recovery_at = NULL WHERE id = $1",
+				[receiptId],
+			);
+			row.status = "pending";
+		}
 		if (row.status !== "pending") {
 			await client.query("COMMIT");
 			return row.status;
@@ -543,6 +846,7 @@ export async function dispatchGitCafeRepositoryReceipt(
 										retryLimit: 10,
 										retryDelay: 15,
 										retryBackoff: true,
+										expireInSeconds: GITCAFE_PROCESS_EVENT_EXPIRE_SECONDS,
 									},
 								],
 								{
@@ -555,6 +859,35 @@ export async function dispatchGitCafeRepositoryReceipt(
 							);
 							if (queued?.length !== 1)
 								throw new Error("GitCafe event enqueue did not insert one job");
+						} else if (recovery) {
+							const existing = await client.query<{ id: string }>(
+								"SELECT id FROM events WHERE forge = 'gitcafe' AND delivery_id = $1 AND processed_at IS NULL",
+								[delivery],
+							);
+							const prior = existing.rows[0];
+							if (prior)
+								await boss.insert(
+									GITCAFE_PROCESS_EVENT_QUEUE,
+									[
+										{
+											id: generateId(),
+											data: gitCafeProcessEventJobSchema.parse({
+												eventId: prior.id,
+												requestId: recovery.requestId,
+											}),
+											retryLimit: 10,
+											retryDelay: 15,
+											retryBackoff: true,
+											expireInSeconds: GITCAFE_PROCESS_EVENT_EXPIRE_SECONDS,
+										},
+									],
+									{
+										db: {
+											executeSql: (text: string, values?: unknown[]) =>
+												client.query(text, values),
+										},
+									},
+								);
 						}
 					}
 					if (push?.success && deliveries.length) {
@@ -610,13 +943,18 @@ export async function dispatchGitCafeRepositoryReceipt(
 export async function finishGitCafeEvent(
 	db: Db,
 	eventId: string,
+	input: GitCafeEventSettlement = {
+		status: "skipped",
+		reason: "legacy-unclassified",
+	},
 ): Promise<void> {
+	const settlement = gitCafeEventSettlementSchema.parse(input);
 	await db.transaction(async (tx) => {
 		await tx.execute(
 			sql`SELECT pg_advisory_xact_lock(hashtext('gitcafe-connection'))`,
 		);
 		await tx.execute(
-			sql`UPDATE events SET processed_at = now() WHERE id = ${eventId} AND forge = 'gitcafe' AND processed_at IS NULL`,
+			sql`UPDATE events SET processed_at = now(), processing_settlement = ${JSON.stringify(settlement)}::jsonb WHERE id = ${eventId} AND forge = 'gitcafe' AND processed_at IS NULL`,
 		);
 		await tx.execute(sql`UPDATE gitcafe_receipts r SET status = 'applied', processed_at = now()
 			FROM events e WHERE e.id = ${eventId} AND e.forge = 'gitcafe' AND r.status = 'dispatched'
@@ -634,6 +972,8 @@ export async function recoverGitCafeEvents(
 	const client = await requirePostgresPool(db).connect();
 	try {
 		await client.query("BEGIN");
+		await client.query("SET LOCAL statement_timeout = '10s'");
+		await client.query("SET LOCAL lock_timeout = '2s'");
 		await client.query(
 			"SELECT pg_advisory_xact_lock(hashtext('gitcafe-connection'))",
 		);
@@ -655,43 +995,95 @@ export async function recoverGitCafeEvents(
 			) SELECT e.id, r.receipt, e.raw FROM events e LEFT JOIN gitcafe_receipts r
 			 ON e.raw->>'id' = r.event_id AND e.raw#>>'{installation,id}' = r.installation_id
 			 WHERE e.forge = 'gitcafe' AND e.processed_at IS NULL AND
+			 (e.next_recovery_at IS NULL OR e.next_recovery_at <= now()) AND
 			 NOT EXISTS (SELECT 1 FROM adopted WHERE adopted.id = e.id) AND
-			 (r.status = 'dispatched' OR (r.id IS NULL AND e.raw_kind = 'schedule.matched' AND e.raw#>>'{thread,externalId}' IS NOT NULL)) AND NOT EXISTS (
+			 (r.status IN ('dispatched', 'applied') OR r.id IS NULL) AND NOT EXISTS (
 			 SELECT 1 FROM pgboss.job j WHERE j.name = $1 AND j.data->>'eventId' = e.id
 			 AND j.state IN ('created','retry','active')) ORDER BY e.received_at, e.id LIMIT 100 FOR UPDATE OF e`,
 			[GITCAFE_PROCESS_EVENT_QUEUE],
 		);
 		if (pending.rows.length) {
-			const jobs = pending.rows.map((row) => {
+			const jobs = [];
+			for (const row of pending.rows) {
+				const receipt = gitCafeReceiptSchema.safeParse(row.receipt);
 				if (row.receipt == null) {
-					const event = scheduledEventSchema.parse(row.raw);
-					if (event.forge !== "gitcafe" || !event.thread.externalId)
-						throw new Error("Invalid GitCafe scheduled recovery source");
+					const event = scheduledEventSchema.safeParse(row.raw);
+					if (
+						!event.success ||
+						event.data.forge !== "gitcafe" ||
+						!event.data.thread.externalId
+					) {
+						await client.query(
+							`UPDATE events SET quarantined = true, quarantine_reason = 'invalid-retained-data', processed_at = now(), processing_settlement = $2::jsonb WHERE id = $1`,
+							[
+								row.id,
+								JSON.stringify(
+									gitCafeEventSettlementSchema.parse({
+										status: "quarantined",
+										reason: "invalid-retained-data",
+									}),
+								),
+							],
+						);
+						continue;
+					}
+				} else if (
+					!receipt.success ||
+					!receiptBytesMatch(receipt.data) ||
+					!isDeepStrictEqual(receipt.data.payload, row.raw)
+				) {
+					await client.query(
+						`UPDATE events SET quarantined = true, quarantine_reason = 'invalid-retained-data', processed_at = now(), processing_settlement = $2::jsonb WHERE id = $1`,
+						[
+							row.id,
+							JSON.stringify(
+								gitCafeEventSettlementSchema.parse({
+									status: "quarantined",
+									reason: "invalid-retained-data",
+								}),
+							),
+						],
+					);
+					continue;
 				}
-				return {
+				jobs.push({
 					id: generateId(),
 					data: gitCafeProcessEventJobSchema.parse({
 						eventId: row.id,
 						requestId:
 							row.receipt == null
 								? generateId()
-								: gitCafeReceiptSchema.parse(row.receipt).requestId,
+								: receipt.success
+									? receipt.data.requestId
+									: generateId(),
 					}),
 					retryLimit: 10,
 					retryDelay: 15,
 					retryBackoff: true,
-				};
-			});
-			const inserted = await boss.insert(GITCAFE_PROCESS_EVENT_QUEUE, jobs, {
-				returnId: true,
-				db: {
-					executeSql: (text: string, values?: unknown[]) =>
-						client.query(text, values),
-				},
-			});
-			if (inserted?.length !== jobs.length)
-				throw new Error("GitCafe event recovery did not restore its jobs");
+					expireInSeconds: GITCAFE_PROCESS_EVENT_EXPIRE_SECONDS,
+				});
+				await client.query(
+					`UPDATE events SET recovery_attempts = recovery_attempts + 1,
+					next_recovery_at = now() + make_interval(secs => least(3600, 30 * power(2, least(recovery_attempts, 7)))::int) WHERE id = $1`,
+					[row.id],
+				);
+			}
+			if (jobs.length) {
+				const inserted = await boss.insert(GITCAFE_PROCESS_EVENT_QUEUE, jobs, {
+					returnId: true,
+					db: {
+						executeSql: (text: string, values?: unknown[]) =>
+							client.query(text, values),
+					},
+				});
+				if (inserted?.length !== jobs.length)
+					throw new Error("GitCafe event recovery did not restore its jobs");
+			}
 		}
+		await client.query(`UPDATE gitcafe_receipts r SET status = 'applied', processed_at = now()
+			WHERE r.status = 'dispatched'
+			AND EXISTS (SELECT 1 FROM events e WHERE e.forge = 'gitcafe' AND e.raw->>'id' = r.event_id AND e.raw#>>'{installation,id}' = r.installation_id)
+			AND NOT EXISTS (SELECT 1 FROM events e WHERE e.forge = 'gitcafe' AND e.raw->>'id' = r.event_id AND e.raw#>>'{installation,id}' = r.installation_id AND e.processed_at IS NULL)`);
 		await client.query("COMMIT");
 		return pending.rows.length;
 	} catch (error) {
@@ -1008,7 +1400,15 @@ export async function processGitCafeReceipt(
 					event.data.type === "installation.repositories_updated"
 						? gitCafeRepositoriesUpdatedSchema.safeParse(event.data)
 						: null;
-				if (created?.success === false || updated?.success === false)
+				const permissionsAccepted =
+					event.data.type === "installation.permissions_accepted"
+						? gitCafePermissionsAcceptedSchema.safeParse(event.data)
+						: null;
+				if (
+					created?.success === false ||
+					updated?.success === false ||
+					permissionsAccepted?.success === false
+				)
 					status = "malformed";
 				else {
 					const state = await lockLifecycle(tx, row.installationId);
@@ -1021,6 +1421,12 @@ export async function processGitCafeReceipt(
 							(state.authorityAt && occurredAt < state.authorityAt))
 					)
 						status = "stale";
+					else if (
+						permissionsAccepted?.success &&
+						state.providerRevision !== null &&
+						permissionsAccepted.data.revision < state.providerRevision
+					)
+						status = "stale";
 					else if (state.status === "uninstalled") status = "stale";
 					else {
 						const nextStatus =
@@ -1028,10 +1434,15 @@ export async function processGitCafeReceipt(
 								? "uninstalled"
 								: event.data.type === "installation.paused"
 									? "paused"
-									: state.status === "paused"
-										? "paused"
-										: "reconcile-required";
-						if (event.data.type !== "installation.created") {
+									: event.data.type === "installation.permissions_accepted"
+										? state.status
+										: state.status === "paused"
+											? "paused"
+											: "reconcile-required";
+						if (
+							event.data.type !== "installation.created" &&
+							event.data.type !== "installation.permissions_accepted"
+						) {
 							const removal =
 								updated?.success &&
 								updated.data.repositorySelection === "selected" &&
@@ -1047,6 +1458,13 @@ export async function processGitCafeReceipt(
 							.set({
 								status: nextStatus,
 								generation: state.generation + 1,
+								authorityAt:
+									permissionsAccepted?.success && state.status === "active"
+										? occurredAt
+										: state.authorityAt,
+								providerRevision: permissionsAccepted?.success
+									? permissionsAccepted.data.revision
+									: state.providerRevision,
 								lastEventAt:
 									state.lastEventAt && state.lastEventAt > occurredAt
 										? state.lastEventAt

@@ -33,6 +33,7 @@ import {
 } from "../schema/repos.ts";
 import { getAiCredits } from "./ai-provider.ts";
 import { listRepoReviewers } from "./reviewers.ts";
+import { settleWorkflowGifs } from "./workflow-gifs.ts";
 
 /**
  * Workflow CRUD (§workflows grid). The grid keys everything by the ROW id
@@ -179,7 +180,7 @@ export async function createWorkflow(
 			: pickWorkflowName(input.name ? new Set([...taken, input.name]) : taken, {
 					seed: input.seed,
 				});
-	const definition: WorkflowDefinition = input.definition
+	const authored: WorkflowDefinition = input.definition
 		? workflowDefinitionSchema.parse({ ...input.definition, name })
 		: {
 				id: generateId(),
@@ -195,6 +196,7 @@ export async function createWorkflow(
 				],
 				edges: [],
 			};
+	const definition = await settleWorkflowGifs(db, authored);
 	const id = generateId();
 	const now = new Date();
 	await db.insert(workflowDefinitions).values({
@@ -221,10 +223,13 @@ export async function updateWorkflowDefinition(
 		definition: WorkflowDefinition;
 	},
 ): Promise<{ ok: boolean }> {
-	const valid = workflowDefinitionSchema.parse({
-		...input.definition,
-		authoredSource: undefined,
-	});
+	const valid = await settleWorkflowGifs(
+		db,
+		workflowDefinitionSchema.parse({
+			...input.definition,
+			authoredSource: undefined,
+		}),
+	);
 	const rows = await db
 		.update(workflowDefinitions)
 		.set({ definition: valid, name: valid.name, updatedAt: new Date() })
@@ -293,10 +298,13 @@ export async function saveWorkflowDefinition(
 		definition: WorkflowDefinition;
 	},
 ): Promise<SaveWorkflowResult> {
-	const definition = workflowDefinitionSchema.parse({
-		...input.definition,
-		authoredSource: undefined,
-	});
+	const definition = await settleWorkflowGifs(
+		db,
+		workflowDefinitionSchema.parse({
+			...input.definition,
+			authoredSource: undefined,
+		}),
+	);
 	const catalog = await repoRuleCatalog(db, input.repoId);
 	return await db.transaction(async (tx): Promise<SaveWorkflowResult> => {
 		const row = await lockWorkflowRow(tx, input);
@@ -351,15 +359,19 @@ export async function renameWorkflow(
 		return { ok: false, error: "workflow not found" };
 	}
 	const definition = workflowDefinitionSchema.parse(row.definition);
+	const renamed = await settleWorkflowGifs(
+		db,
+		workflowDefinitionSchema.parse({
+			...definition,
+			name,
+			authoredSource: undefined,
+		}),
+	);
 	await db
 		.update(workflowDefinitions)
 		.set({
 			name,
-			definition: workflowDefinitionSchema.parse({
-				...definition,
-				name,
-				authoredSource: undefined,
-			}),
+			definition: renamed,
 			updatedAt: new Date(),
 		})
 		.where(eq(workflowDefinitions.id, input.workflowId));
@@ -553,7 +565,10 @@ export async function applyWorkflowDefinition(
 				issues: [{ message: "workflow not found" }],
 			};
 		}
-		const merged = pushedDefinition(stored.data, input.definition);
+		const merged = await settleWorkflowGifs(
+			tx,
+			pushedDefinition(stored.data, input.definition),
+		);
 		const changes = diffWorkflow(stored.data, merged);
 		const workflow = {
 			...toListItem(locked, catalog),

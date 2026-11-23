@@ -7,6 +7,21 @@ paths:
 
 # Frontend conventions (§9)
 
+## Before/after evidence gate
+
+Every edit that can affect rendered output must follow
+`.agents/skills/before-and-after/SKILL.md`. Before the first edit, capture the
+existing route and state. After implementation, capture the same route,
+viewport, theme, data, scroll position, and interaction state. Cover every
+materially changed surface; motion needs a recording or frame sequence.
+
+Net-new UI uses an after-only Preview. A refactor intended to preserve output
+still needs matching evidence that proves parity. Publish the evidence in the
+PR's marked block and inspect the rendered PR before handoff. A draft PR may be
+created only as an intermediate step to obtain a deployment; it is not ready to
+report until the evidence is attached. Tests and visual-audit findings do not
+replace the screenshots or recordings.
+
 ## Route composition — `route.tsx` is THIN
 No exported function components, no JSX beyond wiring. A route binds three
 things and nothing else:

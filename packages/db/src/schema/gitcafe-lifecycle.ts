@@ -2,6 +2,7 @@ import type {
 	GitCafeLifecycleStatus,
 	GitCafeReceipt,
 	GitCafeReceiptStatus,
+	GitCafeRecoveryAudit,
 } from "@tripwire/contracts";
 import {
 	index,
@@ -31,6 +32,8 @@ export const gitCafeReceipts = pgTable(
 			.notNull()
 			.defaultNow(),
 		processedAt: timestamp("processed_at", { withTimezone: true }),
+		recoveryAttempts: integer("recovery_attempts").notNull().default(0),
+		nextRecoveryAt: timestamp("next_recovery_at", { withTimezone: true }),
 	},
 	(t) => [
 		uniqueIndex("gitcafe_receipts_installation_event_unique").on(
@@ -61,3 +64,31 @@ export const gitCafeInstallationLifecycle = pgTable(
 			.defaultNow(),
 	},
 );
+
+export const gitCafeRecoveryAudit = pgTable(
+	"gitcafe_recovery_audit",
+	{
+		id: text("id").primaryKey(),
+		receiptId: text("receipt_id").notNull(),
+		requestId: text("request_id").notNull(),
+		audit: jsonb("audit").$type<GitCafeRecoveryAudit>().notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(t) => [
+		uniqueIndex("gitcafe_recovery_audit_request_receipt_unique").on(
+			t.requestId,
+			t.receiptId,
+		),
+	],
+);
+
+export const gitCafeRuntimeHeartbeats = pgTable("gitcafe_runtime_heartbeats", {
+	runtimeId: text("runtime_id").primaryKey(),
+	release: text("release").notNull(),
+	mode: text("mode").notNull(),
+	progressAt: timestamp("progress_at", { withTimezone: true })
+		.notNull()
+		.defaultNow(),
+});

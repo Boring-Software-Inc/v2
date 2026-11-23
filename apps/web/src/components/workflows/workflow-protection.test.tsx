@@ -13,6 +13,7 @@ import { DEFAULT_WORKFLOW, type Forge } from "@tripwire/contracts";
 import { renderToString } from "react-dom/server";
 import { RepoTabsProvider } from "#/components/tabs/repo-tabs-provider";
 import { EditorHeader } from "#/components/workflows/editor/editor-header";
+import { EditorToolbar } from "#/components/workflows/editor/editor-toolbar";
 import { WorkflowEditorPage } from "#/components/workflows/editor/workflow-editor-page";
 import { WorkflowsGridPage } from "#/components/workflows/workflows-grid-page";
 import { orgContextQueryOptions, orgRepoQueryOptions } from "#/lib/org.query";
@@ -90,6 +91,7 @@ async function renderWorkflowPage({
 		[],
 	);
 	const root = createRootRoute({
+		loader: () => ({ sidebarCollapsed: false }),
 		component: () => (
 			<QueryClientProvider client={client}>
 				<FlagsProvider clientId="synthetic">
@@ -140,9 +142,10 @@ async function renderWorkflowPage({
 }
 
 function control(html: string, label: string) {
-	const elements = label.startsWith("Run ")
-		? html.match(/<[^>]*role="switch"[^>]*>/g)
-		: html.match(/<button\b[^>]*>[\s\S]*?<\/button>/g);
+	const elements =
+		label.startsWith("Run ") || label.startsWith("Turn ")
+			? html.match(/<[^>]*role="switch"[^>]*>/g)
+			: html.match(/<button\b[^>]*>[\s\S]*?<\/button>/g);
 	const found = elements?.find((element) => element.includes(label));
 	expect(found).toBeDefined();
 	return found ?? "";
@@ -153,26 +156,39 @@ describe("workflow activation follows the loaded repository capability", () => {
 		for (const view of ["canvas", "code"] as const) {
 			const root = createRootRoute({
 				component: () => (
-					<EditorHeader
-						forge="gitcafe"
-						name="Check contributions"
-						definition={DEFAULT_WORKFLOW}
-						customRules={[]}
-						enabled={false}
-						readOnly={false}
-						dirty={true}
-						saving={false}
-						toggling={false}
-						zeroNodes={false}
-						blockers={[]}
-						view={view}
-						onViewChange={() => undefined}
-						onSave={() => undefined}
-						onArrange={() => undefined}
-						onShowProblems={() => undefined}
-						onRename={async () => ({ ok: true })}
-						onSetEnabled={() => undefined}
-					/>
+					<>
+						<EditorHeader
+							dirty={true}
+							forge="gitcafe"
+							name="Check contributions"
+							onRename={async () => ({ ok: true })}
+							onSave={() => undefined}
+							readOnly={false}
+							saving={false}
+							zeroNodes={false}
+						/>
+						<EditorToolbar
+							blockers={[]}
+							customRules={[]}
+							definition={DEFAULT_WORKFLOW}
+							enabled={false}
+							forge="gitcafe"
+							name="Check contributions"
+							onArrange={() => undefined}
+							onDuplicateSelected={() => undefined}
+							onOpenToolbox={() => undefined}
+							onRemoveSelected={() => undefined}
+							onSetEnabled={() => undefined}
+							onShowProblems={() => undefined}
+							onViewChange={() => undefined}
+							readOnly={false}
+							selectedName={null}
+							selectedNode={null}
+							toggling={false}
+							view={view}
+							zeroNodes={false}
+						/>
+					</>
 				),
 			});
 			const home = createRoute({ getParentRoute: () => root, path: "/" });

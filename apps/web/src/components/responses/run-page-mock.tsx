@@ -32,7 +32,7 @@ export const RunPageMock = memo(function RunPageMock({
 								level: view.redactionLevel,
 								maintainer: false,
 								repo: view.repoFullName,
-								sha: view.headSha,
+								sha: view.forge === "github" ? view.headSha : null,
 							}}
 						/>
 					</div>

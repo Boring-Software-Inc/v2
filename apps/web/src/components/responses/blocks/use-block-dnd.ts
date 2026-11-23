@@ -6,7 +6,6 @@ import {
 	type DragEndEvent,
 	type DragMoveEvent,
 	type DragStartEvent,
-	type KeyboardCoordinateGetter,
 	KeyboardSensor,
 	type MeasuringConfiguration,
 	MeasuringStrategy,
@@ -17,16 +16,12 @@ import {
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
+import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import type { ResponseBlock } from "@tripwire/contracts";
 import type { BlockBuilder } from "#/components/responses/blocks/use-block-builder";
-import {
-	type DragItem,
-	dropIndexFor,
-	dropPosition,
-	verticalStep,
-} from "#/lib/block-builder";
+import { type DragItem, dropIndexFor, dropPosition } from "#/lib/block-builder";
 
-export const CANVAS_DROP_ID = "block-canvas";
+export const BLOCK_LIST_DROP_ID = "response-block-list";
 
 export interface BlockDragData {
 	item: DragItem;
@@ -35,10 +30,10 @@ export interface BlockDragData {
 
 const blockCollision: CollisionDetection = (args) => {
 	const canvas = args.droppableContainers.filter(
-		(container) => container.id === CANVAS_DROP_ID,
+		(container) => container.id === BLOCK_LIST_DROP_ID,
 	);
 	const blocks = args.droppableContainers.filter(
-		(container) => container.id !== CANVAS_DROP_ID,
+		(container) => container.id !== BLOCK_LIST_DROP_ID,
 	);
 	const onCanvas = { ...args, droppableContainers: canvas };
 	const inside =
@@ -54,28 +49,6 @@ const blockCollision: CollisionDetection = (args) => {
 	return closestCenter({ ...args, droppableContainers: blocks });
 };
 
-const blockStep: KeyboardCoordinateGetter = (
-	event,
-	{ context, currentCoordinates },
-) => {
-	const direction =
-		event.code === "ArrowDown"
-			? "down"
-			: event.code === "ArrowUp"
-				? "up"
-				: null;
-	const rect = context.collisionRect;
-	if (!(direction && rect)) {
-		return undefined;
-	}
-	event.preventDefault();
-	const centers = [...context.droppableRects]
-		.filter(([id]) => id !== CANVAS_DROP_ID && id !== context.active?.id)
-		.map(([, other]) => other.top + other.height / 2);
-	const y = verticalStep(direction, rect.top, rect.height, centers);
-	return y === null ? undefined : { ...currentCoordinates, y };
-};
-
 const MEASURING: MeasuringConfiguration = {
 	droppable: { strategy: MeasuringStrategy.BeforeDragging },
 };
@@ -88,7 +61,7 @@ const KEYBOARD_CODES = {
 
 const SCREEN_READER_INSTRUCTIONS = {
 	draggable:
-		"Press enter to edit this block. Press space to pick it up, the up and down arrows to move it, space to drop it and escape to cancel.",
+		"Press space to pick up this block. Use the up and down arrows to move it, space to drop it, or escape to cancel.",
 };
 
 function dragData(active: Active): BlockDragData | null {
@@ -104,8 +77,15 @@ function dropIndex(
 	if (!over) {
 		return null;
 	}
-	if (over.id === CANVAS_DROP_ID) {
+	if (over.id === BLOCK_LIST_DROP_ID) {
 		return blocks.length;
+	}
+	const item = dragData(active)?.item;
+	if (item?.source === "canvas") {
+		const from = blocks.findIndex((block) => block.id === item.id);
+		const to = blocks.findIndex((block) => block.id === over.id);
+		if (from === -1 || to === -1) return null;
+		return from < to ? to + 1 : to;
 	}
 	const rect = active.rect.current.translated;
 	const after = rect
@@ -141,12 +121,18 @@ export function useBlockDnd(builder: BlockBuilder) {
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
 		useSensor(KeyboardSensor, {
-			coordinateGetter: blockStep,
+			coordinateGetter: sortableKeyboardCoordinates,
 			keyboardCodes: KEYBOARD_CODES,
 		}),
 	);
-	const track = ({ active, over }: DragMoveEvent) =>
-		builder.dragOver(dropIndex(builder.blocks, active, over));
+	const track = ({ active, over }: DragMoveEvent) => {
+		const item = dragData(active)?.item;
+		builder.dragOver(
+			item?.source === "palette"
+				? dropIndex(builder.blocks, active, over)
+				: null,
+		);
+	};
 
 	return {
 		sensors,

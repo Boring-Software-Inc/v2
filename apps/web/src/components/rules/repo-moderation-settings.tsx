@@ -84,7 +84,7 @@ export function RepoModerationSettings({
 						<div>
 							<FieldLabel>Check new issues</FieldLabel>
 							<FieldDescription>
-								Run installed rules that support GitHub issues.
+								Run installed rules that support issues.
 							</FieldDescription>
 						</div>
 						<Switch

@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { gitCafeInstallationSchema } from "./gitcafe-installation.ts";
+import {
+	gitCafeInstallationSchema,
+	gitCafePermissionSchema,
+} from "./gitcafe-installation.ts";
 
 export const GITCAFE_LIFECYCLE_QUEUE = "gitcafe-lifecycle";
 export const GITCAFE_PROCESS_EVENT_QUEUE = "gitcafe-process-event";
@@ -9,6 +12,8 @@ export const GITCAFE_REFRESH_SURFACES_QUEUE = "gitcafe-refresh-surfaces";
 export const GITCAFE_REFRESH_CATALOGS_QUEUE = "gitcafe-refresh-catalogs";
 export const GITCAFE_SCHEDULE_TICK_QUEUE = "gitcafe-schedule-tick";
 export const GITCAFE_BACKFILL_REPO_QUEUE = "gitcafe-backfill-repo";
+export const GITCAFE_PROCESS_EVENT_EXPIRE_SECONDS = 90;
+export const GITCAFE_STALL_REPORT_INTERVAL_SECONDS = 900;
 export const gitCafeScheduleTickJobSchema = z.strictObject({
 	requestId: z.uuid(),
 });
@@ -63,6 +68,7 @@ export type GitCafeEventEnvelope = z.infer<typeof gitCafeEventEnvelopeSchema>;
 
 export const gitCafeLifecycleEventTypeSchema = z.enum([
 	"installation.created",
+	"installation.permissions_accepted",
 	"installation.repositories_updated",
 	"installation.paused",
 	"installation.uninstalled",
@@ -108,6 +114,22 @@ export type GitCafeRepositoriesUpdated = z.infer<
 	typeof gitCafeRepositoriesUpdatedSchema
 >;
 
+export const gitCafePermissionsAcceptedSchema =
+	gitCafeLifecycleEventSchema.extend({
+		type: z.literal("installation.permissions_accepted"),
+		revision: z.number().int().positive(),
+		permissions: z.array(gitCafePermissionSchema),
+		user: z
+			.object({
+				permissions: z.array(gitCafePermissionSchema),
+				audiences: z.array(z.string().min(1)),
+			})
+			.optional(),
+	});
+export type GitCafePermissionsAccepted = z.infer<
+	typeof gitCafePermissionsAcceptedSchema
+>;
+
 /** Exact signed bytes stay separate from normalization and credentials. */
 export const gitCafeReceiptSchema = z.strictObject({
 	format: z.literal("gitcafe-receipt@1"),
@@ -137,6 +159,163 @@ export const gitCafeReceiptStatusSchema = z.enum([
 	"malformed",
 ]);
 export type GitCafeReceiptStatus = z.infer<typeof gitCafeReceiptStatusSchema>;
+
+export const gitCafeEventSkipReasonSchema = z.enum([
+	"unarmed",
+	"self",
+	"maintainer-exemption",
+	"no-matching-workflow",
+	"unsupported-event",
+	"stale-subject",
+	"superseded",
+	"legacy-unclassified",
+	"rerun-not-evaluated",
+]);
+export type GitCafeEventSkipReason = z.infer<
+	typeof gitCafeEventSkipReasonSchema
+>;
+
+export const gitCafeEventSettlementSchema = z.discriminatedUnion("status", [
+	z.strictObject({ status: z.literal("completed"), runId: z.uuid() }),
+	z.strictObject({
+		status: z.literal("skipped"),
+		reason: gitCafeEventSkipReasonSchema,
+		runId: z.uuid().optional(),
+	}),
+	z.strictObject({
+		status: z.literal("quarantined"),
+		reason: z.enum([
+			"invalid-retained-data",
+			"invalid-event",
+			"preparation-refused",
+		]),
+	}),
+]);
+export type GitCafeEventSettlement = z.infer<
+	typeof gitCafeEventSettlementSchema
+>;
+
+export const gitCafeRecoverySelectionSchema = z.strictObject({
+	environment: z.literal("preview"),
+	appId: z.literal(GITCAFE_RECEIPT_APP_ID),
+	organizationId: z.uuid(),
+	installationId: gitCafeEventEnvelopeSchema.shape.installation.shape.id,
+	repositoryId: z.string().min(1).max(255),
+	receiptIds: z.array(z.uuid()).min(1).max(100),
+});
+export type GitCafeRecoverySelection = z.infer<
+	typeof gitCafeRecoverySelectionSchema
+>;
+
+export const gitCafeRecoveryClassificationSchema = z.enum([
+	"eligible",
+	"already-pending",
+	"supported-but-parked",
+	"deliberately-skipped",
+	"quarantined",
+	"completed-with-run",
+	"completed-without-run",
+	"revoked-authority",
+	"binding-mismatch",
+	"missing",
+	"unsupported",
+]);
+export type GitCafeRecoveryClassification = z.infer<
+	typeof gitCafeRecoveryClassificationSchema
+>;
+
+export const gitCafeRecoveryAuditSchema = z.strictObject({
+	requestId: z.uuid(),
+	operator: z.string().min(1).max(255),
+	reason: z.string().min(1).max(500),
+	selection: gitCafeRecoverySelectionSchema,
+	receiptId: z.uuid(),
+	originalStatus: gitCafeReceiptStatusSchema,
+	classification: gitCafeRecoveryClassificationSchema,
+	retryWithoutRun: z.boolean().default(false),
+	bodySha256: z.string().nullable(),
+	eventIds: z.array(z.uuid()),
+	runIds: z.array(z.uuid()),
+	originalSettlements: z.array(
+		z.strictObject({
+			eventId: z.uuid(),
+			settlement: gitCafeEventSettlementSchema.nullable(),
+		}),
+	),
+});
+export type GitCafeRecoveryAudit = z.infer<typeof gitCafeRecoveryAuditSchema>;
+
+export const gitCafeRecoveryRequestSchema = z.strictObject({
+	selection: gitCafeRecoverySelectionSchema,
+	operator: gitCafeRecoveryAuditSchema.shape.operator,
+	reason: gitCafeRecoveryAuditSchema.shape.reason,
+	requestId: z.uuid(),
+	retryWithoutRun: z.boolean().default(false),
+});
+export type GitCafeRecoveryRequest = z.infer<
+	typeof gitCafeRecoveryRequestSchema
+>;
+
+export const gitCafeRecoveryItemSchema = z.strictObject({
+	receiptId: z.uuid(),
+	classification: gitCafeRecoveryClassificationSchema,
+	status: gitCafeReceiptStatusSchema.nullable(),
+	bodySha256: z.string().nullable(),
+	eventIds: z.array(z.uuid()),
+	runIds: z.array(z.uuid()),
+	providerEventId: z.string().nullable(),
+	deliveryId: z.string().nullable(),
+	eventType: z.string().nullable(),
+	receivedAt: z.iso.datetime().nullable(),
+	events: z.array(
+		z.strictObject({
+			id: z.uuid(),
+			normalized: z.boolean(),
+			processed: z.boolean(),
+			quarantined: z.boolean(),
+			settlement: gitCafeEventSettlementSchema.nullable(),
+		}),
+	),
+	jobs: z.array(
+		z.strictObject({
+			id: z.uuid(),
+			queue: z.string(),
+			state: z.string(),
+			attempts: z.number().int().nonnegative(),
+		}),
+	),
+	actions: z.array(
+		z.strictObject({
+			id: z.uuid(),
+			runId: z.uuid(),
+			status: z.string(),
+			externalId: z.string().nullable(),
+		}),
+	),
+});
+export type GitCafeRecoveryItem = z.infer<typeof gitCafeRecoveryItemSchema>;
+
+export const gitCafeOperationalSummarySchema = z.strictObject({
+	pendingReceipts: z.number().int().nonnegative(),
+	dispatchedReceipts: z.number().int().nonnegative(),
+	parkedReceipts: z.number().int().nonnegative(),
+	unprocessedEvents: z.number().int().nonnegative(),
+	eventsWithoutLiveJobs: z.number().int().nonnegative(),
+	oldestReceiptAgeSeconds: z.number().nonnegative().nullable(),
+	oldestEventAgeSeconds: z.number().nonnegative().nullable(),
+	oldestActionAgeSeconds: z.number().nonnegative().nullable(),
+	heartbeatAgeSeconds: z.number().nonnegative().nullable(),
+	queues: z.array(
+		z.strictObject({
+			state: z.enum(["created", "retry", "active", "failed"]),
+			count: z.number().int().nonnegative(),
+			oldestAgeSeconds: z.number().nonnegative(),
+		}),
+	),
+});
+export type GitCafeOperationalSummary = z.infer<
+	typeof gitCafeOperationalSummarySchema
+>;
 
 export const gitCafeLifecycleStatusSchema = z.enum([
 	"active",

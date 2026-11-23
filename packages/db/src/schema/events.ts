@@ -1,4 +1,8 @@
-import type { Forge } from "@tripwire/contracts";
+import type {
+	Forge,
+	GitCafeActionOperation,
+	GitCafeEventSettlement,
+} from "@tripwire/contracts";
 import {
 	boolean,
 	index,
@@ -41,6 +45,14 @@ export const events = pgTable(
 		normalizedAt: timestamp("normalized_at", { withTimezone: true }),
 		/** Normalization may precede a crash; completion prevents already settled events from being replayed. */
 		processedAt: timestamp("processed_at", { withTimezone: true }),
+		processingSettlement: jsonb(
+			"processing_settlement",
+		).$type<GitCafeEventSettlement>(),
+		processingComment:
+			jsonb("processing_comment").$type<GitCafeActionOperation>(),
+		stallReportedAt: timestamp("stall_reported_at", { withTimezone: true }),
+		recoveryAttempts: integer("recovery_attempts").notNull().default(0),
+		nextRecoveryAt: timestamp("next_recovery_at", { withTimezone: true }),
 		/** §5.5: parse failure ⇒ quarantine + fixture candidate. */
 		quarantined: boolean("quarantined").notNull().default(false),
 		quarantineReason: text("quarantine_reason"),

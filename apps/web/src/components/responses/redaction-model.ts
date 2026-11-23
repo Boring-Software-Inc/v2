@@ -39,7 +39,7 @@ export const REDACTION_SURFACE_LABELS = {
 	"run-page": "Run page",
 	check: "Check run",
 	comment: "Comment",
-	review: "GitHub review",
+	review: "Review",
 	webhook: "Discord and webhooks",
 } as const satisfies Record<RedactionSurface, string>;
 

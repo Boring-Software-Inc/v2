@@ -1,5 +1,7 @@
 import {
 	type Forge,
+	type GitCafeEventSettlement,
+	gitCafeEventSkipReasonSchema,
 	type InstallationEvent,
 	ingestForgeSchema,
 	type NormalizedEvent,
@@ -16,15 +18,20 @@ import {
 	repoServices,
 	runServices,
 } from "@tripwire/db";
-import { getErrorMessage } from "@tripwire/utils";
+import { getErrorMessage, isRetryableForgeStatus } from "@tripwire/utils";
 import type { Pool } from "pg";
 import type { Logger } from "pino";
 import { z } from "zod";
 import { type ForgeRuntime, normalizeFor } from "../forge-runtime.ts";
+import {
+	type ReportGitCafePreparationFailure,
+	reportGitCafePreparationFailureToSentry,
+} from "../report-gitcafe-preparation-failure.ts";
 import { installFailureReporter } from "../report-install-failure.ts";
 import { upsertInstallation } from "./installation-sync.ts";
 import {
 	emitClosedReviewSurfaces,
+	emitGitCafeProcessingComment,
 	emitPendingCheck,
 	emitPrSurface,
 	recoverGitCafeRunSurface,
@@ -54,6 +61,7 @@ export interface ProcessEventDeps {
 	enqueueReviewerSync?: (repoId: string) => Promise<void>;
 	enqueueLabelSync?: (repoId: string) => Promise<void>;
 	selfLogins?: ReadonlySet<string>;
+	reportGitCafePreparationFailure?: ReportGitCafePreparationFailure;
 }
 
 export function isSelfEvent(
@@ -80,7 +88,11 @@ export function isSelfEvent(
 export async function processEvent(
 	deps: ProcessEventDeps,
 	job: { eventId: string },
-): Promise<undefined | { retry: true; reason: string }> {
+): Promise<
+	| undefined
+	| { retry: true; reason: string }
+	| { retry: false; settlement: GitCafeEventSettlement }
+> {
 	const { db, pool, logger } = deps;
 	const event = await eventServices.getEventById(db, job.eventId);
 	if (!event) {
@@ -88,13 +100,21 @@ export async function processEvent(
 		return;
 	}
 	const runtime = deps.resolveForge(event.forge);
+	const settle = (settlement: GitCafeEventSettlement) =>
+		event.forge === "gitcafe"
+			? { retry: false as const, settlement }
+			: undefined;
 	if (
 		(!ingestForgeSchema.safeParse(event.forge).success &&
 			!runtime?.prepareEvent) ||
 		(event.normalizedAt && !deps.resumeNormalized) ||
 		event.quarantined
 	) {
-		return;
+		return settle(
+			event.quarantined
+				? { status: "quarantined", reason: "invalid-event" }
+				: { status: "skipped", reason: "unsupported-event" },
+		);
 	}
 	if (event.normalizedAt && deps.resumeNormalized) {
 		const saved = await runServices.getRunForEvent(db, event.id, {
@@ -114,7 +134,7 @@ export async function processEvent(
 				))
 			)
 				throw new Error("GitCafe run has no committed evaluation to recover");
-			return;
+			return settle({ status: "completed", runId: saved.id });
 		}
 	}
 
@@ -138,6 +158,12 @@ export async function processEvent(
 				event.receivedAt.toISOString(),
 			);
 			if (!prepared.ok) {
+				const retryable =
+					["network", "expired", "inactive", "stale"].includes(
+						prepared.reason,
+					) ||
+					(prepared.reason === "http" &&
+						isRetryableForgeStatus(prepared.status));
 				logger.warn(
 					{
 						eventId: event.id,
@@ -146,16 +172,27 @@ export async function processEvent(
 					},
 					"event preparation refused",
 				);
-				if (
-					["network", "expired", "inactive"].includes(prepared.reason) ||
-					(event.forge === "gitcafe" && prepared.reason === "stale") ||
-					(prepared.reason === "http" &&
-						(prepared.status === 429 || (prepared.status ?? 0) >= 500))
-				)
-					return { retry: true, reason: prepared.reason };
+				if (event.forge === "gitcafe") {
+					(
+						deps.reportGitCafePreparationFailure ??
+						reportGitCafePreparationFailureToSentry
+					)({
+						eventId: event.id,
+						deliveryId: event.deliveryId,
+						rawKind: event.rawKind,
+						reason: prepared.reason,
+						status: prepared.status,
+						retryable,
+					});
+				}
+				if (retryable) return { retry: true, reason: prepared.reason };
 				if (prepared.reason !== "stale-event")
 					await eventServices.quarantineEvent(db, event.id, prepared.reason);
-				return;
+				return settle(
+					prepared.reason === "stale-event"
+						? { status: "skipped", reason: "stale-subject" }
+						: { status: "quarantined", reason: "preparation-refused" },
+				);
 			}
 			normalized = prepared.value;
 			if (normalized && event.normalizedAt && deps.resumeNormalized)
@@ -177,7 +214,13 @@ export async function processEvent(
 							event.receivedAt.toISOString(),
 						) ?? null);
 	} catch (error) {
-		const reason = getErrorMessage(error);
+		if (
+			event.forge === "gitcafe" &&
+			!(error instanceof z.ZodError || error instanceof SyntaxError)
+		)
+			throw error;
+		const reason =
+			event.forge === "gitcafe" ? "invalid-event" : getErrorMessage(error);
 		await eventServices.quarantineEvent(db, event.id, reason);
 		logger.warn(
 			{ eventId: event.id, deliveryId: event.deliveryId, reason },
@@ -194,7 +237,7 @@ export async function processEvent(
 				error: reason,
 			});
 		}
-		return;
+		return settle({ status: "quarantined", reason: "invalid-event" });
 	}
 
 	if (!normalized) {
@@ -215,13 +258,13 @@ export async function processEvent(
 				event,
 				logger,
 			);
-			return;
+			return settle({ status: "skipped", reason: "unsupported-event" });
 		}
 		logger.debug(
 			{ eventId: event.id, rawKind: event.rawKind },
 			"event kind not ingested",
 		);
-		return;
+		return settle({ status: "skipped", reason: "unsupported-event" });
 	}
 
 	if (!event.normalizedAt)
@@ -231,6 +274,7 @@ export async function processEvent(
 			eventId: event.id,
 			kind: normalized.kind,
 			repo: "repo" in normalized ? normalized.repo.fullName : null,
+			normalizationLatencyMs: Date.now() - event.receivedAt.getTime(),
 		},
 		"event normalized",
 	);
@@ -269,7 +313,7 @@ export async function processEvent(
 				await enqueueReviewerSync(deps, repo.id);
 			}
 		}
-		return;
+		return settle({ status: "skipped", reason: "unsupported-event" });
 	}
 
 	if (normalized.kind === "change-request.closed") {
@@ -297,7 +341,7 @@ export async function processEvent(
 			"event caused by tripwire itself, no run",
 		);
 		await pool.query("SELECT pg_notify('runs', $1)", [event.id]);
-		return;
+		return settle({ status: "skipped", reason: "self" });
 	}
 
 	/** Lazy repo upsert — covers installs that happened while the tunnel was down. */
@@ -371,6 +415,7 @@ export async function processEvent(
 	};
 
 	let pendingCheckPosted = false;
+	let processingCommentPosted = false;
 	const result = await runWorkflows(
 		{
 			db,
@@ -384,18 +429,29 @@ export async function processEvent(
 			// actor leaves `tripwire` stuck in_progress forever (lifecycle E2E
 			// hang: waitForVerdict never sees a completed check).
 			onBeforeEvaluate: async () => {
-				pendingCheckPosted = await emitPendingCheck(
-					surfaceDeps,
-					normalized,
-					event.id,
-				);
+				const [pending, processing] = await Promise.all([
+					emitPendingCheck(surfaceDeps, normalized, event.id),
+					emitGitCafeProcessingComment(surfaceDeps, normalized, event.id),
+				]);
+				pendingCheckPosted = pending;
+				processingCommentPosted = processing;
 			},
 		},
 		normalized,
 		event.id,
 	);
+	if (event.forge === "gitcafe" && result.runId)
+		logger.info(
+			{
+				event: "gitcafe.run.committed",
+				eventId: event.id,
+				runId: result.runId,
+			},
+			"GitCafe evaluation committed",
+		);
 	if (result.runId && result.verdict && !result.quiet) {
 		await emitPrSurface(surfaceDeps, {
+			eventId: event.id,
 			runId: result.runId,
 			verdict: result.verdict,
 			event: normalized,
@@ -405,7 +461,13 @@ export async function processEvent(
 			pendingActionRows: result.actionRows,
 			pendingCheckPosted,
 		});
-	}
+	} else if (event.forge === "gitcafe" && processingCommentPosted)
+		await emitGitCafeProcessingComment(
+			surfaceDeps,
+			normalized,
+			event.id,
+			result.verdict === "pass" ? "complete" : "failed",
+		);
 	// §9 live activity feed: announce the RESOLVED state (run terminal/paused,
 	// or no run at all — exempt / no matching workflow) so the feed row can
 	// update in place. Carries the event id; the SSE fan-out re-fetches the row.
@@ -428,6 +490,15 @@ export async function processEvent(
 			);
 		}
 	}
+	if (result.runId) return settle({ status: "completed", runId: result.runId });
+	const reason = gitCafeEventSkipReasonSchema.safeParse(
+		"skipReason" in result ? result.skipReason : undefined,
+	);
+	return event.forge === "gitcafe" && !reason.success
+		? { retry: true, reason: "unclassified-no-run" }
+		: reason.success
+			? settle({ status: "skipped", reason: reason.data })
+			: undefined;
 }
 
 async function enqueueReviewerSync(

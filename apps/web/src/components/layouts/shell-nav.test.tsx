@@ -19,18 +19,21 @@ async function renderNav(
 	permissions: OrgWithPermissions["permissions"],
 	parent?: NestedNavItem["parent"],
 	collapsed = false,
+	seedPermissions = true,
 ) {
 	const client = new QueryClient();
-	client.setQueryData(orgContextQueryOptions("team").queryKey, {
-		id: "org-team",
-		slug: "team",
-		name: "Team",
-		role: "member",
-		isPersonal: false,
-		avatarHue: null,
-		timezone: null,
-		permissions,
-	});
+	if (seedPermissions) {
+		client.setQueryData(orgContextQueryOptions("team").queryKey, {
+			id: "org-team",
+			slug: "team",
+			name: "Team",
+			role: "member",
+			isPersonal: false,
+			avatarHue: null,
+			timezone: null,
+			permissions,
+		});
+	}
 	const root = createRootRoute({
 		component: () => (
 			<QueryClientProvider client={client}>
@@ -124,6 +127,12 @@ async function renderOrgNav(repos: OrgHomeState["repos"]) {
 }
 
 describe("ShellNav review count", () => {
+	test("keeps navigation placeholders while permissions load", async () => {
+		const html = await renderNav(undefined, [], undefined, false, false);
+		expect(html).toContain('data-layout-role="dashboard-rail-nav-skeleton"');
+		expect(html).not.toContain('aria-label="Repo"');
+	});
+
 	test.each([0, 7])("renders the supplied numeric count %i", async (queue) => {
 		const html = await renderNav(queue, ["moderation:read", "activity:read"]);
 		expect(html).toContain('href="/team/scratch/moderation"');

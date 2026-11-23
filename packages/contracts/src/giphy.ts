@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isGiphyMediaUrl } from "./response.ts";
+import { type CloseGif, isGiphyMediaUrl } from "./response.ts";
 import { jsonValueSchema } from "./workflow.ts";
 
 const dimension = z
@@ -105,6 +105,23 @@ export const giphyGifSchema = z
 	})
 	.catchall(jsonValueSchema);
 export type GiphyGifRecord = z.infer<typeof giphyGifSchema>;
+
+export function closeGifFromGiphy(gif: GiphyGifRecord): CloseGif | null {
+	const rendition = gif.images.fixed_height;
+	if (!isGiphyMediaUrl(rendition.url)) {
+		return null;
+	}
+	const url = new URL(rendition.url);
+	url.search = "";
+	url.hash = "";
+	return {
+		id: gif.id,
+		url: url.toString(),
+		width: rendition.width,
+		height: rendition.height,
+		title: gif.title.slice(0, 200),
+	};
+}
 
 export const giphyPageSchema = z.object({
 	data: z.array(giphyGifSchema).max(100),
