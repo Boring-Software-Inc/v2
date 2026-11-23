@@ -1,5 +1,8 @@
 import {
 	COMMENT_MARKER,
+	GITCAFE_PROCESSING_COMMENT,
+	GITCAFE_PROCESSING_COMPLETE_COMMENT,
+	GITCAFE_PROCESSING_FAILED_COMMENT,
 	type GitCafeActionBinding,
 	type GitCafeActionComment,
 	type GitCafeActionOperation,
@@ -530,6 +533,21 @@ export class GitCafeActions {
 						.reverse()
 						.find((comment) => comment.body?.includes(COMMENT_MARKER))
 				: undefined;
+		const activeIsProcessing = [
+			GITCAFE_PROCESSING_COMMENT,
+			GITCAFE_PROCESSING_COMPLETE_COMMENT,
+			GITCAFE_PROCESSING_FAILED_COMMENT,
+		].some((candidate) => active?.body?.startsWith(candidate));
+		const terminalProcessingUpdate = [
+			GITCAFE_PROCESSING_COMPLETE_COMMENT,
+			GITCAFE_PROCESSING_FAILED_COMMENT,
+		].some((candidate) => renderedBody.value.startsWith(candidate));
+		if (
+			active &&
+			terminalProcessingUpdate &&
+			!active.body?.startsWith(GITCAFE_PROCESSING_COMMENT)
+		)
+			return { ok: true as const, value: { externalId: active.id } };
 		const prior = await this.options.store.read(binding.actionId);
 		if (action.kind === "comment" && action.onlyIfPresent && !active && !prior)
 			return { ok: true as const, value: { externalId: null } };
@@ -555,7 +573,8 @@ export class GitCafeActions {
 		if (
 			active &&
 			action.kind === "comment" &&
-			(action.previousVerdict === null ||
+			(activeIsProcessing ||
+				action.previousVerdict === null ||
 				action.previousVerdict === action.verdict)
 		)
 			return this.editComment(binding, active, body);

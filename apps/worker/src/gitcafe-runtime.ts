@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 import {
 	GITCAFE_PROCESSING_COMMENT,
+	GITCAFE_PROCESSING_COMPLETE_COMMENT,
 	GITCAFE_PROCESSING_FAILED_COMMENT,
 	type GitCafeReadBoundary,
 	type GitCafeRepoReviewer,
@@ -274,6 +275,7 @@ export function buildGitCafeRuntime(
 				action.previousVerdict === null &&
 				[
 					GITCAFE_PROCESSING_COMMENT,
+					GITCAFE_PROCESSING_COMPLETE_COMMENT,
 					GITCAFE_PROCESSING_FAILED_COMMENT,
 				].includes(action.body);
 			if (!pendingCheck && !processingComment)

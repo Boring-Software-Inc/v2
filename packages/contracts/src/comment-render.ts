@@ -346,6 +346,14 @@ Evaluating this repository's rules. This comment will update when the check fini
 </details>
 
 ${COMMENT_MARKER}`;
+export const GITCAFE_PROCESSING_COMPLETE_COMMENT = `<details>
+<summary>Tripwire finished checking this contribution</summary>
+
+The check finished. Any Tripwire responses appear below.
+
+</details>
+
+${COMMENT_MARKER}`;
 export const GITCAFE_PROCESSING_FAILED_COMMENT = `<details open>
 <summary>Tripwire could not finish this check</summary>
 

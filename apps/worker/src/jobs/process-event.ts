@@ -31,6 +31,7 @@ import { installFailureReporter } from "../report-install-failure.ts";
 import { upsertInstallation } from "./installation-sync.ts";
 import {
 	emitClosedReviewSurfaces,
+	emitGitCafeProcessingComment,
 	emitPendingCheck,
 	emitPrSurface,
 	recoverGitCafeRunSurface,
@@ -414,6 +415,7 @@ export async function processEvent(
 	};
 
 	let pendingCheckPosted = false;
+	let processingCommentPosted = false;
 	const result = await runWorkflows(
 		{
 			db,
@@ -427,11 +429,12 @@ export async function processEvent(
 			// actor leaves `tripwire` stuck in_progress forever (lifecycle E2E
 			// hang: waitForVerdict never sees a completed check).
 			onBeforeEvaluate: async () => {
-				pendingCheckPosted = await emitPendingCheck(
-					surfaceDeps,
-					normalized,
-					event.id,
-				);
+				const [pending, processing] = await Promise.all([
+					emitPendingCheck(surfaceDeps, normalized, event.id),
+					emitGitCafeProcessingComment(surfaceDeps, normalized, event.id),
+				]);
+				pendingCheckPosted = pending;
+				processingCommentPosted = processing;
 			},
 		},
 		normalized,
@@ -458,7 +461,13 @@ export async function processEvent(
 			pendingActionRows: result.actionRows,
 			pendingCheckPosted,
 		});
-	}
+	} else if (event.forge === "gitcafe" && processingCommentPosted)
+		await emitGitCafeProcessingComment(
+			surfaceDeps,
+			normalized,
+			event.id,
+			result.verdict === "pass" ? "complete" : "failed",
+		);
 	// §9 live activity feed: announce the RESOLVED state (run terminal/paused,
 	// or no run at all — exempt / no matching workflow) so the feed row can
 	// update in place. Carries the event id; the SSE fan-out re-fetches the row.

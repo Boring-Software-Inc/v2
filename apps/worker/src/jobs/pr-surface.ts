@@ -6,6 +6,7 @@ import {
 	checkSummary,
 	forgePostsReviews,
 	GITCAFE_PROCESSING_COMMENT,
+	GITCAFE_PROCESSING_COMPLETE_COMMENT,
 	GITCAFE_PROCESSING_FAILED_COMMENT,
 	GITCAFE_VERDICT_ACTION_KINDS,
 	type GitCafeEvaluationPhase,
@@ -56,7 +57,10 @@ export async function recoverGitCafeRunSurface(
 	deps: PrSurfaceDeps,
 	runId: string,
 	event: NormalizedEvent,
-	options?: Pick<EmitSurfaceInput, "pendingCheckPosted" | "rerun"> & {
+	options?: Pick<
+		EmitSurfaceInput,
+		"eventId" | "pendingCheckPosted" | "rerun"
+	> & {
 		refreshId?: string;
 	},
 ): Promise<boolean> {
@@ -146,6 +150,7 @@ export async function recoverGitCafeRunSurface(
 		return true;
 	}
 	await emitPrSurface(deps, {
+		eventId: options?.eventId,
 		runId,
 		event: restoredEvent,
 		verdict: verdict.data,
@@ -301,7 +306,10 @@ export async function emitPendingCheck(
 	}
 }
 
-export type GitCafeProcessingCommentState = "processing" | "failed";
+export type GitCafeProcessingCommentState =
+	| "processing"
+	| "complete"
+	| "failed";
 
 export async function emitGitCafeProcessingComment(
 	deps: PrSurfaceDeps,
@@ -322,10 +330,22 @@ export async function emitGitCafeProcessingComment(
 				? event.changeRequest.number
 				: null;
 	if (number === null) return false;
+	const repo = await repoServices.getRepoByFullName(
+		deps.db,
+		event.repo.fullName,
+		event.forge,
+	);
+	const policy = await responseServices.getRedactionPolicy(
+		deps.db,
+		repo?.id ?? null,
+	);
+	if (redactionLevelFor(policy, "comment") >= 5) return false;
 	const body =
 		state === "processing"
 			? GITCAFE_PROCESSING_COMMENT
-			: GITCAFE_PROCESSING_FAILED_COMMENT;
+			: state === "complete"
+				? GITCAFE_PROCESSING_COMPLETE_COMMENT
+				: GITCAFE_PROCESSING_FAILED_COMMENT;
 	const startedAt = Date.now();
 	try {
 		const result = await deps.adapter.execute(
@@ -418,6 +438,24 @@ export interface EmitSurfaceInput {
 	pendingActionRows: Awaited<ReturnType<typeof runServices.recordActions>>;
 }
 
+async function preserveGitCafeProcessingComment(
+	db: Db,
+	plan: SurfacePlan,
+	input: Pick<EmitSurfaceInput, "event" | "eventId">,
+): Promise<SurfacePlan> {
+	if (
+		plan.comment !== "delete" ||
+		input.event.forge !== "gitcafe" ||
+		!input.eventId ||
+		!(await gitCafeActionServices.readGitCafeProcessingComment(
+			db,
+			input.eventId,
+		))
+	)
+		return plan;
+	return { ...plan, comment: "none" };
+}
+
 export async function emitPrSurface(
 	deps: PrSurfaceDeps,
 	input: EmitSurfaceInput,
@@ -456,29 +494,31 @@ export async function emitPrSurface(
 				responseServices.getRedactionPolicy(db, repo?.id ?? null),
 			]);
 			const previous = input.resumedFrom ?? null;
-			const plan = planSurfaces(
-				{
-					verdict,
-					previousVerdict: previous,
-					contributorLogin: event.actor.login,
-					runUrl: `${deps.appUrl}/runs/${runId}`,
-					title: event.issue.title,
-					subjectKind: "issue",
-					standaloneWarning,
-					appealUrl:
-						event.forge === "github" &&
-						(verdict === "block" || verdict === "close")
-							? `${deps.appUrl}/appeals/${runId}`
-							: undefined,
-					reasons,
-					...issues,
-				},
-				config,
-				policy,
-				{ reviewPosted: false },
+			const plan = await preserveGitCafeProcessingComment(
+				db,
+				planSurfaces(
+					{
+						verdict,
+						previousVerdict: previous,
+						contributorLogin: event.actor.login,
+						runUrl: `${deps.appUrl}/runs/${runId}`,
+						title: event.issue.title,
+						subjectKind: "issue",
+						standaloneWarning,
+						appealUrl:
+							event.forge === "github" &&
+							(verdict === "block" || verdict === "close")
+								? `${deps.appUrl}/appeals/${runId}`
+								: undefined,
+						reasons,
+						...issues,
+					},
+					config,
+					policy,
+					{ reviewPosted: false },
+				),
+				input,
 			);
-			if (plan.comment === "upsert" && input.eventId)
-				await emitGitCafeProcessingComment(deps, event, input.eventId);
 			const intents = commentRows(
 				plan,
 				event.issue.number,
@@ -507,6 +547,13 @@ export async function emitPrSurface(
 			if (responses === null) return;
 			pendingActionRows = [...responses, ...pendingActionRows];
 		}
+		if (input.eventId)
+			await emitGitCafeProcessingComment(
+				deps,
+				event,
+				input.eventId,
+				"complete",
+			);
 		await emitThreadActions(
 			deps,
 			{ ...input, pendingActionRows },
@@ -579,38 +626,40 @@ export async function emitPrSurface(
 		verdict === "close"
 			? []
 			: input.pendingActionRows.filter((row) => row.kind === "block");
-	const plan = planSurfaces(
-		{
-			verdict,
-			standaloneWarning,
-			appealUrl:
-				event.forge === "github" &&
-				standaloneOutcome &&
-				(verdict === "block" || verdict === "close")
-					? `${deps.appUrl}/appeals/${runId}`
-					: undefined,
-			contributorLogin: event.actor.login,
-			reasons,
-			runUrl,
-			degraded: input.degraded,
-			previousVerdict,
-			rerun: input.rerun,
-			aiReviewNotRun: input.aiReviewNotRun,
-			title: event.changeRequest.title,
-			targetBranch: event.changeRequest.baseRef ?? null,
-			...issues,
-		},
-		responseConfig,
-		policy,
-		{
-			reviewPosted:
-				(blockRows.length > 0 || input.refreshReview === true) &&
-				forgePostsReviews(event.forge),
-		},
+	const plan = await preserveGitCafeProcessingComment(
+		db,
+		planSurfaces(
+			{
+				verdict,
+				standaloneWarning,
+				appealUrl:
+					event.forge === "github" &&
+					standaloneOutcome &&
+					(verdict === "block" || verdict === "close")
+						? `${deps.appUrl}/appeals/${runId}`
+						: undefined,
+				contributorLogin: event.actor.login,
+				reasons,
+				runUrl,
+				degraded: input.degraded,
+				previousVerdict,
+				rerun: input.rerun,
+				aiReviewNotRun: input.aiReviewNotRun,
+				title: event.changeRequest.title,
+				targetBranch: event.changeRequest.baseRef ?? null,
+				...issues,
+			},
+			responseConfig,
+			policy,
+			{
+				reviewPosted:
+					(blockRows.length > 0 || input.refreshReview === true) &&
+					forgePostsReviews(event.forge),
+			},
+		),
+		input,
 	);
 	const review = plan.review ?? REVIEW_POINTER.block;
-	if (plan.comment === "upsert" && input.eventId)
-		await emitGitCafeProcessingComment(deps, event, input.eventId);
 	for (const row of blockRows) {
 		if (!persistedForgeActionSchema.safeParse(row).success) {
 			await runServices.markActionInvalid(db, row.id);
@@ -750,6 +799,12 @@ export async function emitPrSurface(
 		},
 		review,
 	);
+	if (
+		input.eventId &&
+		plan.comment !== "upsert" &&
+		plan.comment !== "if-present"
+	)
+		await emitGitCafeProcessingComment(deps, event, input.eventId, "complete");
 }
 
 async function executeRecordedPrActions(

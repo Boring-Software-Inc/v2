@@ -4,6 +4,7 @@ import {
 	GITCAFE_BACKFILL_REPO_QUEUE,
 	GITCAFE_LIFECYCLE_QUEUE,
 	GITCAFE_PROCESS_EVENT_QUEUE,
+	GITCAFE_PROCESSING_COMMENT,
 	GITCAFE_RECEIPT_APP_ID,
 	type GitCafeActionOperation,
 	type GitCafeCheckRerequestedEvent,
@@ -1527,9 +1528,12 @@ for (const scenario of [
 		if (scenario === "unknown-permissions" || scenario === "skipped-rule") {
 			expect(current.stateType).toBe("backlog");
 			expect(current.lockedAt).toBeNull();
-			expect(comments).toHaveLength(0);
+			expect(comments).toHaveLength(1);
+			expect(comments[0]?.body).not.toContain(
+				"Tripwire is checking this contribution",
+			);
 			await processEvent(deps, { eventId: row.id });
-			expect(comments).toHaveLength(0);
+			expect(comments).toHaveLength(1);
 			expect(
 				(await runServices.getRunWithSteps(database.db, saved.id))?.actions,
 			).toHaveLength(0);
@@ -1676,7 +1680,16 @@ for (const scenario of [
 		if (scenario === "block" || scenario === "human-review-deny")
 			expect(current.lockedAt).not.toBeNull();
 		if (scenario === "lost-comment") expect(commentPosts).toBe(1);
-		if (scenario.startsWith("human-review")) expect(comments).toHaveLength(2);
+		if (scenario === "authored") {
+			expect(comments).toHaveLength(2);
+			expect(
+				comments.every(
+					(comment) =>
+						!comment.body?.includes("Tripwire is checking this contribution"),
+				),
+			).toBe(true);
+		} else if (scenario.startsWith("human-review"))
+			expect(comments).toHaveLength(2);
 		else if (scenario !== "pass" && scenario !== "obsolete-phase")
 			expect(comments).toHaveLength(1);
 		expect(
@@ -2472,6 +2485,7 @@ for (const { verdict, scenario } of [
 		const reportData = gitCafeCheckReportResponseSchema.parse(report);
 		const checks: (typeof reportData.checkRun)[] = [];
 		const comments: (typeof commentData)[] = [];
+		const commentBodies: string[] = [];
 		const reviews: (typeof reviewData)[] = [];
 		const reviewRequests = new Map<
 			string,
@@ -2605,6 +2619,7 @@ for (const { verdict, scenario } of [
 						body: body.body,
 					});
 					comments.push(posted);
+					commentBodies.push(body.body);
 					return Response.json(posted);
 				}
 				if (path.includes("/comments/") && init.method === "PATCH") {
@@ -2623,7 +2638,16 @@ for (const { verdict, scenario } of [
 						version: comment.version + 1,
 					};
 					comments[index] = updated;
+					commentBodies.push(input.body);
 					return Response.json(updated);
+				}
+				if (path.includes("/comments/") && init.method === "DELETE") {
+					const index = comments.findIndex((comment) =>
+						path.endsWith(comment.id),
+					);
+					if (index >= 0) comments.splice(index, 1);
+					commentBodies.push("[deleted]");
+					return new Response(null, { status: 204 });
 				}
 				if (path.endsWith("/reviews")) {
 					if (init.method === "GET")
@@ -2765,6 +2789,12 @@ for (const { verdict, scenario } of [
 			const saved = await runServices.getRunForEvent(database.db, row.id);
 			if (redactionLevel !== null) {
 				if (!saved) throw new Error("Missing redaction PR run");
+				if (redactionLevel < 5) {
+					expect(commentBodies[0]?.startsWith(GITCAFE_PROCESSING_COMMENT)).toBe(
+						true,
+					);
+					expect(commentBodies.at(-1)).toBe(comments[0]?.body ?? undefined);
+				} else expect(commentBodies).toEqual([]);
 				const audit = await runServices.getRunWithSteps(database.db, saved.id);
 				const step = audit?.steps.find(
 					(step) => step.ruleId === "profile-readme@1",
@@ -3822,10 +3852,7 @@ for (const { verdict, scenario } of [
 			expect(checks.at(-1)?.conclusion).toBe(
 				verdict === "pass" ? "success" : "failure",
 			);
-		if (scenario !== "lost-review")
-			expect(comments).toHaveLength(
-				verdict === "block" && scenario !== "review-only" ? 1 : 0,
-			);
+		if (scenario !== "lost-review") expect(comments).toHaveLength(1);
 		if (scenario === "review-only") {
 			expect(reviews[0]?.body).toContain("https://staging.tripwire.sh/runs/");
 			expect(reviews[0]?.body).not.toBe(
