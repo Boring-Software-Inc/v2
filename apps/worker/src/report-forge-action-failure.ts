@@ -15,6 +15,8 @@ export interface ForgeActionFailure {
 
 export type ReportForgeActionFailure = (failure: ForgeActionFailure) => void;
 
+const RETRY_REPORT_INTERVAL_MS = 5 * 60_000;
+
 export function forgeActionFailureTitle(failure: ForgeActionFailure): string {
 	const status = failure.status === undefined ? "" : ` HTTP ${failure.status}`;
 	return `${failure.forge} ${failure.kind} action failed: ${failure.reason}${status}`;
@@ -49,8 +51,23 @@ export function forgeActionFailureEvent(failure: ForgeActionFailure) {
 
 export function forgeActionFailureReporter(
 	capture: typeof captureException = captureException,
+	now: () => number = Date.now,
 ): ReportForgeActionFailure {
+	const reported = new Map<string, number>();
 	return (failure) => {
+		const key = [
+			failure.actionId,
+			failure.phase,
+			failure.reason,
+			failure.status ?? "none",
+		].join(":");
+		const current = now();
+		if (
+			failure.phase === "retry" &&
+			current - (reported.get(key) ?? 0) < RETRY_REPORT_INTERVAL_MS
+		)
+			return;
+		reported.set(key, current);
 		capture(
 			new Error(forgeActionFailureTitle(failure)),
 			forgeActionFailureEvent(failure),

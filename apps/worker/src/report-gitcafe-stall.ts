@@ -1,4 +1,4 @@
-import { captureMessage } from "@sentry/bun";
+import { captureException } from "@sentry/bun";
 
 export interface GitCafeStall {
 	eventId: string;
@@ -11,10 +11,10 @@ export interface GitCafeStall {
 export type ReportGitCafeStall = (stall: GitCafeStall) => void;
 
 export function gitCafeStallReporter(
-	capture: typeof captureMessage = captureMessage,
+	capture: typeof captureException = captureException,
 ): ReportGitCafeStall {
 	return (stall) => {
-		capture("GitCafe event stalled", {
+		capture(new Error(`GitCafe ${stall.rawKind} event stalled`), {
 			level: "error",
 			fingerprint: ["gitcafe-event-stalled", stall.rawKind],
 			tags: {
