@@ -320,7 +320,7 @@ function RepoPicker({
 				size="large"
 				variant="primary"
 			>
-				{copy.watch(Math.max(draft.repoIds.length, 1))}
+				{copy.watch(draft.repoIds.length)}
 			</Button>
 		</section>
 	);

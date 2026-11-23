@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
+	FORGE_BY_ID,
 	OPEN_REDACTION,
 	type RedactionPolicy,
 	type ResponseConfig,
@@ -148,7 +149,9 @@ export function ResponsesStep({ flow }: StepViewProps) {
 							onCheckedChange={(checked) => set("fix", checked)}
 						/>
 					</div>
-					<p data-layout-role="onboarding-note">{copy.note}</p>
+					<p data-layout-role="onboarding-note">
+						{copy.note(FORGE_BY_ID[flow.state.repo?.forge ?? "github"].label)}
+					</p>
 				</div>
 			) : (
 				<Skeleton />

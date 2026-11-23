@@ -88,7 +88,11 @@ export const ONBOARDING_COPY = {
 			`The ${forgeApp} is installed. Wait for the repos to come through.`,
 		reposSearchEmpty: (query: string) => `No repos match ${query}.`,
 		watch: (count: number) =>
-			count === 1 ? "Watch this repo" : `Watch ${count} repos`,
+			count === 0
+				? "Pick a repo"
+				: count === 1
+					? "Watch this repo"
+					: `Watch ${count} repos`,
 	},
 	rules: {
 		title: "Pick your rules",
@@ -128,7 +132,8 @@ export const ONBOARDING_COPY = {
 		close: { name: "Close", desc: "Closes it via a workflow" },
 		fixTitle: "Show how to fix it",
 		fixDesc: "Adds an expandable fix guide",
-		note: "The GitHub check always posts, except on a pass.",
+		note: (forge: string) =>
+			`The ${forge} check always posts, except on a pass.`,
 		keepDefaults: "Keep defaults",
 	},
 	workflow: {
