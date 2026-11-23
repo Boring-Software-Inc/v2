@@ -58,7 +58,7 @@ for (const mode of ["standard", "gitcafe-protection"] as const) {
 					boss
 						.getWipData()
 						.filter((worker) => worker.name === GITCAFE_PROCESS_EVENT_QUEUE),
-				).toHaveLength(1);
+				).toHaveLength(4);
 				await boss.offWork(GITCAFE_PROCESS_EVENT_QUEUE);
 				expect(runtime?.healthy()).toBe(false);
 			}

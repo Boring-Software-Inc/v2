@@ -38,7 +38,7 @@ import {
 	isRetryableForgeStatus,
 	withTimeout,
 } from "@tripwire/utils";
-import type { PgBoss, WorkHandler } from "pg-boss";
+import type { PgBoss, WorkHandler, WorkOptions } from "pg-boss";
 import type { Logger } from "pino";
 import type { z } from "zod";
 import { createGenerate } from "./ai/generate.ts";
@@ -99,8 +99,12 @@ export async function registerGitCafeProtectionQueues(
 	catalogRuntime: Pick<GitCafeRuntime, "getCatalogs">,
 	monitor?: GitCafeRecoveryMonitor,
 ) {
+	const workOptions = (queue: string): WorkOptions => ({
+		batchSize: 1,
+		localConcurrency: queue === GITCAFE_PROCESS_EVENT_QUEUE ? 4 : 1,
+	});
 	const work = (queue: string, handler: WorkHandler<unknown>) =>
-		boss.work<unknown>(queue, { batchSize: 1 }, async (jobs) => {
+		boss.work<unknown>(queue, workOptions(queue), async (jobs) => {
 			try {
 				return await handler(jobs);
 			} catch {
