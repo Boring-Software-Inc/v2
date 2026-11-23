@@ -43,6 +43,7 @@ import {
 	type GitCafeAppCredentials,
 	GitCafeInstallationClient,
 	type GitCafeInstallationClientOptions,
+	GitCafeInstallationClientState,
 	GitCafeReads,
 	hydrateGitCafeCommentEvent,
 	hydrateGitCafeIssueEvent,
@@ -82,6 +83,7 @@ export function buildGitCafeRuntime(
 	actionPool: Pool = requirePostgresPool(db),
 ): GitCafeRuntime {
 	const selfActors = new Set<string>();
+	const clientState = new GitCafeInstallationClientState(credentials);
 	const bind = async (repoFullName: string, context?: ForgeActionContext) => {
 		const [row] = await db
 			.select()
@@ -121,6 +123,7 @@ export function buildGitCafeRuntime(
 		const client = new GitCafeInstallationClient({
 			credentials,
 			fetch,
+			state: clientState,
 			lifecycleGuard: async (id) => {
 				if (
 					!(await gitCafeLifecycleServices.matchesGitCafeRepositoryBinding(
