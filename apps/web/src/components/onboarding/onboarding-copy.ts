@@ -54,11 +54,19 @@ export const ONBOARDING_COPY = {
 	connect: {
 		title: "Connect your forge",
 		sub: "Tripwire will install itself as an app. Select the repos you want it to watch.",
-		installedSub: (forge: string) =>
-			`The ${forge} app is installed. Pick the repos Tripwire should watch.`,
+		installedSub: (forgeApp: string) =>
+			`The ${forgeApp} is installed. Pick the repos Tripwire should watch.`,
 		forges: {
-			github: { name: "GitHub", action: "Install GitHub App" },
-			gitcafe: { name: "GitCafe", action: "Install GitCafe app" },
+			github: {
+				name: "GitHub",
+				app: "GitHub App",
+				action: "Install GitHub App",
+			},
+			gitcafe: {
+				name: "GitCafe",
+				app: "GitCafe app",
+				action: "Install GitCafe app",
+			},
 		},
 		installOn: (forge: string) => `Install on ${forge}`,
 		waitingTitle: (forge: string) => `Waiting on ${forge}`,
@@ -66,8 +74,8 @@ export const ONBOARDING_COPY = {
 		waitingLong: (forge: string) =>
 			`Still waiting on ${forge}. Keep this tab open. You can reopen ${forge}.`,
 		openForge: (forge: string) => `Open ${forge}`,
-		unavailable: (forge: string) =>
-			`The ${forge} app is not configured on this server.`,
+		unavailable: (forgeApp: string) =>
+			`The ${forgeApp} is not configured on this server.`,
 		reposLabel: "Repos to watch",
 		readingTitle: "Reading your repos",
 		readingBody: (org: string) =>
@@ -76,8 +84,8 @@ export const ONBOARDING_COPY = {
 		reposCount: (picked: number, total: number) => `${picked} of ${total}`,
 		privateTag: "Private",
 		reposEmptyTitle: "No repos yet",
-		reposEmptyBody: (forge: string) =>
-			`The ${forge} app is installed. Wait for the repos to come through.`,
+		reposEmptyBody: (forgeApp: string) =>
+			`The ${forgeApp} is installed. Wait for the repos to come through.`,
 		reposSearchEmpty: (query: string) => `No repos match ${query}.`,
 		watch: (count: number) =>
 			count === 1 ? "Watch this repo" : `Watch ${count} repos`,

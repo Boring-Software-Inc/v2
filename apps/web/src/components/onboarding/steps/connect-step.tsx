@@ -87,7 +87,7 @@ export function ConnectStep({ flow }: StepViewProps) {
 				steps={flow.steps}
 				sub={
 					phase === "repos"
-						? copy.installedSub(copy.forges[draft.forge].name)
+						? copy.installedSub(copy.forges[draft.forge].app)
 						: copy.sub
 				}
 				title={copy.title}
@@ -145,7 +145,7 @@ function InstallAction({
 	if (install.data && install.data.status !== "ready") {
 		return (
 			<p data-layout-role="onboarding-error" role="alert">
-				{copy.unavailable(copy.forges[forge].name)}
+				{copy.unavailable(copy.forges[forge].app)}
 			</p>
 		);
 	}
@@ -284,7 +284,7 @@ function RepoPicker({
 					<div data-part="empty">
 						<span data-part="title">{copy.reposEmptyTitle}</span>
 						<span data-part="body">
-							{copy.reposEmptyBody(copy.forges[draft.forge].name)}
+							{copy.reposEmptyBody(copy.forges[draft.forge].app)}
 						</span>
 					</div>
 				) : visible.length === 0 ? (
