@@ -18,6 +18,7 @@ import {
 	type GitCafeRetirement,
 	gitCafeCatalogValuesSchema,
 	gitCafeCompletePushEventSchema,
+	gitCafeConnectionRepositorySchema,
 	gitCafeDispatchableRepositoryEventTypeSchema,
 	gitCafeEventSettlementSchema,
 	gitCafeInstallationCreatedSchema,
@@ -529,18 +530,14 @@ async function inspectRecoveryReceipt(
 		return { ...item, classification: "quarantined" };
 	item.bodySha256 = parsed.data.bodySha256;
 	const payload = parsed.data.payload;
-	const repository = payload.repository;
+	const repository = gitCafeConnectionRepositorySchema
+		.pick({ id: true, owner: true, name: true })
+		.safeParse(payload.repository);
 	if (
 		row.installation_id !== selection.installationId ||
 		parsed.data.appId !== selection.appId ||
-		typeof repository !== "object" ||
-		repository === null ||
-		!("id" in repository) ||
-		repository.id !== selection.repositoryId ||
-		!("owner" in repository) ||
-		typeof repository.owner !== "string" ||
-		!("name" in repository) ||
-		typeof repository.name !== "string"
+		!repository.success ||
+		repository.data.id !== selection.repositoryId
 	)
 		return { ...item, classification: "binding-mismatch" };
 	if (
@@ -556,7 +553,7 @@ async function inspectRecoveryReceipt(
 			selection.repositoryId,
 			selection.installationId,
 			selection.organizationId,
-			`${repository.owner}/${repository.name}`,
+			`${repository.data.owner}/${repository.data.name}`,
 		],
 	);
 	if (binding.rowCount !== 1)

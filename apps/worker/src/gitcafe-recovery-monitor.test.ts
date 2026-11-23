@@ -54,11 +54,11 @@ test("a failed recovery becomes unhealthy and healthy later work restores readin
 
 test("a hanging recovery times out without starting overlapping replacements", async () => {
 	const monitor = createGitCafeRecoveryMonitor(logger);
-	let release: () => void = () => {};
+	let release: (recovered: number) => void = () => {};
 	const pending = monitor.run(
 		"protection",
 		() =>
-			new Promise<void>((resolve) => {
+			new Promise<number>((resolve) => {
 				release = resolve;
 			}),
 	);
@@ -67,7 +67,7 @@ test("a hanging recovery times out without starting overlapping replacements", a
 	await expect(monitor.run("protection", async () => 0)).rejects.toThrow(
 		"still running",
 	);
-	release();
+	release(0);
 	await Bun.sleep(1);
 	await monitor.run("protection", async () => 0);
 }, 25_000);

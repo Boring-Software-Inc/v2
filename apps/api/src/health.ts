@@ -108,9 +108,10 @@ export function createApiHealth(deps: ApiDeps, now: () => number = Date.now) {
 						: alerts.size
 							? "backlog-stalled"
 							: "ready",
-				...(includeDiagnostics && deps.gitCafeReceipts
-					? { stalledStages: [...alerts].sort() }
-					: {}),
+				stalledStages:
+					includeDiagnostics && deps.gitCafeReceipts
+						? [...alerts].sort()
+						: undefined,
 			},
 			status: ok ? (200 as const) : (503 as const),
 		};

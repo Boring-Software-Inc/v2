@@ -44,6 +44,7 @@ import {
 	supersededBy,
 } from "@tripwire/utils";
 import type { Logger } from "pino";
+import { z } from "zod";
 import {
 	type ReportForgeActionFailure,
 	reportForgeActionFailureToSentry,
@@ -83,10 +84,8 @@ export async function recoverGitCafeRunSurface(
 		saved.steps.some(
 			(step) =>
 				step.nodeId === "run:degradation" &&
-				step.output !== null &&
-				typeof step.output === "object" &&
-				"tookNoAction" in step.output &&
-				step.output.tookNoAction === true,
+				z.object({ tookNoAction: z.literal(true) }).safeParse(step.output)
+					.success,
 		)
 	)
 		return true;
