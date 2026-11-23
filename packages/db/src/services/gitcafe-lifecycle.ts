@@ -45,7 +45,7 @@ import { and, eq, inArray, ne, notExists, sql } from "drizzle-orm";
 import type { Pool, PoolClient } from "pg";
 import { PgBoss } from "pg-boss";
 import { type Db, requirePostgresPool } from "../client.ts";
-import type { BossErrorLogger } from "../queue.ts";
+import { type BossErrorLogger, queueDatabaseOptions } from "../queue.ts";
 import {
 	gitCafeInstallationLifecycle,
 	gitCafeReceipts,
@@ -296,7 +296,7 @@ export async function createGitCafeLifecycleBoss(
 	logger: BossErrorLogger,
 ): Promise<PgBoss> {
 	const boss = new PgBoss({
-		connectionString: databaseUrl,
+		...queueDatabaseOptions(databaseUrl),
 		schedule: false,
 		supervise: false,
 		migrate: false,
