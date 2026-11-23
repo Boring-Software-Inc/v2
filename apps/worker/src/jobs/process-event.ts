@@ -18,11 +18,15 @@ import {
 	repoServices,
 	runServices,
 } from "@tripwire/db";
-import { getErrorMessage } from "@tripwire/utils";
+import { getErrorMessage, isRetryableForgeStatus } from "@tripwire/utils";
 import type { Pool } from "pg";
 import type { Logger } from "pino";
 import { z } from "zod";
 import { type ForgeRuntime, normalizeFor } from "../forge-runtime.ts";
+import {
+	type ReportGitCafePreparationFailure,
+	reportGitCafePreparationFailureToSentry,
+} from "../report-gitcafe-preparation-failure.ts";
 import { installFailureReporter } from "../report-install-failure.ts";
 import { upsertInstallation } from "./installation-sync.ts";
 import {
@@ -56,6 +60,7 @@ export interface ProcessEventDeps {
 	enqueueReviewerSync?: (repoId: string) => Promise<void>;
 	enqueueLabelSync?: (repoId: string) => Promise<void>;
 	selfLogins?: ReadonlySet<string>;
+	reportGitCafePreparationFailure?: ReportGitCafePreparationFailure;
 }
 
 export function isSelfEvent(
@@ -152,6 +157,12 @@ export async function processEvent(
 				event.receivedAt.toISOString(),
 			);
 			if (!prepared.ok) {
+				const retryable =
+					["network", "expired", "inactive", "stale"].includes(
+						prepared.reason,
+					) ||
+					(prepared.reason === "http" &&
+						isRetryableForgeStatus(prepared.status));
 				logger.warn(
 					{
 						eventId: event.id,
@@ -160,13 +171,20 @@ export async function processEvent(
 					},
 					"event preparation refused",
 				);
-				if (
-					["network", "expired", "inactive"].includes(prepared.reason) ||
-					(event.forge === "gitcafe" && prepared.reason === "stale") ||
-					(prepared.reason === "http" &&
-						(prepared.status === 429 || (prepared.status ?? 0) >= 500))
-				)
-					return { retry: true, reason: prepared.reason };
+				if (event.forge === "gitcafe") {
+					(
+						deps.reportGitCafePreparationFailure ??
+						reportGitCafePreparationFailureToSentry
+					)({
+						eventId: event.id,
+						deliveryId: event.deliveryId,
+						rawKind: event.rawKind,
+						reason: prepared.reason,
+						status: prepared.status,
+						retryable,
+					});
+				}
+				if (retryable) return { retry: true, reason: prepared.reason };
 				if (prepared.reason !== "stale-event")
 					await eventServices.quarantineEvent(db, event.id, prepared.reason);
 				return settle(

@@ -33,7 +33,11 @@ import {
 	runServices,
 } from "@tripwire/db";
 import { GitCafeInstallationClient } from "@tripwire/forge-gitcafe";
-import { generateId, withTimeout } from "@tripwire/utils";
+import {
+	generateId,
+	isRetryableForgeStatus,
+	withTimeout,
+} from "@tripwire/utils";
 import type { PgBoss, WorkHandler } from "pg-boss";
 import type { Logger } from "pino";
 import type { z } from "zod";
@@ -243,7 +247,7 @@ export async function registerGitCafeProtectionQueues(
 						if (
 							["network", "expired", "inactive"].includes(prepared.reason) ||
 							(prepared.reason === "http" &&
-								(prepared.status === 429 || (prepared.status ?? 0) >= 500))
+								isRetryableForgeStatus(prepared.status))
 						)
 							throw new Error("GitCafe check re-run preparation unavailable");
 						settlement = {

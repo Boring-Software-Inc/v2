@@ -36,7 +36,7 @@ export {
 	generateWorkflowName,
 	pickWorkflowName,
 } from "./names.ts";
-export { backoffWithJitter } from "./retry.ts";
+export { backoffWithJitter, isRetryableForgeStatus } from "./retry.ts";
 export { skipWhenDraft } from "./skip-when-draft.ts";
 export {
 	type DitherChartOptions,
