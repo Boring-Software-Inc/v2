@@ -2,7 +2,17 @@ import { afterEach, describe, expect, test } from "bun:test";
 import {
 	DEFAULT_RERUN_COOLDOWN_SECONDS,
 	getRerunCooldownSeconds,
+	QUEUE_POOL_MAX,
+	queueDatabaseOptions,
 } from "./queue.ts";
+
+test("queue pools fit the minimum database connection budget", () => {
+	expect(queueDatabaseOptions("postgres://queue")).toEqual({
+		connectionString: "postgres://queue",
+		max: QUEUE_POOL_MAX,
+	});
+	expect(QUEUE_POOL_MAX).toBe(4);
+});
 
 describe("getRerunCooldownSeconds", () => {
 	const prev = process.env.RERUN_COOLDOWN_SECONDS;
