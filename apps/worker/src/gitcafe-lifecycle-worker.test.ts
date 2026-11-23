@@ -4,7 +4,7 @@ import { normalizeFor } from "./forge-runtime.ts";
 import { workerModeSchema } from "./gitcafe-connection-worker.ts";
 import { gitCafeLifecycleWorkerEnvSchema } from "./gitcafe-lifecycle-worker.ts";
 
-test("receipt consumer is a separate preview-only mode without app credential requirements", () => {
+test("receipt consumer accepts isolated preview and production modes without app credentials", () => {
 	const env = {
 		UNKEY_ENVIRONMENT_SLUG: "preview",
 		GITCAFE_APP_ID: GITCAFE_RECEIPT_APP_ID,
@@ -13,8 +13,15 @@ test("receipt consumer is a separate preview-only mode without app credential re
 	};
 	const parsed = gitCafeLifecycleWorkerEnvSchema.parse(env);
 	expect(parsed.PORT).toBe(8181);
+	expect(
+		gitCafeLifecycleWorkerEnvSchema.safeParse({
+			...env,
+			UNKEY_ENVIRONMENT_SLUG: "production",
+			GITCAFE_APP_ID: "int_tripwire_production",
+		}).success,
+	).toBe(true);
 	for (const change of [
-		{ UNKEY_ENVIRONMENT_SLUG: "production" },
+		{ UNKEY_ENVIRONMENT_SLUG: "staging" },
 		{ GITCAFE_APP_ID: "wrong-app" },
 		{ PORT: 3000 },
 		{ GITCAFE_WEBHOOK_RECEIPTS_ENABLED: "false" },

@@ -999,3 +999,17 @@ cryptographic functions. Chain/network rules remain explicit and tested here.
 `@tripwire/utils` also declares the workspace's existing Zod version directly:
 the decoder uses numeric schemas at the CBOR boundary. This replaces manual
 runtime type guards and uses the stack's existing validation library.
+
+## 2026-11-23 | GitCafe production activation
+
+Production GitCafe uses a separate integration application, webhook secret,
+and signing key from staging. The receipt, connection, lifecycle, protection,
+and recovery boundaries accept the configured GitCafe application identity in
+Unkey's preview or production environment. Every persisted receipt and every
+installation authority check remains bound to that configured identity.
+
+The production worker uses `https://app.tripwire.sh` for pending checks and run
+links. Preview continues to use `https://staging.tripwire.sh`. An enabled
+runtime still fails closed when its application ID, signing key, webhook
+configuration, or database authority is missing or invalid. No staging secret
+or installation is reused in production.

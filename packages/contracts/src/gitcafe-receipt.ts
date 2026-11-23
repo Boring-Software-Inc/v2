@@ -45,11 +45,14 @@ export const gitCafeRefreshSurfacesJobSchema = z.strictObject({
 export type GitCafeRefreshSurfacesJob = z.infer<
 	typeof gitCafeRefreshSurfacesJobSchema
 >;
-export const GITCAFE_RECEIPT_APP_ID = "int_01m60999c0fqg841d48s29qwtv";
 export const GITCAFE_RECEIPT_MAX_BYTES = 1024 * 1024;
+export const GITCAFE_RECEIPT_APP_ID = "int_01m60999c0fqg841d48s29qwtv";
+export const gitCafeAppIdSchema = z
+	.string()
+	.regex(/^int_[A-Za-z0-9_-]{1,124}$/);
 
 export const gitCafeReceiptConfigSchema = z.strictObject({
-	appId: z.literal(GITCAFE_RECEIPT_APP_ID),
+	appId: gitCafeAppIdSchema,
 	keyVersion: z.string().regex(/^[A-Za-z0-9._-]{1,64}$/),
 	secret: z.string().min(1),
 });
@@ -133,7 +136,7 @@ export type GitCafePermissionsAccepted = z.infer<
 /** Exact signed bytes stay separate from normalization and credentials. */
 export const gitCafeReceiptSchema = z.strictObject({
 	format: z.literal("gitcafe-receipt@1"),
-	appId: z.literal(GITCAFE_RECEIPT_APP_ID),
+	appId: gitCafeAppIdSchema,
 	payload: gitCafeEventEnvelopeSchema,
 	bodyBase64: z.base64().max(Math.ceil(GITCAFE_RECEIPT_MAX_BYTES / 3) * 4),
 	bodySha256: z.string().regex(/^[0-9a-f]{64}$/),
@@ -196,8 +199,8 @@ export type GitCafeEventSettlement = z.infer<
 >;
 
 export const gitCafeRecoverySelectionSchema = z.strictObject({
-	environment: z.literal("preview"),
-	appId: z.literal(GITCAFE_RECEIPT_APP_ID),
+	environment: z.enum(["preview", "production"]),
+	appId: gitCafeAppIdSchema,
 	organizationId: z.uuid(),
 	installationId: gitCafeEventEnvelopeSchema.shape.installation.shape.id,
 	repositoryId: z.string().min(1).max(255),

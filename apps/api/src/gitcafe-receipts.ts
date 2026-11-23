@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import {
-	GITCAFE_RECEIPT_APP_ID,
 	GITCAFE_RECEIPT_MAX_BYTES,
 	type GitCafeReceiptConfig,
 	gitCafeEventEnvelopeSchema,
@@ -22,8 +21,7 @@ export function resolveGitCafeReceiptConfig(
 		keyVersion: env.GITCAFE_WEBHOOK_KEY_VERSION,
 		secret: env.GITCAFE_WEBHOOK_SECRET,
 	});
-	if (!parsed.success)
-		throw new Error("Invalid staging GitCafe receipt configuration");
+	if (!parsed.success) throw new Error("Invalid GitCafe receipt configuration");
 	return parsed.data;
 }
 
@@ -104,7 +102,7 @@ export async function receiveGitCafeReceipt(c: Context<ApiEnv>) {
 	const requestId = generateId();
 	const receipt = gitCafeReceiptSchema.parse({
 		format: "gitcafe-receipt@1",
-		appId: GITCAFE_RECEIPT_APP_ID,
+		appId: config.appId,
 		payload: envelope.data,
 		bodyBase64: body.toString("base64"),
 		bodySha256: createHash("sha256").update(body).digest("hex"),

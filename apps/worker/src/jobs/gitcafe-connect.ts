@@ -13,11 +13,11 @@ import {
 } from "@tripwire/db";
 import type { GitCafeInstallationClient } from "@tripwire/forge-gitcafe";
 
-export const GITCAFE_STAGING_APP_ID = "int_01m60999c0fqg841d48s29qwtv";
 const SEGMENT = /^(?!\.{1,2}$)[A-Za-z0-9_.-]+$/;
 
 export interface GitCafeConnectionDeps {
 	db: Db;
+	appId: string;
 	lifecycleEnabled?: boolean;
 	client: Pick<
 		GitCafeInstallationClient,
@@ -56,7 +56,7 @@ async function readAuthority(
 		const installation = lookup.value;
 		if (
 			installation.id !== job.installationId ||
-			installation.appId !== GITCAFE_STAGING_APP_ID ||
+			installation.appId !== deps.appId ||
 			installation.pausedAt !== null ||
 			installation.suspendedAt !== null ||
 			installation.uninstalledAt !== null ||
@@ -186,7 +186,7 @@ export async function connectGitCafeInstallation(
 		const reconciliation =
 			await gitCafeLifecycleServices.reconcileGitCafeInstallation(deps.db, {
 				installationId: job.installationId,
-				expectedAppId: GITCAFE_STAGING_APP_ID,
+				expectedAppId: deps.appId,
 				expectedOwner: claim?.accountLogin ?? undefined,
 				organizationId: job.orgId,
 				lookup: async () => {
@@ -238,7 +238,7 @@ export async function connectGitCafeInstallation(
 			if (claim.installationId === job.installationId) continue;
 			await gitCafeLifecycleServices.reconcileGitCafeInstallation(deps.db, {
 				installationId: claim.installationId,
-				expectedAppId: GITCAFE_STAGING_APP_ID,
+				expectedAppId: deps.appId,
 				expectedOwner: authority.value.installation.org,
 				organizationId: job.orgId,
 				lookup: () =>
