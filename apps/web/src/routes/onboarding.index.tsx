@@ -23,7 +23,7 @@ export const Route = createFileRoute("/onboarding/")({
 	head: ({ match }) =>
 		buildSeo({
 			path: match.pathname,
-			title: formatPageTitle("Welcome to Tripwire"),
+			title: formatPageTitle("Welcome"),
 			description: "Set up Tripwire for your repos.",
 			noindex: true,
 		}),
