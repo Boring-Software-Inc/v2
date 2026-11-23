@@ -8,6 +8,7 @@ import {
 	commentObservedEvidenceSchema,
 	commentRuleEnvelopeSchema,
 	GITCAFE_PROCESSING_COMMENT,
+	GITCAFE_PROCESSING_COMPLETE_COMMENT,
 	GITCAFE_PROCESSING_FAILED_COMMENT,
 	planSurfaces,
 	REASON_LIMIT,
@@ -50,6 +51,7 @@ const AGE: CommentReason = {
 test("GitCafe processing comments use one editable disclosure surface", () => {
 	for (const body of [
 		GITCAFE_PROCESSING_COMMENT,
+		GITCAFE_PROCESSING_COMPLETE_COMMENT,
 		GITCAFE_PROCESSING_FAILED_COMMENT,
 	]) {
 		expect(body).toContain("<details");

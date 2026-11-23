@@ -597,9 +597,51 @@ export async function startGitCafeProtectionRuntime(
 	return { healthy: () => health.healthy() && haveConsumers(), queues, stop };
 }
 
+export function runsGitCafeProtectionQueues(
+	env: Record<string, string | undefined>,
+): boolean {
+	const branch = env.UNKEY_GIT_BRANCH;
+	const canonicalBranch = env.GITCAFE_PROTECTION_BRANCH ?? "staging";
+	return !(
+		env.UNKEY_ENVIRONMENT_SLUG === "preview" &&
+		branch &&
+		branch !== canonicalBranch
+	);
+}
+
 export async function startGitCafeProtectionWorker(
 	logger: Logger,
 ): Promise<void> {
+	const branch = process.env.UNKEY_GIT_BRANCH;
+	const canonicalBranch = process.env.GITCAFE_PROTECTION_BRANCH ?? "staging";
+	if (!runsGitCafeProtectionQueues(process.env)) {
+		const port = gitCafeConnectionWorkerEnvSchema.parse(process.env).PORT;
+		const server = Bun.serve({
+			port,
+			fetch(request) {
+				return new URL(request.url).pathname === "/healthz"
+					? Response.json({
+							ok: true,
+							live: true,
+							ready: true,
+							active: false,
+							mode: "gitcafe-protection-standby",
+							branch,
+							canonicalBranch,
+							queues: [],
+						})
+					: new Response("not found", { status: 404 });
+			},
+		});
+		logger.info(
+			{ branch, canonicalBranch },
+			"GitCafe protection worker is standby on a non-canonical preview branch",
+		);
+		const stop = () => server.stop(true);
+		process.once("SIGTERM", stop);
+		process.once("SIGINT", stop);
+		return;
+	}
 	const runtime = await startGitCafeProtectionRuntime(logger);
 	if (!runtime)
 		throw new Error("Invalid staging GitCafe protection worker configuration");
