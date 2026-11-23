@@ -8,7 +8,7 @@ import {
 	onboardingReposQueryOptions,
 	onboardingWorkflowQueryOptions,
 } from "#/lib/onboarding-flow.query";
-import { myOrgsQueryOptions } from "#/lib/org.query";
+import { myOrgsQueryOptions, orgHomeQueryOptions } from "#/lib/org.query";
 import {
 	orgResponseDefaultsQueryOptions,
 	responseConfigQueryOptions,
@@ -40,7 +40,11 @@ export async function prefetchStepPreview(
 			await queryClient.prefetchQuery(myOrgsQueryOptions());
 			return;
 		case "connect":
-			await queryClient.prefetchQuery(onboardingReposQueryOptions(org));
+			// The home says whether the app is installed, which picks the page.
+			await Promise.all([
+				queryClient.prefetchQuery(orgHomeQueryOptions(org)),
+				queryClient.prefetchQuery(onboardingReposQueryOptions(org)),
+			]);
 			return;
 		case "rules":
 			if (repo) {

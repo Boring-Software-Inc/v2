@@ -1262,7 +1262,7 @@
 		background-color: var(--line-control);
 		transition:
 			inline-size var(--dur-step) var(--ease-step),
-			block-size var(--dur-step) var(--ease-step),
+			scale var(--dur-step) var(--ease-step),
 			background-color var(--dur-state) var(--ease-out);
 	}
 
@@ -1278,8 +1278,8 @@
 	&
 		> button:is(:hover, :focus-visible):not([data-state="current"])
 		[data-part="dot"] {
-		block-size: 6px;
-		inline-size: 12px;
+		/* Grows in place: a scale, so the row never shifts under the pointer. */
+		scale: 2.5 1.5;
 		background-color: var(--text-2);
 	}
 }

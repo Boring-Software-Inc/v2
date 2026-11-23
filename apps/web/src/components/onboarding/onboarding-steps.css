@@ -15,6 +15,11 @@
 }
 
 [data-layout-role="onboarding-list"] [data-part="row"] {
+	/* On phones titles wrap to two lines: the mark and action sit on the first. */
+	@media (max-width: 30rem) {
+		align-items: flex-start;
+	}
+
 	& [data-part="mark"] {
 		display: flex;
 		flex-shrink: 0;
@@ -275,4 +280,10 @@
 	& > * {
 		flex: 1;
 	}
+}
+
+/* The real Responses page sits a few pixels below the shell's top edge. */
+[data-layout-role="onboarding-preview-panel"]
+	[data-layout-role="responses-shell"] {
+	padding-block-start: var(--space-1);
 }

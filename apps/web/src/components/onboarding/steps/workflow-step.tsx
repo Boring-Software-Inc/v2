@@ -64,8 +64,20 @@ export function WorkflowStep({ flow }: StepViewProps) {
 			<OnboardingStepHeader
 				current={flow.step}
 				steps={flow.steps}
-				sub={nothing ? copy.nothingBody : copy.sub}
-				title={nothing ? copy.nothingTitle : copy.title}
+				sub={
+					draft.isPending
+						? copy.draftingSub
+						: nothing
+							? copy.nothingBody
+							: copy.sub
+				}
+				title={
+					draft.isPending
+						? copy.draftingTitle
+						: nothing
+							? copy.nothingTitle
+							: copy.title
+				}
 			/>
 			{draft.isPending ? (
 				<Skeleton />

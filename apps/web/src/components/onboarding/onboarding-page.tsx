@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { ONBOARDING_STEPS } from "@tripwire/contracts";
 import { UI_MOTION } from "@tripwire/ui/motion";
 import {
 	AnimatePresence,
@@ -120,24 +121,33 @@ function OnboardingLayout({
 	// riding in or out on it.
 	const resize =
 		reduceMotion || !stepChanged ? { duration: 0 } : UI_MOTION.track;
-	// The steps either side load their preview data now, so whichever way the
-	// user goes the next page arrives already rendered.
+	// Every step the dots can reach, and the next one, load their preview data
+	// now, so whichever step the user goes to arrives already rendered. Queries
+	// still fresh are not fetched again.
 	const queryClient = useQueryClient();
 	useEffect(() => {
-		for (const neighbour of [
-			flow.steps[flow.index + 1],
-			flow.steps[flow.index - 1],
-		]) {
-			if (neighbour) {
-				void prefetchStepPreview(neighbour, queryClient, flow.state);
+		const reached = ONBOARDING_STEPS.indexOf(flow.state.step);
+		const next = flow.steps[flow.index + 1];
+		for (const step of flow.steps) {
+			if (ONBOARDING_STEPS.indexOf(step) <= reached || step === next) {
+				void prefetchStepPreview(step, queryClient, flow.state);
 			}
 		}
 	}, [flow.index, flow.state, flow.steps, queryClient]);
+	const dotFocus = useRef(false);
 	const progressNav = useMemo<OnboardingProgressNav>(
 		() => ({
 			reached: flow.state.step,
 			labelFor: (step) => ONBOARDING_STEP_VIEWS[step].label,
-			visit: flow.visit,
+			visit: (step) => {
+				dotFocus.current = true;
+				flow.visit(step);
+			},
+			takeFocus: () => {
+				const take = dotFocus.current;
+				dotFocus.current = false;
+				return take;
+			},
 		}),
 		[flow.state.step, flow.visit],
 	);

@@ -1,6 +1,12 @@
 import { ONBOARDING_STEPS, type OnboardingStep } from "@tripwire/contracts";
 import { PageTitle, SupportingText } from "@tripwire/ui/typography";
-import { createContext, type ReactNode, useContext } from "react";
+import {
+	createContext,
+	type ReactNode,
+	useContext,
+	useEffect,
+	useRef,
+} from "react";
 import { ONBOARDING_COPY } from "#/components/onboarding/onboarding-copy";
 
 /** What the dots need to move between steps, supplied by the onboarding page. */
@@ -9,6 +15,8 @@ export interface OnboardingProgressNav {
 	reached: OnboardingStep;
 	labelFor: (step: OnboardingStep) => string;
 	visit: (step: OnboardingStep) => void;
+	/** True once after a dot moved the flow: the new step's dots take focus. */
+	takeFocus: () => boolean;
 }
 
 const ProgressNavContext = createContext<OnboardingProgressNav | null>(null);
@@ -28,6 +36,14 @@ export function OnboardingProgress({
 	current: OnboardingStep;
 }) {
 	const nav = useContext(ProgressNavContext);
+	const currentDot = useRef<HTMLButtonElement>(null);
+	// A dot unmounts with the step it belongs to, so after one is used the
+	// matching dot on the new step takes focus, and the keyboard stays put.
+	useEffect(() => {
+		if (nav?.takeFocus()) {
+			currentDot.current?.focus();
+		}
+	}, [nav]);
 	const at = steps.indexOf(current);
 	const furthest = ONBOARDING_STEPS.indexOf(nav?.reached ?? current);
 	return (
@@ -45,6 +61,7 @@ export function OnboardingProgress({
 						nav !== null && ONBOARDING_STEPS.indexOf(step) <= furthest;
 					return reachable ? (
 						<button
+							ref={state === "current" ? currentDot : undefined}
 							data-part="step"
 							aria-current={state === "current" ? "step" : undefined}
 							aria-label={nav.labelFor(step)}

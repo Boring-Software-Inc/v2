@@ -146,6 +146,8 @@ export const ONBOARDING_COPY = {
 		save: "Save it",
 		saved: "Saved and turned on.",
 		saveFailed: "Could not save the workflow.",
+		draftingTitle: "Drafting a workflow",
+		draftingSub: "Tripwire is reading the change requests you reported.",
 		nothingTitle: "Nothing to draft",
 		nothingBody:
 			"No rules failed on the change requests you reported. There's nothing to draft.",

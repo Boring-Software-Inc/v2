@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ForgeId } from "@tripwire/contracts";
 import { UI_MOTION } from "@tripwire/ui/motion";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type { ReactNode } from "react";
 import {
 	type PreviewNavKey,
@@ -48,6 +48,8 @@ export function PreviewApp({
 	children: ReactNode;
 }) {
 	const user = usePreviewUser();
+	// Reduced motion: the menu only fades; a scale would land in one jump.
+	const rest = useReducedMotion() ? 1 : 0.96;
 	return (
 		<PreviewWindow url={url}>
 			<PreviewRail
@@ -76,8 +78,8 @@ export function PreviewApp({
 						<motion.div
 							animate={{ scale: 1 }}
 							data-part="content"
-							exit={{ scale: 0.96 }}
-							initial={{ scale: 0.96 }}
+							exit={{ scale: rest }}
+							initial={{ scale: rest }}
 							transition={UI_MOTION.column}
 						>
 							{overlay}
