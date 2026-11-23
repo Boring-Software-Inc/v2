@@ -340,8 +340,9 @@ describe("GitCafe isolated receipt admission", () => {
 			resolveGitCafeReceiptConfig({
 				...env,
 				UNKEY_ENVIRONMENT_SLUG: "production",
+				GITCAFE_APP_ID: "int_tripwire_production",
 			})?.appId,
-		).toBe(GITCAFE_RECEIPT_APP_ID);
+		).toBe("int_tripwire_production");
 		for (const change of [
 			{ GITCAFE_APP_ID: "wrong-app" },
 			{ GITCAFE_WEBHOOK_SECRET: undefined },

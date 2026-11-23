@@ -81,6 +81,7 @@ export function buildGitCafeRuntime(
 	credentials: GitCafeAppCredentials,
 	fetch?: GitCafeInstallationClientOptions["fetch"],
 	actionPool: Pool = requirePostgresPool(db),
+	appUrl = "https://staging.tripwire.sh",
 ): GitCafeRuntime {
 	const selfActors = new Set<string>();
 	const clientState = new GitCafeInstallationClientState(credentials);
@@ -271,7 +272,7 @@ export function buildGitCafeRuntime(
 				action.kind === "set-check" &&
 				action.check.conclusion === "pending" &&
 				action.check.summary === PENDING_CHECK_SUMMARY &&
-				action.check.detailsUrl === "https://staging.tripwire.sh";
+				action.check.detailsUrl === appUrl;
 			const processingComment =
 				action.kind === "comment" &&
 				action.verdict === "needs_review" &&
