@@ -164,6 +164,8 @@ export interface StoredChangeRequest {
 	author: string;
 	openedAt: string;
 	closedAt: string | null;
+	/** The newest run on it, so a reported one can show its status again. */
+	latestRunId: string | null;
 }
 
 const changeRequestRowSchema = z.object({
@@ -172,6 +174,7 @@ const changeRequestRowSchema = z.object({
 	author: z.string(),
 	opened_at: z.coerce.date(),
 	closed_at: z.coerce.date().nullable(),
+	latest_run_id: z.string().nullable(),
 });
 
 /**
@@ -226,7 +229,14 @@ export async function listStoredChangeRequests(
 		           AND e.forge = ${repo.forge}
 		           AND e.subject_number = o.subject_number
 		           AND e.kind = 'change-request.closed'
-		           AND e.received_at > o.opened_at) AS closed_at
+		           AND e.received_at > o.opened_at) AS closed_at,
+		       (SELECT r.id FROM runs r
+		         JOIN events ev ON ev.id = r.event_id AND ev.forge = ${repo.forge}
+		         WHERE r.repo_full_name = ${repo.fullName}
+		           AND r.subject_kind IS NULL
+		           AND r.subject_number = o.subject_number
+		         ORDER BY r.created_at DESC
+		         LIMIT 1) AS latest_run_id
 		FROM opened o
 		WHERE o.title IS NOT NULL AND o.author IS NOT NULL
 		ORDER BY greatest(o.opened_at, coalesce(
@@ -248,6 +258,7 @@ export async function listStoredChangeRequests(
 			author: row.data.author,
 			openedAt: row.data.opened_at.toISOString(),
 			closedAt: row.data.closed_at?.toISOString() ?? null,
+			latestRunId: row.data.latest_run_id,
 		});
 	}
 	return changeRequests;

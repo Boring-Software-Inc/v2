@@ -1,5 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { ONBOARDING_MAX_REPORTED } from "@tripwire/contracts";
+import {
+	ONBOARDING_MAX_REPORTED,
+	RUN_RESULT_LABELS,
+	runResult,
+} from "@tripwire/contracts";
 import { Button } from "@tripwire/ui/button";
 import { Input } from "@tripwire/ui/field";
 import { Icon, Pending, Search } from "@tripwire/ui/icon";
@@ -47,6 +51,8 @@ export function CheckStep({ flow }: StepViewProps) {
 			reported: [...current.reported, number],
 			runs: { ...current.runs, [number]: { status: "starting" } },
 		}));
+		// Saved as it is added, so a reload keeps the reports.
+		flow.save({ answers: { reported: [...draft.reported, number] } });
 		const result: ReportRun = await rerunChangeRequest({
 			data: { org, repo: repo.name, number },
 		})
@@ -95,7 +101,14 @@ export function CheckStep({ flow }: StepViewProps) {
 					</div>
 				) : (
 					(list.data ?? []).map((changeRequest) => {
-						const run = draft.runs[changeRequest.number];
+						// After a reload the draft has no run for a saved report, so the
+						// newest one on the change request stands in.
+						const run: ReportRun | undefined =
+							draft.runs[changeRequest.number] ??
+							(draft.reported.includes(changeRequest.number) &&
+							changeRequest.latestRunId
+								? { status: "queued", runId: changeRequest.latestRunId }
+								: undefined);
 						const closed = changeRequest.closedAt !== null;
 						return (
 							<div
@@ -193,14 +206,24 @@ function ReportStatus({ run }: { run: ReportRun }) {
 	const failed = (live.data?.steps ?? []).filter(
 		(step) => step.nodeKind === "rule" && step.status === "fail",
 	).length;
-	return failed > 0 ? (
-		<span data-part="status" data-tone="fail">
-			{copy.failed(failed)}
-		</span>
-	) : (
+	if (failed > 0) {
+		return (
+			<span data-part="status" data-tone="fail">
+				{copy.failed(failed)}
+			</span>
+		);
+	}
+	// Nothing failed, but a run can still end short of a pass, such as when
+	// rules were skipped and it went to human review: say what the run says.
+	const result = live.data
+		? runResult({ ...live.data, bearsVerdict: true })
+		: null;
+	return result === null || result === "pass" ? (
 		<span data-part="status" data-tone="ok">
 			{copy.passed}
 		</span>
+	) : (
+		<span data-part="status">{RUN_RESULT_LABELS[result]}</span>
 	);
 }
 

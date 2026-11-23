@@ -37,7 +37,7 @@ async function storeRun(input: {
 	number: number;
 	at: string;
 	steps: { ruleId: string; status: string }[];
-}) {
+}): Promise<string> {
 	const at = new Date(input.at);
 	const eventId = generateId();
 	await db.insert(events).values({
@@ -75,6 +75,7 @@ async function storeRun(input: {
 			durationMs: 1,
 		});
 	}
+	return runId;
 }
 
 async function storeEvent(input: {
@@ -256,6 +257,34 @@ describe("drafting inputs", () => {
 		});
 		expect(await isOrgSlugTaken(db, "acme")).toBe(true);
 		expect(await isOrgSlugTaken(db, "acme-labs")).toBe(false);
+	});
+
+	test("each listed change request carries its newest run", async () => {
+		await storeEvent({
+			number: 610,
+			kind: "change-request.opened",
+			title: "Add a wallet",
+			author: "coinminer88",
+			at: "2026-11-22T09:00:00Z",
+		});
+		await storeEvent({
+			number: 611,
+			kind: "change-request.opened",
+			title: "Fix a link",
+			author: "mira-k",
+			at: "2026-11-22T08:00:00Z",
+		});
+		await storeRun({ number: 610, at: "2026-11-22T09:01:00Z", steps: [] });
+		const newest = await storeRun({
+			number: 610,
+			at: "2026-11-22T09:05:00Z",
+			steps: [],
+		});
+		const listed = await listStoredChangeRequests(db, REPO, {
+			numbers: [610, 611],
+		});
+		expect(listed.find((cr) => cr.number === 610)?.latestRunId).toBe(newest);
+		expect(listed.find((cr) => cr.number === 611)?.latestRunId).toBeNull();
 	});
 
 	test("failed rules come from the latest run of each reported request", async () => {

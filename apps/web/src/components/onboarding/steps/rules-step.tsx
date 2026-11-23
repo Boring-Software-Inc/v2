@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
 	type ForgeId,
 	ONBOARDING_RULE_PICKS,
@@ -21,29 +21,58 @@ import { OnboardingStepHeader } from "#/components/onboarding/onboarding-frame";
 import type { StepViewProps } from "#/components/onboarding/onboarding-steps";
 import { RulesPreviewPage } from "#/components/onboarding/preview/rules-preview";
 import { setRulesEnabled } from "#/lib/rules.functions";
+import { ruleConfigsQueryOptions } from "#/lib/rules.query";
 
 const copy = ONBOARDING_COPY.rules;
 
-/** The picks this repo can run, the recommended ones first, and what is on. */
+/**
+ * The picks this repo can run, the recommended ones first, and what is on.
+ * A rule the repo cannot run right now, such as AI review without AI
+ * credits, is left out of the install; a pick made only of such rules stays
+ * listed, switched off, with the reason the Rules page gives.
+ */
 function useRulePicks(flow: StepViewProps["flow"]) {
 	const [draft] = useOnboardingDraft();
 	const forge: ForgeId = flow.state.repo?.forge ?? "github";
+	const org = flow.state.orgSlug ?? flow.state.personalOrgSlug ?? "";
+	const { data: views } = useQuery(
+		ruleConfigsQueryOptions(org, flow.state.repo?.id ?? ""),
+	);
 	return useMemo(() => {
+		const unavailable = new Map(
+			(views ?? []).flatMap((view) =>
+				view.unavailableReason === null
+					? []
+					: [[view.ruleId, view.unavailableReason] as const],
+			),
+		);
 		const supported = (pick: OnboardingRulePick) =>
 			pick.ruleIds.filter((ruleId) => ruleSupportsForge(ruleId, forge));
+		const runnable = (pick: OnboardingRulePick) =>
+			supported(pick).filter((ruleId) => !unavailable.has(ruleId));
 		const available = ONBOARDING_RULE_PICKS.filter(
 			(pick) => supported(pick).length > 0,
 		);
+		/** Why a pick cannot be switched on, when none of its rules can run. */
+		const blockedReason = (pick: OnboardingRulePick) =>
+			runnable(pick).length === 0
+				? (unavailable.get(supported(pick)[0] ?? "") ?? null)
+				: null;
 		const recommended = recommendedRulePicks(flow.state.answers.intents).filter(
 			(pick) => available.includes(pick),
 		);
 		const optional = available.filter((pick) => !recommended.includes(pick));
-		const on = draft.picks ?? recommended.map((pick) => pick.id);
+		const on = (draft.picks ?? recommended.map((pick) => pick.id)).filter(
+			(id) => {
+				const pick = available.find((candidate) => candidate.id === id);
+				return pick !== undefined && blockedReason(pick) === null;
+			},
+		);
 		const ruleIds = available
 			.filter((pick) => on.includes(pick.id))
-			.flatMap(supported);
-		return { recommended, optional, on, ruleIds };
-	}, [draft.picks, flow.state.answers.intents, forge]);
+			.flatMap(runnable);
+		return { recommended, optional, on, ruleIds, blockedReason };
+	}, [draft.picks, flow.state.answers.intents, forge, views]);
 }
 
 /**
@@ -52,7 +81,8 @@ function useRulePicks(flow: StepViewProps["flow"]) {
  */
 export function RulesStep({ flow }: StepViewProps) {
 	const [, update] = useOnboardingDraft();
-	const { recommended, optional, on, ruleIds } = useRulePicks(flow);
+	const { recommended, optional, on, ruleIds, blockedReason } =
+		useRulePicks(flow);
 	const org = flow.state.orgSlug ?? flow.state.personalOrgSlug ?? "";
 	const repo = flow.state.repo;
 	const install = useMutation({
@@ -99,12 +129,14 @@ export function RulesStep({ flow }: StepViewProps) {
 						</span>
 						{recommended.map((pick) => {
 							const reason = reasonFor(pick);
+							const blocked = blockedReason(pick);
 							return (
 								<div data-layout-role="onboarding-pick-card" key={pick.id}>
 									<div data-part="panel">
 										<Switch
 											checked={on.includes(pick.id)}
-											description={PICK_COPY[pick.id]?.desc}
+											description={blocked ?? PICK_COPY[pick.id]?.desc}
+											disabled={blocked !== null}
 											label={PICK_COPY[pick.id]?.name ?? pick.id}
 											onCheckedChange={(checked) => toggle(pick.id, checked)}
 										/>
@@ -132,7 +164,8 @@ export function RulesStep({ flow }: StepViewProps) {
 							<div data-layout-role="onboarding-pick-row" key={pick.id}>
 								<Switch
 									checked={on.includes(pick.id)}
-									description={PICK_COPY[pick.id]?.desc}
+									description={blockedReason(pick) ?? PICK_COPY[pick.id]?.desc}
+									disabled={blockedReason(pick) !== null}
 									label={PICK_COPY[pick.id]?.name ?? pick.id}
 									onCheckedChange={(checked) => toggle(pick.id, checked)}
 								/>
@@ -143,7 +176,7 @@ export function RulesStep({ flow }: StepViewProps) {
 			</div>
 			{install.isError ? (
 				<p data-layout-role="onboarding-error" role="alert">
-					{ONBOARDING_COPY.saveFailed}
+					{install.error.message || ONBOARDING_COPY.saveFailed}
 				</p>
 			) : null}
 			<Button
