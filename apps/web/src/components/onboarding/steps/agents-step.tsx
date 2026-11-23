@@ -124,7 +124,7 @@ export function AgentsStep({ flow }: StepViewProps) {
 						size="small"
 						variant="ghost"
 					>
-						{copy.show}
+						{showMore ? copy.hide : copy.show}
 					</Button>
 				</div>
 			</div>

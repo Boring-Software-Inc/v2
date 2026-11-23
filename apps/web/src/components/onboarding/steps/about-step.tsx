@@ -36,7 +36,7 @@ import type { StepViewProps } from "#/components/onboarding/onboarding-steps";
 
 const copy = ONBOARDING_COPY.about;
 
-const REFERRAL_MARKS: Record<OnboardingReferral, IconGlyph | "hn"> = {
+const REFERRAL_MARKS = {
 	x: XMark,
 	github: GithubMark,
 	"hacker-news": "hn",
@@ -46,7 +46,7 @@ const REFERRAL_MARKS: Record<OnboardingReferral, IconGlyph | "hn"> = {
 	discord: DiscordMark,
 	linkedin: LinkedinMark,
 	friend: Members,
-};
+} satisfies Record<OnboardingReferral, IconGlyph | "hn">;
 
 function referralIcon(referral: OnboardingReferral) {
 	const mark = REFERRAL_MARKS[referral];

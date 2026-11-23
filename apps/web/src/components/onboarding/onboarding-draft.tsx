@@ -78,13 +78,13 @@ function initialDraft(answers: OnboardingAnswers): OnboardingDraft {
 	};
 }
 
-type DraftPatch =
-	| Partial<OnboardingDraft>
-	| ((current: OnboardingDraft) => Partial<OnboardingDraft>);
+type DraftPatch = Partial<OnboardingDraft>;
 
+/** The draft, a patch setter, and one that derives its patch from the latest draft. */
 type DraftContextValue = readonly [
 	OnboardingDraft,
 	(patch: DraftPatch) => void,
+	(derive: (current: OnboardingDraft) => DraftPatch) => void,
 ];
 
 const DraftContext = createContext<DraftContextValue | null>(null);
@@ -98,14 +98,18 @@ export function OnboardingDraftProvider({
 }) {
 	const [draft, setDraft] = useState(() => initialDraft(answers));
 	const update = useCallback(
-		(patch: DraftPatch) =>
-			setDraft((current) => ({
-				...current,
-				...(typeof patch === "function" ? patch(current) : patch),
-			})),
+		(patch: DraftPatch) => setDraft((current) => ({ ...current, ...patch })),
 		[],
 	);
-	const value = useMemo(() => [draft, update] as const, [draft, update]);
+	const updateWith = useCallback(
+		(derive: (current: OnboardingDraft) => DraftPatch) =>
+			setDraft((current) => ({ ...current, ...derive(current) })),
+		[],
+	);
+	const value = useMemo(
+		() => [draft, update, updateWith] as const,
+		[draft, update, updateWith],
+	);
 	return (
 		<DraftContext.Provider value={value}>{children}</DraftContext.Provider>
 	);

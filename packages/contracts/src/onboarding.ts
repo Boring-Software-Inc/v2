@@ -141,8 +141,17 @@ export type OnboardingView = z.infer<typeof onboardingViewSchema>;
  * A rule pick on the `rules` step: a rule pack, or AI review on its own.
  * `intents` are the `problems` answers that recommend it.
  */
+export const ONBOARDING_RULE_PICK_IDS = [
+	"spam-protection",
+	"crypto-scams",
+	"ai-review",
+	"first-time-contributors",
+	"bulk-changes",
+] as const;
+export type OnboardingRulePickId = (typeof ONBOARDING_RULE_PICK_IDS)[number];
+
 export interface OnboardingRulePick {
-	id: string;
+	id: OnboardingRulePickId;
 	ruleIds: readonly string[];
 	intents: readonly OnboardingIntent[];
 }

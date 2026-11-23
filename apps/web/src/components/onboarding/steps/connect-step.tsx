@@ -85,7 +85,11 @@ export function ConnectStep({ flow }: StepViewProps) {
 			<OnboardingStepHeader
 				current={flow.step}
 				steps={flow.steps}
-				sub={phase === "repos" ? copy.installedSub : copy.sub}
+				sub={
+					phase === "repos"
+						? copy.installedSub(copy.forges[draft.forge].name)
+						: copy.sub
+				}
 				title={copy.title}
 			/>
 			<fieldset data-layout-role="onboarding-forges">
@@ -141,7 +145,7 @@ function InstallAction({
 	if (install.data && install.data.status !== "ready") {
 		return (
 			<p data-layout-role="onboarding-error" role="alert">
-				{copy.unavailable}
+				{copy.unavailable(copy.forges[forge].name)}
 			</p>
 		);
 	}
@@ -178,9 +182,11 @@ function WaitingCard({ forge, org }: { forge: InstallForge; org: string }) {
 				<Icon icon={Pending} motion="spin" size={16} />
 			</span>
 			<output data-part="text">
-				<span data-part="title">{copy.waitingTitle}</span>
+				<span data-part="title">
+					{copy.waitingTitle(copy.forges[forge].name)}
+				</span>
 				<span data-part="body">
-					{long ? copy.waitingLong : copy.waitingBody}
+					{long ? copy.waitingLong(copy.forges[forge].name) : copy.waitingBody}
 				</span>
 			</output>
 			{url ? (
@@ -191,7 +197,7 @@ function WaitingCard({ forge, org }: { forge: InstallForge; org: string }) {
 					size="small"
 					variant="secondary"
 				>
-					{copy.openGithub}
+					{copy.openForge(copy.forges[forge].name)}
 				</Button>
 			) : null}
 		</div>
@@ -277,7 +283,9 @@ function RepoPicker({
 				) : total === 0 ? (
 					<div data-part="empty">
 						<span data-part="title">{copy.reposEmptyTitle}</span>
-						<span data-part="body">{copy.reposEmptyBody}</span>
+						<span data-part="body">
+							{copy.reposEmptyBody(copy.forges[draft.forge].name)}
+						</span>
 					</div>
 				) : visible.length === 0 ? (
 					<div data-part="empty">

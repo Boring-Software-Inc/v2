@@ -2,6 +2,7 @@ import type {
 	OnboardingIntent,
 	OnboardingReferral,
 	OnboardingRole,
+	OnboardingRulePickId,
 	OnboardingTeamSize,
 	OnboardingUsage,
 } from "@tripwire/contracts";
@@ -52,19 +53,20 @@ export const ONBOARDING_COPY = {
 	connect: {
 		title: "Connect your forge",
 		sub: "Tripwire will install itself as an app. Select the repos you want it to watch.",
-		installedSub:
-			"The GitHub App is installed. Pick the repos Tripwire should watch.",
+		installedSub: (forge: string) =>
+			`The ${forge} app is installed. Pick the repos Tripwire should watch.`,
 		forges: {
 			github: { name: "GitHub", action: "Install GitHub App" },
 			gitcafe: { name: "GitCafe", action: "Install GitCafe app" },
 		},
 		installOn: (forge: string) => `Install on ${forge}`,
-		waitingTitle: "Waiting on GitHub",
+		waitingTitle: (forge: string) => `Waiting on ${forge}`,
 		waitingBody: "Finish installing the app in the other tab.",
-		waitingLong:
-			"Still waiting on GitHub. Keep this tab open. You can reopen GitHub.",
-		openGithub: "Open GitHub",
-		unavailable: "The GitHub App is not configured on this server.",
+		waitingLong: (forge: string) =>
+			`Still waiting on ${forge}. Keep this tab open. You can reopen ${forge}.`,
+		openForge: (forge: string) => `Open ${forge}`,
+		unavailable: (forge: string) =>
+			`The ${forge} app is not configured on this server.`,
 		reposLabel: "Repos to watch",
 		readingTitle: "Reading your repos",
 		readingBody: (org: string) =>
@@ -73,8 +75,8 @@ export const ONBOARDING_COPY = {
 		reposCount: (picked: number, total: number) => `${picked} of ${total}`,
 		privateTag: "Private",
 		reposEmptyTitle: "No repos yet",
-		reposEmptyBody:
-			"The GitHub App is installed. Wait for the repos to come through.",
+		reposEmptyBody: (forge: string) =>
+			`The ${forge} app is installed. Wait for the repos to come through.`,
 		reposSearchEmpty: (query: string) => `No repos match ${query}.`,
 		watch: (count: number) =>
 			count === 1 ? "Watch this repo" : `Watch ${count} repos`,
@@ -141,6 +143,7 @@ export const ONBOARDING_COPY = {
 		copied: "Copied",
 		add: "Add",
 		show: "Show",
+		hide: "Hide",
 		more: (count: number) => `Copilot, Gemini, Zed and ${count} more`,
 		terminal: "Or install it in your terminal",
 		otherClients: "Use mcp.tripwire.sh/mcp for other clients",
@@ -210,7 +213,7 @@ export const REFERRAL_COPY = {
 } satisfies Record<OnboardingReferral, string>;
 
 /** The rule picks on the `rules` step, as the design names them. */
-export const PICK_COPY: Record<string, { name: string; desc: string }> = {
+export const PICK_COPY = {
 	"spam-protection": {
 		name: "Spam protection",
 		desc: "Account age 7 days, rate limit 5 a day, English only",
@@ -228,4 +231,4 @@ export const PICK_COPY: Record<string, { name: string; desc: string }> = {
 		desc: "Merged change requests, profile README",
 	},
 	"bulk-changes": { name: "Bulk changes", desc: "Max 200 files changed" },
-};
+} satisfies Record<OnboardingRulePickId, { name: string; desc: string }>;

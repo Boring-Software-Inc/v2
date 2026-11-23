@@ -28,7 +28,7 @@ const copy = ONBOARDING_COPY.check;
  * workflow is built from whichever rules did not pass.
  */
 export function CheckStep({ flow }: StepViewProps) {
-	const [draft, update] = useOnboardingDraft();
+	const [draft, , updateWith] = useOnboardingDraft();
 	const [query, setQuery] = useState("");
 	const debounced = useDebouncedValue(query.trim(), 200);
 	const org = flow.state.orgSlug ?? flow.state.personalOrgSlug ?? "";
@@ -43,7 +43,7 @@ export function CheckStep({ flow }: StepViewProps) {
 		if (!repo || draft.reported.includes(number) || full) {
 			return;
 		}
-		update((current) => ({
+		updateWith((current) => ({
 			reported: [...current.reported, number],
 			runs: { ...current.runs, [number]: { status: "starting" } },
 		}));
@@ -59,7 +59,7 @@ export function CheckStep({ flow }: StepViewProps) {
 							: { status: "error" },
 			)
 			.catch((): ReportRun => ({ status: "error" }));
-		update((current) => ({ runs: { ...current.runs, [number]: result } }));
+		updateWith((current) => ({ runs: { ...current.runs, [number]: result } }));
 	};
 
 	return (
