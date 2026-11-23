@@ -60,10 +60,12 @@ const root = "https://git.cafe/api/repos/boring/scratch/pulls/1";
 async function harness(
 	resource: (url: string, init: RequestInit) => Promise<Response>,
 	issueEvidence?: GitCafeHydratedIssueEvent,
+	now: () => number = Date.now,
 ) {
 	const client = new GitCafeInstallationClient({
 		credentials,
 		lifecycleGuard: async () => true,
+		now,
 		fetch: async (url, init) => {
 			if (url.includes("/api/apps/"))
 				return Response.json(
@@ -1010,16 +1012,21 @@ test("an issue comment deletion accepts a 204 and still requires complete readba
 for (const status of [403, 429, 500]) {
 	test(`comment transport ${status} ${status === 500 ? "retains uncertainty" : "permits retry after a definitive refusal"}`, async () => {
 		let posts = 0;
-		const h = await harness(async (url, init) => {
-			if (url === root) return Response.json(pullFixture);
-			if (init.method === "GET") return Response.json(commentsBefore);
-			posts++;
-			if (posts === 1) return new Response(null, { status });
-			const input = gitCafeActionCommentWriteSchema.parse(
-				JSON.parse(String(init.body)),
-			);
-			return Response.json({ ...commentCreated, body: input.body });
-		});
+		let now = Date.now();
+		const h = await harness(
+			async (url, init) => {
+				if (url === root) return Response.json(pullFixture);
+				if (init.method === "GET") return Response.json(commentsBefore);
+				posts++;
+				if (posts === 1) return new Response(null, { status });
+				const input = gitCafeActionCommentWriteSchema.parse(
+					JSON.parse(String(init.body)),
+				);
+				return Response.json({ ...commentCreated, body: input.body });
+			},
+			undefined,
+			() => now,
+		);
 		const action = {
 			kind: "post-comment" as const,
 			repoFullName: "boring/scratch",
@@ -1032,6 +1039,7 @@ for (const status of [403, 429, 500]) {
 			reason: "http",
 			status,
 		});
+		if (status === 429) now += 60_000;
 		expect(await h.actions.execute(action, h.binding)).toEqual(
 			status === 500
 				? { ok: false, reason: "uncertain" }
