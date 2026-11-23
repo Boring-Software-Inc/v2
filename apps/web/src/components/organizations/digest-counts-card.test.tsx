@@ -51,7 +51,7 @@ async function renderDigest(repos: HomeDigest["repos"]) {
 
 test("digest links preserve the exact historical window and all recorded verdicts", async () => {
 	const { html, router } = await renderDigest([
-		{ id: generateId(), name: "scratch" },
+		{ id: generateId(), forge: "gitcafe", owner: "boring", name: "scratch" },
 	]);
 	for (const verdict of [
 		"block",
@@ -60,7 +60,9 @@ test("digest links preserve the exact historical window and all recorded verdict
 		"changes_required",
 		"close",
 	] as const) {
-		expect(html).toContain(`/grim/scratch/activity?verdict=${verdict}`);
+		expect(html).toContain(
+			`/grim/gitcafe%3Aboring%3Ascratch/activity?verdict=${verdict}`,
+		);
 		const link = html.match(
 			new RegExp(`href="([^"]*verdict=${verdict}[^"]*)"`),
 		)?.[1];
@@ -72,7 +74,7 @@ test("digest links preserve the exact historical window and all recorded verdict
 		expect(url.searchParams.get("to")).toBe("2026-10-25T00:00:00.000Z");
 		await router.navigate({
 			to: "/$org/$repo/activity",
-			params: { org: "grim", repo: "scratch" },
+			params: { org: "grim", repo: "gitcafe:boring:scratch" },
 			search: {
 				verdict,
 				from: url.searchParams.get("from") ?? undefined,
@@ -89,13 +91,18 @@ test("digest links preserve the exact historical window and all recorded verdict
 
 test("an aggregate digest offers a repo choice instead of linking every count to the first repo", async () => {
 	const { html } = await renderDigest([
-		{ id: generateId(), name: "scratch" },
-		{ id: generateId(), name: "another-repo" },
+		{ id: generateId(), forge: "github", owner: "grim", name: "scratch" },
+		{
+			id: generateId(),
+			forge: "gitcafe",
+			owner: "boring",
+			name: "another-repo",
+		},
 	]);
 	const triggers = html.match(/aria-haspopup="menu"/g);
 	expect(triggers).toHaveLength(6);
-	expect(html).not.toContain("/grim/scratch/activity");
-	expect(html).not.toContain("/grim/another-repo/activity");
+	expect(html).not.toContain("/grim/github%3Agrim%3Ascratch/activity");
+	expect(html).not.toContain("/grim/gitcafe%3Aboring%3Aanother-repo/activity");
 });
 
 test("invalid or incomplete historical periods fall back to current Activity", () => {

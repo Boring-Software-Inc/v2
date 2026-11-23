@@ -10,10 +10,10 @@ export const Route = createFileRoute("/$org/$repo/moderation")({
 	validateSearch: collectionSearchSchema(MODERATION_COLLECTION),
 	component: ModerationPage,
 	pendingComponent: ModerationPageSkeleton,
-	head: ({ params, match }) =>
+	head: ({ match }) =>
 		buildSeo({
 			path: match.pathname,
-			title: formatPageTitle(`${params.repo} | Human review`),
+			title: formatPageTitle(`${match.context.repo.name} | Human review`),
 			description:
 				"Issues, pull requests, and comments waiting for human review.",
 			noindex: true,

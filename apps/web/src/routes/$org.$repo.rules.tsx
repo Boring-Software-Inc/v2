@@ -9,10 +9,10 @@ export const Route = createFileRoute("/$org/$repo/rules")({
 	validateSearch: parseRulesSearch,
 	component: RulesPage,
 	pendingComponent: RulesPageSkeleton,
-	head: ({ params, match }) =>
+	head: ({ match }) =>
 		buildSeo({
 			path: match.pathname,
-			title: formatPageTitle(`${params.repo} | Rules`),
+			title: formatPageTitle(`${match.context.repo.name} | Rules`),
 			description: "The rules this repo checks.",
 			noindex: true,
 		}),

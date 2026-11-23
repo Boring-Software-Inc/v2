@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
+	compactRepoTabLabel,
 	parseStoredRepoTabs,
+	REPO_TABS_STORAGE_KEY,
 	type RepoTab,
 	repoMatchStatus,
 	repoTabForLocation,
@@ -10,7 +12,13 @@ import {
 } from "#/components/tabs/repo-tabs-state";
 
 function tab(org: string, repo: string, path: string): RepoTab {
-	return { id: `${org}/${repo}`, org, repo, path };
+	return {
+		id: `${org}/${repo}`,
+		org,
+		repo,
+		label: `${org}/${repo.split(":").at(-1)}`,
+		path,
+	};
 }
 
 /** Walk a sequence of visited pages through the reducer, as route sync does. */
@@ -145,6 +153,34 @@ describe("repo tabs — path guards", () => {
 });
 
 describe("repo tabs — stored state", () => {
+	test("forge-qualified tabs use a fresh storage generation", () => {
+		expect(REPO_TABS_STORAGE_KEY).toBe("tripwire.repo-tabs.v3");
+	});
+
+	test("compact labels hide the org without dropping an owner qualifier", () => {
+		expect(compactRepoTabLabel("tripwire/scratch")).toBe("scratch");
+		expect(compactRepoTabLabel("tripwire/boring/scratch · GitCafe")).toBe(
+			"boring/scratch · GitCafe",
+		);
+		expect(compactRepoTabLabel("scratch")).toBe("scratch");
+	});
+
+	test("forge-qualified identities keep a forge-neutral visible label", () => {
+		expect(
+			repoTabForLocation(
+				"tripwire",
+				"gitcafe:boring:scratch",
+				"/tripwire/gitcafe:boring:scratch/rules",
+			),
+		).toEqual({
+			id: "tripwire/gitcafe:boring:scratch",
+			org: "tripwire",
+			repo: "gitcafe:boring:scratch",
+			label: "tripwire/scratch",
+			path: "/tripwire/gitcafe:boring:scratch/rules",
+		});
+	});
+
 	test("malformed entries are dropped, good ones survive", () => {
 		const stored = JSON.stringify([
 			{ org: "tripwire", repo: "v2", path: "/tripwire/v2/rules" },

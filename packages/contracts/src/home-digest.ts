@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { forgeSchema } from "./forges.ts";
 import { rulePreviewSchema } from "./rule-packs.ts";
 import { verdictSchema } from "./runs.ts";
 
@@ -38,6 +39,8 @@ export type DigestHistory = z.infer<typeof digestHistorySchema>;
 
 export const digestRepoSchema = z.object({
 	id: z.string(),
+	forge: forgeSchema,
+	owner: z.string(),
 	name: z.string(),
 	fullName: z.string(),
 	armed: z.boolean(),
@@ -61,7 +64,14 @@ export const homeDigestSchema = z.object({
 	from: z.string().datetime(),
 	to: z.string().datetime(),
 	total: z.number().int().nonnegative(),
-	repos: z.array(z.object({ id: z.string(), name: z.string() })),
+	repos: z.array(
+		z.object({
+			id: z.string(),
+			forge: forgeSchema,
+			owner: z.string(),
+			name: z.string(),
+		}),
+	),
 	counts: z.array(
 		z.object({ verdict: verdictSchema, count: z.number().int().nonnegative() }),
 	),

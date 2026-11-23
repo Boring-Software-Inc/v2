@@ -6,6 +6,7 @@ import type {
 	OrgWithPermissions,
 } from "@tripwire/auth/org-gate";
 import { z } from "zod";
+import { parseRepoRouteKey } from "#/lib/repo-route";
 
 /**
  * Org-role function middlewares (§4) — the deny-by-default boundary for every
@@ -144,13 +145,19 @@ export async function requireOrgRepoById(
 }
 
 /**
- * Resolve /:org/:repo's repo segment (the repo NAME) within the org, or throw
- * the 404. The returned shape is the service's RepoLite.
+ * Resolve a canonical forge-qualified or legacy name-only repo segment within
+ * the org, or throw the 404. The returned shape is the service's RepoLite.
  */
-export async function resolveOrgRepo(orgId: string, repoName: string) {
+export async function resolveOrgRepo(orgId: string, repoRoute: string) {
 	const { getDb } = await import("#/lib/server/db");
 	const { orgServices } = await import("@tripwire/db");
-	const repo = await orgServices.getOrgRepo(getDb().db, { orgId, repoName });
+	const identity = parseRepoRouteKey(repoRoute);
+	const repo = await orgServices.getOrgRepo(getDb().db, {
+		orgId,
+		repoName: identity?.name ?? repoRoute,
+		owner: identity?.owner,
+		forge: identity?.forge,
+	});
 	if (!repo) {
 		throw notFound();
 	}

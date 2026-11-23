@@ -13,6 +13,8 @@ import { useActiveScope } from "#/hooks/use-active-scope";
 import { useFeaturePath } from "#/hooks/use-feature-path";
 import { useOrgSwitchPath } from "#/hooks/use-org-switch-path";
 import { myOrgsQueryOptions, orgHomeQueryOptions } from "#/lib/org.query";
+import { duplicateRepoNames, qualifiedRepoLabel } from "#/lib/repo-label";
+import { repoRouteKey } from "#/lib/repo-route";
 
 type Appearance = "bar" | "rail";
 
@@ -155,23 +157,35 @@ export function RepoSwitcher({
 	const repos = [...(home?.repos ?? [])].sort((a, b) =>
 		a.name.localeCompare(b.name),
 	);
-	const current = repos.find((candidate) => candidate.name === repo);
+	const duplicateNames = duplicateRepoNames(repos);
+	const current = repos.find(
+		(candidate) => repoRouteKey(candidate) === repo || candidate.name === repo,
+	);
 	const currentForge = current?.forge ?? repoForge;
-	const triggerRepo = repo ?? repoCandidate;
+	const triggerRepo = current
+		? duplicateNames.has(current.name)
+			? qualifiedRepoLabel(current)
+			: current.name
+		: repoCandidate;
 	const commandItems: CommandEntry[] = [
 		{
-			items: repos.map((candidate) => ({
-				badge: candidate.armed ? undefined : "Off",
-				current: candidate.name === repo,
-				icon: <ForgeMark className="shrink-0" forge={candidate.forge} />,
-				keywords: [candidate.owner, candidate.fullName],
-				label: candidate.name,
-				onAction: () => {
-					setOpen(false);
-					navigate({ to: `/${org?.slug}/${candidate.name}${featurePath}` });
-				},
-				value: candidate.name,
-			})),
+			items: repos.map((candidate) => {
+				const routeRepo = repoRouteKey(candidate);
+				return {
+					badge: candidate.armed ? undefined : "Off",
+					current: routeRepo === repo || candidate.name === repo,
+					icon: <ForgeMark className="shrink-0" forge={candidate.forge} />,
+					keywords: [candidate.owner, candidate.fullName],
+					label: duplicateNames.has(candidate.name)
+						? qualifiedRepoLabel(candidate)
+						: candidate.name,
+					onAction: () => {
+						setOpen(false);
+						navigate({ to: `/${org?.slug}/${routeRepo}${featurePath}` });
+					},
+					value: routeRepo,
+				};
+			}),
 			label: "Repos",
 			showLabel: false,
 			type: "group",

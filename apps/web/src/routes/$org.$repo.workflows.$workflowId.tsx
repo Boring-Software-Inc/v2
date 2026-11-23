@@ -14,10 +14,10 @@ export const Route = createFileRoute("/$org/$repo/workflows/$workflowId")({
 	search: { middlewares: [stripSearchParams(WORKFLOW_EDITOR_SEARCH_DEFAULTS)] },
 	component: WorkflowEditorPage,
 	pendingComponent: WorkflowEditorPageSkeleton,
-	head: ({ params, match }) =>
+	head: ({ match }) =>
 		buildSeo({
 			path: match.pathname,
-			title: formatPageTitle(`${params.repo} | Workflow editor`),
+			title: formatPageTitle(`${match.context.repo.name} | Workflow editor`),
 			description: "Edit this workflow.",
 			noindex: true,
 		}),

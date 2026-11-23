@@ -193,41 +193,42 @@ test("an installation spans SQL batches and reconnect preserves stable row ident
 	expect(after.filter((row) => row.removedAt !== null)).toHaveLength(998);
 });
 
-test("large discovery checks collisions without exceeding PostgreSQL's parameter limit", async () => {
+test("a GitCafe repository can share its name with another forge", async () => {
 	const job = await authorizedJob();
 	await database.db.insert(repos).values({
 		id: generateId(),
 		forge: "github",
 		externalId: generateId(),
 		owner: "other-forge",
-		name: "repo-0",
-		fullName: "other-forge/repo-0",
+		name: "scratch",
+		fullName: "other-forge/scratch",
 		orgId: job.orgId,
 	});
-	const selected = Array.from(
-		{ length: 33000 },
-		(_, index): GitCafeConnectionRepository => ({
+	const selected: GitCafeConnectionRepository[] = [
+		{
 			id: generateId(),
-			owner: "large-fixture",
-			name: `repo-${index}`,
+			owner: "fixture",
+			name: "scratch",
 			visibility: "private",
 			archivedAt: null,
-		}),
-	);
+		},
+	];
 	expect(
 		await commitGitCafeConnection(database.db, {
 			job,
-			owner: "large-fixture",
+			owner: "fixture",
 			repositories: selected,
 			revalidate: async () => ({ ok: true, repoCount: selected.length }),
 		}),
-	).toEqual({ ok: false, reason: "repository-conflict" });
+	).toEqual({ ok: true, repoCount: 1 });
 	const written = await database.db
 		.select()
 		.from(repos)
 		.where(eq(repos.installationId, job.installationId));
-	expect(written).toHaveLength(0);
-}, 15_000);
+	expect(written).toMatchObject([
+		{ forge: "gitcafe", owner: "fixture", name: "scratch" },
+	]);
+});
 
 test("the lifecycle connection path fails closed without checked authority or a generation", async () => {
 	const job = await authorizedJob();

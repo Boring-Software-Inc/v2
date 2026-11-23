@@ -1,19 +1,22 @@
 import { z } from "zod";
+import { parseRepoRouteKey } from "#/lib/repo-route";
 
 export interface RepoTab {
-	/** `org/repo` — stable identity and the visible label. */
+	/** `org/repo` route key used as stable identity. */
 	id: string;
 	org: string;
 	repo: string;
+	/** Forge-neutral label shown in the tab strip. */
+	label: string;
 	/** Last page visited in this repo, so reopening the tab lands where you left. */
 	path: string;
 }
 
 /**
- * v2 drops anything written before per-tab paths were pinned to their own repo:
- * that build could stamp the page you navigated AWAY to onto the tab you left.
+ * v3 drops name-only repository identities so a legacy tab cannot coexist with
+ * the same repository's forge-qualified tab.
  */
-export const REPO_TABS_STORAGE_KEY = "tripwire.repo-tabs.v2";
+export const REPO_TABS_STORAGE_KEY = "tripwire.repo-tabs.v3";
 
 export type RepoTabsAction =
 	| { type: "hydrate"; tabs: RepoTab[] }
@@ -73,6 +76,7 @@ export function parseStoredRepoTabs(raw: string): RepoTab[] {
 						id: `${item.org}/${item.repo}`,
 						org: item.org,
 						repo: item.repo,
+						label: repoTabLabel(item.org, item.repo),
 						path: resolveRepoTabPath(item.org, item.repo, item.path ?? ""),
 					},
 				]
@@ -120,7 +124,23 @@ export function repoTabForLocation(
 	if (!org || !repo || !isPathInRepo(org, repo, pathname)) {
 		return null;
 	}
-	return { id: `${org}/${repo}`, org, repo, path: pathname };
+	return {
+		id: `${org}/${repo}`,
+		org,
+		repo,
+		label: repoTabLabel(org, repo),
+		path: pathname,
+	};
+}
+
+function repoTabLabel(org: string, repo: string): string {
+	return `${org}/${parseRepoRouteKey(repo)?.name ?? repo}`;
+}
+
+/** Keeps the owner qualifier in compact tab layouts while hiding the org. */
+export function compactRepoTabLabel(label: string): string {
+	const separator = label.indexOf("/");
+	return separator === -1 ? label : label.slice(separator + 1);
 }
 
 export type RepoMatchStatus = "ok" | "missing" | "pending";
