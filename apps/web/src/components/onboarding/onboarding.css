@@ -140,9 +140,14 @@
 	background-color: var(--shell);
 }
 
+/* Sized to the panel's final width rather than the panel, so the canvas is
+   never resized while the panel grows in: the panel uncovers it instead. A
+   WebGL resize per frame reallocates the canvas and drops frames. */
 [data-layout-role="onboarding-preview-dither"] {
 	position: absolute;
-	inset: 0;
+	inset-block: 0;
+	inset-inline-start: 0;
+	inline-size: calc(100vw - 37.5rem - var(--space-4));
 	pointer-events: none;
 }
 

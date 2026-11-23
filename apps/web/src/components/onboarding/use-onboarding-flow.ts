@@ -11,7 +11,7 @@ import {
 	visibleOnboardingSteps,
 } from "@tripwire/contracts";
 import { notify } from "@tripwire/ui/toast";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { ONBOARDING_COPY } from "#/components/onboarding/onboarding-copy";
 import { authQueryKeys } from "#/lib/auth.query";
 import {
@@ -64,6 +64,17 @@ function resolveStep(
 	);
 }
 
+/** Progress only moves forward, as the server saves it. */
+function furthest(
+	saved: OnboardingStep,
+	next: OnboardingStep | undefined,
+): OnboardingStep {
+	return next &&
+		ONBOARDING_STEPS.indexOf(next) > ONBOARDING_STEPS.indexOf(saved)
+		? next
+		: saved;
+}
+
 /**
  * The onboarding state machine. The URL `?step=` is the view, the saved row
  * is progress: moving on navigates first and saves in the background, so the
@@ -88,6 +99,14 @@ export function useOnboardingFlow() {
 		shown.current = step;
 	}
 
+	// The URL always names the step on screen: a link past progress, or to a
+	// step this user skips, is replaced with the one shown.
+	useEffect(() => {
+		if (search.step !== step) {
+			void navigate({ search: { step }, replace: true });
+		}
+	}, [navigate, search.step, step]);
+
 	const save = useMutation({
 		mutationFn: (input: SaveOnboardingInput) =>
 			saveOnboardingStep({ data: input }),
@@ -97,7 +116,7 @@ export function useOnboardingFlow() {
 				(current) =>
 					current && {
 						...current,
-						step: input.step ?? current.step,
+						step: furthest(current.step, input.step),
 						answers: { ...current.answers, ...input.answers },
 					},
 			);

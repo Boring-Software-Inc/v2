@@ -157,6 +157,20 @@ describe("user onboarding", () => {
 		).rejects.toThrow();
 	});
 
+	test("progress only moves forward, while answers still change", async () => {
+		const userId = await newUser("bo");
+		await saveOnboardingProgress(db, { userId, step: "rules" });
+		const revisited = await saveOnboardingProgress(db, {
+			userId,
+			step: "workspace",
+			answers: { role: "security" },
+		});
+		expect(revisited?.step).toBe("rules");
+		expect(revisited?.answers.role).toBe("security");
+		const ahead = await saveOnboardingProgress(db, { userId, step: "check" });
+		expect(ahead?.step).toBe("check");
+	});
+
 	test("skipping clears the requirement and freezes progress", async () => {
 		const userId = await newUser("cy");
 		await saveOnboardingProgress(db, { userId, step: "rules" });

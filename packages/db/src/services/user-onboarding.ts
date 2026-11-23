@@ -1,5 +1,6 @@
 import {
 	EMPTY_ONBOARDING_ANSWERS,
+	ONBOARDING_STEPS,
 	type OnboardingAnswers,
 	type OnboardingAnswersPatch,
 	type OnboardingStatus,
@@ -105,10 +106,18 @@ export async function saveOnboardingProgress(
 		const current = readAnswers(row.answers);
 		const patch = onboardingAnswersPatchSchema.parse(input.answers ?? {});
 		const answers = onboardingAnswersSchema.parse({ ...current, ...patch });
+		// Progress is the furthest step reached: going back to change an answer
+		// and continuing from there never loses it.
+		const saved = onboardingStepSchema.catch("welcome").parse(row.step);
+		const step =
+			input.step &&
+			ONBOARDING_STEPS.indexOf(input.step) > ONBOARDING_STEPS.indexOf(saved)
+				? input.step
+				: saved;
 		const updated = await tx
 			.update(userOnboarding)
 			.set({
-				step: input.step ?? row.step,
+				step,
 				answers,
 				orgId: input.orgId === undefined ? row.orgId : input.orgId,
 				repoId: input.repoId === undefined ? row.repoId : input.repoId,
