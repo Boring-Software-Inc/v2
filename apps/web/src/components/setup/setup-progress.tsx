@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { Link, useMatch, useParams } from "@tanstack/react-router";
 import { Button, IconButton } from "@tripwire/ui/button";
 import {
@@ -15,6 +16,7 @@ import { useState, useSyncExternalStore } from "react";
 import { compactStepAction } from "#/components/setup/setup-step-actions";
 import { StepDoneMark } from "#/components/setup/step-done-mark";
 import { useRepoSetup } from "#/components/setup/use-repo-setup";
+import { sessionInfoQueryOptions } from "#/lib/auth.query";
 import "#/components/setup/setup-progress.css";
 
 const RING_RADIUS = 6;
@@ -75,6 +77,7 @@ export function SetupProgress(props: SetupProgressProps) {
 		shouldThrow: false,
 	});
 	const { state, progress } = useRepoSetup(org, repo);
+	const { data: session } = useQuery(sessionInfoQueryOptions());
 	const [open, setOpen] = useState(false);
 	const [dismissedKey, setDismissedKey] = useState<string | null>(null);
 	const storageKey =
@@ -98,7 +101,8 @@ export function SetupProgress(props: SetupProgressProps) {
 		dismissed ||
 		dismissedKey === storageKey ||
 		progress.complete ||
-		onChecklist
+		onChecklist ||
+		session?.onboardedRepoId === state.repoId
 	) {
 		return null;
 	}

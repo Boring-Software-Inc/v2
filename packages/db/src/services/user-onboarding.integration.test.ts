@@ -248,22 +248,22 @@ describe("drafting inputs", () => {
 		await storeRun({
 			number: 501,
 			at: "2026-11-20T10:00:00Z",
-			steps: [{ ruleId: "english-only", status: "fail" }],
+			steps: [{ ruleId: "english-only@1", status: "fail" }],
 		});
 		await storeRun({
 			number: 501,
 			at: "2026-11-21T10:00:00Z",
 			steps: [
-				{ ruleId: "account-age", status: "fail" },
-				{ ruleId: "english-only", status: "pass" },
+				{ ruleId: "account-age@1", status: "fail" },
+				{ ruleId: "english-only@1", status: "pass" },
 			],
 		});
 		await storeRun({
 			number: 502,
 			at: "2026-11-21T11:00:00Z",
 			steps: [
-				{ ruleId: "account-age", status: "fail" },
-				{ ruleId: "crypto-address", status: "fail" },
+				{ ruleId: "account-age@1", status: "fail" },
+				{ ruleId: "crypto-address@3", status: "fail" },
 			],
 		});
 		expect(await failedRulesForChangeRequests(db, REPO, [501, 502])).toEqual([

@@ -128,7 +128,7 @@ function SidebarSearchIcon() {
 	);
 }
 
-function SidebarSearchTrigger({
+export function SidebarSearchTrigger({
 	collapsed,
 	ref,
 	type = "button",

@@ -35,6 +35,7 @@ export const DEV_LANDINGS = [
 	"install-setup",
 	"admin",
 	"public-run",
+	"onboarding",
 ] as const;
 export const DEV_LATENCIES = [0, 400, 1500, 4000] as const;
 
@@ -134,6 +135,7 @@ export const DEV_OPTION_LABELS: DevOptionLabelMap = {
 		"install-setup": "Install confirmation",
 		admin: "Platform admin",
 		"public-run": "Public run",
+		onboarding: "First-run onboarding",
 	},
 };
 
@@ -230,6 +232,9 @@ const GUARDS: GuardMap = {
 		}
 		if (value === "workflow" && state.workflows === "none") {
 			return "Needs a workflow";
+		}
+		if (value === "onboarding" && state.account === "anonymous") {
+			return "Onboarding needs a signed-in user";
 		}
 		if (value === "settings" && state.account === "outsider") {
 			return "Outsiders can't open org settings";
@@ -395,6 +400,19 @@ export const DEV_PRESETS: readonly DevPreset[] = [
 			landing: "repo",
 		},
 		{ keywords: ["non member", "redaction", "leak"] },
+	),
+	preset(
+		"first-run-onboarding",
+		"First-run onboarding",
+		"Onboarding",
+		{
+			...OWNER_HOME,
+			install: "none",
+			repos: "none",
+			workflows: "none",
+			landing: "onboarding",
+		},
+		{ keywords: ["new user", "welcome", "setup"] },
 	),
 	preset(
 		"install-request-pending",

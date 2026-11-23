@@ -59,6 +59,7 @@ export const SERVER_FN_CLASSIFICATION: ServerFnClassification = {
 	finishOnboarding: "authed",
 	checkOrgSlug: "authed", // availability only; reveals no org data
 	listOnboardingChangeRequests: "permission:activity:read",
+	listOnboardingRepos: "permission:connections:manage",
 	previewOnboardingWorkflow: "permission:workflows:read",
 	saveOnboardingWorkflow: "permission:workflows:manage",
 	submitFeedback: "authed", // product feedback, not org data

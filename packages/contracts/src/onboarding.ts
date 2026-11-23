@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { forgeIdSchema } from "./forges.ts";
 import { RULE_PACKS } from "./rule-packs.ts";
 import { RULE_CATALOG } from "./rules.ts";
 import type {
@@ -120,6 +121,7 @@ export type OnboardingAnswersPatch = z.infer<
 
 export const onboardingRepoSchema = z.object({
 	id: z.string(),
+	forge: forgeIdSchema,
 	fullName: z.string(),
 	name: z.string(),
 	armed: z.boolean(),

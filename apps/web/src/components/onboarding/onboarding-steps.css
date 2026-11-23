@@ -1,0 +1,338 @@
+/* Step forms after the first three, and the preview pages they drive. */
+
+/* Switch rows span the column so every switch lines up on the right edge. */
+:is(
+		[data-layout-role="onboarding-pick-card"],
+		[data-layout-role="onboarding-pick-row"]
+	)
+	[data-slot="switch-field"] {
+	display: grid;
+	inline-size: 100%;
+}
+
+[data-layout-role="onboarding-note"][data-align="center"] {
+	text-align: center;
+}
+
+[data-layout-role="onboarding-list"] [data-part="row"] {
+	& [data-part="mark"] {
+		display: flex;
+		flex-shrink: 0;
+		opacity: 0.6;
+	}
+
+	& [data-part="text"] {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		gap: 2px;
+		min-inline-size: 0;
+	}
+
+	& [data-part="title"] {
+		overflow: hidden;
+		color: var(--text-1);
+		font: var(--type-label);
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	& [data-part="repo"] {
+		color: var(--text-2);
+	}
+
+	& [data-part="meta"] {
+		color: var(--text-2);
+		font: var(--type-caption);
+	}
+
+	&[data-closed="true"] [data-part="title"] {
+		color: var(--text-2);
+	}
+
+	& [data-part="status"] {
+		display: flex;
+		flex-shrink: 0;
+		align-items: center;
+		gap: var(--space-1);
+		color: var(--text-2);
+		font: var(--type-label-sm);
+
+		&[data-tone="active"] {
+			color: var(--text-1);
+		}
+
+		&[data-tone="fail"] {
+			color: var(--fail-text);
+		}
+
+		&[data-tone="ok"] {
+			color: var(--ok-text);
+		}
+	}
+}
+
+[data-layout-role="onboarding-agents"] {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+
+	& [data-part="row"] {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		min-block-size: 48px;
+		padding: var(--space-2) var(--space-3);
+		border-radius: var(--radius-panel);
+		transition: background-color var(--dur-state) var(--ease-out);
+
+		&:hover,
+		&:focus-within {
+			background-color: var(--hover);
+		}
+
+		& [data-part="text"] {
+			display: flex;
+			flex: 1;
+			flex-direction: column;
+			gap: 2px;
+			min-inline-size: 0;
+		}
+
+		& [data-part="name"] {
+			color: var(--text-1);
+			font: var(--type-label);
+		}
+
+		& [data-type-role="code-text"] {
+			overflow: hidden;
+			color: var(--text-2);
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		& [data-part="more"] {
+			color: var(--text-2);
+			font: var(--type-body-sm);
+		}
+
+		& [data-part="list"] {
+			color: var(--text-3);
+			font: var(--type-caption);
+		}
+	}
+}
+
+[data-layout-role="onboarding-terminal"] {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+
+	& [data-part="command"] {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
+		padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+		border-radius: var(--radius-panel);
+		background-color: var(--code-surface);
+		box-shadow: 0 0 0 var(--line-width) var(--line-faint);
+	}
+}
+
+[data-layout-role="onboarding-workflow-page"] {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	overflow: hidden;
+	border-radius: var(--radius-shell);
+	border: var(--line-width) solid var(--line-faint);
+	background-color: var(--paper);
+
+	& [data-part="header"] {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		block-size: 48px;
+		padding-inline: var(--space-4);
+		border-block-end: var(--line-width) solid var(--line-faint);
+	}
+
+	& [data-part="canvas"] {
+		position: relative;
+		flex: 1;
+	}
+}
+
+[data-layout-role="onboarding-responses-page"] {
+	display: flex;
+	block-size: 100%;
+
+	& [data-part="builder"] {
+		display: flex;
+		flex-direction: column;
+		flex-shrink: 0;
+		inline-size: 320px;
+		border-inline-end: var(--line-width) solid var(--line-faint);
+		background-color: var(--shell);
+	}
+
+	& [data-part="tabs"] {
+		display: flex;
+		gap: var(--space-1);
+		padding: var(--space-2) var(--space-3);
+		border-block-end: var(--line-width) solid var(--line-faint);
+		overflow: hidden;
+		white-space: nowrap;
+
+		& > span {
+			padding: var(--space-1) var(--space-3);
+			border-radius: var(--radius-pill);
+			color: var(--text-2);
+			font: var(--type-label-sm);
+		}
+
+		& > span[data-selected="true"] {
+			background-color: var(--paper);
+			box-shadow: 0 0 0 var(--line-width) var(--line-faint);
+			color: var(--text-1);
+		}
+	}
+
+	& [data-part="blocks"] {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		padding: var(--space-4);
+	}
+
+	& [data-part="heading"] {
+		padding-block-end: var(--space-2);
+		color: var(--text-1);
+		font: var(--type-heading-sm);
+	}
+
+	& [data-part="block"] {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		padding: var(--space-2) var(--space-3);
+		border-radius: var(--radius-tag);
+		background-color: var(--paper);
+		box-shadow: 0 0 0 var(--line-width) var(--line-faint);
+		color: var(--text-2);
+
+		& [data-part="text"] {
+			display: flex;
+			flex-direction: column;
+			min-inline-size: 0;
+		}
+
+		& [data-part="label"] {
+			color: var(--text-1);
+			font: var(--type-label);
+		}
+
+		& [data-part="description"] {
+			overflow: hidden;
+			font: var(--type-caption);
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+	}
+
+	& [data-part="stage"] {
+		flex: 1;
+		max-inline-size: 420px;
+		padding: var(--space-10) var(--space-6);
+	}
+}
+
+/* The agent's chat, on its own in the preview, as the agent would show it. */
+[data-layout-role="onboarding-agent-chat"] {
+	display: grid;
+	place-items: center;
+	block-size: 100%;
+	padding-inline-end: var(--space-6);
+
+	& [data-part="card"] {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+		inline-size: min(100%, 36rem);
+		padding: var(--space-5);
+		border-radius: var(--radius-overlay);
+		background-color: var(--paper);
+		box-shadow: 0 0 0 var(--line-width) var(--line);
+		color: var(--text-1);
+		font: var(--type-body);
+	}
+
+	& [data-part="client"] {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		color: var(--text-2);
+		font: var(--type-label);
+	}
+
+	& p {
+		margin: 0;
+	}
+
+	& [data-part="ask"] {
+		align-self: flex-end;
+		max-inline-size: 80%;
+		padding: var(--space-2) var(--space-3);
+		border-radius: var(--radius-panel);
+		background-color: var(--field);
+	}
+
+	& [data-part="thinking"] {
+		color: var(--text-2);
+	}
+
+	& [data-part="tool"] {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		color: var(--text-2);
+		font: var(--type-label);
+	}
+
+	& [data-agent="chatgpt"] [data-part="tool"] {
+		color: var(--text-1);
+	}
+
+	& [data-part="items"] {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		margin: 0;
+		padding-inline-start: var(--space-5);
+		font: var(--type-body-sm);
+	}
+
+	& [data-part="composer"] {
+		margin-block-start: var(--space-2);
+		padding: var(--space-3) var(--space-4);
+		border-radius: var(--radius-panel);
+		box-shadow: 0 0 0 var(--line-width) var(--line-control);
+		color: var(--text-3);
+	}
+
+	& [data-part="note"] {
+		color: var(--text-3);
+		font: var(--type-caption);
+		text-align: center;
+	}
+}
+
+[data-layout-role="onboarding-actions"] {
+	display: flex;
+	gap: var(--space-2);
+
+	& > * {
+		flex: 1;
+	}
+}

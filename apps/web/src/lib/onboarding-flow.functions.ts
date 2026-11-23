@@ -18,6 +18,7 @@ import type {
 	Db,
 	OnboardingRecord,
 	OrgWithRole,
+	RepoLite,
 	StoredChangeRequest,
 } from "@tripwire/db";
 import { z } from "zod";
@@ -84,6 +85,7 @@ async function toState(
 		repo: repo
 			? {
 					id: repo.id,
+					forge: repo.forge,
 					fullName: repo.fullName,
 					name: repo.name,
 					armed: repo.armed,
@@ -211,15 +213,17 @@ export const checkOrgSlug = createServerFn({ method: "GET" })
 	.inputValidator((input: { slug: string }) => ({
 		slug: z.string().max(64).parse(input.slug),
 	}))
-	.handler(async ({ data }): Promise<SlugCheck> => {
+	.handler(async ({ data }): Promise<{ status: SlugCheck }> => {
 		if (!orgSlugSchema.safeParse(data.slug).success) {
-			return "invalid";
+			return { status: "invalid" };
 		}
 		const db = await database();
 		const { userOnboardingServices } = await import("@tripwire/db");
-		return (await userOnboardingServices.isOrgSlugTaken(db, data.slug))
-			? "taken"
-			: "available";
+		return {
+			status: (await userOnboardingServices.isOrgSlugTaken(db, data.slug))
+				? "taken"
+				: "available",
+		};
 	});
 
 async function orgRepo(orgId: string, repoId: string) {
@@ -297,10 +301,26 @@ export const previewOnboardingWorkflow = createServerFn({ method: "GET" })
 			numbers: reportedSchema.parse(input.numbers),
 		}),
 	)
-	.handler(async ({ data, context }): Promise<WorkflowDefinition | null> => {
+	.handler(async ({ data, context }): Promise<OnboardingWorkflowDraft> => {
 		const org = (context as { org: OrgWithRole }).org;
-		return draftFor(await orgRepo(org.id, data.repoId), data.numbers);
+		const repo = await orgRepo(org.id, data.repoId);
+		const { userOnboardingServices } = await import("@tripwire/db");
+		const [definition, builtFrom] = await Promise.all([
+			draftFor(repo, data.numbers),
+			userOnboardingServices.listStoredChangeRequests(
+				await database(),
+				{ fullName: repo.fullName, forge: repo.forge },
+				{ numbers: data.numbers, limit: data.numbers.length },
+			),
+		]);
+		return { definition, builtFrom };
 	});
+
+/** The drafted workflow and the reported change requests it was built from. */
+export interface OnboardingWorkflowDraft {
+	definition: WorkflowDefinition | null;
+	builtFrom: StoredChangeRequest[];
+}
 
 export type SaveOnboardingWorkflowResult =
 	| { status: "saved"; workflowId: string }
@@ -342,4 +362,19 @@ export const saveOnboardingWorkflow = createServerFn({ method: "POST" })
 		return enabled.ok
 			? { status: "saved", workflowId: workflow.id }
 			: { status: "not-enabled", workflowId: workflow.id };
+	});
+
+/** The workspace's connected repos for the repo picker, with private flags. */
+export const listOnboardingRepos = createServerFn({ method: "GET" })
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("connections:manage"),
+	])
+	.inputValidator((input: { org: string }) => ({
+		org: z.string().parse(input.org),
+	}))
+	.handler(async ({ context }): Promise<RepoLite[]> => {
+		const org = (context as { org: OrgWithRole }).org;
+		const { orgServices } = await import("@tripwire/db");
+		return orgServices.listOrgRepos(await database(), org.id);
 	});

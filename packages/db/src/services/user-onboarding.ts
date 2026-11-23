@@ -25,7 +25,7 @@ export interface OnboardingRecord {
 
 type OnboardingRow = typeof userOnboarding.$inferSelect;
 
-function readAnswers(value: unknown): OnboardingAnswers {
+function readAnswers(value: OnboardingRow["answers"]): OnboardingAnswers {
 	const stored = onboardingAnswersPatchSchema.safeParse(value);
 	return stored.success
 		? { ...EMPTY_ONBOARDING_ANSWERS, ...stored.data }
@@ -173,17 +173,27 @@ const changeRequestRowSchema = z.object({
 export async function listStoredChangeRequests(
 	db: Db,
 	repo: { fullName: string; forge: string },
-	options: { query?: string; limit?: number } = {},
+	options: { query?: string; numbers?: readonly number[]; limit?: number } = {},
 ): Promise<StoredChangeRequest[]> {
 	const query = options.query?.trim() ?? "";
 	const limit = Math.min(Math.max(options.limit ?? 20, 1), 50);
 	const numberMatch = /^#?(\d{1,9})$/.exec(query);
-	const filter =
+	const textFilter =
 		query === ""
 			? sql``
 			: numberMatch
 				? sql`AND subject_number = ${Number(numberMatch[1])}`
 				: sql`AND normalized->'changeRequest'->>'title' ILIKE ${`%${query.replace(/[\\%_]/g, "\\$&")}%`}`;
+	const numbersFilter =
+		options.numbers === undefined
+			? sql``
+			: options.numbers.length === 0
+				? sql`AND false`
+				: sql`AND subject_number IN (${sql.join(
+						options.numbers.map((n) => sql`${n}`),
+						sql`, `,
+					)})`;
+	const filter = sql`${textFilter} ${numbersFilter}`;
 	const result = await db.execute(sql`
 		WITH opened AS (
 			SELECT DISTINCT ON (subject_number)
@@ -271,14 +281,14 @@ export async function failedRulesForChangeRequests(
 				)})
 			ORDER BY r.subject_number, r.created_at DESC
 		)
-		SELECT s.rule_id
+		SELECT split_part(s.rule_id, '@', 1) AS rule_id
 		FROM run_steps s
 		JOIN latest l ON l.id = s.run_id
 		WHERE s.node_kind = 'rule'
 		  AND s.rule_id IS NOT NULL
 		  AND s.status = 'fail'
-		GROUP BY s.rule_id
-		ORDER BY count(*) DESC, min(s.rule_id)`);
+		GROUP BY 1
+		ORDER BY count(*) DESC, 1`);
 	const ruleIds: string[] = [];
 	for (const raw of result.rows) {
 		const row = failedRuleRowSchema.safeParse(raw);

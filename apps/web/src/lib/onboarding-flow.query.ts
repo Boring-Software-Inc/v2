@@ -3,6 +3,7 @@ import {
 	checkOrgSlug,
 	getOnboarding,
 	listOnboardingChangeRequests,
+	listOnboardingRepos,
 	previewOnboardingWorkflow,
 } from "#/lib/onboarding-flow.functions";
 
@@ -11,6 +12,9 @@ export const onboardingFlowKeys = {
 	all: ["onboarding-flow"] as const,
 	state: () => [...onboardingFlowKeys.all, "state"] as const,
 	slug: (slug: string) => [...onboardingFlowKeys.all, "slug", slug] as const,
+	repos: (org: string) => [...onboardingFlowKeys.all, "repos", org] as const,
+	latestRun: (org: string, repo: string) =>
+		[...onboardingFlowKeys.all, "latest-run", org, repo] as const,
 	changeRequests: (org: string, repoId: string, query: string) =>
 		[...onboardingFlowKeys.all, "change-requests", org, repoId, query] as const,
 	workflow: (org: string, repoId: string, numbers: readonly number[]) =>
@@ -58,4 +62,11 @@ export const onboardingWorkflowQueryOptions = (
 				signal,
 			}),
 		staleTime: 10_000,
+	});
+
+export const onboardingReposQueryOptions = (org: string) =>
+	queryOptions({
+		queryKey: onboardingFlowKeys.repos(org),
+		queryFn: ({ signal }) => listOnboardingRepos({ data: { org }, signal }),
+		staleTime: 5_000,
 	});

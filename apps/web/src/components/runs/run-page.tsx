@@ -129,7 +129,7 @@ function DashboardRun({ run }: { run: RunView }) {
 	);
 }
 
-function RunBody({ run }: { run: RunView }) {
+export function RunBody({ run }: { run: RunView }) {
 	const canGoBack = useCanGoBack();
 	const { orgSlug, repoName } = run;
 	const chain = useMemo(

@@ -40,6 +40,11 @@ export interface SessionInfo {
 	 * root gate sends them to /onboarding. Never true while impersonating.
 	 */
 	onboardingRequired: boolean;
+	/**
+	 * The repo the user set up by completing onboarding. Its setup checklist is
+	 * already done there, so the sidebar card stays hidden for it.
+	 */
+	onboardedRepoId?: string | null;
 	impersonation?: {
 		login: string | null;
 		expiresAt: string;
@@ -112,9 +117,15 @@ export const getSessionInfo = createServerFn({ method: "GET" }).handler(
 			null;
 		const impersonating = (await fenceOf(session)).impersonatedBy;
 		const { userOnboardingServices } = await import("@tripwire/db");
+		const onboarding = await userOnboardingServices.getOnboarding(
+			db,
+			session.user.id,
+		);
 		const onboardingRequired =
 			!impersonating &&
-			(await userOnboardingServices.onboardingRequired(db, session.user.id));
+			(onboarding === null || onboarding.status === "in_progress");
+		const onboardedRepoId =
+			onboarding?.status === "completed" ? onboarding.repoId : null;
 		const { staffUserServices } = await import("@tripwire/db");
 		const impersonation = impersonating
 			? {
@@ -139,6 +150,7 @@ export const getSessionInfo = createServerFn({ method: "GET" }).handler(
 			defaultOrgSlug,
 			gateEnabled,
 			onboardingRequired,
+			onboardedRepoId,
 		};
 	},
 );
