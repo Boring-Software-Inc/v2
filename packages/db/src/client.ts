@@ -10,11 +10,11 @@ import * as schema from "./schema/index.ts";
  * (SSE, worker) create their own dedicated `pg` Client — a pooled connection
  * cannot hold a LISTEN.
  */
-export function createDb(databaseUrl = process.env.DATABASE_URL) {
+export function createDb(databaseUrl = process.env.DATABASE_URL, max = 10) {
 	if (!databaseUrl) {
 		throw new Error("DATABASE_URL is not set");
 	}
-	const pool = new Pool({ connectionString: databaseUrl, max: 10 });
+	const pool = new Pool({ connectionString: databaseUrl, max });
 	return { db: drizzle(pool, { schema }), pool };
 }
 
@@ -29,11 +29,12 @@ export function createDb(databaseUrl = process.env.DATABASE_URL) {
  */
 export function createDirectPool(
 	directUrl = process.env.DATABASE_URL_DIRECT ?? process.env.DATABASE_URL,
+	max = 5,
 ) {
 	if (!directUrl) {
 		throw new Error("DATABASE_URL_DIRECT (or DATABASE_URL) is not set");
 	}
-	return new Pool({ connectionString: directUrl, max: 5 });
+	return new Pool({ connectionString: directUrl, max });
 }
 
 /** Shared schema and query surface of the two supported PostgreSQL drivers. */

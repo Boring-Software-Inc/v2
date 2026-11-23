@@ -73,6 +73,9 @@ const PROTECTION_QUEUES = [
 	GITCAFE_BACKFILL_REPO_QUEUE,
 ];
 
+export const GITCAFE_DB_POOL_MAX = 4;
+export const GITCAFE_DIRECT_POOL_MAX = 2;
+
 type GitCafeProtectionEnv = z.infer<typeof gitCafeConnectionWorkerEnvSchema>;
 
 export interface GitCafeProtectionRuntime {
@@ -455,9 +458,9 @@ export async function startGitCafeProtectionRuntime(
 ): Promise<GitCafeProtectionRuntime | null> {
 	const env = resolveGitCafeProtectionEnv(process.env);
 	if (!env) return null;
-	const { db, pool } = createDb(env.DATABASE_URL);
-	const directPool = createDirectPool();
-	const actionPool = createDirectPool();
+	const { db, pool } = createDb(env.DATABASE_URL, GITCAFE_DB_POOL_MAX);
+	const directPool = createDirectPool(undefined, GITCAFE_DIRECT_POOL_MAX);
+	const actionPool = createDirectPool(undefined, GITCAFE_DIRECT_POOL_MAX);
 	const boss =
 		bossOverride ??
 		(await createGitCafeConnectionBoss(env.DATABASE_URL, logger));
