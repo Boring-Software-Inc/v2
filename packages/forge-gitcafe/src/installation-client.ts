@@ -85,8 +85,29 @@ interface InstallationSnapshot {
 const TOKEN_SAFETY_MS = 60_000;
 const TOKEN_MAX_LIFETIME_MS = 15 * 60_000;
 const MAX_RESPONSE_BYTES = 1024 * 1024;
+const DEFAULT_RATE_LIMIT_BACKOFF_MS = 60_000;
+const MAX_RATE_LIMIT_BACKOFF_MS = 15 * 60_000;
 const PERMISSION_RANK = { read: 1, write: 2, admin: 3 };
 const PATH_SEGMENT = /^(?!\.{1,2}$)[A-Za-z0-9_.-]+$/;
+
+function rateLimitBackoffMs(response: Response, now: number): number {
+	const retryAfter = response.headers.get("retry-after");
+	if (retryAfter) {
+		const seconds = Number(retryAfter);
+		const delay = Number.isFinite(seconds)
+			? seconds * 1_000
+			: Date.parse(retryAfter) - now;
+		if (Number.isFinite(delay) && delay > 0)
+			return Math.min(delay, MAX_RATE_LIMIT_BACKOFF_MS);
+	}
+	for (const name of ["ratelimit-reset", "x-ratelimit-reset"]) {
+		const reset = Number(response.headers.get(name));
+		if (!Number.isFinite(reset)) continue;
+		const delay = reset * 1_000 - now;
+		if (delay > 0) return Math.min(delay, MAX_RATE_LIMIT_BACKOFF_MS);
+	}
+	return DEFAULT_RATE_LIMIT_BACKOFF_MS;
+}
 
 export class GitCafeInstallationClient {
 	private readonly fetch: NonNullable<
@@ -100,6 +121,7 @@ export class GitCafeInstallationClient {
 	>();
 	private readonly mints = new Map<string, PendingToken>();
 	private readonly generations = new Map<string, number>();
+	private rateLimitedUntil = 0;
 	private readonly snapshots = new WeakMap<
 		GitCafeInstallation,
 		{
@@ -791,6 +813,8 @@ export class GitCafeInstallationClient {
 		deadlineAt?: number,
 	): Promise<GitCafeInstallationResult<unknown>> {
 		if (this.expired(deadlineAt)) return { ok: false, reason: "expired" };
+		if (this.now() < this.rateLimitedUntil)
+			return { ok: false, reason: "http", status: 429 };
 		const remaining =
 			deadlineAt === undefined ? Infinity : deadlineAt - this.now();
 		const deadlineLimited = remaining <= 10_000;
@@ -829,6 +853,11 @@ export class GitCafeInstallationClient {
 				};
 			}
 			if (!response.ok) {
+				if (response.status === 429)
+					this.rateLimitedUntil = Math.max(
+						this.rateLimitedUntil,
+						this.now() + rateLimitBackoffMs(response, this.now()),
+					);
 				await response.body?.cancel().catch(() => {});
 				return { ok: false, reason: "http", status: response.status };
 			}

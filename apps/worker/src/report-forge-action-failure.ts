@@ -1,4 +1,4 @@
-import { captureMessage } from "@sentry/bun";
+import { captureException } from "@sentry/bun";
 import type { Forge } from "@tripwire/contracts";
 
 export interface ForgeActionFailure {
@@ -14,6 +14,11 @@ export interface ForgeActionFailure {
 }
 
 export type ReportForgeActionFailure = (failure: ForgeActionFailure) => void;
+
+export function forgeActionFailureTitle(failure: ForgeActionFailure): string {
+	const status = failure.status === undefined ? "" : ` HTTP ${failure.status}`;
+	return `${failure.forge} ${failure.kind} action failed: ${failure.reason}${status}`;
+}
 
 export function forgeActionFailureEvent(failure: ForgeActionFailure) {
 	const tags = {
@@ -43,10 +48,13 @@ export function forgeActionFailureEvent(failure: ForgeActionFailure) {
 }
 
 export function forgeActionFailureReporter(
-	capture: typeof captureMessage = captureMessage,
+	capture: typeof captureException = captureException,
 ): ReportForgeActionFailure {
 	return (failure) => {
-		capture("forge moderation action failed", forgeActionFailureEvent(failure));
+		capture(
+			new Error(forgeActionFailureTitle(failure)),
+			forgeActionFailureEvent(failure),
+		);
 	};
 }
 

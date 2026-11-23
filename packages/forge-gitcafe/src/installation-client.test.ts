@@ -372,6 +372,37 @@ describe("GitCafe installation client", () => {
 		expect(h.calls.every((c) => c.init.redirect === "manual")).toBe(true);
 	});
 
+	test("backs off every transport after a provider rate limit", async () => {
+		const h = harness();
+		let requests = 0;
+		const client = clientFor(h, async () => {
+			requests++;
+			return requests === 1
+				? new Response(null, {
+						status: 429,
+						headers: { "retry-after": "120" },
+					})
+				: Response.json(installationFixture);
+		});
+		expect(await client.getInstallation(installation.id)).toEqual({
+			ok: false,
+			reason: "http",
+			status: 429,
+		});
+		expect(await client.getInstallation(installation.id)).toEqual({
+			ok: false,
+			reason: "http",
+			status: 429,
+		});
+		expect(requests).toBe(1);
+		h.advance(120_000);
+		expect(await client.getInstallation(installation.id)).toEqual({
+			ok: true,
+			value: installation,
+		});
+		expect(requests).toBe(2);
+	});
+
 	test("reuses a token only after a fresh installation lookup", async () => {
 		const h = harness();
 		const client = clientFor(h);
