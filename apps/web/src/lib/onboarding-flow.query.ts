@@ -6,6 +6,7 @@ import {
 	listOnboardingRepos,
 	previewOnboardingWorkflow,
 } from "#/lib/onboarding-flow.functions";
+import { getLatestRunId } from "#/lib/runs.functions";
 
 /** First-run onboarding query keys (§9). */
 export const onboardingFlowKeys = {
@@ -62,6 +63,14 @@ export const onboardingWorkflowQueryOptions = (
 				signal,
 			}),
 		staleTime: 10_000,
+	});
+
+/** The repo's newest run, the run page shown before anything is reported. */
+export const onboardingLatestRunQueryOptions = (org: string, repo: string) =>
+	queryOptions({
+		queryKey: onboardingFlowKeys.latestRun(org, repo),
+		queryFn: ({ signal }) => getLatestRunId({ data: { org, repo }, signal }),
+		staleTime: 30_000,
 	});
 
 export const onboardingReposQueryOptions = (org: string) =>

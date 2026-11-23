@@ -23,10 +23,12 @@ export const UI_MOTION = {
 	},
 	/**
 	 * Content riding one continuous track: the outgoing and incoming pages
-	 * share this curve so they move as one strip, never leaving a gap.
+	 * share this curve so they move as one strip, never leaving a gap. A sine
+	 * ease in and out, so a page-wide move peaks near 40px a frame at 60Hz
+	 * instead of strobing past at twice that.
 	 */
 	track: {
-		duration: 0.62,
-		ease: [0.65, 0, 0.35, 1],
+		duration: 0.66,
+		ease: [0.37, 0, 0.63, 1],
 	},
 } as const;

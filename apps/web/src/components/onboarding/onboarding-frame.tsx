@@ -45,6 +45,7 @@ export function OnboardingProgress({
 						nav !== null && ONBOARDING_STEPS.indexOf(step) <= furthest;
 					return reachable ? (
 						<button
+							data-part="step"
 							aria-current={state === "current" ? "step" : undefined}
 							aria-label={nav.labelFor(step)}
 							data-state={state}
@@ -55,7 +56,12 @@ export function OnboardingProgress({
 							<span data-part="dot" />
 						</button>
 					) : (
-						<span aria-hidden="true" data-state={state} key={step}>
+						<span
+							aria-hidden="true"
+							data-part="step"
+							data-state={state}
+							key={step}
+						>
 							<span data-part="dot" />
 						</span>
 					);

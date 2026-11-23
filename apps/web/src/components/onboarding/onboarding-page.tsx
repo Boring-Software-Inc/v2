@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { UI_MOTION } from "@tripwire/ui/motion";
 import {
 	AnimatePresence,
@@ -20,6 +21,7 @@ import {
 	ONBOARDING_STEP_VIEWS,
 	type StepView,
 } from "#/components/onboarding/onboarding-steps";
+import { prefetchStepPreview } from "#/components/onboarding/preview/prefetch-preview";
 import { PreviewStage } from "#/components/onboarding/preview/preview-stage";
 import { SkipSetup } from "#/components/onboarding/skip-setup";
 import {
@@ -106,8 +108,23 @@ function OnboardingLayout({
 	useEffect(() => {
 		lastStep.current = flow.step;
 	});
+	// The panel opens and closes on the track's curve, in step with the page
+	// riding in or out on it.
 	const resize =
-		reduceMotion || !stepChanged ? { duration: 0 } : UI_MOTION.column;
+		reduceMotion || !stepChanged ? { duration: 0 } : UI_MOTION.track;
+	// The steps either side load their preview data now, so whichever way the
+	// user goes the next page arrives already rendered.
+	const queryClient = useQueryClient();
+	useEffect(() => {
+		for (const neighbour of [
+			flow.steps[flow.index + 1],
+			flow.steps[flow.index - 1],
+		]) {
+			if (neighbour) {
+				void prefetchStepPreview(neighbour, queryClient, flow.state);
+			}
+		}
+	}, [flow.index, flow.state, flow.steps, queryClient]);
 	const progressNav = useMemo<OnboardingProgressNav>(
 		() => ({
 			reached: flow.state.step,

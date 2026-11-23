@@ -3,8 +3,7 @@ import type { OnboardingRepo } from "@tripwire/contracts";
 import { ModerationPreview } from "#/components/onboarding/preview/moderation-preview";
 import { PreviewApp } from "#/components/onboarding/preview/preview-app";
 import { RunBody } from "#/components/runs/run-page";
-import { onboardingFlowKeys } from "#/lib/onboarding-flow.query";
-import { getLatestRunId } from "#/lib/runs.functions";
+import { onboardingLatestRunQueryOptions } from "#/lib/onboarding-flow.query";
 import { runQueryOptions } from "#/lib/runs.query";
 
 /**
@@ -22,11 +21,8 @@ export function RunPreview({
 	runId: string | null;
 }) {
 	const latest = useQuery({
-		queryKey: onboardingFlowKeys.latestRun(org, repo?.name ?? ""),
-		queryFn: ({ signal }) =>
-			getLatestRunId({ data: { org, repo: repo?.name ?? "" }, signal }),
+		...onboardingLatestRunQueryOptions(org, repo?.name ?? ""),
 		enabled: runId === null && repo !== null,
-		staleTime: 30_000,
 	});
 	const shown = runId ?? latest.data ?? null;
 	const run = useQuery({

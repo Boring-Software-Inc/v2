@@ -135,7 +135,7 @@ export const ONBOARDING_COPY = {
 		saveFailed: "Could not save the workflow.",
 		nothingTitle: "Nothing to draft",
 		nothingBody:
-			"All rules passed on the change requests you reported. There's nothing to draft.",
+			"No rules failed on the change requests you reported. There's nothing to draft.",
 	},
 	agents: {
 		title: "Use Tripwire with your coding agent",
