@@ -23,6 +23,7 @@ import { CardRouterLink } from "#/components/common/router-links";
 import { ZonedTime } from "#/components/timezones/zoned-time";
 import type { SwitcherRepo } from "#/lib/onboarding.functions";
 import { orgContextQueryOptions } from "#/lib/org.query";
+import { repoRouteKey } from "#/lib/repo-route";
 
 const SHORTCUTS = [
 	{
@@ -59,6 +60,7 @@ export function OrgHomeRepoCard({
 	org: string;
 	repo: SwitcherRepo;
 }) {
+	const routeRepo = repoRouteKey(repo);
 	const { data: permissions } = useQuery({
 		...orgContextQueryOptions(org),
 		select: (context) => context.permissions,
@@ -71,7 +73,7 @@ export function OrgHomeRepoCard({
 			<CardRouterLink
 				aria-label={`${FORGE_BY_ID[repo.forge].label} repository ${repo.fullName}`}
 				data-layout-role="repo-card-header-link"
-				params={{ org, repo: repo.name }}
+				params={{ org, repo: routeRepo }}
 				to="/$org/$repo"
 			>
 				<CardHeader>
@@ -121,7 +123,7 @@ export function OrgHomeRepoCard({
 					>
 						{shortcuts.map((shortcut) => (
 							<Button
-								href={`/${encodeURIComponent(org)}/${encodeURIComponent(repo.name)}/${shortcut.to.split("/").at(-1)}`}
+								href={`/${encodeURIComponent(org)}/${encodeURIComponent(routeRepo)}/${shortcut.to.split("/").at(-1)}`}
 								key={shortcut.to}
 								size="small"
 								variant="secondary"

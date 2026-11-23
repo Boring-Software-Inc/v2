@@ -1,5 +1,4 @@
 import {
-	forgeSchema,
 	GITCAFE_CONNECT_QUEUE,
 	type GitCafeConnectionJob,
 	type GitCafeConnectionRefusal,
@@ -321,24 +320,6 @@ export async function commitGitCafeConnection(
 			)
 				return { ok: false, reason: "ownership-conflict" };
 		}
-		/** Name-only dashboard routes use getOrgRepo's stored-forge and non-removed scope, regardless of installation state. */
-		const namesakes = await tx
-			.select({ forge: repos.forge, externalId: repos.externalId })
-			.from(repos)
-			.where(
-				and(
-					eq(repos.orgId, job.data.orgId),
-					sql`${repos.name} = ANY(${sql.param(selectedNames)}::text[])`,
-					inArray(repos.forge, [...forgeSchema.options]),
-					isNull(repos.removedAt),
-				),
-			);
-		if (
-			namesakes.some(
-				(row) => row.forge !== "gitcafe" || !selectedById.has(row.externalId),
-			)
-		)
-			return { ok: false, reason: "repository-conflict" };
 		if (job.data.authorizedAt > Date.now() || job.data.expiresAt <= Date.now())
 			return { ok: false, reason: "expired" };
 		if (!(await canManageGitCafeConnection(tx, job.data, true)))

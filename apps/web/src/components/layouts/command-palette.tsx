@@ -37,6 +37,8 @@ import { useSignOut } from "#/hooks/use-sign-out";
 import { armRepo, disarmRepo } from "#/lib/arm.functions";
 import type { SwitcherRepo } from "#/lib/onboarding.functions";
 import { myOrgsQueryOptions, orgHomeQueryOptions } from "#/lib/org.query";
+import { duplicateRepoNames, qualifiedRepoLabel } from "#/lib/repo-label";
+import { repoRouteKey } from "#/lib/repo-route";
 import { getLatestRunId } from "#/lib/runs.functions";
 
 interface PaletteItemBase {
@@ -289,13 +291,17 @@ export function CommandPalette({
 		// newest connection is exactly the one you are looking for, so it must not
 		// be the first thing the cap eats.
 		const visible = browsing ? capPerForge(sorted, BROWSE_CAP) : sorted;
+		const duplicateNames = duplicateRepoNames(sorted);
 		// Grouped by FORGE then owner, not owner alone. Two forges can hand you the
 		// same owner name, and "arm this repo" means different plumbing on each —
 		// they share the word "repos" and nothing else, so they don't share a group.
 		const groups = new Map<string, RepoGroup>();
 		for (const repo of visible) {
-			const item = repoItem(repo, currentRepo ?? null, () =>
-				go(`/${currentOrg}/${repo.name}${featurePath}`),
+			const item = repoItem(
+				repo,
+				currentRepo ?? null,
+				duplicateNames.has(repo.name),
+				() => go(`/${currentOrg}/${repoRouteKey(repo)}${featurePath}`),
 			);
 			if (!matches(item, terms)) {
 				continue;
@@ -347,7 +353,10 @@ export function CommandPalette({
 	});
 	const scopedRepo =
 		currentOrg && currentRepo
-			? (orgHome?.repos.find((repo) => repo.name === currentRepo) ?? null)
+			? (orgHome?.repos.find(
+					(repo) =>
+						repoRouteKey(repo) === currentRepo || repo.name === currentRepo,
+				) ?? null)
 			: null;
 	if (
 		currentOrg &&
@@ -625,9 +634,11 @@ export function CommandPalette({
 function repoItem(
 	repo: SwitcherRepo,
 	currentRepoName: string | null,
+	disambiguate: boolean,
 	onSelect: () => void,
 ): PaletteItem {
-	const isCurrent = repo.name === currentRepoName;
+	const isCurrent =
+		repoRouteKey(repo) === currentRepoName || repo.name === currentRepoName;
 	const statusBadges: CommandBadgeData[] = [];
 	if (!repo.armed) {
 		statusBadges.push({ label: "Tripwire off", variant: "outline" });
@@ -644,7 +655,7 @@ function repoItem(
 	return {
 		current: isCurrent,
 		id: `repo:${repo.id}`,
-		label: repo.name,
+		label: disambiguate ? qualifiedRepoLabel(repo) : repo.name,
 		searchTags: [
 			repo.owner,
 			repo.name,

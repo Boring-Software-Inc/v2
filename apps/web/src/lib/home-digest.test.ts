@@ -10,6 +10,8 @@ const EVENT_ID = generateId();
 function repo(overrides: Partial<DigestRepo> = {}): DigestRepo {
 	return {
 		id: "lumen",
+		forge: "github",
+		owner: "lumenhq",
 		name: "lumen",
 		fullName: "lumenhq/lumen",
 		armed: true,

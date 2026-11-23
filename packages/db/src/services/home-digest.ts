@@ -98,6 +98,8 @@ export async function loadHomeDigestRepos(
 			]);
 			return digestRepoSchema.parse({
 				id: repo.id,
+				forge: repo.forge,
+				owner: repo.owner,
 				name: repo.name,
 				fullName: repo.fullName,
 				armed: repo.armed,

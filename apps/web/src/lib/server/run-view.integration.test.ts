@@ -208,12 +208,12 @@ describe("loadRunView — §10 access model", () => {
 
 		// A member gets the scope, but user-1 is not an admin ⇒ no re-run.
 		const full = await loadRunView(db, publicRunId, SESSION);
-		expect(full?.repoName).toBe("pub");
+		expect(full?.repoName).toBe("github:acme:pub");
 		expect(full?.canRerun).toBe(false);
 
 		// Open-dev posture treats the viewer as admin ⇒ re-run is offered.
 		const dev = await loadRunView(db, publicRunId, OPEN_DEV);
-		expect(dev?.repoName).toBe("pub");
+		expect(dev?.repoName).toBe("github:acme:pub");
 		expect(dev?.canRerun).toBe(true);
 	});
 

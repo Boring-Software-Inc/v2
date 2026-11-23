@@ -7,10 +7,10 @@ export const Route = createFileRoute("/$org/$repo/moderation_/replay")({
 	staticData: { region: "rules" },
 	component: RulesReplayPage,
 	pendingComponent: RulesReplayPageSkeleton,
-	head: ({ params, match }) =>
+	head: ({ match }) =>
 		buildSeo({
 			path: match.pathname,
-			title: formatPageTitle(`${params.repo} | Rule replay`),
+			title: formatPageTitle(`${match.context.repo.name} | Rule replay`),
 			description: "What your rules would have done on recent change requests.",
 			noindex: true,
 		}),
