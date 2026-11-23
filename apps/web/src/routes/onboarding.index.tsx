@@ -7,6 +7,7 @@ import {
 	sessionInfoQueryOptions,
 } from "#/lib/auth.query";
 import {
+	onboardingReposQueryOptions,
 	onboardingStateQueryOptions,
 	onboardingWorkflowQueryOptions,
 } from "#/lib/onboarding-flow.query";
@@ -39,6 +40,9 @@ export const Route = createFileRoute("/onboarding/")({
 		await Promise.all([
 			org && reached >= ONBOARDING_STEPS.indexOf("connect")
 				? context.queryClient.ensureQueryData(orgHomeQueryOptions(org))
+				: null,
+			org && reached >= ONBOARDING_STEPS.indexOf("connect")
+				? context.queryClient.ensureQueryData(onboardingReposQueryOptions(org))
 				: null,
 			org &&
 			state.repo &&

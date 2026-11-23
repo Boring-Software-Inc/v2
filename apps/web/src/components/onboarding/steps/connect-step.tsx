@@ -5,7 +5,7 @@ import { Checkbox } from "@tripwire/ui/checkbox";
 import { Input } from "@tripwire/ui/field";
 import { External, Icon, Pending, Search } from "@tripwire/ui/icon";
 import { Skeleton } from "@tripwire/ui/skeleton";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { ONBOARDING_COPY } from "#/components/onboarding/onboarding-copy";
 import {
@@ -74,7 +74,9 @@ export function ConnectStep({ flow }: StepViewProps) {
 	const [opened, setOpened] = useState(false);
 	const { phase } = useConnectPhase(org, opened);
 
-	useEffect(() => {
+	// Before paint, so the preview never shows the page for a phase already
+	// past.
+	useLayoutEffect(() => {
 		if (phase) {
 			update({ connectPhase: phase });
 		}

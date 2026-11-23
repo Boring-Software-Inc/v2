@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { ONBOARDING_STEPS } from "@tripwire/contracts";
+import { ONBOARDING_STEPS, type OnboardingStep } from "@tripwire/contracts";
 import { UI_MOTION } from "@tripwire/ui/motion";
 import {
 	AnimatePresence,
@@ -134,19 +134,21 @@ function OnboardingLayout({
 			}
 		}
 	}, [flow.index, flow.state, flow.steps, queryClient]);
-	const dotFocus = useRef(false);
+	const dotFocus = useRef<OnboardingStep | null>(null);
 	const progressNav = useMemo<OnboardingProgressNav>(
 		() => ({
 			reached: flow.state.step,
 			labelFor: (step) => ONBOARDING_STEP_VIEWS[step].label,
 			visit: (step) => {
-				dotFocus.current = true;
+				dotFocus.current = step;
 				flow.visit(step);
 			},
-			takeFocus: () => {
-				const take = dotFocus.current;
-				dotFocus.current = false;
-				return take;
+			takeFocus: (step) => {
+				if (dotFocus.current !== step) {
+					return false;
+				}
+				dotFocus.current = null;
+				return true;
 			},
 		}),
 		[flow.state.step, flow.visit],

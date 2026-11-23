@@ -15,8 +15,8 @@ export interface OnboardingProgressNav {
 	reached: OnboardingStep;
 	labelFor: (step: OnboardingStep) => string;
 	visit: (step: OnboardingStep) => void;
-	/** True once after a dot moved the flow: the new step's dots take focus. */
-	takeFocus: () => boolean;
+	/** True once, for the step a dot just moved the flow to: its dots take focus. */
+	takeFocus: (step: OnboardingStep) => boolean;
 }
 
 const ProgressNavContext = createContext<OnboardingProgressNav | null>(null);
@@ -40,10 +40,10 @@ export function OnboardingProgress({
 	// A dot unmounts with the step it belongs to, so after one is used the
 	// matching dot on the new step takes focus, and the keyboard stays put.
 	useEffect(() => {
-		if (nav?.takeFocus()) {
+		if (nav?.takeFocus(current)) {
 			currentDot.current?.focus();
 		}
-	}, [nav]);
+	}, [nav, current]);
 	const at = steps.indexOf(current);
 	const furthest = ONBOARDING_STEPS.indexOf(nav?.reached ?? current);
 	return (
