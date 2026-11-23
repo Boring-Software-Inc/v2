@@ -1010,6 +1010,58 @@ async function admitPullReceipt(
 	return { ...inserted, receipt, payload };
 }
 
+test("a newly-created GitCafe subject retries read-after-write 404s", async () => {
+	const admitted = await admitPullReceipt();
+	expect(
+		await gitCafeLifecycleServices.dispatchGitCafeRepositoryReceipt(
+			database.db,
+			boss,
+			admitted.receiptId,
+		),
+	).toBe("dispatched");
+	const [row] = (
+		await database.pool.query<{ id: string }>(
+			"SELECT id FROM events WHERE delivery_id=$1",
+			[JSON.stringify([event.installation.id, admitted.payload.id])],
+		)
+	).rows;
+	if (!row) throw new Error("Missing GitCafe visibility event");
+	const reported: { retryable: boolean; status?: number }[] = [];
+	const result = await processEvent(
+		{
+			db: database.db,
+			pool: database.pool,
+			logger: pino({ level: "silent" }),
+			makeGenerate: null,
+			appUrl: "https://tripwire.test",
+			resumeNormalized: true,
+			reportGitCafePreparationFailure: (failure) => reported.push(failure),
+			resolveForge: () => ({
+				adapter: null,
+				reads: null,
+				signalHttp: null,
+				installationRepos: null,
+				isRepoPublic: null,
+				listThreads: null,
+				prepareEvent: async () => ({
+					ok: false,
+					reason: "http" as const,
+					status: 404,
+				}),
+			}),
+		},
+		{ eventId: row.id },
+	);
+	expect(result).toEqual({ retry: true, reason: "http" });
+	expect(reported).toEqual([
+		expect.objectContaining({ retryable: true, status: 404 }),
+	]);
+	expect(await eventServices.getEventById(database.db, row.id)).toMatchObject({
+		quarantined: false,
+		processedAt: null,
+	});
+});
+
 test("signed issue.created reaches the worker as issue moderation evidence", async () => {
 	const fixture = (name: string): Promise<unknown> =>
 		Bun.file(new URL(`${name}.json`, base)).json();

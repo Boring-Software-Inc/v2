@@ -9,3 +9,11 @@ export function backoffWithJitter(
 	const ceiling = Math.min(capMs, baseMs * 2 ** attempt);
 	return Math.random() * ceiling;
 }
+
+/** HTTP responses that can be transient at forge read-after-write boundaries. */
+export function isRetryableForgeStatus(status: number | undefined): boolean {
+	return (
+		status !== undefined &&
+		([404, 408, 409, 425, 429].includes(status) || status >= 500)
+	);
+}
