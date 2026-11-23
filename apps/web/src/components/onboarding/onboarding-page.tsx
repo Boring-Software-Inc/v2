@@ -1,6 +1,11 @@
 import { UI_MOTION } from "@tripwire/ui/motion";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useEffect, useRef } from "react";
+import {
+	AnimatePresence,
+	LayoutGroup,
+	motion,
+	useReducedMotion,
+} from "motion/react";
+import { useEffect, useMemo, useRef } from "react";
 import { BrandLockup } from "#/components/auth/brand-lockup";
 import { ONBOARDING_COPY } from "#/components/onboarding/onboarding-copy";
 import {
@@ -8,12 +13,19 @@ import {
 	useOnboardingDraft,
 } from "#/components/onboarding/onboarding-draft";
 import {
+	type OnboardingProgressNav,
+	OnboardingProgressNavProvider,
+} from "#/components/onboarding/onboarding-frame";
+import {
 	ONBOARDING_STEP_VIEWS,
 	type StepView,
 } from "#/components/onboarding/onboarding-steps";
 import { PreviewStage } from "#/components/onboarding/preview/preview-stage";
 import { SkipSetup } from "#/components/onboarding/skip-setup";
-import { WelcomeIntro } from "#/components/onboarding/steps/welcome-intro";
+import {
+	ONBOARDING_BRAND_LAYOUT_ID,
+	WelcomeIntro,
+} from "#/components/onboarding/steps/welcome-intro";
 import {
 	type StepDirection,
 	useOnboardingFlow,
@@ -47,21 +59,37 @@ const PREVIEW_MIN_WIDTH = "(min-width: 64rem)";
 
 export function OnboardingPage() {
 	const flow = useOnboardingFlow();
+	// Whether this visit opened on the welcome, so step 1 arrives with motion
+	// rather than already in place.
+	const openedOnWelcome = useRef(flow.step === "welcome");
 	return (
 		<OnboardingDraftProvider answers={flow.state.answers}>
-			{flow.step === "welcome" ? (
-				<WelcomeIntro onDone={() => flow.advance()} />
-			) : (
-				<OnboardingLayout flow={flow} />
-			)}
+			{/* The welcome fades out over the flow while its wordmark travels into
+			    the brand lockup, so the hand-off has no cut. */}
+			<LayoutGroup>
+				<AnimatePresence initial={false}>
+					{flow.step === "welcome" ? (
+						<WelcomeIntro key="welcome" onDone={() => flow.advance()} />
+					) : (
+						<OnboardingLayout
+							arriving={openedOnWelcome.current}
+							flow={flow}
+							key="flow"
+						/>
+					)}
+				</AnimatePresence>
+			</LayoutGroup>
 		</OnboardingDraftProvider>
 	);
 }
 
 function OnboardingLayout({
 	flow,
+	arriving,
 }: {
 	flow: ReturnType<typeof useOnboardingFlow>;
+	/** Coming from the welcome: the first step rises in instead of being there. */
+	arriving: boolean;
 }) {
 	const [draft] = useOnboardingDraft();
 	const reduceMotion = useReducedMotion();
@@ -80,65 +108,83 @@ function OnboardingLayout({
 	});
 	const resize =
 		reduceMotion || !stepChanged ? { duration: 0 } : UI_MOTION.column;
+	const progressNav = useMemo<OnboardingProgressNav>(
+		() => ({
+			reached: flow.state.step,
+			labelFor: (step) => ONBOARDING_STEP_VIEWS[step].label,
+			visit: flow.visit,
+		}),
+		[flow.state.step, flow.visit],
+	);
 
 	return (
-		<div data-layout-role="onboarding-shell">
-			<motion.main
-				animate={{ flexGrow: showPreview ? 0 : 1 }}
-				data-layout-role="onboarding-column"
-				initial={false}
-				transition={resize}
-			>
-				<BrandLockup />
-				{/* Sized to where the column ends up, not where it is mid-resize, so
-				    the form only rises and falls and never slides sideways. */}
-				<div
-					data-layout-role="onboarding-column-body"
-					data-preview={showPreview ? "true" : "false"}
+		<OnboardingProgressNavProvider value={progressNav}>
+			<div data-layout-role="onboarding-shell">
+				<motion.main
+					animate={{ flexGrow: showPreview ? 0 : 1 }}
+					data-layout-role="onboarding-column"
+					initial={false}
+					transition={resize}
 				>
-					<div data-layout-role="onboarding-stage">
-						{/* popLayout lifts the leaving step out of the layout, so the
+					<motion.div
+						data-layout-role="onboarding-brand-slot"
+						layoutId={ONBOARDING_BRAND_LAYOUT_ID}
+						transition={{ layout: UI_MOTION.track }}
+					>
+						<BrandLockup />
+					</motion.div>
+					{/* Sized to where the column ends up, not where it is mid-resize, so
+				    the form only rises and falls and never slides sideways. */}
+					<div
+						data-layout-role="onboarding-column-body"
+						data-preview={showPreview ? "true" : "false"}
+					>
+						<div data-layout-role="onboarding-stage">
+							{/* popLayout lifts the leaving step out of the layout, so the
 						    arriving one is centred on its own height from the first frame. */}
-						<AnimatePresence
-							custom={flow.direction}
-							initial={false}
-							mode="popLayout"
-						>
-							<motion.section
-								animate="center"
-								aria-label={view.label}
+							<AnimatePresence
 								custom={flow.direction}
-								data-layout-role="onboarding-step"
-								data-wide={view.wide ? "true" : "false"}
-								exit="exit"
-								initial="enter"
-								key={flow.step}
-								transition={reduceMotion ? UI_MOTION.state : UI_MOTION.column}
-								variants={reduceMotion ? COLUMN_FADE_VARIANTS : COLUMN_VARIANTS}
+								initial={arriving}
+								mode="popLayout"
 							>
-								<Form flow={flow} />
-							</motion.section>
-						</AnimatePresence>
+								<motion.section
+									animate="center"
+									aria-label={view.label}
+									custom={flow.direction}
+									data-layout-role="onboarding-step"
+									data-wide={view.wide ? "true" : "false"}
+									exit="exit"
+									initial="enter"
+									key={flow.step}
+									transition={reduceMotion ? UI_MOTION.state : UI_MOTION.column}
+									variants={
+										reduceMotion ? COLUMN_FADE_VARIANTS : COLUMN_VARIANTS
+									}
+								>
+									<Form flow={flow} />
+								</motion.section>
+							</AnimatePresence>
+						</div>
+						<SkipSetup flow={flow} label={ONBOARDING_COPY.skipSetup} />
 					</div>
-					<SkipSetup flow={flow} label={ONBOARDING_COPY.skipSetup} />
-				</div>
-			</motion.main>
-			<motion.div
-				animate={{ flexGrow: showPreview ? 1 : 0 }}
-				data-layout-role="onboarding-preview-slot"
-				initial={false}
-				transition={resize}
-			>
-				<PreviewStage
-					direction={flow.direction}
-					live={wideScreen}
-					slide={
-						previewKey && Preview
-							? { key: previewKey, node: <Preview flow={flow} /> }
-							: null
-					}
-				/>
-			</motion.div>
-		</div>
+				</motion.main>
+				<motion.div
+					animate={{ flexGrow: showPreview ? 1 : 0 }}
+					data-layout-role="onboarding-preview-slot"
+					initial={false}
+					transition={resize}
+				>
+					<PreviewStage
+						direction={flow.direction}
+						live={wideScreen}
+						slide={
+							previewKey && Preview
+								? { key: previewKey, node: <Preview flow={flow} /> }
+								: null
+						}
+					/>
+				</motion.div>
+			</div>
+		</OnboardingProgressNavProvider>
 	);
 }

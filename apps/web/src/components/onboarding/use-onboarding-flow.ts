@@ -175,6 +175,19 @@ export function useOnboardingFlow() {
 		[goTo, save, state, step],
 	);
 
+	/** Shows a step already reached, back or forward, without saving anything. */
+	const visit = useCallback(
+		(target: OnboardingStep) => {
+			const reached =
+				ONBOARDING_STEPS.indexOf(target) <=
+				ONBOARDING_STEPS.indexOf(state.step);
+			if (reached && steps.includes(target) && target !== step) {
+				void navigate({ search: { step: target } });
+			}
+		},
+		[navigate, state.step, step, steps],
+	);
+
 	const back = useCallback(() => {
 		const previous = steps[index - 1];
 		if (previous) {
@@ -207,6 +220,7 @@ export function useOnboardingFlow() {
 		advance,
 		goTo,
 		back,
+		visit,
 		save: save.mutate,
 		finish: finish.mutate,
 		finishing: finish.isPending,

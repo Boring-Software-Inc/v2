@@ -10,6 +10,7 @@ import type {
 /** Onboarding copy, verbatim from the approved design and Echo. */
 export const ONBOARDING_COPY = {
 	skipSetup: "Skip setup",
+	progressNav: "Onboarding steps",
 	continue: "Continue",
 	skip: "Skip",
 	saveFailed: "Could not save. Try again.",

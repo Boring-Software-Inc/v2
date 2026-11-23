@@ -41,6 +41,12 @@
 	}
 }
 
+/* Holds the brand lockup to its own size, the box the welcome wordmark
+   flies into. */
+[data-layout-role="onboarding-brand-slot"] {
+	align-self: flex-start;
+}
+
 [data-layout-role="onboarding-brand"] {
 	display: flex;
 	align-items: center;
@@ -122,28 +128,58 @@
 	}
 }
 
+/*
+ * Each dot sits in a taller hit area, so a 4px dot is still easy to click.
+ * Steps already reached are buttons: their dot grows under the pointer.
+ */
 [data-layout-role="onboarding-progress"] {
 	display: flex;
-	gap: var(--space-1);
-	padding-block-end: var(--space-3);
+	align-items: center;
+	margin-block-end: var(--space-1);
 
-	& > span {
+	& > * {
+		display: grid;
+		place-items: center;
+		block-size: var(--space-4);
+		padding-inline: 2px;
+		border-radius: var(--radius-pill);
+	}
+
+	& > button {
+		cursor: pointer;
+
+		&:focus-visible {
+			outline: 2px solid var(--focus);
+			outline-offset: 0;
+		}
+	}
+
+	& [data-part="dot"] {
 		block-size: 4px;
 		inline-size: 4px;
 		border-radius: var(--radius-pill);
 		background-color: var(--line-control);
 		transition:
 			inline-size var(--dur-step) var(--ease-step),
+			block-size var(--dur-step) var(--ease-step),
 			background-color var(--dur-state) var(--ease-out);
 	}
 
-	& > span[data-state="done"] {
+	& > [data-state="done"] [data-part="dot"] {
 		background-color: var(--text-3);
 	}
 
-	& > span[data-state="current"] {
+	& > [data-state="current"] [data-part="dot"] {
 		inline-size: 20px;
 		background-color: var(--text-1);
+	}
+
+	&
+		> button:is(:hover, :focus-visible):not([data-state="current"])
+		[data-part="dot"] {
+		block-size: 6px;
+		inline-size: 12px;
+		background-color: var(--text-2);
 	}
 }
 
@@ -392,8 +428,12 @@
 	gap: var(--space-3);
 }
 
+/* Fixed over the flow, so while it fades out the first step is already
+   there underneath. */
 [data-layout-role="onboarding-welcome"] {
-	position: relative;
+	position: fixed;
+	inset: 0;
+	z-index: 1;
 	isolation: isolate;
 	display: grid;
 	place-items: center;

@@ -6,6 +6,9 @@ import { ShaderDither } from "#/components/dither/shader-dither";
 import { ONBOARDING_COPY } from "#/components/onboarding/onboarding-copy";
 import { siteConfig } from "#/lib/site-config";
 
+/** The welcome wordmark and the flow's brand lockup, one element to motion. */
+export const ONBOARDING_BRAND_LAYOUT_ID = "onboarding-brand";
+
 /** Fade up, hold, then hand off to the first step. */
 const HOLD_MS = 2500;
 const REDUCED_HOLD_MS = 900;
@@ -41,7 +44,11 @@ export function WelcomeIntro({ onDone }: { onDone: () => void }) {
 	}, [reduceMotion]);
 
 	return (
-		<div data-layout-role="onboarding-welcome">
+		<motion.div
+			data-layout-role="onboarding-welcome"
+			exit={{ opacity: 0 }}
+			transition={UI_MOTION.column}
+		>
 			<ShaderDither
 				className="onboarding-welcome-dither"
 				mask="bottom"
@@ -58,11 +65,17 @@ export function WelcomeIntro({ onDone }: { onDone: () => void }) {
 				transition={UI_MOTION.column}
 			>
 				<span data-part="lead">{ONBOARDING_COPY.welcome.lead}</span>
-				<span data-part="mark">
+				{/* Shares a layout id with the flow's brand lockup: on the way out it
+				    travels from the centre into the top corner. */}
+				<motion.span
+					data-part="mark"
+					layoutId={ONBOARDING_BRAND_LAYOUT_ID}
+					transition={{ layout: UI_MOTION.track }}
+				>
 					<TripwireWordmark height={28} width={44} />
 					<span>{siteConfig.name.toLowerCase()}</span>
-				</span>
+				</motion.span>
 			</motion.h1>
-		</div>
+		</motion.div>
 	);
 }

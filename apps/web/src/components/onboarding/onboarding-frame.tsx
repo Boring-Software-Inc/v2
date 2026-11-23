@@ -1,10 +1,24 @@
-import type { OnboardingStep } from "@tripwire/contracts";
+import { ONBOARDING_STEPS, type OnboardingStep } from "@tripwire/contracts";
 import { PageTitle, SupportingText } from "@tripwire/ui/typography";
-import type { ReactNode } from "react";
+import { createContext, type ReactNode, useContext } from "react";
+import { ONBOARDING_COPY } from "#/components/onboarding/onboarding-copy";
+
+/** What the dots need to move between steps, supplied by the onboarding page. */
+export interface OnboardingProgressNav {
+	/** The furthest step reached; dots up to it can be visited. */
+	reached: OnboardingStep;
+	labelFor: (step: OnboardingStep) => string;
+	visit: (step: OnboardingStep) => void;
+}
+
+const ProgressNavContext = createContext<OnboardingProgressNav | null>(null);
+
+export const OnboardingProgressNavProvider = ProgressNavContext.Provider;
 
 /**
  * The progress dots: one per step the user will see, the current one long.
- * Decorative, since the step title already says where they are.
+ * A dot for a step already reached is a button back (or forward again) to
+ * it, and grows under the pointer; later steps stay plain dots.
  */
 export function OnboardingProgress({
 	steps,
@@ -13,18 +27,40 @@ export function OnboardingProgress({
 	steps: readonly OnboardingStep[];
 	current: OnboardingStep;
 }) {
+	const nav = useContext(ProgressNavContext);
 	const at = steps.indexOf(current);
+	const furthest = ONBOARDING_STEPS.indexOf(nav?.reached ?? current);
 	return (
-		<div aria-hidden="true" data-layout-role="onboarding-progress">
+		<nav
+			aria-label={ONBOARDING_COPY.progressNav}
+			data-layout-role="onboarding-progress"
+		>
 			{steps
 				.filter((step) => step !== "welcome")
 				.map((step) => {
 					const index = steps.indexOf(step);
 					const state =
 						index < at ? "done" : index === at ? "current" : "upcoming";
-					return <span data-state={state} key={step} />;
+					const reachable =
+						nav !== null && ONBOARDING_STEPS.indexOf(step) <= furthest;
+					return reachable ? (
+						<button
+							aria-current={state === "current" ? "step" : undefined}
+							aria-label={nav.labelFor(step)}
+							data-state={state}
+							key={step}
+							onClick={() => nav.visit(step)}
+							type="button"
+						>
+							<span data-part="dot" />
+						</button>
+					) : (
+						<span aria-hidden="true" data-state={state} key={step}>
+							<span data-part="dot" />
+						</span>
+					);
 				})}
-		</div>
+		</nav>
 	);
 }
 
