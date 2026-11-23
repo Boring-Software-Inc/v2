@@ -12,6 +12,7 @@ import {
 import {
 	GitCafeInstallationClient,
 	type GitCafeInstallationClientOptions,
+	GitCafeInstallationClientState,
 } from "@tripwire/forge-gitcafe";
 import { generateId } from "@tripwire/utils";
 import membersFixture from "../fixtures/gitcafe-connection-members.json";
@@ -409,6 +410,45 @@ describe("GitCafe installation client", () => {
 		await client.getToken(installation.id);
 		await client.getToken(installation.id);
 		expect(h.calls.map((c) => c.init.method)).toEqual(["GET", "POST", "GET"]);
+	});
+
+	test("reuses one installation token across runtime-scoped clients", async () => {
+		const h = harness();
+		const state = new GitCafeInstallationClientState(credentials);
+		const first = new GitCafeInstallationClient({
+			credentials,
+			now: h.now,
+			fetch: h.fetch,
+			state,
+		});
+		const second = new GitCafeInstallationClient({
+			credentials,
+			now: h.now,
+			fetch: h.fetch,
+			state,
+		});
+
+		expect((await first.getToken(installation.id)).ok).toBe(true);
+		expect((await second.getToken(installation.id)).ok).toBe(true);
+		expect(h.calls.map((call) => call.init.method)).toEqual([
+			"GET",
+			"POST",
+			"GET",
+		]);
+	});
+
+	test("refuses shared state from different app credentials", () => {
+		const h = harness();
+		const state = new GitCafeInstallationClientState(credentials);
+		expect(
+			() =>
+				new GitCafeInstallationClient({
+					credentials: { ...credentials, keyId: "another-key" },
+					now: h.now,
+					fetch: h.fetch,
+					state,
+				}),
+		).toThrow("GitCafe client state belongs to different credentials");
 	});
 
 	test("coalesces concurrent lookup and mint calls", async () => {

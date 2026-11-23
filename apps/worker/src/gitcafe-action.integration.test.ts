@@ -1311,6 +1311,10 @@ for (const scenario of [
 					if (!deliveryEnabled)
 						return new Response(null, {
 							status: scenario === "comment-outage" ? 429 : 503,
+							headers:
+								scenario === "comment-outage"
+									? { "retry-after": "0.001" }
+									: undefined,
 						});
 					const input = gitCafeActionCommentWriteSchema.parse(
 						JSON.parse(String(init.body)),

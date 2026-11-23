@@ -30,6 +30,7 @@ export {
 	type GitCafeAuthorizedRequest,
 	GitCafeInstallationClient,
 	type GitCafeInstallationClientOptions,
+	GitCafeInstallationClientState,
 	type GitCafeInstallationFailure,
 	type GitCafeInstallationResult,
 	type GitCafeReadResource,
