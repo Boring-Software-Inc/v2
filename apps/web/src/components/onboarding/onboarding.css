@@ -9,6 +9,12 @@
 	overflow-x: clip;
 	background-color: var(--page);
 	color: var(--text-1);
+
+	/* Too narrow for the preview: the column takes the screen, from the
+	   server's first paint on, whatever flex-grow motion has set. */
+	@media (max-width: 63.99rem) {
+		display: block;
+	}
 }
 
 /* Motion animates flex-grow between these two, so the preview grows in. */
@@ -26,6 +32,10 @@
 	display: flex;
 	flex: 0 1 0;
 	min-inline-size: 0;
+
+	@media (max-width: 63.99rem) {
+		display: none;
+	}
 }
 
 [data-layout-role="onboarding-brand"] {
@@ -123,16 +133,11 @@
 
 [data-layout-role="onboarding-preview"] {
 	position: relative;
-	display: none;
 	flex: 1;
 	overflow: hidden;
 	margin: var(--space-4) 0 var(--space-4) var(--space-4);
 	border-radius: var(--radius-shell) 0 0 var(--radius-shell);
 	background-color: var(--shell);
-
-	@media (min-width: 64rem) {
-		display: block;
-	}
 }
 
 [data-layout-role="onboarding-preview-dither"] {
@@ -250,6 +255,11 @@
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
 	gap: var(--space-2);
+
+	/* Two to a row on phones, so all eight fit in about a screen. */
+	@media (max-width: 30rem) {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
 }
 
 [data-layout-role="onboarding-tile"] {
@@ -325,6 +335,14 @@
 
 	&[aria-pressed="true"] [data-part="art"] {
 		opacity: 1;
+	}
+
+	@media (max-width: 30rem) {
+		min-block-size: 0;
+
+		& [data-part="art"] {
+			block-size: 48px;
+		}
 	}
 }
 

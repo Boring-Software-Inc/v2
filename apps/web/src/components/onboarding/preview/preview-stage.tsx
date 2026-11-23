@@ -38,34 +38,42 @@ const FADE_VARIANTS = {
 export function PreviewStage({
 	slide,
 	direction,
+	live,
 }: {
 	slide: PreviewSlide | null;
 	direction: StepDirection;
+	/** False until the screen is known to be wide enough: the panel holds its
+	 * place from the first paint and its contents arrive once it is. */
+	live: boolean;
 }) {
 	const reduceMotion = useReducedMotion();
 	return (
 		<aside data-layout-role="onboarding-preview">
-			<div data-layout-role="onboarding-preview-dither">
-				<ShaderDither mask="edges" tone="faint" />
-			</div>
-			<div data-layout-role="onboarding-track">
-				<AnimatePresence custom={direction} initial={false}>
-					{slide ? (
-						<motion.div
-							animate="center"
-							custom={direction}
-							data-layout-role="onboarding-track-item"
-							exit="exit"
-							initial="enter"
-							key={slide.key}
-							transition={reduceMotion ? UI_MOTION.state : UI_MOTION.track}
-							variants={reduceMotion ? FADE_VARIANTS : TRACK_VARIANTS}
-						>
-							{slide.node}
-						</motion.div>
-					) : null}
-				</AnimatePresence>
-			</div>
+			{live ? (
+				<>
+					<div data-layout-role="onboarding-preview-dither">
+						<ShaderDither mask="edges" tone="faint" />
+					</div>
+					<div data-layout-role="onboarding-track">
+						<AnimatePresence custom={direction} initial={false}>
+							{slide ? (
+								<motion.div
+									animate="center"
+									custom={direction}
+									data-layout-role="onboarding-track-item"
+									exit="exit"
+									initial="enter"
+									key={slide.key}
+									transition={reduceMotion ? UI_MOTION.state : UI_MOTION.track}
+									variants={reduceMotion ? FADE_VARIANTS : TRACK_VARIANTS}
+								>
+									{slide.node}
+								</motion.div>
+							) : null}
+						</AnimatePresence>
+					</div>
+				</>
+			) : null}
 		</aside>
 	);
 }
