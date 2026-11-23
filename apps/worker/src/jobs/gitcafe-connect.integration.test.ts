@@ -288,6 +288,7 @@ beforeEach(async () => {
 	repositoryResponse = repository;
 	deps = {
 		db,
+		appId: installation.appId,
 		client: {
 			getInstallation: async () => {
 				lookupCount++;
@@ -347,7 +348,10 @@ test("explicit bounded action persists first-class GitCafe rows without linking 
 test("actual installed client connects captured authority through the real PostgreSQL job", async () => {
 	const transport = installedTransport();
 	expect(
-		await connectGitCafeInstallation({ db, client: transport.client }, job),
+		await connectGitCafeInstallation(
+			{ db, appId: installation.appId, client: transport.client },
+			job,
+		),
 	).toEqual({ ok: true, repoCount: 1 });
 	expect(transport.counts()).toEqual({
 		lookups: 10,
@@ -367,7 +371,10 @@ for (const selection of ["all", "selected"] as const) {
 	test(`actual worker connects synthetic multi-page ${selection} authority beyond 100 repos and members`, async () => {
 		const transport = paginatedTransport(selection);
 		expect(
-			await connectGitCafeInstallation({ db, client: transport.client }, job),
+			await connectGitCafeInstallation(
+				{ db, appId: installation.appId, client: transport.client },
+				job,
+			),
 		).toEqual({ ok: true, repoCount: 151 });
 		expect(await db.select().from(repos)).toHaveLength(151);
 		expect(transport.counts).toEqual({
@@ -413,7 +420,7 @@ for (const page of [2, 6]) {
 				if (scenario === "membership") revoked = true;
 			});
 			const result = await connectGitCafeInstallation(
-				{ db, client: transport.client },
+				{ db, appId: installation.appId, client: transport.client },
 				job,
 			);
 			expect(result).toEqual({
@@ -441,7 +448,10 @@ for (const phase of ["lookup", "mint", "members", "repos"] as const) {
 				return undefined;
 			});
 			expect(
-				await connectGitCafeInstallation({ db, client: transport.client }, job),
+				await connectGitCafeInstallation(
+					{ db, appId: installation.appId, client: transport.client },
+					job,
+				),
 			).toEqual({ ok: false, reason: "expired" });
 			expect(await db.select().from(repos)).toHaveLength(0);
 			expect(await db.select().from(organizationInstallations)).toHaveLength(0);
@@ -465,7 +475,10 @@ for (const lookup of [5, 10]) {
 				installation: change.value,
 			});
 			expect(
-				await connectGitCafeInstallation({ db, client: transport.client }, job),
+				await connectGitCafeInstallation(
+					{ db, appId: installation.appId, client: transport.client },
+					job,
+				),
 			).toEqual({ ok: false, reason: "installation-mismatch" });
 			expect(transport.counts().lookups).toBe(lookup);
 			expect(transport.counts().memberReads).toBe(lookup === 5 ? 1 : 3);
@@ -481,7 +494,10 @@ test("actual client refuses membership revoked after the final repository respon
 		membersAfterRepo: { ...membership, items: [] },
 	});
 	expect(
-		await connectGitCafeInstallation({ db, client: transport.client }, job),
+		await connectGitCafeInstallation(
+			{ db, appId: installation.appId, client: transport.client },
+			job,
+		),
 	).toEqual({ ok: false, reason: "not-admin" });
 	expect(transport.counts().memberReads).toBe(4);
 	expect(await db.select().from(organizationInstallations)).toHaveLength(0);
@@ -1573,7 +1589,12 @@ for (const selection of ["all", "selected"] as const) {
 		const transport = paginatedTransport(selection);
 		expect(
 			await connectGitCafeInstallation(
-				{ db, client: transport.client, lifecycleEnabled: true },
+				{
+					db,
+					appId: installation.appId,
+					client: transport.client,
+					lifecycleEnabled: true,
+				},
 				job,
 			),
 		).toEqual({ ok: true, repoCount: 151 });

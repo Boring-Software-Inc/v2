@@ -1,6 +1,6 @@
 import {
 	GITCAFE_LIFECYCLE_QUEUE,
-	GITCAFE_RECEIPT_APP_ID,
+	gitCafeAppIdSchema,
 } from "@tripwire/contracts";
 import { createDb, gitCafeLifecycleServices } from "@tripwire/db";
 import type { Logger } from "pino";
@@ -11,8 +11,8 @@ import {
 } from "./gitcafe-lifecycle-consumer.ts";
 
 export const gitCafeLifecycleWorkerEnvSchema = z.object({
-	UNKEY_ENVIRONMENT_SLUG: z.literal("preview"),
-	GITCAFE_APP_ID: z.literal(GITCAFE_RECEIPT_APP_ID),
+	UNKEY_ENVIRONMENT_SLUG: z.enum(["preview", "production"]),
+	GITCAFE_APP_ID: gitCafeAppIdSchema,
 	DATABASE_URL: z.string().min(1),
 	GITCAFE_WEBHOOK_RECEIPTS_ENABLED: z.literal("true"),
 	PORT: z.coerce
@@ -29,7 +29,7 @@ export async function startGitCafeLifecycleWorker(
 ): Promise<void> {
 	const parsed = gitCafeLifecycleWorkerEnvSchema.safeParse(process.env);
 	if (!parsed.success)
-		throw new Error("Invalid staging GitCafe lifecycle worker configuration");
+		throw new Error("Invalid GitCafe lifecycle worker configuration");
 	const env = parsed.data;
 	const { db, pool } = createDb(env.DATABASE_URL);
 	const boss = await gitCafeLifecycleServices.createGitCafeLifecycleBoss(

@@ -90,7 +90,7 @@ export function resolveGitCafeProtectionEnv(
 	if (environment.GITCAFE_WEBHOOK_RECEIPTS_ENABLED !== "true") return null;
 	const parsed = gitCafeConnectionWorkerEnvSchema.safeParse(environment);
 	if (!parsed.success)
-		throw new Error("Invalid staging GitCafe protection worker configuration");
+		throw new Error("Invalid GitCafe protection worker configuration");
 	return parsed.data;
 }
 
@@ -499,7 +499,17 @@ export async function startGitCafeProtectionRuntime(
 		keyId: env.GITCAFE_APP_KEY_ID,
 		privateKey: env.GITCAFE_APP_PRIVATE_KEY.replaceAll("\\n", "\n"),
 	};
-	const runtime = buildGitCafeRuntime(db, credentials, undefined, actionPool);
+	const appUrl =
+		env.UNKEY_ENVIRONMENT_SLUG === "production"
+			? "https://app.tripwire.sh"
+			: "https://staging.tripwire.sh";
+	const runtime = buildGitCafeRuntime(
+		db,
+		credentials,
+		undefined,
+		actionPool,
+		appUrl,
+	);
 	const resolveForge = (forge: Forge) => (forge === "gitcafe" ? runtime : null);
 	const inferenceKey =
 		process.env.OPENROUTER_API_KEY_PROD ?? process.env.OPENROUTER_API_KEY;
@@ -528,7 +538,7 @@ export async function startGitCafeProtectionRuntime(
 				logger,
 				resolveForge,
 				makeGenerate,
-				appUrl: "https://staging.tripwire.sh",
+				appUrl,
 			},
 			boss,
 			runtime.prepareCheckRerequest,
@@ -545,7 +555,7 @@ export async function startGitCafeProtectionRuntime(
 		);
 		await boss.createQueue(GITCAFE_CONNECT_QUEUE);
 		await registerGitCafeConnectionConsumer(
-			{ db, client, lifecycleEnabled: true },
+			{ db, appId: env.GITCAFE_APP_ID, client, lifecycleEnabled: true },
 			boss,
 			logger,
 			health.degrade,
@@ -656,7 +666,7 @@ export async function startGitCafeProtectionWorker(
 	}
 	const runtime = await startGitCafeProtectionRuntime(logger);
 	if (!runtime)
-		throw new Error("Invalid staging GitCafe protection worker configuration");
+		throw new Error("Invalid GitCafe protection worker configuration");
 	const port = gitCafeConnectionWorkerEnvSchema.parse(process.env).PORT;
 	const server = Bun.serve({
 		port,

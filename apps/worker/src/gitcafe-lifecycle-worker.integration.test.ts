@@ -95,7 +95,12 @@ for (const mode of ["standalone", "combined"] as const) {
 					invalid: true,
 				});
 				const registration = await registerGitCafeConnectionQueues(
-					{ db, client: unavailableClient, lifecycleEnabled: true },
+					{
+						db,
+						appId: GITCAFE_RECEIPT_APP_ID,
+						client: unavailableClient,
+						lifecycleEnabled: true,
+					},
 					boss,
 					logger,
 				);
@@ -176,7 +181,12 @@ test("combined registration refuses missing lifecycle schema while legacy connec
 		);
 		await expect(
 			registerGitCafeConnectionQueues(
-				{ db, client: unavailableClient, lifecycleEnabled: true },
+				{
+					db,
+					appId: GITCAFE_RECEIPT_APP_ID,
+					client: unavailableClient,
+					lifecycleEnabled: true,
+				},
 				boss,
 				logger,
 			),
@@ -189,7 +199,12 @@ test("combined registration refuses missing lifecycle schema while legacy connec
 			).rowCount,
 		).toBe(0);
 		const registration = await registerGitCafeConnectionQueues(
-			{ db, client: unavailableClient, lifecycleEnabled: false },
+			{
+				db,
+				appId: GITCAFE_RECEIPT_APP_ID,
+				client: unavailableClient,
+				lifecycleEnabled: false,
+			},
 			boss,
 			logger,
 		);
@@ -408,7 +423,12 @@ for (const recoveryCase of [
 				}
 			}
 			await registerGitCafeConnectionQueues(
-				{ db, client: unavailableClient, lifecycleEnabled: true },
+				{
+					db,
+					appId: GITCAFE_RECEIPT_APP_ID,
+					client: unavailableClient,
+					lifecycleEnabled: true,
+				},
 				restarted,
 				logger,
 			);

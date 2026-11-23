@@ -1,6 +1,7 @@
 import {
 	GITCAFE_CONNECT_QUEUE,
 	GITCAFE_LIFECYCLE_QUEUE,
+	gitCafeAppIdSchema,
 	gitCafeConnectionJobSchema,
 	gitCafeConnectionResultSchema,
 } from "@tripwire/contracts";
@@ -15,7 +16,6 @@ import {
 } from "./gitcafe-lifecycle-consumer.ts";
 import {
 	connectGitCafeInstallation,
-	GITCAFE_STAGING_APP_ID,
 	type GitCafeConnectionDeps,
 } from "./jobs/gitcafe-connect.ts";
 
@@ -29,7 +29,7 @@ export type WorkerMode = z.infer<typeof workerModeSchema>;
 
 export const gitCafeConnectionWorkerEnvSchema = z.object({
 	UNKEY_ENVIRONMENT_SLUG: z.enum(["preview", "production"]),
-	GITCAFE_APP_ID: z.literal(GITCAFE_STAGING_APP_ID),
+	GITCAFE_APP_ID: gitCafeAppIdSchema,
 	GITCAFE_APP_KEY_ID: z.string().regex(/^[A-Za-z0-9._-]{1,64}$/),
 	GITCAFE_APP_PRIVATE_KEY: z.string().min(1),
 	DATABASE_URL: z.string().min(1),
@@ -110,7 +110,7 @@ export async function startGitCafeConnectionWorker(
 ): Promise<void> {
 	const parsed = gitCafeConnectionWorkerEnvSchema.safeParse(process.env);
 	if (!parsed.success)
-		throw new Error("Invalid staging GitCafe connection worker configuration");
+		throw new Error("Invalid GitCafe connection worker configuration");
 	const env = parsed.data;
 	const { db, pool } = createDb(env.DATABASE_URL);
 	const boss = await createGitCafeConnectionBoss(env.DATABASE_URL, logger);
@@ -125,7 +125,7 @@ export async function startGitCafeConnectionWorker(
 	let registration: Awaited<ReturnType<typeof registerGitCafeConnectionQueues>>;
 	try {
 		registration = await registerGitCafeConnectionQueues(
-			{ db, client, lifecycleEnabled },
+			{ db, appId: env.GITCAFE_APP_ID, client, lifecycleEnabled },
 			boss,
 			logger,
 		);
