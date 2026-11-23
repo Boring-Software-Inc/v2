@@ -400,6 +400,13 @@
       "when": 1795388770475,
       "tag": "0056_wandering_sugar_man",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1795457895348,
+      "tag": "0057_user_onboarding",
+      "breakpoints": true
     }
   ]
 }

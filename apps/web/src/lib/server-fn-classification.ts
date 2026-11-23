@@ -53,6 +53,14 @@ export const SERVER_FN_CLASSIFICATION: ServerFnClassification = {
 	// ── authed (approved session, no org scope) ─────────────────────────
 	listMyOrgs: "authed", // the caller's own memberships
 	createOrg: "authed", // any approved user may found a team org
+	/** First-run onboarding: the caller's own progress, answers and slug check. */
+	getOnboarding: "authed",
+	saveOnboardingStep: "authed", // org and repo choices re-checked for membership
+	finishOnboarding: "authed",
+	checkOrgSlug: "authed", // availability only; reveals no org data
+	listOnboardingChangeRequests: "permission:activity:read",
+	previewOnboardingWorkflow: "permission:workflows:read",
+	saveOnboardingWorkflow: "permission:workflows:manage",
 	submitFeedback: "authed", // product feedback, not org data
 	getGitCafeSetupContext: "authed",
 	startGitCafeConnection: "permission:connections:manage",
