@@ -115,7 +115,8 @@ export const ONBOARDING_COPY = {
 		add: "Add",
 		running: "Reading it",
 		queued: "Queued",
-		failed: (count: number) => `${count} rules did not pass`,
+		failed: (count: number) =>
+			`${count} ${count === 1 ? "rule" : "rules"} did not pass`,
 		passed: "All passed",
 		cooldown: "Re-run moments ago. Try shortly.",
 		error: "Could not start the re-run.",

@@ -15,9 +15,11 @@
 }
 
 [data-layout-role="onboarding-list"] [data-part="row"] {
-	/* On phones titles wrap to two lines: the mark and action sit on the first. */
+	/* On phones titles wrap to two lines: the mark and action sit on the first,
+	   and the row pads its block edges so the text clears the dividers. */
 	@media (max-width: 30rem) {
 		align-items: flex-start;
+		padding-block: var(--space-2);
 	}
 
 	& [data-part="mark"] {
