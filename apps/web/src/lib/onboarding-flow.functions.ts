@@ -34,6 +34,11 @@ export interface OnboardingState extends OnboardingView {
 	personalOrgSlug: string | null;
 	/** Whether the chosen repo has change requests to report in `check`. */
 	hasChangeRequests: boolean;
+	/**
+	 * The forge the connect step starts on: the chosen repo's, else GitCafe for
+	 * someone who signed in with GitCafe alone.
+	 */
+	connectForge: "github" | "gitcafe";
 }
 
 async function sessionUserId(): Promise<string> {
@@ -55,10 +60,13 @@ async function toState(
 	userId: string,
 	record: OnboardingRecord | null,
 ): Promise<OnboardingState> {
-	const { orgServices, repoServices, userOnboardingServices } = await import(
-		"@tripwire/db"
-	);
-	const orgs = await orgServices.listUserOrgs(db, userId);
+	const { accountServices, orgServices, repoServices, userOnboardingServices } =
+		await import("@tripwire/db");
+	const [orgs, github, gitcafe] = await Promise.all([
+		orgServices.listUserOrgs(db, userId),
+		accountServices.getForgeAccount(db, userId, "github"),
+		accountServices.getForgeAccount(db, userId, "gitcafe"),
+	]);
 	const org = orgs.find((entry) => entry.id === record?.orgId) ?? null;
 	const repoRow =
 		org && record?.repoId
@@ -93,6 +101,12 @@ async function toState(
 			: null,
 		personalOrgSlug: orgs.find((entry) => entry.isPersonal)?.slug ?? null,
 		hasChangeRequests,
+		connectForge:
+			repo?.forge === "github" || repo?.forge === "gitcafe"
+				? repo.forge
+				: gitcafe && !github
+					? "gitcafe"
+					: "github",
 	};
 }
 

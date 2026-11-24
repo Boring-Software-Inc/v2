@@ -58,7 +58,10 @@ export interface OnboardingDraft {
 	agent: AgentKey;
 }
 
-function initialDraft(answers: OnboardingAnswers): OnboardingDraft {
+function initialDraft(
+	answers: OnboardingAnswers,
+	forge: OnboardingDraft["forge"],
+): OnboardingDraft {
 	return {
 		intents: answers.intents,
 		usage: answers.usage,
@@ -67,7 +70,7 @@ function initialDraft(answers: OnboardingAnswers): OnboardingDraft {
 		referral: answers.referral,
 		workspaceName: "",
 		workspaceSlug: "",
-		forge: "github",
+		forge,
 		connectPhase: "forge",
 		repoIds: [],
 		picks: null,
@@ -91,12 +94,15 @@ const DraftContext = createContext<DraftContextValue | null>(null);
 
 export function OnboardingDraftProvider({
 	answers,
+	forge,
 	children,
 }: {
 	answers: OnboardingAnswers;
+	/** The forge the connect step starts on. */
+	forge: OnboardingDraft["forge"];
 	children: ReactNode;
 }) {
-	const [draft, setDraft] = useState(() => initialDraft(answers));
+	const [draft, setDraft] = useState(() => initialDraft(answers, forge));
 	const update = useCallback(
 		(patch: DraftPatch) => setDraft((current) => ({ ...current, ...patch })),
 		[],
