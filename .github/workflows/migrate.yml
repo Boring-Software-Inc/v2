@@ -30,8 +30,8 @@ jobs:
 
       - name: Apply migrations
         env:
-          TARGET: ${{ github.ref_name == main && PRODUCTION_DATABASE_URL || STAGING_DATABASE_URL }}
-          DATABASE_URL: ${{ github.ref_name == main && secrets.PRODUCTION_DATABASE_URL || secrets.STAGING_DATABASE_URL }}
+          TARGET: ${{ github.ref_name == 'main' && 'PRODUCTION_DATABASE_URL' || 'STAGING_DATABASE_URL' }}
+          DATABASE_URL: ${{ github.ref_name == 'main' && secrets.PRODUCTION_DATABASE_URL || secrets.STAGING_DATABASE_URL }}
         run: |
           if [ "$GITHUB_REF_NAME" != staging ] && [ "$GITHUB_REF_NAME" != main ]; then
             echo "::error::migrations only run from staging or main, not $GITHUB_REF_NAME"
