@@ -225,7 +225,10 @@ export async function listForgeConnections(
 	const result = await db.execute(sql`
 		SELECT a.provider_id AS forge,
 		       a.account_id AS "accountId",
-		       a.access_token_expires_at AS "accessTokenExpiresAt",
+		       -- An account holding no access token has nothing to expire: GitCafe
+		       -- sign-in keeps only the identity, never its tokens.
+		       CASE WHEN a.access_token IS NULL THEN NULL
+		            ELSE a.access_token_expires_at END AS "accessTokenExpiresAt",
 		       (a.refresh_token IS NOT NULL) AS "canRefresh",
 		       r.total AS "repoCount", r.unclaimed AS "unclaimedCount"
 		FROM account a

@@ -279,3 +279,25 @@ test("unsupported legacy accounts and their unclaimed repos do not hide the GitH
 		unclaimedCount: 0,
 	});
 });
+
+test("a GitCafe sign-in holds no token, so its stale expiry is not reported as expired", async () => {
+	const past = new Date(Date.now() - 60_000);
+	await db
+		.update(account)
+		.set({ accessToken: "github-user-token", accessTokenExpiresAt: past })
+		.where(eq(account.userId, userId));
+	await db.insert(account).values({
+		id: generateId(),
+		userId,
+		providerId: "gitcafe",
+		accountId: "gitcafe-subject",
+		accessToken: null,
+		refreshToken: null,
+		accessTokenExpiresAt: past,
+	});
+	const connections = await listForgeConnections(db, userId);
+	const byForge = new Map(connections.map((c) => [c.forge, c]));
+	expect(byForge.get("gitcafe")?.accessTokenExpiresAt).toBeNull();
+	expect(byForge.get("gitcafe")?.canRefresh).toBe(false);
+	expect(byForge.get("github")?.accessTokenExpiresAt).toBe(past.toISOString());
+});
