@@ -187,6 +187,8 @@ export function resolveLanding(
 	switch (scenario.landing) {
 		case "admin":
 			return "/admin";
+		case "onboarding":
+			return "/onboarding";
 		case "public-run":
 			return seeded.publicRunId ? `/runs/${seeded.publicRunId}` : "/";
 		case "home":

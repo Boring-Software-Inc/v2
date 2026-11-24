@@ -237,6 +237,11 @@ export type {
 	StaffUserSession,
 } from "./services/staff-users.ts";
 export * as staffUserServices from "./services/staff-users.ts";
+export type {
+	OnboardingRecord,
+	StoredChangeRequest,
+} from "./services/user-onboarding.ts";
+export * as userOnboardingServices from "./services/user-onboarding.ts";
 export type { WorkerDeploymentRow } from "./services/worker-deployments.ts";
 export * as workerDeploymentServices from "./services/worker-deployments.ts";
 export type {

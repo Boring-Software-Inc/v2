@@ -317,7 +317,7 @@ export function CollapsedSidebarToggle({
 	);
 }
 
-function ShopifySidebarIcon({ className }: { className?: string }) {
+export function ShopifySidebarIcon({ className }: { className?: string }) {
 	return (
 		<svg
 			aria-hidden

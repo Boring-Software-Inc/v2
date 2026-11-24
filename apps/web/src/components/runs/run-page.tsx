@@ -129,8 +129,15 @@ function DashboardRun({ run }: { run: RunView }) {
 	);
 }
 
-function RunBody({ run }: { run: RunView }) {
-	const canGoBack = useCanGoBack();
+export function RunBody({
+	run,
+	historyBack = true,
+}: {
+	run: RunView;
+	/** False where the app's own history is not this page's, like a preview. */
+	historyBack?: boolean;
+}) {
+	const canGoBack = useCanGoBack() && historyBack;
 	const { orgSlug, repoName } = run;
 	const chain = useMemo(
 		() =>

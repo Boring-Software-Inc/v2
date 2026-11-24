@@ -1279,6 +1279,18 @@ export async function resetDemoData(db: Db): Promise<void> {
 		    WHERE u.email LIKE ${`%@${DEMO_EMAIL_DOMAIN}`}
 		  )
 	`);
+	// Team orgs a demo user made by hand (onboarding, "Create org") have no
+	// other admin to keep, so the user delete below would be refused.
+	await db.execute(sql`
+		DELETE FROM organization
+		WHERE NOT is_personal
+		  AND id IN (
+		    SELECT m.organization_id FROM member m
+		    JOIN "user" u ON u.id = m.user_id
+		    GROUP BY m.organization_id
+		    HAVING bool_and(u.email LIKE ${`%@${DEMO_EMAIL_DOMAIN}`})
+		  )
+	`);
 	await db.execute(
 		sql`DELETE FROM organization_installations WHERE installation_id LIKE ${"demo-inst-%"}`,
 	);

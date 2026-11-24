@@ -32,6 +32,7 @@ export {
 	BrainIcon as Model,
 	BriefcaseIcon as Briefcase,
 	BuildingsIcon as Organization,
+	ButterflyIcon as BlueskyMark,
 	CalendarBlankIcon as Calendar,
 	CaretDownIcon as ChevronDown,
 	CaretLeftIcon as ChevronLeft,
@@ -98,6 +99,7 @@ export {
 	InfoIcon as Information,
 	KeyIcon as Key,
 	LightningIcon as Lightning,
+	LinkedinLogoIcon as LinkedinMark,
 	LinkSimpleIcon as Link,
 	ListBulletsIcon as ListBullets,
 	ListChecksIcon as Rules,
@@ -129,11 +131,13 @@ export {
 	QueueIcon as Moderation,
 	QuotesIcon as Quote,
 	RecordIcon as Issue,
+	RedditLogoIcon as RedditMark,
 	RobotIcon as Bot,
 	RulerIcon as Ruler,
 	SealCheckIcon as Verified,
 	ShieldCheckIcon as Protected,
 	ShieldSlashIcon as NoAccess,
+	SidebarSimpleIcon as BrowserSidebar,
 	SignOutIcon as SignOut,
 	SlidersHorizontalIcon as Customize,
 	SmileyIcon as Emoji,
@@ -170,6 +174,8 @@ export {
 	WrenchIcon as Tool,
 	XCircleIcon as FailedMark,
 	XIcon as Close,
+	XLogoIcon as XMark,
+	YoutubeLogoIcon as YoutubeMark,
 } from "@phosphor-icons/react/ssr";
 
 export const More = DotsThreeIcon;

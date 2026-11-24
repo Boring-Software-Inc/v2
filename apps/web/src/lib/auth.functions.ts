@@ -35,6 +35,16 @@ export interface SessionInfo {
 	 * route gate can never disagree with what the server actually blocks.
 	 */
 	gateEnabled: boolean;
+	/**
+	 * A new sign-up who has not finished or skipped first-run onboarding. The
+	 * root gate sends them to /onboarding. Never true while impersonating.
+	 */
+	onboardingRequired: boolean;
+	/**
+	 * The repo the user set up by completing onboarding. Its setup checklist is
+	 * already done there, so the sidebar card stays hidden for it.
+	 */
+	onboardedRepoId?: string | null;
 	impersonation?: {
 		login: string | null;
 		expiresAt: string;
@@ -51,6 +61,7 @@ export const getSessionInfo = createServerFn({ method: "GET" }).handler(
 				authEnabled: false,
 				defaultOrgSlug: null,
 				gateEnabled: false,
+				onboardingRequired: false,
 			};
 		}
 		const { getStartContext } = await import("@tanstack/start-storage-context");
@@ -62,6 +73,7 @@ export const getSessionInfo = createServerFn({ method: "GET" }).handler(
 				authEnabled: true,
 				defaultOrgSlug: null,
 				gateEnabled: false,
+				onboardingRequired: false,
 			};
 		}
 		const {
@@ -104,6 +116,16 @@ export const getSessionInfo = createServerFn({ method: "GET" }).handler(
 			orgs[0]?.slug ??
 			null;
 		const impersonating = (await fenceOf(session)).impersonatedBy;
+		const { userOnboardingServices } = await import("@tripwire/db");
+		const onboarding = await userOnboardingServices.getOnboarding(
+			db,
+			session.user.id,
+		);
+		const onboardingRequired =
+			!impersonating &&
+			(onboarding === null || onboarding.status === "in_progress");
+		const onboardedRepoId =
+			onboarding?.status === "completed" ? onboarding.repoId : null;
 		const { staffUserServices } = await import("@tripwire/db");
 		const impersonation = impersonating
 			? {
@@ -127,6 +149,8 @@ export const getSessionInfo = createServerFn({ method: "GET" }).handler(
 			authEnabled: true,
 			defaultOrgSlug,
 			gateEnabled,
+			onboardingRequired,
+			onboardedRepoId,
 		};
 	},
 );

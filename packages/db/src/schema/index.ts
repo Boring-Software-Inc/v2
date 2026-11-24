@@ -14,5 +14,6 @@ export * from "./repos.ts";
 export * from "./rollups.ts";
 export * from "./runs.ts";
 export * from "./staff.ts";
+export * from "./user-onboarding.ts";
 export * from "./workers.ts";
 export * from "./workflow-pushes.ts";

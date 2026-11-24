@@ -1,0 +1,1285 @@
+/*
+ * First-run onboarding. The form column is a fixed reading width; the
+ * preview column takes the rest and hides once it is too narrow to read a
+ * miniature page in.
+ */
+/* A container, so widths below can be set from the whole page, not the
+   column that is resizing around them. */
+[data-layout-role="onboarding-shell"] {
+	display: flex;
+	container-type: inline-size;
+	min-block-size: 100dvh;
+	overflow-x: clip;
+	background-color: var(--page);
+	color: var(--text-1);
+
+	/* Too narrow for the preview: the column takes the screen, from the
+	   server's first paint on, whatever flex-grow motion has set. */
+	@media (max-width: 63.99rem) {
+		display: block;
+	}
+}
+
+/* Motion animates flex-grow between these two, so the preview grows in. */
+[data-layout-role="onboarding-column"] {
+	position: relative;
+	display: flex;
+	flex: 1 1 37.5rem;
+	flex-direction: column;
+	min-inline-size: 0;
+	min-block-size: 100dvh;
+	padding: var(--space-4) var(--space-4) var(--space-2);
+}
+
+[data-layout-role="onboarding-preview-slot"] {
+	display: flex;
+	flex: 0 1 0;
+	min-inline-size: 0;
+
+	@media (max-width: 63.99rem) {
+		display: none;
+	}
+}
+
+/* Holds the brand lockup to its own size, the box the welcome wordmark
+   flies into. */
+[data-layout-role="onboarding-brand-slot"] {
+	align-self: flex-start;
+}
+
+[data-layout-role="onboarding-brand"] {
+	display: flex;
+	align-items: center;
+	gap: var(--space-1);
+	align-self: flex-start;
+	color: var(--text-1);
+	font: var(--type-heading-sm);
+	font-size: 18px;
+	letter-spacing: -0.02em;
+}
+
+/*
+ * The column body takes the width the column is heading to. While the
+ * column grows or shrinks, the form stays put and only rises or sinks, and
+ * the preview panel covers or uncovers whatever overhangs.
+ */
+[data-layout-role="onboarding-column-body"] {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	inline-size: calc(100cqi - 2 * var(--space-4));
+
+	&[data-preview="true"] {
+		inline-size: calc(37.5rem - 2 * var(--space-4));
+	}
+
+	@media (max-width: 63.99rem) {
+		&,
+		&[data-preview="true"] {
+			inline-size: auto;
+		}
+	}
+}
+
+[data-layout-role="onboarding-stage"] {
+	position: relative;
+	display: grid;
+	flex: 1;
+	grid-template-columns: minmax(0, 1fr);
+	align-items: center;
+	justify-items: center;
+	padding-block: var(--space-8);
+}
+
+[data-layout-role="onboarding-step"] {
+	grid-area: 1 / 1;
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-6);
+	inline-size: min(100%, 27.5rem);
+
+	&[data-wide="true"] {
+		inline-size: min(100%, 54.5rem);
+	}
+
+	/* A leaving step, lifted out by motion and placed at its measured offset.
+	   With a grid area set, the area would be its containing block and that
+	   offset would land a padding lower. */
+	&[data-motion-pop-id] {
+		grid-area: auto;
+	}
+}
+
+[data-layout-role="onboarding-step-header"] {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--space-2);
+	text-align: center;
+
+	& [data-type-role="page-title"] {
+		letter-spacing: -0.025em;
+	}
+
+	& [data-type-role="supporting-text"] {
+		max-inline-size: 25rem;
+		color: var(--text-2);
+		font: var(--type-body);
+	}
+}
+
+[data-layout-role="onboarding-skip"] {
+	align-self: center;
+	padding: var(--space-2) var(--space-3);
+	border-radius: var(--radius-pill);
+	/* text-2, so it still reads at 4.5:1 in both themes. */
+	color: var(--text-2);
+	font: var(--type-label);
+	transition: color var(--dur-state) var(--ease-out);
+
+	&:hover {
+		color: var(--text-1);
+	}
+
+	&:focus-visible {
+		outline: 2px solid var(--focus);
+		outline-offset: 2px;
+	}
+}
+
+[data-layout-role="onboarding-preview"] {
+	position: relative;
+	flex: 1;
+	overflow: hidden;
+	margin: var(--space-4) 0 var(--space-4) var(--space-4);
+	border-radius: var(--radius-shell) 0 0 var(--radius-shell);
+	background-color: var(--shell);
+}
+
+/* Sized to the panel's final width rather than the panel, so the canvas is
+   never resized while the panel grows in: the panel uncovers it instead. A
+   WebGL resize per frame reallocates the canvas and drops frames. */
+[data-layout-role="onboarding-preview-dither"] {
+	position: absolute;
+	inset-block: 0;
+	inset-inline-start: 0;
+	inline-size: calc(100cqi - 37.5rem - var(--space-4));
+	pointer-events: none;
+}
+
+[data-layout-role="onboarding-track"] {
+	position: absolute;
+	inset: 0;
+}
+
+/* The strip the pages ride on; it is what moves. */
+[data-layout-role="onboarding-track-strip"] {
+	position: absolute;
+	inset: 0;
+	will-change: transform;
+}
+
+/* Pages sit on the strip one track span apart (the window's inset plus its
+   width): the arriving page waits just out of view, before or after the one
+   on show. */
+[data-layout-role="onboarding-track-item"] {
+	position: absolute;
+	inset: 0;
+	padding: var(--space-10) 0 0 var(--space-6);
+
+	&[data-position="before"] {
+		translate: -1024px 0;
+	}
+
+	&[data-position="after"] {
+		translate: 1024px 0;
+	}
+}
+
+[data-layout-role="onboarding-window"] {
+	display: flex;
+	flex-direction: column;
+	inline-size: 1000px;
+	block-size: calc(100dvh - var(--space-10) - var(--space-4));
+	min-block-size: 640px;
+	overflow: hidden;
+	border-radius: var(--radius-panel) 0 0 0;
+	background-color: var(--page);
+	box-shadow: 0 0 0 var(--line-width) var(--line);
+}
+
+[data-layout-role="onboarding-window-chrome"] {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	gap: var(--space-4);
+	block-size: 44px;
+	padding-inline: var(--space-4);
+}
+
+[data-layout-role="onboarding-window-lights"] {
+	display: flex;
+	flex-shrink: 0;
+	gap: var(--space-2);
+
+	& > span {
+		block-size: 12px;
+		inline-size: 12px;
+		border-radius: var(--radius-pill);
+		box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 0.25);
+	}
+
+	& > span:nth-child(1) {
+		background-color: #ff5f57;
+	}
+
+	& > span:nth-child(2) {
+		background-color: #febc2e;
+	}
+
+	& > span:nth-child(3) {
+		background-color: #28c840;
+	}
+}
+
+[data-layout-role="onboarding-window-nav"] {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 2px;
+	color: var(--text-2);
+
+	& > span {
+		display: grid;
+		place-items: center;
+		block-size: 28px;
+		inline-size: 28px;
+	}
+
+	& > span[data-disabled="true"] {
+		color: var(--text-disabled);
+	}
+}
+
+[data-layout-role="onboarding-window-omnibox"] {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	gap: var(--space-2);
+	block-size: 30px;
+	padding-inline: var(--space-3);
+	border-radius: 8px;
+	background-color: var(--paper);
+	box-shadow: inset 0 0 0 var(--line-width) var(--line-faint);
+	color: var(--text-3);
+	font: var(--type-body-sm);
+	white-space: nowrap;
+
+	& [data-part="host"] {
+		color: var(--text-1);
+	}
+}
+
+[data-layout-role="onboarding-window-body"] {
+	position: relative;
+	display: flex;
+	flex: 1;
+	min-block-size: 0;
+	padding: var(--space-2) var(--space-2) var(--space-2) 0;
+}
+
+[data-layout-role="onboarding-tiles"] {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+	gap: var(--space-2);
+
+	/* Two to a row on phones, so all eight fit in about a screen. */
+	@media (max-width: 30rem) {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+[data-layout-role="onboarding-tile"] {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-3);
+	min-block-size: 162px;
+	padding: var(--space-3);
+	border-radius: var(--radius-panel);
+	background-color: var(--shell);
+	box-shadow: 0 0 0 var(--line-width) var(--line-faint);
+	text-align: start;
+	transition:
+		background-color var(--dur-state) var(--ease-out),
+		box-shadow var(--dur-state) var(--ease-out);
+
+	&:hover {
+		box-shadow: 0 0 0 var(--line-width) var(--line-control);
+	}
+
+	&[aria-pressed="true"] {
+		background-color: var(--paper);
+		box-shadow: 0 0 0 var(--line-width) var(--line-strong);
+	}
+
+	&:focus-visible {
+		outline: 2px solid var(--focus);
+		outline-offset: 2px;
+	}
+
+	& [data-part="art"] {
+		block-size: 72px;
+		border-radius: var(--radius-tag);
+		background-color: var(--text-1);
+		mask-position: center;
+		mask-repeat: no-repeat;
+		mask-size: contain;
+		opacity: 0.5;
+		transition: opacity var(--dur-state) var(--ease-out);
+
+		&[data-intent="drive-by-slop"] {
+			mask-image: url(/onboarding/drive-by-slop.svg);
+		}
+
+		&[data-intent="new-accounts"] {
+			mask-image: url(/onboarding/new-accounts.svg);
+		}
+
+		&[data-intent="floods"] {
+			mask-image: url(/onboarding/floods.svg);
+		}
+
+		&[data-intent="crypto-spam"] {
+			mask-image: url(/onboarding/crypto-spam.svg);
+		}
+
+		&[data-intent="workflow-tampering"] {
+			mask-image: url(/onboarding/workflow-tampering.svg);
+		}
+
+		&[data-intent="mass-changes"] {
+			mask-image: url(/onboarding/mass-changes.svg);
+		}
+
+		&[data-intent="off-language"] {
+			mask-image: url(/onboarding/off-language.svg);
+		}
+
+		&[data-intent="not-sure"] {
+			mask-image: url(/onboarding/not-sure.svg);
+		}
+	}
+
+	&[aria-pressed="true"] [data-part="art"] {
+		opacity: 1;
+	}
+
+	@media (max-width: 30rem) {
+		min-block-size: 0;
+
+		& [data-part="art"] {
+			block-size: 48px;
+		}
+	}
+}
+
+[data-layout-role="onboarding-footer"] {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-3);
+}
+
+/* Fixed over the flow, so while it fades out the first step is already
+   there underneath. */
+[data-layout-role="onboarding-welcome"] {
+	position: fixed;
+	inset: 0;
+	z-index: 1;
+	isolation: isolate;
+	display: grid;
+	place-items: center;
+	min-block-size: 100dvh;
+	overflow: hidden;
+	background-color: var(--page);
+	cursor: default;
+}
+
+[data-layout-role="onboarding-welcome-lockup"] {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--space-2);
+	margin: 0;
+	color: var(--text-1);
+	font: var(--type-title);
+	letter-spacing: -0.025em;
+
+	& [data-part="lead"] {
+		color: var(--text-2);
+		font: var(--type-heading);
+	}
+
+	& [data-part="mark"] {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		font-size: 40px;
+		line-height: 1;
+		letter-spacing: -0.03em;
+	}
+}
+
+[data-layout-role="onboarding-tile"] [data-part="text"] {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+
+	& [data-type-role="label"] {
+		color: var(--text-1);
+	}
+
+	& [data-type-role="supporting-text"] {
+		color: var(--text-3);
+		font: var(--type-caption);
+	}
+}
+
+[data-layout-role="onboarding-footer-actions"] {
+	display: flex;
+	gap: var(--space-2);
+}
+
+[data-layout-role="onboarding-fields"] {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-5);
+}
+
+[data-layout-role="onboarding-field"] {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+	min-inline-size: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+
+	/* Five team sizes share a phone's width: tighter label padding keeps
+	   each label whole instead of cutting it short. */
+	@media (max-width: 30rem) {
+		& [data-slot="segmented-control"] [data-slot="radio-label"] {
+			padding-inline: var(--space-1);
+		}
+	}
+}
+
+[data-layout-role="onboarding-field-legend"] {
+	display: flex;
+	justify-content: space-between;
+	inline-size: 100%;
+	margin-block-end: var(--space-2);
+	padding: 0;
+	color: var(--text-1);
+	font: var(--type-label);
+
+	& [data-part="hint"] {
+		color: var(--text-3);
+		font: var(--type-caption);
+	}
+}
+
+[data-layout-role="onboarding-choice-grid"] {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: var(--space-2);
+
+	@media (max-width: 30rem) {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+[data-layout-role="onboarding-choice"] {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--space-2);
+	min-block-size: var(--control-lg);
+	padding-inline: var(--space-3);
+	border-radius: var(--radius-tag);
+	background-color: var(--paper);
+	box-shadow: 0 0 0 var(--line-width) var(--line-faint);
+	color: var(--text-1);
+	font: var(--type-label);
+	cursor: pointer;
+	transition:
+		background-color var(--dur-state) var(--ease-out),
+		box-shadow var(--dur-state) var(--ease-out),
+		color var(--dur-state) var(--ease-out);
+
+	&:hover {
+		box-shadow: 0 0 0 var(--line-width) var(--line-control);
+	}
+
+	& input {
+		position: absolute;
+		inset: 0;
+		margin: 0;
+		opacity: 0;
+		cursor: pointer;
+	}
+
+	&:has(input:focus-visible) {
+		outline: 2px solid var(--focus);
+		outline-offset: 2px;
+	}
+
+	&:has(input:checked) {
+		color: var(--control-fill-text);
+		background-color: var(--control-fill-mid);
+		background-image: linear-gradient(
+			180deg,
+			var(--control-fill-top),
+			var(--control-fill-mid) 50%,
+			var(--control-fill-bottom)
+		);
+		box-shadow:
+			inset 0 var(--line-width) 0 var(--control-fill-highlight),
+			0 0 0 0.5px var(--control-fill-rim);
+	}
+
+	& [data-part="icon"] {
+		display: flex;
+		color: currentColor;
+	}
+
+	& [data-part="hn"] {
+		display: grid;
+		place-items: center;
+		block-size: 14px;
+		inline-size: 14px;
+		border-radius: 2px;
+		background-color: currentColor;
+		font: 600 10px / 1 var(--font-sans);
+
+		& > span {
+			color: var(--paper);
+		}
+	}
+}
+
+[data-layout-role="onboarding-slug"] {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+
+	& [data-part="prefix"] {
+		flex-shrink: 0;
+		color: var(--text-3);
+		font: var(--type-code-sm);
+	}
+
+	& > :not([data-part]) {
+		flex: 1;
+		min-inline-size: 0;
+	}
+
+	& [data-part="status"] {
+		display: flex;
+		flex-shrink: 0;
+		align-items: center;
+		gap: var(--space-1);
+		color: var(--ok-text);
+		font: var(--type-label-sm);
+	}
+}
+
+[data-layout-role="onboarding-note"] {
+	margin: 0;
+	color: var(--text-2);
+	font: var(--type-caption);
+}
+
+[data-layout-role="onboarding-error"] {
+	margin: 0;
+	color: var(--fail-text);
+	font: var(--type-body-sm);
+}
+
+/* Floats over the preview's page: a menu or popover open on it. */
+[data-layout-role="onboarding-preview-overlay"] {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+
+	& > [data-part="content"] {
+		position: absolute;
+		inset: 0;
+		transform-origin: 0 100%;
+	}
+}
+
+/* Dims the page under an open menu. */
+[data-layout-role="onboarding-preview-scrim"] {
+	position: absolute;
+	inset: 0;
+	background-color: var(--scrim);
+}
+
+/* The account menu, enlarged over the preview's home like a callout. */
+[data-layout-role="onboarding-menu-callout"] {
+	position: absolute;
+	/* Low enough that its account button covers the rail's, which it opens
+	   from, and high enough that its ring clears the window's edge. */
+	inset-block-end: var(--space-5);
+	inset-inline-start: var(--space-2);
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+	inline-size: 400px;
+	transform-origin: bottom left;
+	font: var(--type-label-lg);
+
+	& [data-part="menu"] {
+		display: flex;
+		flex-direction: column;
+		padding: var(--space-2);
+		border-radius: var(--radius-overlay);
+		background-color: var(--paper);
+		box-shadow: 0 0 0 var(--line-width) var(--line-control);
+	}
+
+	& [data-part="group"] {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding-block: var(--space-2);
+
+		& + [data-part="group"] {
+			border-block-start: var(--line-width) solid var(--line-faint);
+		}
+	}
+
+	& [data-part="label"] {
+		padding: var(--space-1) var(--space-3);
+		color: var(--text-2);
+		font: var(--type-body);
+	}
+
+	& [data-part="item"] {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		min-block-size: 44px;
+		padding-inline: var(--space-3);
+		border-radius: var(--radius-panel);
+		color: var(--text-1);
+
+		&[data-current="true"] {
+			background-color: var(--pressed);
+		}
+	}
+
+	& [data-part="name"] {
+		flex: 1;
+		min-inline-size: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	/* The account row: name over the email or handle, as the real menu has. */
+	& [data-part="text"] {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		min-inline-size: 0;
+	}
+
+	& [data-part="description"] {
+		overflow: hidden;
+		color: var(--text-2);
+		font: var(--type-body);
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	& [data-part="trigger"] {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		block-size: 52px;
+		padding-inline: var(--space-3);
+		border-radius: var(--radius-overlay);
+		background-color: var(--paper);
+		box-shadow: 0 0 0 var(--line-width) var(--line-strong);
+		color: var(--text-1);
+	}
+}
+
+[data-layout-role="onboarding-forges"] {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--space-2);
+	min-inline-size: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+[data-layout-role="onboarding-forge"] {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	min-block-size: 60px;
+	padding: var(--space-3);
+	border-radius: var(--radius-panel);
+	background-color: var(--paper);
+	box-shadow: 0 0 0 var(--line-width) var(--line-faint);
+	text-align: start;
+	cursor: pointer;
+	transition: box-shadow var(--dur-state) var(--ease-out);
+
+	& input {
+		position: absolute;
+		inset: 0;
+		margin: 0;
+		opacity: 0;
+		cursor: pointer;
+	}
+
+	&:hover {
+		box-shadow: 0 0 0 var(--line-width) var(--line-control);
+	}
+
+	&:has(input:checked) {
+		box-shadow: 0 0 0 var(--line-width) var(--line-strong);
+	}
+
+	&:has(input:focus-visible) {
+		outline: 2px solid var(--focus);
+		outline-offset: 2px;
+	}
+
+	& [data-part="mark"] {
+		display: grid;
+		place-items: center;
+		block-size: 24px;
+		inline-size: 24px;
+	}
+
+	& [data-part="text"] {
+		display: flex;
+		flex-direction: column;
+	}
+
+	& [data-part="name"] {
+		color: var(--text-1);
+		font: var(--type-label);
+	}
+
+	& [data-part="action"] {
+		color: var(--text-2);
+		font: var(--type-caption);
+	}
+}
+
+[data-layout-role="onboarding-card"] {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	padding: var(--space-3) var(--space-4);
+	border-radius: var(--radius-panel);
+	background-color: var(--paper);
+	box-shadow: 0 0 0 var(--line-width) var(--line-faint);
+
+	& [data-part="spinner"] {
+		display: flex;
+		color: var(--text-2);
+	}
+
+	& [data-part="text"] {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		min-inline-size: 0;
+	}
+
+	& [data-part="title"] {
+		color: var(--text-1);
+		font: var(--type-label);
+	}
+
+	& [data-part="body"] {
+		color: var(--text-2);
+		font: var(--type-body-sm);
+	}
+}
+
+[data-layout-role="onboarding-repos"] {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+
+	& > [data-slot="button"] {
+		margin-block-start: var(--space-4);
+	}
+}
+
+[data-layout-role="onboarding-list"] {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	border-radius: var(--radius-panel);
+	background-color: var(--paper);
+	box-shadow: 0 0 0 var(--line-width) var(--line-faint);
+
+	& > * + * {
+		border-block-start: var(--line-width) solid var(--line-faint);
+	}
+
+	& [data-part="search"] {
+		padding: var(--space-2);
+		background-color: var(--shell);
+	}
+
+	& [data-part="row"] {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
+		min-block-size: 44px;
+		padding-inline: var(--space-3);
+	}
+
+	& [data-part="empty"] {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: var(--space-4);
+		text-align: center;
+
+		& [data-part="title"] {
+			color: var(--text-1);
+			font: var(--type-label);
+		}
+
+		& [data-part="body"] {
+			color: var(--text-2);
+			font: var(--type-body-sm);
+		}
+	}
+}
+
+[data-layout-role="onboarding-forge-page"] {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	overflow: hidden;
+	background-color: var(--paper);
+	color: var(--text-1);
+	font: var(--type-body-sm);
+
+	& [data-part="bar"] {
+		display: flex;
+		align-items: center;
+		block-size: 56px;
+		padding-inline: var(--space-4);
+		border-block-end: var(--line-width) solid var(--line-faint);
+		background-color: var(--shell);
+	}
+
+	& [data-part="body"] {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: var(--space-2);
+		padding-block-start: var(--space-8);
+	}
+
+	& [data-part="app"] {
+		display: grid;
+		place-items: center;
+		block-size: 72px;
+		inline-size: 72px;
+		border-radius: var(--radius-panel);
+		background-color: var(--shell);
+		box-shadow: 0 0 0 var(--line-width) var(--line);
+	}
+
+	& [data-part="title"] {
+		margin: var(--space-2) 0 0;
+		font: var(--type-heading);
+	}
+
+	& [data-part="sub"] {
+		margin: 0;
+		color: var(--text-2);
+	}
+
+	& [data-part="box"] {
+		display: flex;
+		flex-direction: column;
+		inline-size: 560px;
+		margin-block-start: var(--space-4);
+		border-radius: var(--radius-tag);
+		box-shadow: 0 0 0 var(--line-width) var(--line);
+
+		& > * + * {
+			border-block-start: var(--line-width) solid var(--line);
+		}
+	}
+
+	& [data-part="section"] {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+		padding: var(--space-4);
+	}
+
+	& [data-part="option"],
+	& [data-part="permission"] {
+		display: flex;
+		gap: var(--space-2);
+
+		& > span:last-child {
+			display: flex;
+			flex-direction: column;
+		}
+	}
+
+	& [data-part="permission"] {
+		align-items: center;
+		color: var(--ok-text);
+
+		& > span:last-child {
+			display: inline;
+			color: var(--text-1);
+		}
+	}
+
+	& [data-part="radio"] {
+		flex-shrink: 0;
+		block-size: 14px;
+		inline-size: 14px;
+		margin-block-start: 3px;
+		border-radius: var(--radius-pill);
+		box-shadow: inset 0 0 0 var(--line-width) var(--line-strong);
+	}
+
+	& [data-checked="true"] [data-part="radio"] {
+		box-shadow: inset 0 0 0 4px var(--agent);
+	}
+
+	& [data-part="hint"] {
+		color: var(--text-2);
+		font: var(--type-caption);
+	}
+
+	& [data-part="actions"] {
+		display: flex;
+		gap: var(--space-2);
+		inline-size: 560px;
+		margin-block-start: var(--space-4);
+	}
+
+	& [data-part="install"],
+	& [data-part="cancel"] {
+		padding: var(--space-2) var(--space-4);
+		border-radius: var(--radius-tag);
+		font: var(--type-label);
+	}
+
+	& [data-part="install"] {
+		background-color: var(--ok);
+		color: var(--text-inverse);
+	}
+
+	& [data-part="cancel"] {
+		box-shadow: 0 0 0 var(--line-width) var(--line);
+	}
+
+	& [data-part="next"] {
+		inline-size: 560px;
+		margin: var(--space-2) 0 0;
+		color: var(--text-2);
+		font: var(--type-caption);
+	}
+}
+
+[data-layout-role="onboarding-connecting-page"] {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: var(--space-6);
+	padding-inline-end: 230px;
+	background-color: var(--page);
+}
+
+/* The preview's rail, sized like the real one: 224 wide, 50 collapsed. */
+[data-layout-role="onboarding-preview-rail"] {
+	position: relative;
+	overflow: hidden;
+	inline-size: 224px;
+
+	& [data-part="layer"] {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
+		inline-size: 224px;
+		padding: var(--space-2) var(--space-1);
+	}
+
+	& [data-part="header"] {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding-inline-start: var(--space-1);
+	}
+
+	& [data-part="brand"] {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		block-size: 34px;
+		inline-size: 34px;
+		border-radius: var(--radius-tag);
+	}
+
+	& [data-part="body"] {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		gap: var(--space-4);
+		min-block-size: 0;
+	}
+
+	& [data-part="footer"] {
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+		margin-block-start: auto;
+		padding-inline: var(--space-1);
+	}
+
+	&[data-collapsed="true"] {
+		inline-size: 50px;
+
+		& [data-part="layer"] {
+			align-items: center;
+			inline-size: 50px;
+			padding: var(--space-2);
+		}
+
+		& [data-part="header"] {
+			justify-content: center;
+			inline-size: 100%;
+			padding-inline-start: 0;
+		}
+
+		& [data-part="footer"] {
+			align-items: center;
+			padding-inline: 0;
+		}
+	}
+}
+
+/* The page beside the preview's rail, as the shell's main panel. */
+[data-layout-role="onboarding-preview-panel"] {
+	position: relative;
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-block-size: 0;
+	overflow: hidden;
+	border: var(--line-width) solid var(--line-faint);
+	border-radius: var(--radius-shell);
+	background-color: var(--paper);
+
+	& > [data-part="body"] {
+		flex: 1;
+		min-block-size: 0;
+		overflow: hidden;
+	}
+}
+
+/* The rule cards, two to a row like the Rules page. */
+[data-layout-role="onboarding-rule-grid"] {
+	display: grid;
+	align-items: stretch;
+	gap: var(--space-3);
+
+	@media (min-width: 40rem) {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+/* The repo switcher, open beside the rail's scope trigger. */
+[data-layout-role="onboarding-switcher-callout"] {
+	position: absolute;
+	inset-block-start: 52px;
+	inset-inline-start: 232px;
+	display: flex;
+	flex-direction: column;
+	inline-size: 288px;
+	overflow: hidden;
+	border-radius: var(--radius-overlay);
+	background-color: var(--paper);
+	box-shadow: 0 0 0 var(--line-width) var(--line-control);
+	font: var(--type-label);
+
+	& > * + * {
+		border-block-start: var(--line-width) solid var(--line-faint);
+	}
+
+	& [data-part="search"],
+	& [data-part="footer"] {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		block-size: 36px;
+		padding-inline: var(--space-3);
+		color: var(--text-3);
+	}
+
+	& [data-part="footer"] {
+		color: var(--text-1);
+	}
+
+	& [data-part="rows"] {
+		display: flex;
+		flex-direction: column;
+		padding: var(--space-1);
+	}
+
+	& [data-part="row"] {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		block-size: 32px;
+		padding-inline: var(--space-2);
+		border-radius: var(--radius-tag);
+		color: var(--text-2);
+
+		&[data-watched="true"] {
+			background-color: var(--hover);
+			color: var(--text-1);
+		}
+	}
+
+	& [data-part="name"] {
+		flex: 1;
+		min-inline-size: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	& [data-part="off"] {
+		color: var(--text-3);
+		font: var(--type-caption);
+	}
+}
+
+[data-layout-role="onboarding-picks"] {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+}
+
+/* A recommended pick: the shell holds the switch panel and why it is here. */
+[data-layout-role="onboarding-pick-card"] {
+	display: flex;
+	flex-direction: column;
+	padding: 3px;
+	border-radius: var(--radius-shell);
+	background-color: var(--shell);
+
+	& [data-part="panel"] {
+		padding: var(--space-3);
+		border-radius: var(--radius-panel);
+		background-color: var(--paper);
+		box-shadow: 0 0 0 var(--line-width) var(--line-faint);
+	}
+
+	& [data-part="reason"] {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+		padding: var(--space-2) var(--space-3);
+		color: var(--text-2);
+		font: var(--type-caption);
+	}
+}
+
+[data-layout-role="onboarding-pick-row"] {
+	padding: var(--space-2) 0;
+}
+
+/* The welcome glow sits along the bottom edge, as on the login page. */
+.onboarding-welcome-dither {
+	inset-block-start: auto;
+	z-index: -10;
+	block-size: calc(var(--space-1) * 40);
+}
+
+/*
+ * Each dot sits in a taller hit area, so a 4px dot is still easy to click.
+ * Steps already reached are buttons: their dot grows under the pointer.
+ */
+[data-layout-role="onboarding-progress"] {
+	display: flex;
+	align-items: center;
+	margin-block: calc(-1 * var(--space-1)) 0;
+
+	& > [data-part="step"] {
+		display: grid;
+		place-items: center;
+		block-size: var(--space-6);
+		padding-inline: 2px;
+		border-radius: var(--radius-pill);
+	}
+
+	& > button {
+		cursor: pointer;
+
+		&:focus-visible {
+			outline: 2px solid var(--focus);
+			outline-offset: 0;
+		}
+	}
+
+	& [data-part="dot"] {
+		block-size: 4px;
+		inline-size: 4px;
+		border-radius: var(--radius-pill);
+		background-color: var(--line-control);
+		transition:
+			inline-size var(--dur-step) var(--ease-step),
+			scale var(--dur-step) var(--ease-step),
+			background-color var(--dur-state) var(--ease-out);
+	}
+
+	& > [data-state="done"] [data-part="dot"] {
+		background-color: var(--text-3);
+	}
+
+	& > [data-state="current"] [data-part="dot"] {
+		inline-size: 20px;
+		background-color: var(--text-1);
+	}
+
+	&
+		> button:is(:hover, :focus-visible):not([data-state="current"])
+		[data-part="dot"] {
+		/* Grows in place: a scale, so the row never shifts under the pointer. */
+		scale: 2.5 1.5;
+		background-color: var(--text-2);
+	}
+}
