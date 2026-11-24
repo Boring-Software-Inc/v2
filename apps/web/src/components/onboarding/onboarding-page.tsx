@@ -71,7 +71,10 @@ export function OnboardingPage() {
 		// Reduced motion: transform and layout animations are dropped across the
 		// flow, the welcome hand-off included; fades stay.
 		<MotionConfig reducedMotion="user">
-			<OnboardingDraftProvider answers={flow.state.answers}>
+			<OnboardingDraftProvider
+				answers={flow.state.answers}
+				forge={flow.state.connectForge}
+			>
 				{/* The welcome fades out over the flow while its wordmark travels into
 			    the brand lockup, so the hand-off has no cut. */}
 				<LayoutGroup>
