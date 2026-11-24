@@ -1,0 +1,37 @@
+name: Migrate staging database
+
+# Unkey deploys staging on every push, but nothing applied migrations, so new
+# code could reach a database without its tables. This applies the pending
+# Drizzle migrations on each push to staging. Migrations are additive, and the
+# runner is idempotent, so a run with nothing pending is a no-op.
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+concurrency:
+  group: migrate-staging
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Apply migrations
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::STAGING_DATABASE_URL is not set"
+            exit 1
+          fi
+          bun run --filter @tripwire/db migrate
