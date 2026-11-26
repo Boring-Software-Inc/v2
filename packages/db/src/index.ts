@@ -26,6 +26,7 @@ export {
 	type BackfillRepoJob,
 	createBoss,
 	createGitCafeConnectionBoss,
+	createIngestQueues,
 	DEFAULT_RERUN_COOLDOWN_SECONDS,
 	DRAIN_BACKLOG_WORK_OPTIONS,
 	EVALUATE_LANES_PER_INSTALLATION,

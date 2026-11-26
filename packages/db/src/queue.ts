@@ -181,6 +181,27 @@ export interface RefreshSurfacesJob {
 	repoId: string;
 }
 
+/**
+ * The queues webhook ingest writes to. Every boss the api can start creates
+ * them: inserting into a queue that doesn't exist yet fails the webhook, and
+ * GitHub doesn't redeliver on its own, so the api can't wait for a worker
+ * deploy to create them. `createQueue` is idempotent.
+ */
+export async function createIngestQueues(boss: PgBoss): Promise<void> {
+	await boss.createQueue(PROCESS_EVENT_QUEUE);
+	await boss.createQueue(GITHUB_EVALUATE_DEAD_LETTER_QUEUE);
+	await boss.createQueue(GITHUB_EVALUATE_QUEUE, {
+		partition: true,
+		retryLimit: 3,
+		retryDelay: 30,
+		retryBackoff: true,
+		// Above the AI review timeout, so a job never expires mid-review and
+		// starts a second evaluation of the same event.
+		expireInSeconds: 900,
+		deadLetter: GITHUB_EVALUATE_DEAD_LETTER_QUEUE,
+	});
+}
+
 /** Minimal logger surface — satisfied by pino, console, etc. */
 export interface BossErrorLogger {
 	error(obj: { error: Error | string }, msg?: string): void;
@@ -254,18 +275,7 @@ export async function createBoss(
 		}
 	});
 	await boss.start();
-	await boss.createQueue(PROCESS_EVENT_QUEUE);
-	await boss.createQueue(GITHUB_EVALUATE_DEAD_LETTER_QUEUE);
-	await boss.createQueue(GITHUB_EVALUATE_QUEUE, {
-		partition: true,
-		retryLimit: 3,
-		retryDelay: 30,
-		retryBackoff: true,
-		// Above the AI review timeout, so a job never expires mid-review and
-		// starts a second evaluation of the same event.
-		expireInSeconds: 900,
-		deadLetter: GITHUB_EVALUATE_DEAD_LETTER_QUEUE,
-	});
+	await createIngestQueues(boss);
 	await boss.createQueue(RESUME_RUN_QUEUE);
 	await boss.createQueue(RESTORE_CONTRIBUTION_APPEAL_QUEUE, {
 		retryLimit: 10,
