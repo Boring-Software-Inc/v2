@@ -40,7 +40,7 @@ export interface InsertRawEventInput {
 	forge?: Forge;
 	/**
 	 * Normalized at ingest; `null` when it normalizes to nothing Tripwire acts
-	 * on (stored, no job). Omitted, the worker normalizes it.
+	 * on, so nothing is stored. Omitted, the worker normalizes it.
 	 */
 	normalized?: NormalizedEvent | null;
 }
