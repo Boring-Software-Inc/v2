@@ -794,3 +794,44 @@ export async function listActivityFeed(
 	items.sort((a, b) => b.at - a.at);
 	return { items: items.map(({ at: _at, ...item }) => item) };
 }
+
+/**
+ * Nothing reads a GitHub event past 30 days unless a run points at it:
+ * backfill, rule previews and the onboarding picker look back 30 days, and
+ * runs keep their event for the run page. Installation events are kept since
+ * claiming an installation reads them at any age, and quarantined ones are
+ * fixture candidates.
+ */
+export const MIN_EVENT_RETENTION_DAYS = 30;
+
+/**
+ * Deletes GitHub events older than `olderThanDays` that nothing reads, oldest
+ * first, `batchSize` rows per statement so no delete holds locks for long.
+ * Stops after `maxBatches`; the next run picks up the rest.
+ */
+export async function pruneEvents(
+	db: Db,
+	options: { olderThanDays: number; batchSize?: number; maxBatches?: number },
+): Promise<number> {
+	const days = Math.max(options.olderThanDays, MIN_EVENT_RETENTION_DAYS);
+	const batchSize = options.batchSize ?? 5_000;
+	let removed = 0;
+	for (let batch = 0; batch < (options.maxBatches ?? 200); batch++) {
+		const result = await db.execute(sql`
+			DELETE FROM events WHERE id IN (
+				SELECT e.id FROM events e
+				WHERE e.received_at < now() - make_interval(days => ${days})
+				  AND e.forge = 'github'
+				  AND e.raw_kind NOT IN ('installation', 'installation_repositories')
+				  AND NOT e.quarantined
+				  AND NOT EXISTS (SELECT 1 FROM runs r WHERE r.event_id = e.id)
+				ORDER BY e.received_at
+				LIMIT ${batchSize})
+			RETURNING id
+		`);
+		const deleted = result.rows.length;
+		removed += deleted;
+		if (deleted < batchSize) break;
+	}
+	return removed;
+}

@@ -61,5 +61,7 @@ export const events = pgTable(
 		uniqueIndex("events_forge_delivery_id_unique").on(t.forge, t.deliveryId),
 		index("events_repo_received_idx").on(t.repoFullName, t.receivedAt),
 		index("events_kind_idx").on(t.kind),
+		/** Retention deletes oldest first (`pruneEvents`). */
+		index("events_received_idx").on(t.receivedAt),
 	],
 );
