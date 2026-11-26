@@ -85,7 +85,7 @@ export const webhooks = new Hono<ApiEnv>().post("/:forge", async (c) => {
 			.map((header) => c.req.header(header))
 			.find((value) => value !== undefined) ?? null;
 
-	const { webhookSecret, pool, boss, logger } = c.get("deps");
+	const { webhookSecret, pool, boss, logger, ingestDrops } = c.get("deps");
 	const secret = binding.secret(webhookSecret);
 	if (!secret) {
 		// An unset secret must NEVER mean "accept everything".
@@ -112,6 +112,7 @@ export const webhooks = new Hono<ApiEnv>().post("/:forge", async (c) => {
 		)
 	) {
 		logger.debug({ forge, deliveryId, eventName }, "webhook ignored");
+		ingestDrops?.add("unsubscribed", eventName);
 		return c.json({ ok: true, ignored: true }, 200);
 	}
 
@@ -139,6 +140,14 @@ export const webhooks = new Hono<ApiEnv>().post("/:forge", async (c) => {
 			"webhook ingest failed",
 		);
 		throw error;
+	}
+	if (result.dropped) {
+		logger.debug(
+			{ forge, deliveryId, eventName, reason: result.dropped },
+			"webhook ignored",
+		);
+		ingestDrops?.add(result.dropped, eventName);
+		return c.json({ ok: true, ignored: true }, 200);
 	}
 	logger.info(
 		{

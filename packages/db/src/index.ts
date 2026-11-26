@@ -148,6 +148,7 @@ export type {
 	UsageCountersInput,
 } from "./services/economics.ts";
 export * as economicsServices from "./services/economics.ts";
+export type { IngestDropReason } from "./services/events.ts";
 export * as eventServices from "./services/events.ts";
 export * as flagOverrideServices from "./services/flag-overrides.ts";
 export {
