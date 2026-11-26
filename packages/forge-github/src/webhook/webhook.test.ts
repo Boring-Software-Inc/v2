@@ -3,6 +3,10 @@ import { fileURLToPath } from "node:url";
 import { normalizedEventSchema } from "@tripwire/contracts";
 import issueCommentCreated from "../../fixtures/issue_comment.created.json";
 import pullRequestOpened from "../../fixtures/pull_request.opened.json";
+import {
+	githubDeliveryActionSchema,
+	isIngestedGithubWebhook,
+} from "./ingest.ts";
 import { normalizeWebhook } from "./normalize.ts";
 import { signWebhookBody, verifyWebhookSignature } from "./verify.ts";
 
@@ -386,5 +390,51 @@ describe("normalizeWebhook — installation sync (self-captured fixture)", () =>
 			}
 			expect(event.repositories.length).toBeGreaterThan(0);
 		}
+	});
+});
+
+describe("isIngestedGithubWebhook", () => {
+	const deliveries = [
+		["pull_request", "pull_request.opened"],
+		["pull_request", "pull_request.synchronize"],
+		["pull_request", "pull_request.closed"],
+		["pull_request", "pull_request.edited.title"],
+		["pull_request", "pull_request.edited.base"],
+		["pull_request", "pull_request.edited.body-by-bot"],
+		["issue_comment", "issue_comment.created"],
+		["push", "push"],
+		["installation", "installation.created"],
+		["installation", "installation.deleted"],
+		["installation_repositories", "installation_repositories.added"],
+		["installation_repositories", "installation_repositories.removed"],
+		["ping", "ping"],
+	] as const;
+
+	test("never drops a delivery the normalizer would turn into an event", async () => {
+		for (const [eventName, name] of deliveries) {
+			const body = await fixture(name);
+			const event = normalizeWebhook(
+				{ deliveryId: `d-${name}`, eventName, body, signature: null },
+				NOW,
+			);
+			const { action } = githubDeliveryActionSchema.parse(JSON.parse(body));
+			if (event) expect(isIngestedGithubWebhook(eventName, action)).toBe(true);
+		}
+	});
+
+	test("drops events and actions Tripwire never reads", () => {
+		for (const [eventName, action] of [
+			["ping", undefined],
+			["check_suite", "requested"],
+			["pull_request_review", "submitted"],
+			["issue_comment", "edited"],
+			["pull_request", "labeled"],
+			["pull_request", undefined],
+			["issues", "closed"],
+			["star", "created"],
+			["toString", undefined],
+		] as const)
+			expect(isIngestedGithubWebhook(eventName, action)).toBe(false);
+		expect(isIngestedGithubWebhook("push", undefined)).toBe(true);
 	});
 });

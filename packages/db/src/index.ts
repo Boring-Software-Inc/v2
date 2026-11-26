@@ -28,6 +28,10 @@ export {
 	createGitCafeConnectionBoss,
 	DEFAULT_RERUN_COOLDOWN_SECONDS,
 	DRAIN_BACKLOG_WORK_OPTIONS,
+	EVALUATE_LANES_PER_INSTALLATION,
+	GITHUB_EVALUATE_DEAD_LETTER_QUEUE,
+	GITHUB_EVALUATE_QUEUE,
+	type GithubEvaluateJob,
 	getRerunCooldownSeconds,
 	PROCESS_EVENT_QUEUE,
 	type ProcessEventJob,
@@ -183,6 +187,7 @@ export type {
 } from "./services/organizations.ts";
 export * as orgServices from "./services/organizations.ts";
 export * as presenceServices from "./services/presence.ts";
+export * as queueServices from "./services/queue-health.ts";
 export type { RepoSetupFacts } from "./services/repo-setup.ts";
 export * as repoSetupServices from "./services/repo-setup.ts";
 export * as repoServices from "./services/repos.ts";

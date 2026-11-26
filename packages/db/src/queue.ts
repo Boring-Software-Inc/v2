@@ -25,12 +25,37 @@ export function queueDatabaseOptions(
 	return { connectionString: databaseUrl, max: QUEUE_POOL_MAX };
 }
 
-/** Ingest → worker handoff (§5). */
+/**
+ * Ingest → worker handoff (§5) for what ingest can't settle: installation
+ * events, repos with no row yet, deliveries that didn't normalize, and forges
+ * the worker normalizes.
+ */
 export const PROCESS_EVENT_QUEUE = "process-event";
 
 export interface ProcessEventJob {
 	eventId: string;
 }
+
+/**
+ * GitHub events that can produce a run (see `insertRawEvent` lanes). Its own
+ * partition, so a backlog here never bloats the table every other queue polls.
+ */
+export const GITHUB_EVALUATE_QUEUE = "github-evaluate";
+
+/** Jobs that failed every retry. Nothing consumes it; alerting counts it. */
+export const GITHUB_EVALUATE_DEAD_LETTER_QUEUE = "github-evaluate-dead";
+
+export interface GithubEvaluateJob {
+	eventId: string;
+}
+
+/**
+ * Jobs in one lane run one at a time, and a PR or issue always hashes to the
+ * same lane, so its events run in order. An installation therefore holds at
+ * most this many worker slots however many events it sends, which also keeps
+ * its GitHub calls under the per-installation rate limits.
+ */
+export const EVALUATE_LANES_PER_INSTALLATION = 2;
 
 /** Moderation decision → worker resume (§6). */
 export const RESUME_RUN_QUEUE = "resume-run";
@@ -230,6 +255,17 @@ export async function createBoss(
 	});
 	await boss.start();
 	await boss.createQueue(PROCESS_EVENT_QUEUE);
+	await boss.createQueue(GITHUB_EVALUATE_DEAD_LETTER_QUEUE);
+	await boss.createQueue(GITHUB_EVALUATE_QUEUE, {
+		partition: true,
+		retryLimit: 3,
+		retryDelay: 30,
+		retryBackoff: true,
+		// Above the AI review timeout, so a job never expires mid-review and
+		// starts a second evaluation of the same event.
+		expireInSeconds: 900,
+		deadLetter: GITHUB_EVALUATE_DEAD_LETTER_QUEUE,
+	});
 	await boss.createQueue(RESUME_RUN_QUEUE);
 	await boss.createQueue(RESTORE_CONTRIBUTION_APPEAL_QUEUE, {
 		retryLimit: 10,

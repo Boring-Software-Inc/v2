@@ -52,6 +52,13 @@ function sumStepCost(
 
 const meteredBodySchema = z.string({ error: "Non-string request body" });
 
+/**
+ * A review that hangs holds its lane, and with it every later event on the
+ * PR. Under the evaluate queue's 15-minute expiry, so pg-boss never retries a
+ * job whose first attempt is still reviewing.
+ */
+export const AI_REVIEW_TIMEOUT_MS = 10 * 60_000;
+
 export function createGenerate(options: {
 	apiKey: string;
 	/** AI_REVIEW_MODEL env — explicit rule config wins over this. */
@@ -118,6 +125,7 @@ export function createGenerate(options: {
 				// usage.include turns on OpenRouter usage accounting, so each step's
 				// providerMetadata carries token counts AND cost (§8 metering).
 				model: openrouter(resolvedModel, { usage: { include: true } }),
+				abortSignal: AbortSignal.timeout(AI_REVIEW_TIMEOUT_MS),
 				system: instructions,
 				prompt,
 				stopWhen: [stepCountIs(maxSteps), hasToolCall("submit_review")],
