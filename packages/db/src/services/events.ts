@@ -18,7 +18,7 @@ import {
 import { generateId } from "@tripwire/utils";
 import { and, desc, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
 import type { Pool, PoolClient } from "pg";
-import type { JobInsert, PgBoss } from "pg-boss";
+import type { PgBoss, SendOptions } from "pg-boss";
 import { z } from "zod";
 import type { Db } from "../client.ts";
 import {
@@ -123,10 +123,11 @@ export async function insertRawEvent(
 					db,
 				});
 			else if (lane === "evaluate" && normalized && "repo" in normalized)
-				await boss.insert(
+				// send, not insert: pg-boss 12.26's insert() drops `group`.
+				await boss.send(
 					GITHUB_EVALUATE_QUEUE,
-					[githubEvaluateJob(id, normalized)],
-					{ db },
+					{ eventId: id } satisfies GithubEvaluateJob,
+					{ ...githubEvaluateOptions(normalized), db },
 				);
 			if (columns) {
 				// Delivered on commit, like the worker's notify after normalizing.
@@ -173,14 +174,10 @@ async function chooseLane(
 }
 
 /** Same subject, same lane: its events run one at a time, in order. */
-export function githubEvaluateJob(
-	eventId: string,
-	event: RepoScopedEvent,
-): JobInsert<GithubEvaluateJob> {
+export function githubEvaluateOptions(event: RepoScopedEvent): SendOptions {
 	const subject = `${event.repo.fullName}#${eventSubjectNumber(event) ?? event.kind}`;
 	const owner = event.installationExternalId ?? event.repo.fullName;
 	return {
-		data: { eventId },
 		priority: evaluatePriority(event.kind),
 		group: {
 			id: `${event.forge}:${owner}:${evaluateLane(subject)}`,
