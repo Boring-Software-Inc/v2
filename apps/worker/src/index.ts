@@ -114,6 +114,7 @@ import { syncRepoReviewers } from "./jobs/sync-repo-reviewers.ts";
 import * as metering from "./metering.ts";
 import { installFailureReporter } from "./report-install-failure.ts";
 import { reportAiCreditsToSentry } from "./report-unrunnable.ts";
+import { startSentryHeartbeat } from "./sentry-heartbeat.ts";
 
 /**
  * @tripwire/worker — pg-boss consumers, where I/O meets the pure core. Request
@@ -694,6 +695,7 @@ if (import.meta.main && workerMode === "standard") {
 		consume: consumeQueues,
 		pause: pauseQueues,
 	});
+	startSentryHeartbeat("github-worker", () => fence.leader());
 
 	/**
 	 * Liveness surface. The worker has no other HTTP endpoint; Railway's

@@ -188,6 +188,7 @@ export type {
 } from "./services/organizations.ts";
 export * as orgServices from "./services/organizations.ts";
 export * as presenceServices from "./services/presence.ts";
+export type { QueueHealth } from "./services/queue-health.ts";
 export * as queueServices from "./services/queue-health.ts";
 export type { RepoSetupFacts } from "./services/repo-setup.ts";
 export * as repoSetupServices from "./services/repo-setup.ts";
