@@ -61,7 +61,9 @@ export async function readQueueHealth(db: Db): Promise<QueueHealth> {
 			(SELECT count(*) FROM pgboss.job
 				WHERE name = ${GITHUB_EVALUATE_DEAD_LETTER_QUEUE}
 					AND created_on > now() - interval '1 day') AS "deadLetteredLastDay",
-			(SELECT GREATEST(0, EXTRACT(EPOCH FROM now() - max(last_heartbeat_at)))
+			-- GREATEST skips NULLs, so check for no heartbeat before clamping.
+			(SELECT CASE WHEN max(last_heartbeat_at) IS NULL THEN NULL
+				ELSE GREATEST(0, EXTRACT(EPOCH FROM now() - max(last_heartbeat_at))) END
 				FROM worker_deployments) AS "workerHeartbeatAgeSeconds"
 	`);
 	return queueHealthSchema.parse(result.rows[0]);
