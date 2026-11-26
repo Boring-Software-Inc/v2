@@ -25,6 +25,7 @@ import {
 	createDb,
 	createDirectPool,
 	createGitCafeConnectionBoss,
+	DRAIN_BACKLOG_WORK_OPTIONS,
 	eventServices,
 	gitCafeLifecycleServices,
 	gitCafeOperationalServices,
@@ -103,6 +104,7 @@ export async function registerGitCafeProtectionQueues(
 	monitor?: GitCafeRecoveryMonitor,
 ) {
 	const workOptions = (queue: string): WorkOptions => ({
+		...DRAIN_BACKLOG_WORK_OPTIONS,
 		batchSize: 1,
 		localConcurrency: queue === GITCAFE_PROCESS_EVENT_QUEUE ? 4 : 1,
 	});
