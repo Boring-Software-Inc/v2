@@ -10,6 +10,7 @@ import {
 	type TestDatabase,
 } from "../index.ts";
 import { workerDeployments } from "../schema/workers.ts";
+import { deliveryAuditStore } from "./delivery-audit.ts";
 import {
 	oldestReadyAgeSeconds,
 	readQueueHealth,
@@ -74,4 +75,30 @@ test("only the call that flips an alert reports it", async () => {
 		firing: true,
 		sinceSeconds: null,
 	});
+});
+
+test("lost GitHub deliveries count until they recover", async () => {
+	const lost = async () => (await readQueueHealth(db)).lostDeliveriesLastDay;
+	const store = deliveryAuditStore(db);
+	const problem = {
+		guid: "guid-health",
+		attemptId: 1,
+		event: "pull_request",
+		action: "opened",
+		installationId: "1",
+		repositoryId: "1",
+		deliveredAt: new Date(),
+		statusCode: 200,
+	};
+	await store.recordDeliveryProblem({ ...problem, status: "redelivered" });
+	await store.recordDeliveryProblem({
+		...problem,
+		guid: "guid-noop",
+		status: "ignored",
+	});
+	expect(await lost()).toBe(0);
+	await store.recordDeliveryProblem({ ...problem, status: "missed" });
+	expect(await lost()).toBe(1);
+	await store.setDeliveryProblemStatus("guid-health", "recovered");
+	expect(await lost()).toBe(0);
 });

@@ -80,14 +80,16 @@ export async function deliveryTargets(
 						armed: repos.armed,
 						claimed: sql<boolean>`${repos.orgId} IS NOT NULL`,
 						removed: sql<boolean>`${repos.removedAt} IS NOT NULL`,
+						// "repos"."id" spelled out: drizzle renders ${repos.id} as a bare
+						// "id" here, which the subquery reads as w.id.
 						pushTriggered: sql<boolean>`EXISTS (
 							SELECT 1 FROM workflow_definitions w
-							WHERE w.repo_id = ${repos.id} AND w.enabled
+							WHERE w.repo_id = "repos"."id" AND w.enabled
 								AND jsonb_path_exists(w.definition,
 									'$.nodes[*] ? (@.type == "trigger" && @.kinds[*] == "push")'))`,
-						changedAt: sql<Date>`GREATEST(${repos.routingChangedAt},
+						changedAt: sql<Date>`GREATEST("repos"."routing_changed_at",
 							(SELECT max(w.updated_at) FROM workflow_definitions w
-								WHERE w.repo_id = ${repos.id}))`.mapWith(
+								WHERE w.repo_id = "repos"."id"))`.mapWith(
 							repos.routingChangedAt,
 						),
 					})

@@ -13,7 +13,6 @@ import { organization } from "../schema/organizations.ts";
 import { workflowDefinitions } from "../schema/repos.ts";
 import { deliveryAuditStore } from "./delivery-audit.ts";
 import { linkOrgInstallation } from "./organizations.ts";
-import { readQueueHealth } from "./queue-health.ts";
 import { ensureRepo, setRepoArmed } from "./repos.ts";
 
 let container: TestDatabase;
@@ -149,10 +148,12 @@ test("stored deliveries, problems and the cursor round-trip", async () => {
 		await store.redeliveriesUpdatedBefore(new Date(Date.now() + 60_000)),
 	).toEqual([{ guid: "guid-lost", event: "pull_request" }]);
 
-	// Lost deliveries page through the queue alerts.
-	expect((await readQueueHealth(db)).lostDeliveriesLastDay).toBe(0);
 	await store.recordDeliveryProblem({ ...problem, status: "missed" });
-	expect((await readQueueHealth(db)).lostDeliveriesLastDay).toBe(1);
 	await store.setDeliveryProblemStatus("guid-lost", "recovered");
-	expect((await readQueueHealth(db)).lostDeliveriesLastDay).toBe(0);
+	expect(
+		(await store.deliveryProblems(["guid-lost"])).get("guid-lost")?.status,
+	).toBe("recovered");
+	expect(
+		await store.redeliveriesUpdatedBefore(new Date(Date.now() + 60_000)),
+	).toEqual([]);
 });
