@@ -84,6 +84,11 @@ import { economicsRollup } from "./jobs/economics-rollup.ts";
 import { evaluateEvent } from "./jobs/evaluate-event.ts";
 import { type ProcessEventDeps, processEvent } from "./jobs/process-event.ts";
 import {
+	PRUNE_EVENTS_CRON,
+	PRUNE_EVENTS_QUEUE,
+	pruneEvents,
+} from "./jobs/prune-events.ts";
+import {
 	PRUNE_INSTALLATION_ACCESS_CHECKS_CRON,
 	PRUNE_INSTALLATION_ACCESS_CHECKS_QUEUE,
 	pruneInstallationAccessChecks,
@@ -583,6 +588,16 @@ if (import.meta.main && workerMode === "standard") {
 			});
 		});
 
+		await boss.createQueue(PRUNE_EVENTS_QUEUE);
+		await boss.schedule(PRUNE_EVENTS_QUEUE, PRUNE_EVENTS_CRON, {}, {});
+		await work(PRUNE_EVENTS_QUEUE, async () => {
+			await pruneEvents({
+				db,
+				logger: logger.child({ job: PRUNE_EVENTS_QUEUE }),
+				retentionDays: process.env.EVENT_RETENTION_DAYS,
+			});
+		});
+
 		await boss.createQueue(SWEEP_FLAG_REMOVALS_QUEUE);
 		await boss.schedule(
 			SWEEP_FLAG_REMOVALS_QUEUE,
@@ -757,6 +772,7 @@ if (import.meta.main && workerMode === "standard") {
 				"rollup",
 				AUDIT_INSTALLATION_CLAIMS_QUEUE,
 				PRUNE_INSTALLATION_ACCESS_CHECKS_QUEUE,
+				PRUNE_EVENTS_QUEUE,
 				"sweep-actions",
 				SCHEDULE_TICK_QUEUE,
 				"deliver-webhook",
