@@ -44,6 +44,11 @@ test("queue health reads the waiting backlog and the worker's last check-in", as
 		lostDeliveriesLastDay: 0,
 		workerHeartbeatAgeSeconds: null,
 	});
+	// Postgres's default 100, less its 3 superuser slots; this test's pool and
+	// pg-boss are among the connections counted.
+	expect(empty.connectionsLimit).toBe(97);
+	expect(empty.connectionsUsed).toBeGreaterThan(0);
+	expect(empty.connectionsUsed).toBeLessThan(empty.connectionsLimit);
 
 	await boss.send(GITHUB_EVALUATE_QUEUE, { eventId: "e1" });
 	await db.execute(

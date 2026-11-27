@@ -3,6 +3,10 @@ import { drizzle, type NodePgQueryResultHKT } from "drizzle-orm/node-postgres";
 import type { PgDatabase } from "drizzle-orm/pg-core";
 import type { PgliteQueryResultHKT } from "drizzle-orm/pglite";
 import { Pool } from "pg";
+import {
+	assertPooledDatabaseUrl,
+	assertSessionDatabaseUrl,
+} from "./database-url.ts";
 import * as schema from "./schema/index.ts";
 
 /**
@@ -14,6 +18,7 @@ export function createDb(databaseUrl = process.env.DATABASE_URL, max = 10) {
 	if (!databaseUrl) {
 		throw new Error("DATABASE_URL is not set");
 	}
+	assertPooledDatabaseUrl(databaseUrl);
 	const pool = new Pool({ connectionString: databaseUrl, max });
 	return { db: drizzle(pool, { schema }), pool };
 }
@@ -34,6 +39,7 @@ export function createDirectPool(
 	if (!directUrl) {
 		throw new Error("DATABASE_URL_DIRECT (or DATABASE_URL) is not set");
 	}
+	assertSessionDatabaseUrl(directUrl);
 	return new Pool({ connectionString: directUrl, max });
 }
 
