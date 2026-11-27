@@ -1,0 +1,37 @@
+name: Post-deploy check
+
+# Unkey deploys main to production and staging to staging on every push, and
+# nothing watched what happened next: on 2026-11-27 a promotion ran prod's
+# database out of connections for about 30 minutes. This waits for the
+# deploy, watches the live site for 10 minutes, and then stops the
+# deployments it replaced (scripts/post-deploy.ts).
+on:
+  push:
+    branches: [staging, main]
+  workflow_dispatch:
+
+# A newer push supersedes this check; its own run covers the newer deploy.
+concurrency:
+  group: post-deploy-${{ github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  statuses: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+
+      - name: Wait for Unkey, watch the site, stop replaced deployments
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          UNKEY_DEPLOY_KEY: ${{ secrets.UNKEY_DEPLOY_KEY }}
+        run: bun run scripts/post-deploy.ts "$GITHUB_REF_NAME"

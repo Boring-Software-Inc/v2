@@ -39,6 +39,14 @@ const queueHealthSchema = z.object({
 	lostDeliveriesLastDay: z.coerce.number(),
 	/** null when no GitHub worker has ever run against this database. */
 	workerHeartbeatAgeSeconds: z.coerce.number().nullable(),
+	/** Client connections open on the server, from every app and the pooler. */
+	connectionsUsed: z.coerce.number(),
+	/**
+	 * Connections the apps may open: max_connections less the slots kept for
+	 * superusers. Prod's smallest PlanetScale size allows 22, and running out
+	 * took prod down on 2026-11-27.
+	 */
+	connectionsLimit: z.coerce.number(),
 });
 
 export type QueueHealth = z.infer<typeof queueHealthSchema>;
@@ -69,7 +77,13 @@ export async function readQueueHealth(db: Db): Promise<QueueHealth> {
 			-- GREATEST skips NULLs, so check for no heartbeat before clamping.
 			(SELECT CASE WHEN max(last_heartbeat_at) IS NULL THEN NULL
 				ELSE GREATEST(0, EXTRACT(EPOCH FROM now() - max(last_heartbeat_at))) END
-				FROM worker_deployments) AS "workerHeartbeatAgeSeconds"
+				FROM worker_deployments) AS "workerHeartbeatAgeSeconds",
+			(SELECT count(*) FROM pg_stat_activity
+				WHERE backend_type = 'client backend') AS "connectionsUsed",
+			current_setting('max_connections')::int
+				- current_setting('superuser_reserved_connections')::int
+				- COALESCE(current_setting('reserved_connections', true), '0')::int
+				AS "connectionsLimit"
 	`);
 	return queueHealthSchema.parse(result.rows[0]);
 }
