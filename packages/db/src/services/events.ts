@@ -246,24 +246,33 @@ async function routeEvent(
  * events. Everything downstream finds repos by name, so the row follows the
  * forge's repo id to the new name before routing. Without this, an armed
  * repo's comments were dropped as unwatched from the rename on.
- * A row that already holds the new name keeps it.
+ *
+ * Only through the row's own installation: a repo transferred to another
+ * account arrives through that account's installation, and must not inherit
+ * the old org's row before installation sync moves it. Only for events newer
+ * than the row's last routing change, which a rename stamps: a redelivered
+ * or late event from before the rename carries the old name and would undo
+ * it. A row that already holds the new name keeps it.
  */
 async function followRename(
 	client: PoolClient,
 	event: RepoScopedEvent,
 ): Promise<void> {
-	if (!event.repoExternalId) return;
+	if (!(event.repoExternalId && event.installationExternalId)) return;
 	await client.query(
-		`UPDATE repos SET owner = $3, name = $4, full_name = $5
-		 WHERE forge = $1 AND external_id = $2 AND full_name <> $5
+		`UPDATE repos SET owner = $4, name = $5, full_name = $6
+		 WHERE forge = $1 AND external_id = $2 AND installation_id = $3
+		   AND full_name <> $6 AND routing_changed_at < $7
 		   AND NOT EXISTS (SELECT 1 FROM repos taken
-		     WHERE taken.forge = $1 AND taken.full_name = $5)`,
+		     WHERE taken.forge = $1 AND taken.full_name = $6)`,
 		[
 			event.forge,
 			event.repoExternalId,
+			event.installationExternalId,
 			event.repo.owner,
 			event.repo.name,
 			event.repo.fullName,
+			event.occurredAt,
 		],
 	);
 }

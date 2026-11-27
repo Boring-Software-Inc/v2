@@ -630,14 +630,19 @@ describe("ingest keeps exactly what the delivery audit requires", () => {
 });
 
 describe("a repo renamed on GitHub", () => {
-	/** A comment on `repo`, under the name GitHub now gives it. */
-	async function commentOn(repo: { id: number; name: string }, id: string) {
+	/** A comment on `repo`, under the name GitHub gives it at `at`. */
+	async function commentOn(
+		repo: { id: number; name: string },
+		id: string,
+		{ at = new Date(), installation = LINKED_INSTALLATION } = {},
+	) {
 		const raw = JSON.parse(await fixture("issue_comment.created.json"));
-		raw.installation = { id: Number(LINKED_INSTALLATION) };
+		raw.installation = { id: Number(installation) };
 		raw.repository.id = repo.id;
 		raw.repository.name = repo.name;
 		raw.repository.full_name = `renames/${repo.name}`;
 		raw.repository.owner.login = "renames";
+		raw.comment.created_at = at.toISOString();
 		const body = JSON.stringify(raw);
 		return await app.request("/webhooks/github", {
 			method: "POST",
@@ -678,10 +683,29 @@ describe("a repo renamed on GitHub", () => {
 		expect(await fullName(id)).toBe("renames/after");
 	});
 
+	test("an event from before the rename doesn't undo it", async () => {
+		const id = await armedRepo(700_002, "old");
+		const before = new Date(Date.now() - 60_000);
+		await commentOn({ id: 700_002, name: "new" }, "rename-2");
+		await commentOn({ id: 700_002, name: "old" }, "rename-2-late", {
+			at: before,
+		});
+		expect(await fullName(id)).toBe("renames/new");
+	});
+
+	test("a repo transferred to another installation keeps its old row", async () => {
+		const id = await armedRepo(700_003, "moving");
+		const res = await commentOn({ id: 700_003, name: "moved" }, "rename-3", {
+			installation: "2",
+		});
+		expect(await res.json()).toEqual({ ok: true, ignored: true });
+		expect(await fullName(id)).toBe("renames/moving");
+	});
+
 	test("never takes a name another repo row holds", async () => {
-		const id = await armedRepo(700_002, "mine");
-		const other = await armedRepo(700_003, "theirs");
-		const res = await commentOn({ id: 700_002, name: "theirs" }, "rename-2");
+		const id = await armedRepo(700_004, "mine");
+		const other = await armedRepo(700_005, "theirs");
+		const res = await commentOn({ id: 700_004, name: "theirs" }, "rename-4");
 		expect(res.status).toBe(200);
 		expect(await fullName(id)).toBe("renames/mine");
 		expect(await fullName(other)).toBe("renames/theirs");
