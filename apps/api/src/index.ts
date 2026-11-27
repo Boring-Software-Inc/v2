@@ -8,6 +8,7 @@ import {
 	createBoss,
 	createDb,
 	createDirectPool,
+	createIngestQueues,
 	gitCafeLifecycleServices,
 } from "@tripwire/db";
 import { generateId } from "@tripwire/utils";
@@ -101,6 +102,8 @@ if (import.meta.main) {
 				logger,
 			)
 		: await createBoss(undefined, logger);
+	// createBoss makes these too; the GitCafe boss leaves general queues alone.
+	if (gitCafeReceipts) await createIngestQueues(boss);
 
 	let auth: Auth | null = null;
 	try {

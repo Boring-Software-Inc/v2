@@ -6,7 +6,9 @@ import {
 	createDb,
 	createTestDatabase,
 	type Db,
+	GITHUB_EVALUATE_QUEUE,
 	PROCESS_EVENT_QUEUE,
+	repoServices,
 	type TestDatabase,
 } from "@tripwire/db";
 import { signWebhookBody } from "@tripwire/forge-github";
@@ -212,4 +214,110 @@ test("GitCafe identity alone does not enable a webhook endpoint", async () => {
 		"SELECT count(*)::int AS n FROM events",
 	);
 	expect(after.rows[0]?.n).toBe(before.rows[0]?.n);
+});
+
+describe("ingest lanes", () => {
+	let repoId: string;
+
+	beforeAll(async () => {
+		// The pull_request fixtures are scoped to Codertocat/Hello-World.
+		repoId = await repoServices.ensureRepo(db, {
+			externalId: "186853002",
+			owner: "Codertocat",
+			name: "Hello-World",
+			fullName: "Codertocat/Hello-World",
+		});
+	});
+
+	async function deliverAs(
+		eventName: string,
+		body: string,
+		deliveryId: string,
+	) {
+		return await app.request("/webhooks/github", {
+			method: "POST",
+			headers: {
+				"x-github-delivery": deliveryId,
+				"x-github-event": eventName,
+				"x-hub-signature-256": signWebhookBody(body, SECRET),
+			},
+			body,
+		});
+	}
+
+	async function stored(deliveryId: string) {
+		const rows = await pool.query<{
+			id: string;
+			kind: string | null;
+			normalized_at: Date | null;
+		}>("SELECT id, kind, normalized_at FROM events WHERE delivery_id = $1", [
+			deliveryId,
+		]);
+		const event = rows.rows[0];
+		const jobs = event
+			? await pool.query<{ name: string; group_id: string | null }>(
+					"SELECT name, group_id FROM pgboss.job WHERE data->>'eventId' = $1",
+					[event.id],
+				)
+			: null;
+		return { event, jobs: jobs?.rows ?? [] };
+	}
+
+	test("a delivery Tripwire never reads is acknowledged and not stored", async () => {
+		const res = await deliverAs(
+			"check_suite",
+			JSON.stringify({ action: "requested" }),
+			"lane-ignored",
+		);
+		expect(res.status).toBe(200);
+		expect(await res.json()).toEqual({ ok: true, ignored: true });
+		expect((await stored("lane-ignored")).event).toBeUndefined();
+	});
+
+	test("a PR on a repo with Tripwire off is stored normalized, with no job", async () => {
+		await deliverAs("pull_request", await fixtureBody(), "lane-record");
+		const { event, jobs } = await stored("lane-record");
+		expect(event?.kind).toBe("change-request.opened");
+		expect(event?.normalized_at).not.toBeNull();
+		expect(jobs).toEqual([]);
+	});
+
+	test("a close evaluates even with Tripwire off, to settle open reviews", async () => {
+		const body = await Bun.file(
+			fileURLToPath(
+				new URL(
+					"../../../packages/forge-github/fixtures/pull_request.closed.json",
+					import.meta.url,
+				),
+			),
+		).text();
+		await deliverAs("pull_request", body, "lane-close");
+		const { jobs } = await stored("lane-close");
+		expect(jobs.map((job) => job.name)).toEqual([GITHUB_EVALUATE_QUEUE]);
+	});
+
+	test("a PR on an armed repo queues in its installation's lane", async () => {
+		await repoServices.setRepoArmed(db, repoId, true);
+		const body = await Bun.file(
+			fileURLToPath(
+				new URL(
+					"../../../packages/forge-github/fixtures/pull_request.synchronize.json",
+					import.meta.url,
+				),
+			),
+		).text();
+		await deliverAs("pull_request", body, "lane-evaluate");
+		await deliverAs(
+			"pull_request",
+			body.replace('"synchronize"', '"synchronize" '),
+			"lane-evaluate-again",
+		);
+		const first = await stored("lane-evaluate");
+		const second = await stored("lane-evaluate-again");
+		expect(first.event?.kind).toBe("change-request.updated");
+		expect(first.jobs.map((job) => job.name)).toEqual([GITHUB_EVALUATE_QUEUE]);
+		expect(first.jobs[0]?.group_id).toStartWith("github:1:");
+		// Same PR, same lane: its events run one at a time, in order.
+		expect(second.jobs[0]?.group_id).toBe(first.jobs[0]?.group_id);
+	});
 });

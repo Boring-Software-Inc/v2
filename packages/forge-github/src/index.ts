@@ -55,5 +55,9 @@ export {
 	supersededBody,
 } from "./copy.ts";
 export { type GithubForge, githubForge } from "./signals.ts";
+export {
+	githubDeliveryActionSchema,
+	isIngestedGithubWebhook,
+} from "./webhook/ingest.ts";
 export { normalizeWebhook } from "./webhook/normalize.ts";
 export { signWebhookBody, verifyWebhookSignature } from "./webhook/verify.ts";

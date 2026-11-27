@@ -12,8 +12,11 @@ import {
 	createDb,
 	createDirectPool,
 	DRAIN_BACKLOG_WORK_OPTIONS,
+	GITHUB_EVALUATE_QUEUE,
+	type GithubEvaluateJob,
 	PROCESS_EVENT_QUEUE,
 	type ProcessEventJob,
+	queueServices,
 	RECOVER_INSTALLATION_QUEUE,
 	REFRESH_SURFACES_QUEUE,
 	RERUN_QUEUE,
@@ -48,6 +51,12 @@ import type { WorkHandler } from "pg-boss";
 import pino from "pino";
 import { createGenerate } from "./ai/generate.ts";
 import { captureJobFailures } from "./capture-job-failures.ts";
+import {
+	type ConcurrencyScaler,
+	EVALUATE_CONCURRENCY_STEP,
+	evaluateConcurrencyMax,
+	startConcurrencyScaler,
+} from "./concurrency-scaler.ts";
 import { resolveDeploymentId, startFence } from "./fence.ts";
 import { buildResolveForge } from "./forge-runtime.ts";
 import {
@@ -72,7 +81,8 @@ import {
 import { deliverWebhooks } from "./jobs/deliver-webhook.ts";
 import { economicsDigest } from "./jobs/economics-digest.ts";
 import { economicsRollup } from "./jobs/economics-rollup.ts";
-import { processEvent } from "./jobs/process-event.ts";
+import { evaluateEvent } from "./jobs/evaluate-event.ts";
+import { type ProcessEventDeps, processEvent } from "./jobs/process-event.ts";
 import {
 	PRUNE_INSTALLATION_ACCESS_CHECKS_CRON,
 	PRUNE_INSTALLATION_ACCESS_CHECKS_QUEUE,
@@ -309,28 +319,53 @@ if (import.meta.main && workerMode === "standard") {
 		working.add(name);
 	};
 
+	const eventDeps = (eventId: string): ProcessEventDeps => ({
+		// A retry must redo the work the failed attempt didn't finish.
+		resumeNormalized: true,
+		db,
+		pool: directPool,
+		resolveForge,
+		makeGenerate,
+		meterSource,
+		appUrl: process.env.APP_URL ?? "http://localhost:3000",
+		logger: logger.child({ eventId }),
+		enqueueReviewerSync,
+		enqueueLabelSync,
+		enqueueBranchSync,
+		selfLogins,
+	});
+
+	let evaluateScaler: ConcurrencyScaler | null = null;
+
 	const consumeQueues = async (): Promise<void> => {
 		await work<ProcessEventJob>(PROCESS_EVENT_QUEUE, async (jobs) => {
 			for (const job of jobs) {
-				await processEvent(
-					{
-						// A retry must redo the work the failed attempt didn't finish.
-						resumeNormalized: true,
-						db,
-						pool: directPool,
-						resolveForge,
-						makeGenerate,
-						meterSource,
-						appUrl: process.env.APP_URL ?? "http://localhost:3000",
-						logger: logger.child({ eventId: job.data.eventId }),
-						enqueueReviewerSync,
-						enqueueLabelSync,
-						enqueueBranchSync,
-						selfLogins,
-					},
-					job.data,
-				);
+				await processEvent(eventDeps(job.data.eventId), job.data);
 			}
+		});
+
+		evaluateScaler ??= await startConcurrencyScaler<GithubEvaluateJob>({
+			boss,
+			queue: GITHUB_EVALUATE_QUEUE,
+			handler: captureJobFailures(GITHUB_EVALUATE_QUEUE, async (jobs) => {
+				for (const job of jobs) {
+					await evaluateEvent(eventDeps(job.data.eventId), job.data);
+				}
+			}),
+			workOptions: {
+				...DRAIN_BACKLOG_WORK_OPTIONS,
+				// One job per lane at a time: a PR's events run in order, and an
+				// installation holds at most its lanes' worth of slots. Exact within
+				// this process; across replicas it needs pg-boss ≥ 12.38.1's
+				// `groupConcurrency`, which this switches to on upgrade.
+				localGroupConcurrency: 1,
+			},
+			oldestReadyAgeSeconds: () =>
+				queueServices.oldestReadyAgeSeconds(db, GITHUB_EVALUATE_QUEUE),
+			logger: logger.child({ queue: GITHUB_EVALUATE_QUEUE }),
+			min: EVALUATE_CONCURRENCY_STEP,
+			max: evaluateConcurrencyMax(),
+			targetWaitSeconds: 30,
 		});
 
 		await work<ResumeRunJob>(RESUME_RUN_QUEUE, async (jobs) => {
@@ -648,6 +683,8 @@ if (import.meta.main && workerMode === "standard") {
 			await boss.offWork(name, { wait: false });
 			working.delete(name);
 		}
+		await evaluateScaler?.stop();
+		evaluateScaler = null;
 	};
 
 	const fence = await startFence({
@@ -702,6 +739,7 @@ if (import.meta.main && workerMode === "standard") {
 			leader: fence.leader(),
 			queues: [
 				PROCESS_EVENT_QUEUE,
+				GITHUB_EVALUATE_QUEUE,
 				RESUME_RUN_QUEUE,
 				RESTORE_CONTRIBUTION_APPEAL_QUEUE,
 				RERUN_QUEUE,
