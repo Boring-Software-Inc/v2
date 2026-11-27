@@ -11,8 +11,13 @@ import {
 	createBoss,
 	createDb,
 	createDirectPool,
+	DRAIN_BACKLOG_WORK_OPTIONS,
+	deliveryAuditServices,
+	GITHUB_EVALUATE_QUEUE,
+	type GithubEvaluateJob,
 	PROCESS_EVENT_QUEUE,
 	type ProcessEventJob,
+	queueServices,
 	RECOVER_INSTALLATION_QUEUE,
 	REFRESH_SURFACES_QUEUE,
 	RERUN_QUEUE,
@@ -32,12 +37,14 @@ import {
 	type SyncRepoLabelsJob,
 	type SyncRepoReviewersJob,
 	syncFlagOverridesOptions,
+	syncRepoBranchesOptions,
 	syncRepoLabelsOptions,
 	syncRepoReviewersOptions,
 } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
 import {
 	checkAppCredentials,
+	GithubAppDeliveries,
 	GithubInstallations,
 } from "@tripwire/forge-github";
 import { createDatabuddyApi, getErrorMessage } from "@tripwire/utils";
@@ -46,6 +53,12 @@ import type { WorkHandler } from "pg-boss";
 import pino from "pino";
 import { createGenerate } from "./ai/generate.ts";
 import { captureJobFailures } from "./capture-job-failures.ts";
+import {
+	type ConcurrencyScaler,
+	EVALUATE_CONCURRENCY_STEP,
+	evaluateConcurrencyMax,
+	startConcurrencyScaler,
+} from "./concurrency-scaler.ts";
 import { resolveDeploymentId, startFence } from "./fence.ts";
 import { buildResolveForge } from "./forge-runtime.ts";
 import {
@@ -57,6 +70,11 @@ import {
 	startGitCafeProtectionRuntime,
 	startGitCafeProtectionWorker,
 } from "./gitcafe-protection-worker.ts";
+import {
+	AUDIT_GITHUB_DELIVERIES_CRON,
+	AUDIT_GITHUB_DELIVERIES_QUEUE,
+	auditGithubDeliveries,
+} from "./jobs/audit-github-deliveries.ts";
 import {
 	AUDIT_INSTALLATION_CLAIMS_QUEUE,
 	auditInstallationClaims,
@@ -70,7 +88,13 @@ import {
 import { deliverWebhooks } from "./jobs/deliver-webhook.ts";
 import { economicsDigest } from "./jobs/economics-digest.ts";
 import { economicsRollup } from "./jobs/economics-rollup.ts";
-import { processEvent } from "./jobs/process-event.ts";
+import { evaluateEvent } from "./jobs/evaluate-event.ts";
+import { type ProcessEventDeps, processEvent } from "./jobs/process-event.ts";
+import {
+	PRUNE_EVENTS_CRON,
+	PRUNE_EVENTS_QUEUE,
+	pruneEvents,
+} from "./jobs/prune-events.ts";
 import {
 	PRUNE_INSTALLATION_ACCESS_CHECKS_CRON,
 	PRUNE_INSTALLATION_ACCESS_CHECKS_QUEUE,
@@ -102,6 +126,7 @@ import { syncRepoReviewers } from "./jobs/sync-repo-reviewers.ts";
 import * as metering from "./metering.ts";
 import { installFailureReporter } from "./report-install-failure.ts";
 import { reportAiCreditsToSentry } from "./report-unrunnable.ts";
+import { startSentryHeartbeat } from "./sentry-heartbeat.ts";
 
 /**
  * @tripwire/worker — pg-boss consumers, where I/O meets the pure core. Request
@@ -286,34 +311,74 @@ if (import.meta.main && workerMode === "standard") {
 		);
 	};
 
+	const enqueueBranchSync = async (repoId: string): Promise<void> => {
+		await boss.send(
+			SYNC_REPO_BRANCHES_QUEUE,
+			{ repoId },
+			syncRepoBranchesOptions(repoId),
+		);
+	};
+
 	const working = new Set<string>();
 	const work = async <T>(name: string, handler: WorkHandler<T>) => {
 		if (working.has(name)) {
 			return;
 		}
-		await boss.work<T>(name, captureJobFailures(name, handler));
+		await boss.work<T>(
+			name,
+			DRAIN_BACKLOG_WORK_OPTIONS,
+			captureJobFailures(name, handler),
+		);
 		working.add(name);
 	};
+
+	const eventDeps = (eventId: string): ProcessEventDeps => ({
+		// A retry must redo the work the failed attempt didn't finish.
+		resumeNormalized: true,
+		db,
+		pool: directPool,
+		resolveForge,
+		makeGenerate,
+		meterSource,
+		appUrl: process.env.APP_URL ?? "http://localhost:3000",
+		logger: logger.child({ eventId }),
+		enqueueReviewerSync,
+		enqueueLabelSync,
+		enqueueBranchSync,
+		selfLogins,
+	});
+
+	let evaluateScaler: ConcurrencyScaler | null = null;
 
 	const consumeQueues = async (): Promise<void> => {
 		await work<ProcessEventJob>(PROCESS_EVENT_QUEUE, async (jobs) => {
 			for (const job of jobs) {
-				await processEvent(
-					{
-						db,
-						pool: directPool,
-						resolveForge,
-						makeGenerate,
-						meterSource,
-						appUrl: process.env.APP_URL ?? "http://localhost:3000",
-						logger: logger.child({ eventId: job.data.eventId }),
-						enqueueReviewerSync,
-						enqueueLabelSync,
-						selfLogins,
-					},
-					job.data,
-				);
+				await processEvent(eventDeps(job.data.eventId), job.data);
 			}
+		});
+
+		evaluateScaler ??= await startConcurrencyScaler<GithubEvaluateJob>({
+			boss,
+			queue: GITHUB_EVALUATE_QUEUE,
+			handler: captureJobFailures(GITHUB_EVALUATE_QUEUE, async (jobs) => {
+				for (const job of jobs) {
+					await evaluateEvent(eventDeps(job.data.eventId), job.data);
+				}
+			}),
+			workOptions: {
+				...DRAIN_BACKLOG_WORK_OPTIONS,
+				// One job per lane at a time: a PR's events run in order, and an
+				// installation holds at most its lanes' worth of slots. Exact within
+				// this process; across replicas it needs pg-boss ≥ 12.38.1's
+				// `groupConcurrency`, which this switches to on upgrade.
+				localGroupConcurrency: 1,
+			},
+			oldestReadyAgeSeconds: () =>
+				queueServices.oldestReadyAgeSeconds(db, GITHUB_EVALUATE_QUEUE),
+			logger: logger.child({ queue: GITHUB_EVALUATE_QUEUE }),
+			min: EVALUATE_CONCURRENCY_STEP,
+			max: evaluateConcurrencyMax(),
+			targetWaitSeconds: 30,
 		});
 
 		await work<ResumeRunJob>(RESUME_RUN_QUEUE, async (jobs) => {
@@ -530,6 +595,40 @@ if (import.meta.main && workerMode === "standard") {
 			});
 		});
 
+		if (appId && privateKey) {
+			const deliveries = new GithubAppDeliveries({
+				credentials: { appId, privateKey },
+			});
+			await boss.createQueue(AUDIT_GITHUB_DELIVERIES_QUEUE);
+			await boss.schedule(
+				AUDIT_GITHUB_DELIVERIES_QUEUE,
+				AUDIT_GITHUB_DELIVERIES_CRON,
+				{},
+				{},
+			);
+			await work(AUDIT_GITHUB_DELIVERIES_QUEUE, async () => {
+				await auditGithubDeliveries({
+					store: deliveryAuditServices.deliveryAuditStore(db),
+					deliveries,
+					logger: logger.child({ job: AUDIT_GITHUB_DELIVERIES_QUEUE }),
+				});
+			});
+		} else {
+			logger.warn(
+				"no GitHub App credentials: lost webhook deliveries will go unnoticed",
+			);
+		}
+
+		await boss.createQueue(PRUNE_EVENTS_QUEUE);
+		await boss.schedule(PRUNE_EVENTS_QUEUE, PRUNE_EVENTS_CRON, {}, {});
+		await work(PRUNE_EVENTS_QUEUE, async () => {
+			await pruneEvents({
+				db,
+				logger: logger.child({ job: PRUNE_EVENTS_QUEUE }),
+				retentionDays: process.env.EVENT_RETENTION_DAYS,
+			});
+		});
+
 		await boss.createQueue(SWEEP_FLAG_REMOVALS_QUEUE);
 		await boss.schedule(
 			SWEEP_FLAG_REMOVALS_QUEUE,
@@ -631,6 +730,8 @@ if (import.meta.main && workerMode === "standard") {
 			await boss.offWork(name, { wait: false });
 			working.delete(name);
 		}
+		await evaluateScaler?.stop();
+		evaluateScaler = null;
 	};
 
 	const fence = await startFence({
@@ -640,6 +741,7 @@ if (import.meta.main && workerMode === "standard") {
 		consume: consumeQueues,
 		pause: pauseQueues,
 	});
+	startSentryHeartbeat("github-worker", () => fence.leader());
 
 	/**
 	 * Liveness surface. The worker has no other HTTP endpoint; Railway's
@@ -685,6 +787,7 @@ if (import.meta.main && workerMode === "standard") {
 			leader: fence.leader(),
 			queues: [
 				PROCESS_EVENT_QUEUE,
+				GITHUB_EVALUATE_QUEUE,
 				RESUME_RUN_QUEUE,
 				RESTORE_CONTRIBUTION_APPEAL_QUEUE,
 				RERUN_QUEUE,
@@ -700,6 +803,8 @@ if (import.meta.main && workerMode === "standard") {
 				"rollup",
 				AUDIT_INSTALLATION_CLAIMS_QUEUE,
 				PRUNE_INSTALLATION_ACCESS_CHECKS_QUEUE,
+				PRUNE_EVENTS_QUEUE,
+				AUDIT_GITHUB_DELIVERIES_QUEUE,
 				"sweep-actions",
 				SCHEDULE_TICK_QUEUE,
 				"deliver-webhook",

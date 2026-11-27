@@ -1,8 +1,23 @@
 import { GITCAFE_CONNECT_QUEUE } from "@tripwire/contracts";
-import { type ConstructorOptions, PgBoss } from "pg-boss";
+import { type ConstructorOptions, PgBoss, type WorkOptions } from "pg-boss";
 
 /** Keeps queue maintenance inside the smallest supported database connection budget. */
 export const QUEUE_POOL_MAX = 4;
+
+/**
+ * Without this a worker sleeps the 2 s polling interval after every job, even
+ * with thousands queued: a 0.05 s job cost 2.05 s, capping one worker at about
+ * 1,800 jobs an hour. Burst fetches the next job immediately while the queue's
+ * ready count (refreshed by pg-boss every minute) is above 1, and falls back to
+ * polling once a fetch comes back short. One job in flight per worker, so FIFO
+ * order is unchanged.
+ */
+export const DRAIN_BACKLOG_WORK_OPTIONS = {
+	burstWhenReadyExceeds: 1,
+} satisfies WorkOptions;
+
+/** pg-boss emits a `queue_backlog` warning once a queue holds more than this. */
+export const QUEUE_BACKLOG_WARNING_SIZE = 500;
 
 export function queueDatabaseOptions(
 	databaseUrl: string,
@@ -10,12 +25,37 @@ export function queueDatabaseOptions(
 	return { connectionString: databaseUrl, max: QUEUE_POOL_MAX };
 }
 
-/** Ingest → worker handoff (§5). */
+/**
+ * Ingest → worker handoff (§5) for what ingest can't settle: installation
+ * events, repos with no row yet, deliveries that didn't normalize, and forges
+ * the worker normalizes.
+ */
 export const PROCESS_EVENT_QUEUE = "process-event";
 
 export interface ProcessEventJob {
 	eventId: string;
 }
+
+/**
+ * GitHub events that can produce a run (see `insertRawEvent` lanes). Its own
+ * partition, so a backlog here never bloats the table every other queue polls.
+ */
+export const GITHUB_EVALUATE_QUEUE = "github-evaluate";
+
+/** Jobs that failed every retry. Nothing consumes it; alerting counts it. */
+export const GITHUB_EVALUATE_DEAD_LETTER_QUEUE = "github-evaluate-dead";
+
+export interface GithubEvaluateJob {
+	eventId: string;
+}
+
+/**
+ * Jobs in one lane run one at a time, and a PR or issue always hashes to the
+ * same lane, so its events run in order. An installation therefore holds at
+ * most this many worker slots however many events it sends, which also keeps
+ * its GitHub calls under the per-installation rate limits.
+ */
+export const EVALUATE_LANES_PER_INSTALLATION = 2;
 
 /** Moderation decision → worker resume (§6). */
 export const RESUME_RUN_QUEUE = "resume-run";
@@ -141,9 +181,31 @@ export interface RefreshSurfacesJob {
 	repoId: string;
 }
 
+/**
+ * The queues webhook ingest writes to. Every boss the api can start creates
+ * them: inserting into a queue that doesn't exist yet fails the webhook, and
+ * GitHub doesn't redeliver on its own, so the api can't wait for a worker
+ * deploy to create them. `createQueue` is idempotent.
+ */
+export async function createIngestQueues(boss: PgBoss): Promise<void> {
+	await boss.createQueue(PROCESS_EVENT_QUEUE);
+	await boss.createQueue(GITHUB_EVALUATE_DEAD_LETTER_QUEUE);
+	await boss.createQueue(GITHUB_EVALUATE_QUEUE, {
+		partition: true,
+		retryLimit: 3,
+		retryDelay: 30,
+		retryBackoff: true,
+		// Above the AI review timeout, so a job never expires mid-review and
+		// starts a second evaluation of the same event.
+		expireInSeconds: 900,
+		deadLetter: GITHUB_EVALUATE_DEAD_LETTER_QUEUE,
+	});
+}
+
 /** Minimal logger surface — satisfied by pino, console, etc. */
 export interface BossErrorLogger {
 	error(obj: { error: Error | string }, msg?: string): void;
+	warn?(obj: { warning: unknown }, msg?: string): void;
 }
 
 /** Connection producers and the isolated worker must leave general backlog maintenance stopped. */
@@ -194,7 +256,10 @@ export async function createBoss(
 	if (!databaseUrl) {
 		throw new Error("DATABASE_URL is not set");
 	}
-	const boss = new PgBoss(queueDatabaseOptions(databaseUrl));
+	const boss = new PgBoss({
+		...queueDatabaseOptions(databaseUrl),
+		warningQueueSize: QUEUE_BACKLOG_WARNING_SIZE,
+	});
 	boss.on("error", (error) => {
 		if (logger) {
 			logger.error({ error }, "pg-boss error (queue maintenance/fetch)");
@@ -202,8 +267,15 @@ export async function createBoss(
 			console.error("pg-boss error (queue maintenance/fetch):", error);
 		}
 	});
+	boss.on("warning", (warning) => {
+		if (logger?.warn) {
+			logger.warn({ warning }, "pg-boss warning (backlog or slow query)");
+		} else {
+			console.warn("pg-boss warning (backlog or slow query):", warning);
+		}
+	});
 	await boss.start();
-	await boss.createQueue(PROCESS_EVENT_QUEUE);
+	await createIngestQueues(boss);
 	await boss.createQueue(RESUME_RUN_QUEUE);
 	await boss.createQueue(RESTORE_CONTRIBUTION_APPEAL_QUEUE, {
 		retryLimit: 10,

@@ -8,6 +8,7 @@ import {
 	createBoss,
 	createDb,
 	createDirectPool,
+	createIngestQueues,
 	gitCafeLifecycleServices,
 } from "@tripwire/db";
 import { generateId } from "@tripwire/utils";
@@ -18,6 +19,8 @@ import pino from "pino";
 import type { ApiDeps, ApiEnv } from "./env.ts";
 import { resolveGitCafeReceiptConfig } from "./gitcafe-receipts.ts";
 import { createApiHealth } from "./health.ts";
+import { startIngestDropTally } from "./ingest-drops.ts";
+import { startQueueAlerts } from "./queue-alerts.ts";
 import { stream } from "./routes/stream.ts";
 import { webhooks } from "./routes/webhooks.ts";
 
@@ -80,6 +83,16 @@ export function createApi(deps: ApiDeps) {
 		const readiness = await readReadiness();
 		return c.json(readiness.body, readiness.status);
 	});
+	/**
+	 * For an outside uptime monitor: 503 while a queue alert fires. Kept off
+	 * /healthz, which Unkey's health check reads: restarting the api would
+	 * not drain a worker's backlog.
+	 */
+	app.get("/healthz/queues", (c) => {
+		const snapshot = deps.queueAlerts?.snapshot() ?? null;
+		if (!snapshot) return c.json({ ok: true, enabled: false }, 200);
+		return c.json(snapshot, snapshot.ok ? 200 : 503);
+	});
 	app.route("/webhooks", webhooks);
 	app.route("/events", stream);
 	return app;
@@ -101,6 +114,8 @@ if (import.meta.main) {
 				logger,
 			)
 		: await createBoss(undefined, logger);
+	// createBoss makes these too; the GitCafe boss leaves general queues alone.
+	if (gitCafeReceipts) await createIngestQueues(boss);
 
 	let auth: Auth | null = null;
 	try {
@@ -131,6 +146,14 @@ if (import.meta.main) {
 		logger.warn("dev open posture — /events/stream is ungated");
 	}
 
+	const queueAlerts = startQueueAlerts({
+		db,
+		logger: logger.child({ component: "queue-alerts" }),
+		webhookUrl: process.env.QUEUE_ALERT_WEBHOOK_URL || null,
+		environment:
+			process.env.UNKEY_ENVIRONMENT_SLUG || process.env.NODE_ENV || "local",
+	});
+
 	const app = createApi({
 		auth,
 		db,
@@ -139,6 +162,8 @@ if (import.meta.main) {
 		boss,
 		webhookSecret,
 		gitCafeReceipts,
+		queueAlerts,
+		ingestDrops: startIngestDropTally(logger.child({ component: "ingest" })),
 		webOrigin: process.env.WEB_ORIGIN ?? "http://localhost:3000",
 		logger,
 	});

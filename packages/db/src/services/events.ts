@@ -10,17 +10,23 @@ import {
 	changeRequestPayloadSchema,
 	type NormalizedEvent,
 	normalizedEventSchema,
+	type RepoScopedEvent,
 	storedJsonValueSchema,
 	storedNormalizedEventSchema,
 	verdictEventKindSchema,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
 import { and, desc, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
-import type { Pool } from "pg";
-import type { PgBoss } from "pg-boss";
+import type { Pool, PoolClient } from "pg";
+import type { PgBoss, SendOptions } from "pg-boss";
 import { z } from "zod";
 import type { Db } from "../client.ts";
-import { PROCESS_EVENT_QUEUE } from "../queue.ts";
+import {
+	EVALUATE_LANES_PER_INSTALLATION,
+	GITHUB_EVALUATE_QUEUE,
+	type GithubEvaluateJob,
+	PROCESS_EVENT_QUEUE,
+} from "../queue.ts";
 import { events } from "../schema/events.ts";
 
 export interface InsertRawEventInput {
@@ -32,19 +38,57 @@ export interface InsertRawEventInput {
 	 *  Typed from the catalog, never a hand-written union — a literal list here
 	 *  silently rejects a newly live forge at the ingest boundary. */
 	forge?: Forge;
+	/**
+	 * Normalized at ingest; `null` when it normalizes to nothing Tripwire acts
+	 * on, so nothing is stored. Omitted, the worker normalizes it.
+	 */
+	normalized?: NormalizedEvent | null;
 }
+
+/**
+ * Where an event goes after it is stored:
+ * - `evaluate`: it can produce a run, so it queues on `github-evaluate`.
+ * - `record`: stored normalized with no job. Arm-time backfill, rule previews
+ *   and the activity feed read it from the table.
+ * - `process`: the worker decides, as it did for every event before lanes.
+ */
+export type EventLane = "evaluate" | "record" | "process";
+
+/**
+ * Why ingest stored nothing:
+ * - `no-action`: it normalizes to nothing Tripwire acts on (bot or label-only
+ *   PR edits).
+ * - `unlinked-installation`: no org has claimed the installation, so no one
+ *   can see or arm the repo.
+ * - `removed-repo`: the repo was disconnected from Tripwire.
+ * - `unwatched`: nothing reads this kind of event for this repo.
+ */
+export type IngestDropReason =
+	| "no-action"
+	| "unlinked-installation"
+	| "removed-repo"
+	| "unwatched";
 
 export interface InsertRawEventResult {
 	/** false ⇒ redelivery; UNIQUE(forge, delivery_id) made it a no-op (§5.3). */
 	inserted: boolean;
 	eventId: string | null;
+	lane: EventLane | null;
+	/** Set when nothing reads the event, so nothing was stored. */
+	dropped: IngestDropReason | null;
 }
 
+type EventRoute = { lane: EventLane } | { drop: IngestDropReason };
+
 /**
- * §5.2 — ONE transaction: insert the raw event AND enqueue the process-event
- * job. The pg-boss insert runs on the same tx client, so there is never a job
- * without a row or a row without a job. Redelivery (delivery_id conflict)
- * inserts nothing and enqueues nothing.
+ * §5.2 — ONE transaction: insert the raw event AND its job. The pg-boss insert
+ * runs on the same tx client, so there is never a job without a row. Redelivery
+ * (delivery_id conflict) inserts nothing and enqueues nothing.
+ *
+ * Only events something reads are stored, and only events that can produce a
+ * run get a job. In one staging week, 99.9% of GitHub events came from
+ * installations no org had claimed; earlier, the worker spent 17 hours on 15k
+ * events for repos with Tripwire off while new PRs waited behind.
  */
 export async function insertRawEvent(
 	pool: Pool,
@@ -53,11 +97,33 @@ export async function insertRawEvent(
 ): Promise<InsertRawEventResult> {
 	const client = await pool.connect();
 	try {
-		await client.query("BEGIN");
 		const id = generateId();
+		const forge = input.forge ?? "github";
+		const normalized = input.normalized
+			? normalizedEventSchema.parse(input.normalized)
+			: null;
+		const route: EventRoute = normalized
+			? await routeEvent(client, normalized)
+			: input.normalized === null
+				? { drop: "no-action" }
+				: { lane: "process" };
+		if ("drop" in route)
+			return {
+				inserted: false,
+				eventId: null,
+				lane: null,
+				dropped: route.drop,
+			};
+		const { lane } = route;
+		await client.query("BEGIN");
+		const columns =
+			normalized && lane !== "process" ? normalizedColumns(normalized) : null;
 		const res = await client.query<{ id: string }>(
-			`INSERT INTO events (id, delivery_id, raw_kind, raw, forge)
-			 VALUES ($1, $2, $3, $4, $5)
+			`INSERT INTO events (id, delivery_id, raw_kind, raw, forge, kind,
+			   repo_full_name, actor_login, subject_number, head_sha, normalized,
+			   normalized_at)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+			   CASE WHEN $11::jsonb IS NULL THEN NULL ELSE now() END)
 			 ON CONFLICT DO NOTHING
 			 RETURNING id`,
 			[
@@ -65,26 +131,194 @@ export async function insertRawEvent(
 				input.deliveryId,
 				input.rawKind,
 				JSON.stringify(input.raw),
-				input.forge ?? "github",
+				forge,
+				columns?.kind ?? null,
+				columns?.repoFullName ?? null,
+				columns?.actorLogin ?? null,
+				columns?.subjectNumber ?? null,
+				columns?.headSha ?? null,
+				columns ? JSON.stringify(columns.normalized) : null,
 			],
 		);
 		const inserted = res.rowCount === 1;
 		if (inserted) {
-			await boss.insert(PROCESS_EVENT_QUEUE, [{ data: { eventId: id } }], {
-				db: {
-					executeSql: (text: string, values?: unknown[]) =>
-						client.query(text, values),
-				},
-			});
+			const db = {
+				executeSql: (text: string, values?: unknown[]) =>
+					client.query(text, values),
+			};
+			if (lane === "process")
+				await boss.insert(PROCESS_EVENT_QUEUE, [{ data: { eventId: id } }], {
+					db,
+				});
+			else if (lane === "evaluate" && normalized && "repo" in normalized)
+				// send, not insert: pg-boss 12.26's insert() drops `group`.
+				await boss.send(
+					GITHUB_EVALUATE_QUEUE,
+					{ eventId: id } satisfies GithubEvaluateJob,
+					{ ...githubEvaluateOptions(normalized), db },
+				);
+			if (columns) {
+				// Delivered on commit, like the worker's notify after normalizing.
+				await client.query("SELECT pg_notify('events', $1)", [id]);
+				// Nothing will run, so the feed can show the event as settled now.
+				if (lane === "record")
+					await client.query("SELECT pg_notify('runs', $1)", [id]);
+			}
 		}
 		await client.query("COMMIT");
-		return { inserted, eventId: inserted ? id : null };
+		return {
+			inserted,
+			eventId: inserted ? id : null,
+			lane: inserted ? lane : null,
+			dropped: null,
+		};
 	} catch (error) {
 		await client.query("ROLLBACK");
 		throw error;
 	} finally {
 		client.release();
 	}
+}
+
+/**
+ * Decides, before anything is stored, whether anything will read the event:
+ * - Installation events always go to the worker: they sync repos, and claiming
+ *   an installation reads them.
+ * - Armed repos: everything evaluates, except pushes no enabled workflow
+ *   triggers on. Tripwire's own comments are recorded for the activity
+ *   timeline, since the worker skips them.
+ * - Repos with Tripwire off keep only the PR lifecycle, which arm-time
+ *   backfill, rule previews and the onboarding PR picker read (30 days back).
+ *   A close evaluates, since it settles the PR's open reviews.
+ * - With no repo row, PR lifecycle events go to the worker, which adds the
+ *   repo (new repos in "all repositories" installs arrive this way).
+ * - Nothing is kept for installations no org has claimed, or for repos
+ *   disconnected from Tripwire: the worker would revive a disconnected repo.
+ */
+async function routeEvent(
+	client: PoolClient,
+	event: NormalizedEvent,
+): Promise<EventRoute> {
+	if (!("repo" in event) || event.kind === "schedule.matched")
+		return { lane: "process" };
+	const lifecycle =
+		event.kind === "change-request.opened" ||
+		event.kind === "change-request.updated" ||
+		event.kind === "change-request.closed";
+	const found = await client.query<{
+		armed: boolean;
+		linked: boolean;
+		removed: boolean;
+		triggered: boolean;
+	}>(
+		`SELECT r.armed, r.org_id IS NOT NULL AS linked,
+		   r.removed_at IS NOT NULL AS removed,
+		   EXISTS (SELECT 1 FROM workflow_definitions w
+		     WHERE w.repo_id = r.id AND w.enabled AND jsonb_path_exists(w.definition,
+		       '$.nodes[*] ? (@.type == "trigger" && @.kinds[*] == $kind)',
+		       jsonb_build_object('kind', $3::text))) AS triggered
+		 FROM repos r WHERE r.forge = $1 AND r.full_name = $2
+		 ORDER BY r.removed_at IS NOT NULL LIMIT 1`,
+		[event.forge, event.repo.fullName, event.kind],
+	);
+	const repo = found.rows[0];
+	if (!repo) {
+		if (!(await installationLinked(client, event)))
+			return { drop: "unlinked-installation" };
+		return lifecycle ? { lane: "process" } : { drop: "unwatched" };
+	}
+	if (repo.removed) return { drop: "removed-repo" };
+	if (repo.armed) {
+		if (event.kind === "push" && !repo.triggered) return { drop: "unwatched" };
+		if (event.kind === "comment.created" && event.comment.byTripwire)
+			return { lane: "record" };
+		return { lane: "evaluate" };
+	}
+	if (!repo.linked) return { drop: "unlinked-installation" };
+	if (event.kind === "change-request.closed") return { lane: "evaluate" };
+	return lifecycle ? { lane: "record" } : { drop: "unwatched" };
+}
+
+async function installationLinked(
+	client: PoolClient,
+	event: RepoScopedEvent,
+): Promise<boolean> {
+	if (!event.installationExternalId) return false;
+	const linked = await client.query(
+		"SELECT 1 FROM organization_installations WHERE forge = $1 AND installation_id = $2",
+		[event.forge, event.installationExternalId],
+	);
+	return (linked.rowCount ?? 0) > 0;
+}
+
+/** Same subject, same lane: its events run one at a time, in order. */
+export function githubEvaluateOptions(event: RepoScopedEvent): SendOptions {
+	const subject = `${event.repo.fullName}#${eventSubjectNumber(event) ?? event.kind}`;
+	const owner = event.installationExternalId ?? event.repo.fullName;
+	return {
+		priority: evaluatePriority(event.kind),
+		group: {
+			id: `${event.forge}:${owner}:${evaluateLane(subject)}`,
+		},
+	};
+}
+
+/**
+ * Lane priority, highest first, when the queue backs up. Every change-request
+ * kind shares one priority so a close never jumps ahead of the open or push
+ * it follows in the same lane.
+ */
+function evaluatePriority(kind: NormalizedEvent["kind"]): number {
+	switch (kind) {
+		case "change-request.opened":
+		case "change-request.updated":
+		case "change-request.closed":
+			return 10;
+		case "issue.opened":
+			return 5;
+		case "comment.created":
+			return 2;
+		default:
+			return 0;
+	}
+}
+
+/** FNV-1a: stable across processes and deploys, unlike a random assignment. */
+function evaluateLane(subject: string): number {
+	let hash = 0x811c9dc5;
+	for (let i = 0; i < subject.length; i++) {
+		hash ^= subject.charCodeAt(i);
+		hash = Math.imul(hash, 0x01000193);
+	}
+	return (hash >>> 0) % EVALUATE_LANES_PER_INSTALLATION;
+}
+
+function eventSubjectNumber(valid: NormalizedEvent): number | null {
+	return "changeRequest" in valid
+		? valid.changeRequest.number
+		: "comment" in valid
+			? valid.comment.subjectNumber
+			: "thread" in valid
+				? valid.thread.number
+				: valid.kind === "issue.opened"
+					? valid.issue.number
+					: null;
+}
+
+function normalizedColumns(valid: NormalizedEvent) {
+	return {
+		kind: valid.kind,
+		repoFullName: "repo" in valid ? valid.repo.fullName : null,
+		actorLogin: valid.actor.login,
+		subjectNumber: eventSubjectNumber(valid),
+		headSha:
+			"changeRequest" in valid
+				? valid.changeRequest.headSha
+				: "push" in valid
+					? valid.push.headSha
+					: null,
+		normalized: valid,
+	};
 }
 
 /**
@@ -98,31 +332,10 @@ export async function markEventNormalized(
 	normalized: NormalizedEvent,
 ): Promise<void> {
 	const valid = normalizedEventSchema.parse(normalized);
-	const subjectNumber =
-		"changeRequest" in valid
-			? valid.changeRequest.number
-			: "comment" in valid
-				? valid.comment.subjectNumber
-				: "thread" in valid
-					? valid.thread.number
-					: valid.kind === "issue.opened"
-						? valid.issue.number
-						: null;
-	const headSha =
-		"changeRequest" in valid
-			? valid.changeRequest.headSha
-			: "push" in valid
-				? valid.push.headSha
-				: null;
 	const updated = await db
 		.update(events)
 		.set({
-			kind: valid.kind,
-			repoFullName: "repo" in valid ? valid.repo.fullName : null,
-			actorLogin: valid.actor.login,
-			subjectNumber,
-			headSha,
-			normalized: valid,
+			...normalizedColumns(valid),
 			normalizedAt: new Date(),
 		})
 		.where(and(eq(events.id, eventId), eq(events.forge, valid.forge)))
@@ -580,4 +793,45 @@ export async function listActivityFeed(
 	];
 	items.sort((a, b) => b.at - a.at);
 	return { items: items.map(({ at: _at, ...item }) => item) };
+}
+
+/**
+ * Nothing reads a GitHub event past 30 days unless a run points at it:
+ * backfill, rule previews and the onboarding picker look back 30 days, and
+ * runs keep their event for the run page. Installation events are kept since
+ * claiming an installation reads them at any age, and quarantined ones are
+ * fixture candidates.
+ */
+export const MIN_EVENT_RETENTION_DAYS = 30;
+
+/**
+ * Deletes GitHub events older than `olderThanDays` that nothing reads, oldest
+ * first, `batchSize` rows per statement so no delete holds locks for long.
+ * Stops after `maxBatches`; the next run picks up the rest.
+ */
+export async function pruneEvents(
+	db: Db,
+	options: { olderThanDays: number; batchSize?: number; maxBatches?: number },
+): Promise<number> {
+	const days = Math.max(options.olderThanDays, MIN_EVENT_RETENTION_DAYS);
+	const batchSize = options.batchSize ?? 5_000;
+	let removed = 0;
+	for (let batch = 0; batch < (options.maxBatches ?? 200); batch++) {
+		const result = await db.execute(sql`
+			DELETE FROM events WHERE id IN (
+				SELECT e.id FROM events e
+				WHERE e.received_at < now() - make_interval(days => ${days})
+				  AND e.forge = 'github'
+				  AND e.raw_kind NOT IN ('installation', 'installation_repositories')
+				  AND NOT e.quarantined
+				  AND NOT EXISTS (SELECT 1 FROM runs r WHERE r.event_id = e.id)
+				ORDER BY e.received_at
+				LIMIT ${batchSize})
+			RETURNING id
+		`);
+		const deleted = result.rows.length;
+		removed += deleted;
+		if (deleted < batchSize) break;
+	}
+	return removed;
 }

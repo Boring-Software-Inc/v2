@@ -41,7 +41,7 @@ export type AccountSection = (typeof ACCOUNT_SECTIONS)[number];
 
 export const ACCOUNT_SECTION_LABELS = {
 	profile: "Profile",
-	"sign-in": "Sign-in and GitHub",
+	"sign-in": "Sign-in",
 	preferences: "Preferences",
 	orgs: "Orgs",
 } satisfies Record<AccountSection, string>;

@@ -166,7 +166,7 @@ function SignInSection({
 	loading: boolean;
 }) {
 	return (
-		<SettingsSection id="sign-in" title="Sign-in and GitHub">
+		<SettingsSection id="sign-in" title="Sign-in">
 			<div className="shell">
 				<ItemGroup aria-label="Sign-in">
 					{loading ? (

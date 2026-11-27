@@ -40,7 +40,7 @@ interface SidebarAccountTriggerProps
 	name: string;
 }
 
-function SidebarAccountTrigger({
+export function SidebarAccountTrigger({
 	avatar,
 	collapsed,
 	name,

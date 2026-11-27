@@ -3,6 +3,12 @@ import { fileURLToPath } from "node:url";
 import { normalizedEventSchema } from "@tripwire/contracts";
 import issueCommentCreated from "../../fixtures/issue_comment.created.json";
 import pullRequestOpened from "../../fixtures/pull_request.opened.json";
+import {
+	type GithubDeliveryTarget,
+	githubDeliveryActionSchema,
+	githubDeliveryMustBeStored,
+	isIngestedGithubWebhook,
+} from "./ingest.ts";
 import { normalizeWebhook } from "./normalize.ts";
 import { signWebhookBody, verifyWebhookSignature } from "./verify.ts";
 
@@ -386,5 +392,148 @@ describe("normalizeWebhook — installation sync (self-captured fixture)", () =>
 			}
 			expect(event.repositories.length).toBeGreaterThan(0);
 		}
+	});
+});
+
+describe("isIngestedGithubWebhook", () => {
+	const deliveries = [
+		["pull_request", "pull_request.opened"],
+		["pull_request", "pull_request.synchronize"],
+		["pull_request", "pull_request.closed"],
+		["pull_request", "pull_request.edited.title"],
+		["pull_request", "pull_request.edited.base"],
+		["pull_request", "pull_request.edited.body-by-bot"],
+		["issue_comment", "issue_comment.created"],
+		["push", "push"],
+		["installation", "installation.created"],
+		["installation", "installation.deleted"],
+		["installation_repositories", "installation_repositories.added"],
+		["installation_repositories", "installation_repositories.removed"],
+		["ping", "ping"],
+	] as const;
+
+	test("never drops a delivery the normalizer would turn into an event", async () => {
+		for (const [eventName, name] of deliveries) {
+			const body = await fixture(name);
+			const event = normalizeWebhook(
+				{ deliveryId: `d-${name}`, eventName, body, signature: null },
+				NOW,
+			);
+			const { action } = githubDeliveryActionSchema.parse(JSON.parse(body));
+			if (event) expect(isIngestedGithubWebhook(eventName, action)).toBe(true);
+		}
+	});
+
+	test("drops events and actions Tripwire never reads", () => {
+		for (const [eventName, action] of [
+			["ping", undefined],
+			["check_suite", "requested"],
+			["pull_request_review", "submitted"],
+			["issue_comment", "edited"],
+			["pull_request", "labeled"],
+			["pull_request", undefined],
+			["issues", "closed"],
+			["star", "created"],
+			["toString", undefined],
+		] as const)
+			expect(isIngestedGithubWebhook(eventName, action)).toBe(false);
+		expect(isIngestedGithubWebhook("push", undefined)).toBe(true);
+	});
+});
+
+describe("githubDeliveryMustBeStored", () => {
+	const repo = (
+		overrides: Partial<NonNullable<GithubDeliveryTarget["repo"]>>,
+	): GithubDeliveryTarget => ({
+		installationClaimed: true,
+		repo: {
+			armed: false,
+			claimed: true,
+			removed: false,
+			pushTriggered: false,
+			...overrides,
+		},
+	});
+	const armed = repo({ armed: true });
+	const off = repo({});
+	const unclaimedRepo: GithubDeliveryTarget = {
+		installationClaimed: false,
+		repo: {
+			armed: false,
+			claimed: false,
+			removed: false,
+			pushTriggered: false,
+		},
+	};
+	const noRow: GithubDeliveryTarget = { installationClaimed: true, repo: null };
+	const unclaimedInstall: GithubDeliveryTarget = {
+		installationClaimed: false,
+		repo: null,
+	};
+	const removed = repo({ armed: true, removed: true });
+	const pushWorkflow = repo({ armed: true, pushTriggered: true });
+
+	test("keeps every delivery that can produce a run on an armed repo", () => {
+		for (const [event, action] of [
+			["pull_request", "opened"],
+			["pull_request", "synchronize"],
+			["pull_request", "closed"],
+			["issues", "opened"],
+			["issue_comment", "created"],
+		] as const)
+			expect(githubDeliveryMustBeStored(event, action, armed)).toBe(true);
+		expect(githubDeliveryMustBeStored("push", undefined, pushWorkflow)).toBe(
+			true,
+		);
+		expect(githubDeliveryMustBeStored("push", undefined, armed)).toBe(false);
+	});
+
+	test("keeps the PR lifecycle of claimed repos with Tripwire off", () => {
+		expect(githubDeliveryMustBeStored("pull_request", "opened", off)).toBe(
+			true,
+		);
+		expect(githubDeliveryMustBeStored("pull_request", "opened", noRow)).toBe(
+			true,
+		);
+		expect(githubDeliveryMustBeStored("issues", "opened", off)).toBe(false);
+		expect(githubDeliveryMustBeStored("issue_comment", "created", off)).toBe(
+			false,
+		);
+		expect(githubDeliveryMustBeStored("push", undefined, off)).toBe(false);
+	});
+
+	test("keeps nothing for unclaimed installations or disconnected repos", () => {
+		for (const target of [unclaimedRepo, unclaimedInstall, removed])
+			for (const [event, action] of [
+				["pull_request", "opened"],
+				["issue_comment", "created"],
+				["push", undefined],
+			] as const)
+				expect(githubDeliveryMustBeStored(event, action, target)).toBe(false);
+	});
+
+	test("always keeps installation events", () => {
+		for (const target of [unclaimedInstall, noRow]) {
+			expect(
+				githubDeliveryMustBeStored("installation", "created", target),
+			).toBe(true);
+			expect(
+				githubDeliveryMustBeStored(
+					"installation_repositories",
+					"added",
+					target,
+				),
+			).toBe(true);
+		}
+	});
+
+	test("never keeps a delivery off the ingest allow-list", () => {
+		expect(githubDeliveryMustBeStored("check_suite", "requested", armed)).toBe(
+			false,
+		);
+		expect(githubDeliveryMustBeStored("issue_comment", "edited", armed)).toBe(
+			false,
+		);
+		expect(githubDeliveryMustBeStored("star", "created", armed)).toBe(false);
 	});
 });

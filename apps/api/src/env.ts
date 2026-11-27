@@ -4,6 +4,8 @@ import type { Db } from "@tripwire/db";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import type { Logger } from "pino";
+import type { IngestDropTally } from "./ingest-drops.ts";
+import type { QueueAlertsSnapshot } from "./queue-alerts.ts";
 
 /** Dependencies injected into every route via context — testable by design. */
 export interface ApiDeps {
@@ -22,6 +24,10 @@ export interface ApiDeps {
 	 */
 	directPool: Pool;
 	boss: PgBoss;
+	/** Queue backlog alerts (`/healthz/queues`); absent in tests. */
+	queueAlerts?: { snapshot(): QueueAlertsSnapshot };
+	/** Counts webhooks acknowledged without storing; absent in tests. */
+	ingestDrops?: IngestDropTally;
 	webhookSecret: string;
 	gitCafeReceipts?: GitCafeReceiptConfig | null;
 	/** Allowed CORS origin for the SSE stream (the web dashboard). */

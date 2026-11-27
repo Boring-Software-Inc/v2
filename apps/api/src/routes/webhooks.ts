@@ -1,8 +1,19 @@
-import { type IngestForge, ingestForgeSchema } from "@tripwire/contracts";
+import {
+	type IngestForge,
+	ingestForgeSchema,
+	type NormalizedEvent,
+} from "@tripwire/contracts";
 import { eventServices } from "@tripwire/db";
-import { verifyWebhookSignature as verifyGithub } from "@tripwire/forge-github";
+import {
+	githubDeliveryActionSchema,
+	isIngestedGithubWebhook,
+	normalizeWebhook as normalizeGithubWebhook,
+	verifyWebhookSignature as verifyGithub,
+} from "@tripwire/forge-github";
 import { verifyWebhookSignature as verifyOpenGit } from "@tripwire/forge-opengit";
+import { getErrorMessage } from "@tripwire/utils";
 import { Hono } from "hono";
+import type { Logger } from "pino";
 import type { ApiEnv } from "../env.ts";
 import { receiveGitCafeReceipt } from "../gitcafe-receipts.ts";
 
@@ -74,7 +85,7 @@ export const webhooks = new Hono<ApiEnv>().post("/:forge", async (c) => {
 			.map((header) => c.req.header(header))
 			.find((value) => value !== undefined) ?? null;
 
-	const { webhookSecret, pool, boss, logger } = c.get("deps");
+	const { webhookSecret, pool, boss, logger, ingestDrops } = c.get("deps");
 	const secret = binding.secret(webhookSecret);
 	if (!secret) {
 		// An unset secret must NEVER mean "accept everything".
@@ -93,6 +104,18 @@ export const webhooks = new Hono<ApiEnv>().post("/:forge", async (c) => {
 		return c.json({ error: "invalid json" }, 400);
 	}
 
+	if (
+		forge === "github" &&
+		!isIngestedGithubWebhook(
+			eventName,
+			githubDeliveryActionSchema.safeParse(raw).data?.action,
+		)
+	) {
+		logger.debug({ forge, deliveryId, eventName }, "webhook ignored");
+		ingestDrops?.add("unsubscribed", eventName);
+		return c.json({ ok: true, ignored: true }, 200);
+	}
+
 	let result: Awaited<ReturnType<typeof eventServices.insertRawEvent>>;
 	try {
 		result = await eventServices.insertRawEvent(pool, boss, {
@@ -100,6 +123,10 @@ export const webhooks = new Hono<ApiEnv>().post("/:forge", async (c) => {
 			rawKind: eventName,
 			raw,
 			forge,
+			normalized:
+				forge === "github"
+					? normalizeAtIngest({ deliveryId, eventName, body }, logger)
+					: undefined,
 		});
 	} catch (error) {
 		logger.error(
@@ -114,9 +141,47 @@ export const webhooks = new Hono<ApiEnv>().post("/:forge", async (c) => {
 		);
 		throw error;
 	}
+	if (result.dropped) {
+		logger.debug(
+			{ forge, deliveryId, eventName, reason: result.dropped },
+			"webhook ignored",
+		);
+		ingestDrops?.add(result.dropped, eventName);
+		return c.json({ ok: true, ignored: true }, 200);
+	}
 	logger.info(
-		{ forge, deliveryId, eventName, inserted: result.inserted },
+		{
+			forge,
+			deliveryId,
+			eventName,
+			inserted: result.inserted,
+			lane: result.lane,
+		},
 		"webhook accepted",
 	);
 	return c.json({ ok: true, duplicate: !result.inserted }, 200);
 });
+
+/**
+ * Normalizing is pure, so ingest can do it and only queue events that can
+ * produce a run. A payload it can't parse goes to the worker unnormalized,
+ * which quarantines it as a fixture candidate: never a 500, because GitHub
+ * doesn't redeliver on its own.
+ */
+function normalizeAtIngest(
+	delivery: { deliveryId: string; eventName: string; body: string },
+	logger: Logger,
+): NormalizedEvent | null | undefined {
+	try {
+		return normalizeGithubWebhook(
+			{ ...delivery, signature: null },
+			new Date().toISOString(),
+		);
+	} catch (error) {
+		logger.warn(
+			{ deliveryId: delivery.deliveryId, error: getErrorMessage(error) },
+			"webhook did not normalize at ingest; the worker will quarantine it",
+		);
+		return undefined;
+	}
+}

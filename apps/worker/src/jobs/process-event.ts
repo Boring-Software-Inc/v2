@@ -60,6 +60,8 @@ export interface ProcessEventDeps {
 	meterSource?: UsageSource;
 	enqueueReviewerSync?: (repoId: string) => Promise<void>;
 	enqueueLabelSync?: (repoId: string) => Promise<void>;
+	/** Coalesces branch listings per repo; without it they run inline. */
+	enqueueBranchSync?: (repoId: string) => Promise<void>;
 	selfLogins?: ReadonlySet<string>;
 	reportGitCafePreparationFailure?: ReportGitCafePreparationFailure;
 }
@@ -121,6 +123,8 @@ export async function processEvent(
 			includeBackfill: event.forge !== "gitcafe",
 		});
 		if (saved) {
+			// The run committed; sweep-actions re-attempts any action still recorded.
+			if (event.forge !== "gitcafe") return;
 			if (
 				!(await recoverGitCafeRunSurface(
 					{
@@ -302,14 +306,13 @@ export async function processEvent(
 				if (!repo) {
 					continue;
 				}
-				if (signalHttp) {
-					await refreshBranchSuggestions(
-						db,
+				if (signalHttp)
+					await syncBranchSuggestions(
+						deps,
 						signalHttp,
 						repo.id,
 						added.fullName,
 					);
-				}
 				await enqueueReviewerSync(deps, repo.id);
 			}
 		}
@@ -481,14 +484,13 @@ export async function processEvent(
 			normalized.repo.fullName,
 			normalized.forge,
 		);
-		if (repo) {
-			await refreshBranchSuggestions(
-				db,
+		if (repo)
+			await syncBranchSuggestions(
+				deps,
 				signalHttp,
 				repo.id,
 				normalized.repo.fullName,
 			);
-		}
 	}
 	if (result.runId) return settle({ status: "completed", runId: result.runId });
 	const reason = gitCafeEventSkipReasonSchema.safeParse(
@@ -499,6 +501,30 @@ export async function processEvent(
 		: reason.success
 			? settle({ status: "skipped", reason: reason.data })
 			: undefined;
+}
+
+/**
+ * A PR with 30 pushes used to list the repo's branches 30 times, on the event's
+ * own clock. The stately queue keeps at most one queued listing per repo.
+ */
+async function syncBranchSuggestions(
+	deps: ProcessEventDeps,
+	http: NonNullable<ForgeRuntime["signalHttp"]>,
+	repoId: string,
+	repoFullName: string,
+): Promise<void> {
+	if (!deps.enqueueBranchSync) {
+		await refreshBranchSuggestions(deps.db, http, repoId, repoFullName);
+		return;
+	}
+	try {
+		await deps.enqueueBranchSync(repoId);
+	} catch (error) {
+		deps.logger.warn(
+			{ repoId, error: getErrorMessage(error) },
+			"branch sync not queued",
+		);
+	}
 }
 
 async function enqueueReviewerSync(

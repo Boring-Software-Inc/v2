@@ -10,7 +10,7 @@ const NODE_SLOTS = [
 	{ key: "outcome", titleSize: "narrow", detailSize: "wide" },
 ] as const;
 
-function RunSkeletonBody() {
+export function RunSkeletonBody() {
 	return (
 		<Page purpose="task">
 			<PageHeader

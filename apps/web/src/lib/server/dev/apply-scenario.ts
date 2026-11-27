@@ -18,6 +18,7 @@ import {
 	seedRepoExtras,
 	seedStory,
 	seedUnclaimedInstall,
+	userOnboardingServices,
 } from "@tripwire/db";
 import { generateId } from "@tripwire/utils";
 import { and, eq } from "drizzle-orm";
@@ -221,6 +222,13 @@ export async function applyScenario(input: {
 	const user = plan.user
 		? await signUp(db, auth, plan.user, plan.platformAdmin)
 		: null;
+	if (user && scenario.landing !== "onboarding") {
+		await userOnboardingServices.finishOnboarding(db, {
+			userId: user.id,
+			outcome: "completed",
+			now,
+		});
+	}
 	const org = await targetOrg(db, plan, user, plan.user?.name ?? "");
 	const repos =
 		plan.repos && org && user

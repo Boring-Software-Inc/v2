@@ -29,6 +29,7 @@ import {
 	sessionInfoQueryOptions,
 } from "#/lib/auth.query";
 import { getPublicDatabuddyConfig } from "#/lib/databuddy.functions";
+import { onboardingAllows } from "#/lib/onboarding-gate";
 import { isPublicPath } from "#/lib/run-access";
 import { getSidebarPreference } from "#/lib/sidebar-preference.functions";
 import { siteConfig } from "#/lib/site-config";
@@ -111,6 +112,9 @@ export const Route = createRootRouteWithContext<{
 					state: search.state,
 				},
 			});
+		}
+		if (session.onboardingRequired && !onboardingAllows(location.pathname)) {
+			throw redirect({ to: "/onboarding" });
 		}
 	},
 	head: () => ({

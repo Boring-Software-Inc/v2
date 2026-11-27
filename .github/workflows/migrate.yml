@@ -1,0 +1,44 @@
+name: Migrate database
+
+# Unkey deploys staging and production on every push, but nothing applied
+# migrations, so new code could reach a database without its tables. This
+# applies the pending Drizzle migrations on each push: staging pushes migrate
+# the staging database, main pushes (promotions) migrate production.
+# Migrations are additive, and the runner is idempotent, so a run with nothing
+# pending is a no-op.
+on:
+  push:
+    branches: [staging, main]
+  workflow_dispatch:
+
+concurrency:
+  group: migrate-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Apply migrations
+        env:
+          TARGET: ${{ github.ref_name == 'main' && 'PRODUCTION_DATABASE_URL' || 'STAGING_DATABASE_URL' }}
+          DATABASE_URL: ${{ github.ref_name == 'main' && secrets.PRODUCTION_DATABASE_URL || secrets.STAGING_DATABASE_URL }}
+        run: |
+          if [ "$GITHUB_REF_NAME" != staging ] && [ "$GITHUB_REF_NAME" != main ]; then
+            echo "::error::migrations only run from staging or main, not $GITHUB_REF_NAME"
+            exit 1
+          fi
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::$TARGET is not set"
+            exit 1
+          fi
+          bun run --filter @tripwire/db migrate

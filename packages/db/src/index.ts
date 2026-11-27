@@ -26,10 +26,17 @@ export {
 	type BackfillRepoJob,
 	createBoss,
 	createGitCafeConnectionBoss,
+	createIngestQueues,
 	DEFAULT_RERUN_COOLDOWN_SECONDS,
+	DRAIN_BACKLOG_WORK_OPTIONS,
+	EVALUATE_LANES_PER_INSTALLATION,
+	GITHUB_EVALUATE_DEAD_LETTER_QUEUE,
+	GITHUB_EVALUATE_QUEUE,
+	type GithubEvaluateJob,
 	getRerunCooldownSeconds,
 	PROCESS_EVENT_QUEUE,
 	type ProcessEventJob,
+	QUEUE_BACKLOG_WARNING_SIZE,
 	QUEUE_POOL_MAX,
 	RECOVER_INSTALLATION_QUEUE,
 	REFRESH_SURFACES_QUEUE,
@@ -126,6 +133,7 @@ export type {
 	SaveCustomRuleResult,
 } from "./services/custom-rules.ts";
 export * as customRuleServices from "./services/custom-rules.ts";
+export * as deliveryAuditServices from "./services/delivery-audit.ts";
 export type {
 	AiReviewUsageInput,
 	BackfillUsageResult,
@@ -141,6 +149,7 @@ export type {
 	UsageCountersInput,
 } from "./services/economics.ts";
 export * as economicsServices from "./services/economics.ts";
+export type { IngestDropReason } from "./services/events.ts";
 export * as eventServices from "./services/events.ts";
 export * as flagOverrideServices from "./services/flag-overrides.ts";
 export {
@@ -181,6 +190,8 @@ export type {
 } from "./services/organizations.ts";
 export * as orgServices from "./services/organizations.ts";
 export * as presenceServices from "./services/presence.ts";
+export type { QueueHealth } from "./services/queue-health.ts";
+export * as queueServices from "./services/queue-health.ts";
 export type { RepoSetupFacts } from "./services/repo-setup.ts";
 export * as repoSetupServices from "./services/repo-setup.ts";
 export * as repoServices from "./services/repos.ts";
@@ -237,6 +248,11 @@ export type {
 	StaffUserSession,
 } from "./services/staff-users.ts";
 export * as staffUserServices from "./services/staff-users.ts";
+export type {
+	OnboardingRecord,
+	StoredChangeRequest,
+} from "./services/user-onboarding.ts";
+export * as userOnboardingServices from "./services/user-onboarding.ts";
 export type { WorkerDeploymentRow } from "./services/worker-deployments.ts";
 export * as workerDeploymentServices from "./services/worker-deployments.ts";
 export type {
