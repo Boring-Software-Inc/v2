@@ -205,6 +205,7 @@ async function routeEvent(
 		event.kind === "change-request.opened" ||
 		event.kind === "change-request.updated" ||
 		event.kind === "change-request.closed";
+	await followRename(client, event);
 	const found = await client.query<{
 		armed: boolean;
 		linked: boolean;
@@ -237,6 +238,43 @@ async function routeEvent(
 	if (!repo.linked) return { drop: "unlinked-installation" };
 	if (event.kind === "change-request.closed") return { lane: "evaluate" };
 	return lifecycle ? { lane: "record" } : { drop: "unwatched" };
+}
+
+/**
+ * A repo renamed or transferred on the forge sends its events under the new
+ * name, and nothing else tells Tripwire: ingest drops GitHub's `repository`
+ * events. Everything downstream finds repos by name, so the row follows the
+ * forge's repo id to the new name before routing. Without this, an armed
+ * repo's comments were dropped as unwatched from the rename on.
+ *
+ * Only through the row's own installation: a repo transferred to another
+ * account arrives through that account's installation, and must not inherit
+ * the old org's row before installation sync moves it. Only for events newer
+ * than the row's last routing change, which a rename stamps: a redelivered
+ * or late event from before the rename carries the old name and would undo
+ * it. A row that already holds the new name keeps it.
+ */
+async function followRename(
+	client: PoolClient,
+	event: RepoScopedEvent,
+): Promise<void> {
+	if (!(event.repoExternalId && event.installationExternalId)) return;
+	await client.query(
+		`UPDATE repos SET owner = $4, name = $5, full_name = $6
+		 WHERE forge = $1 AND external_id = $2 AND installation_id = $3
+		   AND full_name <> $6 AND routing_changed_at < $7
+		   AND NOT EXISTS (SELECT 1 FROM repos taken
+		     WHERE taken.forge = $1 AND taken.full_name = $6)`,
+		[
+			event.forge,
+			event.repoExternalId,
+			event.installationExternalId,
+			event.repo.owner,
+			event.repo.name,
+			event.repo.fullName,
+			event.occurredAt,
+		],
+	);
 }
 
 async function installationLinked(
