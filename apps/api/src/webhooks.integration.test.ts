@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { fileURLToPath } from "node:url";
+import { COMMENT_MARKER } from "@tripwire/contracts";
 import {
 	applyMigrations,
 	createBoss,
@@ -7,11 +8,15 @@ import {
 	createTestDatabase,
 	type Db,
 	GITHUB_EVALUATE_QUEUE,
+	organization,
+	orgServices,
 	PROCESS_EVENT_QUEUE,
 	repoServices,
 	type TestDatabase,
+	workflowDefinitions,
 } from "@tripwire/db";
 import { signWebhookBody } from "@tripwire/forge-github";
+import { generateId } from "@tripwire/utils";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import pino from "pino";
@@ -24,6 +29,9 @@ import { createApi } from "./index.ts";
  * one job; bad signature ⇒ 401 and nothing written.
  */
 const SECRET = "integration-secret";
+/** The fixtures' installation, claimed by ORG_ID in beforeAll. */
+const LINKED_INSTALLATION = "1";
+const ORG_ID = "org-webhooks";
 
 let container: TestDatabase;
 let db: Db;
@@ -37,6 +45,15 @@ beforeAll(async () => {
 	({ db, pool } = createDb(url));
 	await applyMigrations(db);
 	boss = await createBoss(url);
+	await db.insert(organization).values({
+		id: ORG_ID,
+		name: "Webhooks fixture",
+		slug: "webhooks-fixture",
+	});
+	await orgServices.linkOrgInstallation(db, {
+		orgId: ORG_ID,
+		installationId: LINKED_INSTALLATION,
+	});
 	app = createApi({
 		auth: null,
 		db,
@@ -71,16 +88,24 @@ async function deliver(body: string, deliveryId: string, sign = true) {
 	});
 }
 
-async function fixtureBody(): Promise<string> {
+async function fixture(name: string): Promise<string> {
 	// `fileURLToPath`, not `.pathname`: on Windows the latter yields "/C:/..."
 	// with a leading slash, which no fs call accepts.
 	const path = fileURLToPath(
-		new URL(
-			"../../../packages/forge-github/fixtures/pull_request.opened.json",
-			import.meta.url,
-		),
+		new URL(`../../../packages/forge-github/fixtures/${name}`, import.meta.url),
 	);
 	return await Bun.file(path).text();
+}
+
+/** A PR opened in `installation`, which defaults to the claimed one. */
+async function fixtureBody(
+	installation = LINKED_INSTALLATION,
+	repo?: string,
+): Promise<string> {
+	const raw = JSON.parse(await fixture("pull_request.opened.json"));
+	raw.installation = { id: Number(installation) };
+	if (repo) raw.repository.full_name = repo;
+	return JSON.stringify(raw);
 }
 
 describe("POST /webhooks/github", () => {
@@ -226,6 +251,8 @@ describe("ingest lanes", () => {
 			owner: "Codertocat",
 			name: "Hello-World",
 			fullName: "Codertocat/Hello-World",
+			installationId: LINKED_INSTALLATION,
+			orgId: ORG_ID,
 		});
 	});
 
@@ -263,15 +290,35 @@ describe("ingest lanes", () => {
 		return { event, jobs: jobs?.rows ?? [] };
 	}
 
+	async function expectIgnored(eventName: string, body: string, id: string) {
+		const res = await deliverAs(eventName, body, id);
+		expect(res.status).toBe(200);
+		expect(await res.json()).toEqual({ ok: true, ignored: true });
+		expect((await stored(id)).event).toBeUndefined();
+	}
+
 	test("a delivery Tripwire never reads is acknowledged and not stored", async () => {
-		const res = await deliverAs(
+		await expectIgnored(
 			"check_suite",
 			JSON.stringify({ action: "requested" }),
 			"lane-ignored",
 		);
-		expect(res.status).toBe(200);
-		expect(await res.json()).toEqual({ ok: true, ignored: true });
-		expect((await stored("lane-ignored")).event).toBeUndefined();
+	});
+
+	test("nothing is stored for an installation no org has claimed", async () => {
+		await expectIgnored(
+			"pull_request",
+			await fixtureBody("2", "stranger/repo"),
+			"lane-unclaimed",
+		);
+	});
+
+	test("an edit that normalizes to nothing is not stored", async () => {
+		await expectIgnored(
+			"pull_request",
+			await fixture("pull_request.edited.body-by-bot.json"),
+			"lane-bot-edit",
+		);
 	});
 
 	test("a PR on a repo with Tripwire off is stored normalized, with no job", async () => {
@@ -282,30 +329,28 @@ describe("ingest lanes", () => {
 		expect(jobs).toEqual([]);
 	});
 
+	test("comments and pushes on a repo with Tripwire off are not stored", async () => {
+		await expectIgnored(
+			"issue_comment",
+			await fixture("issue_comment.created.json"),
+			"lane-off-comment",
+		);
+		await expectIgnored("push", await fixture("push.json"), "lane-off-push");
+	});
+
 	test("a close evaluates even with Tripwire off, to settle open reviews", async () => {
-		const body = await Bun.file(
-			fileURLToPath(
-				new URL(
-					"../../../packages/forge-github/fixtures/pull_request.closed.json",
-					import.meta.url,
-				),
-			),
-		).text();
-		await deliverAs("pull_request", body, "lane-close");
+		await deliverAs(
+			"pull_request",
+			await fixture("pull_request.closed.json"),
+			"lane-close",
+		);
 		const { jobs } = await stored("lane-close");
 		expect(jobs.map((job) => job.name)).toEqual([GITHUB_EVALUATE_QUEUE]);
 	});
 
 	test("a PR on an armed repo queues in its installation's lane", async () => {
 		await repoServices.setRepoArmed(db, repoId, true);
-		const body = await Bun.file(
-			fileURLToPath(
-				new URL(
-					"../../../packages/forge-github/fixtures/pull_request.synchronize.json",
-					import.meta.url,
-				),
-			),
-		).text();
+		const body = await fixture("pull_request.synchronize.json");
 		await deliverAs("pull_request", body, "lane-evaluate");
 		await deliverAs(
 			"pull_request",
@@ -319,5 +364,48 @@ describe("ingest lanes", () => {
 		expect(first.jobs[0]?.group_id).toStartWith("github:1:");
 		// Same PR, same lane: its events run one at a time, in order.
 		expect(second.jobs[0]?.group_id).toBe(first.jobs[0]?.group_id);
+	});
+
+	test("an armed repo's comments evaluate, but Tripwire's own are only recorded", async () => {
+		const body = await fixture("issue_comment.created.json");
+		await deliverAs("issue_comment", body, "lane-armed-comment");
+		const theirs = await stored("lane-armed-comment");
+		expect(theirs.jobs.map((job) => job.name)).toEqual([GITHUB_EVALUATE_QUEUE]);
+
+		const raw = JSON.parse(body);
+		raw.comment.body = `${COMMENT_MARKER}\nBlocked.`;
+		raw.comment.performed_via_github_app = { id: 1 };
+		await deliverAs("issue_comment", JSON.stringify(raw), "lane-own-comment");
+		const ours = await stored("lane-own-comment");
+		expect(ours.event?.kind).toBe("comment.created");
+		expect(ours.jobs).toEqual([]);
+	});
+
+	test("an armed repo keeps pushes only while a workflow triggers on them", async () => {
+		const body = await fixture("push.json");
+		await expectIgnored("push", body, "lane-push-unwatched");
+
+		await db.insert(workflowDefinitions).values({
+			id: generateId(),
+			repoId,
+			name: "On push",
+			definition: {
+				nodes: [{ id: "trigger", type: "trigger", kinds: ["push"] }],
+			},
+		});
+		await deliverAs("push", body, "lane-push-watched");
+		const { jobs } = await stored("lane-push-watched");
+		expect(jobs.map((job) => job.name)).toEqual([GITHUB_EVALUATE_QUEUE]);
+	});
+
+	test("nothing is stored for a repo disconnected from Tripwire", async () => {
+		await pool.query("UPDATE repos SET removed_at = now() WHERE id = $1", [
+			repoId,
+		]);
+		await expectIgnored(
+			"pull_request",
+			await fixture("pull_request.synchronize.json"),
+			"lane-removed",
+		);
 	});
 });

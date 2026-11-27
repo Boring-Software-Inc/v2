@@ -19,6 +19,7 @@ import pino from "pino";
 import type { ApiDeps, ApiEnv } from "./env.ts";
 import { resolveGitCafeReceiptConfig } from "./gitcafe-receipts.ts";
 import { createApiHealth } from "./health.ts";
+import { startIngestDropTally } from "./ingest-drops.ts";
 import { startQueueAlerts } from "./queue-alerts.ts";
 import { stream } from "./routes/stream.ts";
 import { webhooks } from "./routes/webhooks.ts";
@@ -162,6 +163,7 @@ if (import.meta.main) {
 		webhookSecret,
 		gitCafeReceipts,
 		queueAlerts,
+		ingestDrops: startIngestDropTally(logger.child({ component: "ingest" })),
 		webOrigin: process.env.WEB_ORIGIN ?? "http://localhost:3000",
 		logger,
 	});

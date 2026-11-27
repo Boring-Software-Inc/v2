@@ -40,7 +40,7 @@ export interface InsertRawEventInput {
 	forge?: Forge;
 	/**
 	 * Normalized at ingest; `null` when it normalizes to nothing Tripwire acts
-	 * on (stored, no job). Omitted, the worker normalizes it.
+	 * on, so nothing is stored. Omitted, the worker normalizes it.
 	 */
 	normalized?: NormalizedEvent | null;
 }
@@ -54,21 +54,41 @@ export interface InsertRawEventInput {
  */
 export type EventLane = "evaluate" | "record" | "process";
 
+/**
+ * Why ingest stored nothing:
+ * - `no-action`: it normalizes to nothing Tripwire acts on (bot or label-only
+ *   PR edits).
+ * - `unlinked-installation`: no org has claimed the installation, so no one
+ *   can see or arm the repo.
+ * - `removed-repo`: the repo was disconnected from Tripwire.
+ * - `unwatched`: nothing reads this kind of event for this repo.
+ */
+export type IngestDropReason =
+	| "no-action"
+	| "unlinked-installation"
+	| "removed-repo"
+	| "unwatched";
+
 export interface InsertRawEventResult {
 	/** false ⇒ redelivery; UNIQUE(forge, delivery_id) made it a no-op (§5.3). */
 	inserted: boolean;
 	eventId: string | null;
 	lane: EventLane | null;
+	/** Set when nothing reads the event, so nothing was stored. */
+	dropped: IngestDropReason | null;
 }
+
+type EventRoute = { lane: EventLane } | { drop: IngestDropReason };
 
 /**
  * §5.2 — ONE transaction: insert the raw event AND its job. The pg-boss insert
  * runs on the same tx client, so there is never a job without a row. Redelivery
  * (delivery_id conflict) inserts nothing and enqueues nothing.
  *
- * Only events that can produce a run get a job. On staging, every one of 15k
- * queued events was for a repo with Tripwire off, and the worker spent 17 hours
- * on them while new PRs waited behind.
+ * Only events something reads are stored, and only events that can produce a
+ * run get a job. In one staging week, 99.9% of GitHub events came from
+ * installations no org had claimed; earlier, the worker spent 17 hours on 15k
+ * events for repos with Tripwire off while new PRs waited behind.
  */
 export async function insertRawEvent(
 	pool: Pool,
@@ -77,17 +97,25 @@ export async function insertRawEvent(
 ): Promise<InsertRawEventResult> {
 	const client = await pool.connect();
 	try {
-		await client.query("BEGIN");
 		const id = generateId();
 		const forge = input.forge ?? "github";
 		const normalized = input.normalized
 			? normalizedEventSchema.parse(input.normalized)
 			: null;
-		const lane = normalized
-			? await chooseLane(client, normalized)
+		const route: EventRoute = normalized
+			? await routeEvent(client, normalized)
 			: input.normalized === null
-				? "record"
-				: "process";
+				? { drop: "no-action" }
+				: { lane: "process" };
+		if ("drop" in route)
+			return {
+				inserted: false,
+				eventId: null,
+				lane: null,
+				dropped: route.drop,
+			};
+		const { lane } = route;
+		await client.query("BEGIN");
 		const columns =
 			normalized && lane !== "process" ? normalizedColumns(normalized) : null;
 		const res = await client.query<{ id: string }>(
@@ -142,6 +170,7 @@ export async function insertRawEvent(
 			inserted,
 			eventId: inserted ? id : null,
 			lane: inserted ? lane : null,
+			dropped: null,
 		};
 	} catch (error) {
 		await client.query("ROLLBACK");
@@ -152,25 +181,74 @@ export async function insertRawEvent(
 }
 
 /**
- * Installation events, and events on repos Tripwire has no row for, need the
- * worker: it syncs installations and adds missing repos. A close always
- * evaluates, since it settles the PR's open reviews whether or not the repo is
- * still armed. Arming later backfills from the recorded events.
+ * Decides, before anything is stored, whether anything will read the event:
+ * - Installation events always go to the worker: they sync repos, and claiming
+ *   an installation reads them.
+ * - Armed repos: everything evaluates, except pushes no enabled workflow
+ *   triggers on. Tripwire's own comments are recorded for the activity
+ *   timeline, since the worker skips them.
+ * - Repos with Tripwire off keep only the PR lifecycle, which arm-time
+ *   backfill, rule previews and the onboarding PR picker read (30 days back).
+ *   A close evaluates, since it settles the PR's open reviews.
+ * - With no repo row, PR lifecycle events go to the worker, which adds the
+ *   repo (new repos in "all repositories" installs arrive this way).
+ * - Nothing is kept for installations no org has claimed, or for repos
+ *   disconnected from Tripwire: the worker would revive a disconnected repo.
  */
-async function chooseLane(
+async function routeEvent(
 	client: PoolClient,
 	event: NormalizedEvent,
-): Promise<EventLane> {
-	if (!("repo" in event) || event.kind === "schedule.matched") return "process";
-	const repo = await client.query<{ armed: boolean }>(
-		"SELECT armed FROM repos WHERE forge = $1 AND full_name = $2 AND removed_at IS NULL",
-		[event.forge, event.repo.fullName],
+): Promise<EventRoute> {
+	if (!("repo" in event) || event.kind === "schedule.matched")
+		return { lane: "process" };
+	const lifecycle =
+		event.kind === "change-request.opened" ||
+		event.kind === "change-request.updated" ||
+		event.kind === "change-request.closed";
+	const found = await client.query<{
+		armed: boolean;
+		linked: boolean;
+		removed: boolean;
+		triggered: boolean;
+	}>(
+		`SELECT r.armed, r.org_id IS NOT NULL AS linked,
+		   r.removed_at IS NOT NULL AS removed,
+		   EXISTS (SELECT 1 FROM workflow_definitions w
+		     WHERE w.repo_id = r.id AND w.enabled AND jsonb_path_exists(w.definition,
+		       '$.nodes[*] ? (@.type == "trigger" && @.kinds[*] == $kind)',
+		       jsonb_build_object('kind', $3::text))) AS triggered
+		 FROM repos r WHERE r.forge = $1 AND r.full_name = $2
+		 ORDER BY r.removed_at IS NOT NULL LIMIT 1`,
+		[event.forge, event.repo.fullName, event.kind],
 	);
-	const row = repo.rows[0];
-	if (!row) return "process";
-	return row.armed || event.kind === "change-request.closed"
-		? "evaluate"
-		: "record";
+	const repo = found.rows[0];
+	if (!repo) {
+		if (!(await installationLinked(client, event)))
+			return { drop: "unlinked-installation" };
+		return lifecycle ? { lane: "process" } : { drop: "unwatched" };
+	}
+	if (repo.removed) return { drop: "removed-repo" };
+	if (repo.armed) {
+		if (event.kind === "push" && !repo.triggered) return { drop: "unwatched" };
+		if (event.kind === "comment.created" && event.comment.byTripwire)
+			return { lane: "record" };
+		return { lane: "evaluate" };
+	}
+	if (!repo.linked) return { drop: "unlinked-installation" };
+	if (event.kind === "change-request.closed") return { lane: "evaluate" };
+	return lifecycle ? { lane: "record" } : { drop: "unwatched" };
+}
+
+async function installationLinked(
+	client: PoolClient,
+	event: RepoScopedEvent,
+): Promise<boolean> {
+	if (!event.installationExternalId) return false;
+	const linked = await client.query(
+		"SELECT 1 FROM organization_installations WHERE forge = $1 AND installation_id = $2",
+		[event.forge, event.installationExternalId],
+	);
+	return (linked.rowCount ?? 0) > 0;
 }
 
 /** Same subject, same lane: its events run one at a time, in order. */
