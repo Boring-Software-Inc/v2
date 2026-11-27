@@ -80,10 +80,10 @@ export interface Deployment {
 }
 
 /**
- * The running deployments `sha` replaced. In a production environment that is
- * every one Unkey isn't serving. A preview environment serves no single one,
- * so it is this branch's deploys older than this commit's: a newer push's
- * deploy is never stopped.
+ * The running deployments older than the one serving: in a production
+ * environment the current one, and in a preview environment, which serves no
+ * single one, this branch's latest deploy of `sha`. Never a newer one, so a
+ * newer push or a rollout started by hand while this runs is left alone.
  */
 export function replacedDeployments(
 	deployments: readonly Deployment[],
@@ -91,13 +91,18 @@ export function replacedDeployments(
 	sha: string,
 ): Deployment[] {
 	const running = deployments.filter(
-		(d) => d.status === "ready" && d.environment === replaced.environment,
+		(d) =>
+			d.status === "ready" &&
+			d.environment === replaced.environment &&
+			(!replaced.branch || d.git?.branch === replaced.branch),
 	);
-	if (!replaced.branch) return running.filter((d) => !d.isCurrent);
-	const branch = running.filter((d) => d.git?.branch === replaced.branch);
-	const ours = branch.find((d) => d.git?.commitSha === sha);
-	if (!ours) return [];
-	return branch.filter((d) => d !== ours && d.createdAt < ours.createdAt);
+	const serving = replaced.branch
+		? running
+				.filter((d) => d.git?.commitSha === sha)
+				.sort((a, b) => b.createdAt - a.createdAt)[0]
+		: running.find((d) => d.isCurrent);
+	if (!serving) return [];
+	return running.filter((d) => d.createdAt < serving.createdAt);
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
