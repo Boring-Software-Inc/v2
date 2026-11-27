@@ -103,14 +103,20 @@ async function fixture(name: string): Promise<string> {
 	return await Bun.file(path).text();
 }
 
-/** A PR opened in `installation`, which defaults to the claimed one. */
+/**
+ * A PR opened in `installation`, which defaults to the claimed one. Another
+ * `repo` gets its own GitHub id: under the fixture's id it would be a rename.
+ */
 async function fixtureBody(
 	installation = LINKED_INSTALLATION,
-	repo?: string,
+	repo?: { id: number; fullName: string },
 ): Promise<string> {
 	const raw = JSON.parse(await fixture("pull_request.opened.json"));
 	raw.installation = { id: Number(installation) };
-	if (repo) raw.repository.full_name = repo;
+	if (repo) {
+		raw.repository.id = repo.id;
+		raw.repository.full_name = repo.fullName;
+	}
 	return JSON.stringify(raw);
 }
 
@@ -314,7 +320,7 @@ describe("ingest lanes", () => {
 	test("nothing is stored for an installation no org has claimed", async () => {
 		await expectIgnored(
 			"pull_request",
-			await fixtureBody("2", "stranger/repo"),
+			await fixtureBody("2", { id: 600_001, fullName: "stranger/repo" }),
 			"lane-unclaimed",
 		);
 	});
@@ -620,5 +626,64 @@ describe("ingest keeps exactly what the delivery audit requires", () => {
 			);
 			expect(rows.rows.length).toBe(1);
 		}
+	});
+});
+
+describe("a repo renamed on GitHub", () => {
+	/** A comment on `repo`, under the name GitHub now gives it. */
+	async function commentOn(repo: { id: number; name: string }, id: string) {
+		const raw = JSON.parse(await fixture("issue_comment.created.json"));
+		raw.installation = { id: Number(LINKED_INSTALLATION) };
+		raw.repository.id = repo.id;
+		raw.repository.name = repo.name;
+		raw.repository.full_name = `renames/${repo.name}`;
+		raw.repository.owner.login = "renames";
+		const body = JSON.stringify(raw);
+		return await app.request("/webhooks/github", {
+			method: "POST",
+			headers: {
+				"x-github-delivery": id,
+				"x-github-event": "issue_comment",
+				"x-hub-signature-256": signWebhookBody(body, SECRET),
+			},
+			body,
+		});
+	}
+
+	async function armedRepo(externalId: number, name: string) {
+		const id = await repoServices.ensureRepo(db, {
+			externalId: String(externalId),
+			owner: "renames",
+			name,
+			fullName: `renames/${name}`,
+			installationId: LINKED_INSTALLATION,
+			orgId: ORG_ID,
+		});
+		await repoServices.setRepoArmed(db, id, true);
+		return id;
+	}
+
+	async function fullName(id: string) {
+		const rows = await pool.query<{ full_name: string }>(
+			"SELECT full_name FROM repos WHERE id = $1",
+			[id],
+		);
+		return rows.rows[0]?.full_name;
+	}
+
+	test("keeps its comments: the row follows GitHub's repo id to the new name", async () => {
+		const id = await armedRepo(700_001, "before");
+		const res = await commentOn({ id: 700_001, name: "after" }, "rename-1");
+		expect(await res.json()).toEqual({ ok: true, duplicate: false });
+		expect(await fullName(id)).toBe("renames/after");
+	});
+
+	test("never takes a name another repo row holds", async () => {
+		const id = await armedRepo(700_002, "mine");
+		const other = await armedRepo(700_003, "theirs");
+		const res = await commentOn({ id: 700_002, name: "theirs" }, "rename-2");
+		expect(res.status).toBe(200);
+		expect(await fullName(id)).toBe("renames/mine");
+		expect(await fullName(other)).toBe("renames/theirs");
 	});
 });
