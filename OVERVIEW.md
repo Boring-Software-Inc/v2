@@ -76,7 +76,7 @@ it cannot see.
   packages that must stay apart.
 - **the type rules are strict on purpose.** a custom lint suite rejects the
   shortcuts a language model reaches for first, such as widening a known value
-  or casting through `unknown`. see `docs/agent-guidelines.md`.
+  or casting through `unknown`.
 - **the checks are one command each.** lint, typecheck, boundaries, tests. an
   agent can run all four and read a clear pass or fail.
 
@@ -92,16 +92,14 @@ done to the last thousand change requests" before the change reaches anyone.
 
 ### contributing with an agent
 
-agents are welcome here. the rules are the same as for a person, and they are
-written down in `docs/agent-guidelines.md`. the short version:
+agents are welcome here. the rules are the same as for a person. the short
+version:
 
 1. run lint and typecheck before every push. no exceptions.
 2. no `any`. no casting around a type error.
 3. a ui change needs a before-and-after screenshot.
 4. a commit message needs the right shape.
 5. a huge pull request gets split, not reviewed.
-
-read `docs/CONTRIBUTING.md` first. read `docs/agent-guidelines.md` second.
 
 ---
 
@@ -192,17 +190,6 @@ harness proves the mechanics. a human reads the thread once. taste stays human.
 
 ---
 
-## docs
-
-| file | what it covers |
-| --- | --- |
-| `docs/CONTRIBUTING.md` | setup, checks, commits, tests |
-| `docs/agent-guidelines.md` | rules for agent contributors |
-| `docs/opengit-progress.md` | what open-git still needs |
-| `docs/LICENSE-EXPLAINED.md` | the license in plain words |
-
----
-
 ## license
 
-mit. see `LICENSE`, and `docs/LICENSE-EXPLAINED.md` for what it means.
+mit. see `LICENSE`.
