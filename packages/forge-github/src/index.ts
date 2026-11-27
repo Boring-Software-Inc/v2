@@ -33,6 +33,11 @@ export {
 	InstallationTokenCache,
 } from "./client/auth.ts";
 export {
+	GithubAppDeliveries,
+	type GithubAppDeliveriesOptions,
+	type GithubDelivery,
+} from "./client/deliveries.ts";
+export {
 	GithubHttp,
 	GithubHttpError,
 	type GithubHttpOptions,
@@ -56,7 +61,10 @@ export {
 } from "./copy.ts";
 export { type GithubForge, githubForge } from "./signals.ts";
 export {
+	type GithubDeliveryTarget,
 	githubDeliveryActionSchema,
+	githubDeliveryMustBeStored,
+	type IngestedGithubEvent,
 	isIngestedGithubWebhook,
 } from "./webhook/ingest.ts";
 export { normalizeWebhook } from "./webhook/normalize.ts";

@@ -35,6 +35,8 @@ const queueHealthSchema = z.object({
 	processReady: z.coerce.number(),
 	processAgeSeconds: z.coerce.number(),
 	deadLetteredLastDay: z.coerce.number(),
+	/** GitHub deliveries the delivery audit found were never stored. */
+	lostDeliveriesLastDay: z.coerce.number(),
 	/** null when no GitHub worker has ever run against this database. */
 	workerHeartbeatAgeSeconds: z.coerce.number().nullable(),
 });
@@ -61,6 +63,9 @@ export async function readQueueHealth(db: Db): Promise<QueueHealth> {
 			(SELECT count(*) FROM pgboss.job
 				WHERE name = ${GITHUB_EVALUATE_DEAD_LETTER_QUEUE}
 					AND created_on > now() - interval '1 day') AS "deadLetteredLastDay",
+			(SELECT count(*) FROM github_delivery_audit
+				WHERE status IN ('missed', 'failed')
+					AND updated_at > now() - interval '1 day') AS "lostDeliveriesLastDay",
 			-- GREATEST skips NULLs, so check for no heartbeat before clamping.
 			(SELECT CASE WHEN max(last_heartbeat_at) IS NULL THEN NULL
 				ELSE GREATEST(0, EXTRACT(EPOCH FROM now() - max(last_heartbeat_at))) END

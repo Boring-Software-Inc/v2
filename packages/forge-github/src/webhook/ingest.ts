@@ -32,9 +32,9 @@ export const githubDeliveryActionSchema = z.object({
 	action: z.string().optional(),
 });
 
-function isIngestedEvent(
-	eventName: string,
-): eventName is keyof typeof INGESTED_GITHUB_WEBHOOKS {
+export type IngestedGithubEvent = keyof typeof INGESTED_GITHUB_WEBHOOKS;
+
+function isIngestedEvent(eventName: string): eventName is IngestedGithubEvent {
 	return Object.hasOwn(INGESTED_GITHUB_WEBHOOKS, eventName);
 }
 
@@ -46,4 +46,63 @@ export function isIngestedGithubWebhook(
 	if (!isIngestedEvent(eventName)) return false;
 	const actions: readonly string[] | null = INGESTED_GITHUB_WEBHOOKS[eventName];
 	return actions === null || (action !== undefined && actions.includes(action));
+}
+
+/** What Tripwire knows about a delivery's target, looked up by GitHub's ids. */
+export interface GithubDeliveryTarget {
+	/** An org has claimed the delivery's installation. */
+	installationClaimed: boolean;
+	/** The repo row with the delivery's repository id; null when there is none. */
+	repo: {
+		armed: boolean;
+		/** The repo belongs to an org. */
+		claimed: boolean;
+		removed: boolean;
+		/** An enabled workflow on the repo has a push trigger. */
+		pushTriggered: boolean;
+	} | null;
+}
+
+const armed = (target: GithubDeliveryTarget) =>
+	target.repo !== null && !target.repo.removed && target.repo.armed;
+
+/**
+ * Which deliveries ingest must store, written apart from the ingest router so
+ * the two check each other: the webhook tests send every case through ingest
+ * and compare, and the delivery audit compares GitHub's delivery log with the
+ * events table. Changing what Tripwire keeps means changing both.
+ */
+const MUST_STORE = {
+	// Installation events sync repos, and claiming an installation reads them.
+	installation: () => true,
+	installation_repositories: () => true,
+	// Backfill, rule previews and the onboarding PR picker read the PR
+	// lifecycle of every claimed repo. A PR on a repo with no row yet adds it.
+	pull_request: (target) =>
+		target.repo === null
+			? target.installationClaimed
+			: !target.repo.removed && (target.repo.armed || target.repo.claimed),
+	issues: armed,
+	issue_comment: armed,
+	push: (target) => armed(target) && target.repo?.pushTriggered === true,
+} satisfies Record<
+	IngestedGithubEvent,
+	(target: GithubDeliveryTarget) => boolean
+>;
+
+/**
+ * Whether ingest must store this delivery, provided it normalizes to an event:
+ * bot and label-only edits normalize to nothing and are never stored.
+ */
+export function githubDeliveryMustBeStored(
+	eventName: string,
+	action: string | undefined,
+	target: GithubDeliveryTarget,
+): boolean {
+	if (
+		!isIngestedGithubWebhook(eventName, action) ||
+		!isIngestedEvent(eventName)
+	)
+		return false;
+	return MUST_STORE[eventName](target);
 }

@@ -15,7 +15,13 @@ import {
 	type TestDatabase,
 	workflowDefinitions,
 } from "@tripwire/db";
-import { signWebhookBody } from "@tripwire/forge-github";
+import {
+	type GithubDeliveryTarget,
+	githubDeliveryActionSchema,
+	githubDeliveryMustBeStored,
+	normalizeWebhook,
+	signWebhookBody,
+} from "@tripwire/forge-github";
 import { generateId } from "@tripwire/utils";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
@@ -407,5 +413,212 @@ describe("ingest lanes", () => {
 			await fixture("pull_request.synchronize.json"),
 			"lane-removed",
 		);
+	});
+});
+
+/**
+ * Ingest against the rule the delivery audit pages on: every delivery the
+ * rule says must be kept is stored, and nothing else. If the router or the
+ * rule changes alone, this fails, before production pages on it.
+ */
+describe("ingest keeps exactly what the delivery audit requires", () => {
+	type State = NonNullable<GithubDeliveryTarget["repo"]> & { row: boolean };
+	const STATES = {
+		armed: {
+			row: true,
+			armed: true,
+			claimed: true,
+			removed: false,
+			pushTriggered: false,
+			claimedInstall: true,
+		},
+		"armed with a push workflow": {
+			row: true,
+			armed: true,
+			claimed: true,
+			removed: false,
+			pushTriggered: true,
+			claimedInstall: true,
+		},
+		"Tripwire off": {
+			row: true,
+			armed: false,
+			claimed: true,
+			removed: false,
+			pushTriggered: false,
+			claimedInstall: true,
+		},
+		"unclaimed repo": {
+			row: true,
+			armed: false,
+			claimed: false,
+			removed: false,
+			pushTriggered: false,
+			claimedInstall: false,
+		},
+		disconnected: {
+			row: true,
+			armed: true,
+			claimed: true,
+			removed: true,
+			pushTriggered: false,
+			claimedInstall: true,
+		},
+		"no row, claimed installation": {
+			row: false,
+			armed: false,
+			claimed: false,
+			removed: false,
+			pushTriggered: false,
+			claimedInstall: true,
+		},
+		"no row, unclaimed installation": {
+			row: false,
+			armed: false,
+			claimed: false,
+			removed: false,
+			pushTriggered: false,
+			claimedInstall: false,
+		},
+	} satisfies Record<string, State & { claimedInstall: boolean }>;
+
+	/** [event, label, raw body] for every ingested event type. */
+	async function deliveries(): Promise<[string, string, string][]> {
+		const issue = JSON.parse(await fixture("issue_comment.created.json"));
+		delete issue.comment;
+		issue.action = "opened";
+		return [
+			["pull_request", "opened", await fixture("pull_request.opened.json")],
+			[
+				"pull_request",
+				"synchronize",
+				await fixture("pull_request.synchronize.json"),
+			],
+			["pull_request", "closed", await fixture("pull_request.closed.json")],
+			[
+				"pull_request",
+				"bot edit",
+				await fixture("pull_request.edited.body-by-bot.json"),
+			],
+			["issues", "opened", JSON.stringify(issue)],
+			["issue_comment", "created", await fixture("issue_comment.created.json")],
+			["push", "push", await fixture("push.json")],
+		];
+	}
+
+	/** The same delivery, sent for another repo and installation. */
+	function retarget(
+		body: string,
+		to: { repoId: string; owner: string; name: string; installation: string },
+	): string {
+		const raw = JSON.parse(body);
+		raw.installation = { id: Number(to.installation) };
+		raw.repository.id = Number(to.repoId);
+		raw.repository.name = to.name;
+		raw.repository.full_name = `${to.owner}/${to.name}`;
+		raw.repository.owner.login = to.owner;
+		raw.repository.owner.name = to.owner;
+		return JSON.stringify(raw);
+	}
+
+	let n = 0;
+	for (const [stateName, state] of Object.entries(STATES)) {
+		test(`repo ${stateName}`, async () => {
+			n++;
+			const repoId = String(900_000 + n);
+			const owner = "audit-parity";
+			const name = `repo-${n}`;
+			const installation = state.claimedInstall ? LINKED_INSTALLATION : "2";
+			if (state.row) {
+				const id = await repoServices.ensureRepo(db, {
+					externalId: repoId,
+					owner,
+					name,
+					fullName: `${owner}/${name}`,
+					installationId: installation,
+					orgId: state.claimed ? ORG_ID : undefined,
+				});
+				if (state.armed) await repoServices.setRepoArmed(db, id, true);
+				if (state.removed)
+					await pool.query(
+						"UPDATE repos SET removed_at = now() WHERE id = $1",
+						[id],
+					);
+				if (state.pushTriggered)
+					await db.insert(workflowDefinitions).values({
+						id: generateId(),
+						repoId: id,
+						name: "On push",
+						definition: {
+							nodes: [{ id: "trigger", type: "trigger", kinds: ["push"] }],
+						},
+					});
+			}
+			const target: GithubDeliveryTarget = {
+				installationClaimed: state.claimedInstall,
+				repo: state.row ? state : null,
+			};
+			const mismatches: string[] = [];
+			for (const [eventName, label, fixtureBody] of await deliveries()) {
+				const body = retarget(fixtureBody, {
+					repoId,
+					owner,
+					name,
+					installation,
+				});
+				const { action } = githubDeliveryActionSchema.parse(JSON.parse(body));
+				const deliveryId = `parity-${n}-${eventName}-${label}`;
+				const res = await app.request("/webhooks/github", {
+					method: "POST",
+					headers: {
+						"x-github-delivery": deliveryId,
+						"x-github-event": eventName,
+						"x-hub-signature-256": signWebhookBody(body, SECRET),
+					},
+					body,
+				});
+				expect(res.status).toBe(200);
+				const normalizes =
+					normalizeWebhook(
+						{ deliveryId, eventName, body, signature: null },
+						new Date().toISOString(),
+					) !== null;
+				const expected =
+					normalizes && githubDeliveryMustBeStored(eventName, action, target);
+				const rows = await pool.query(
+					"SELECT 1 FROM events WHERE delivery_id = $1",
+					[deliveryId],
+				);
+				if (rows.rows.length > 0 !== expected)
+					mismatches.push(
+						`${eventName} ${label}: expected ${expected ? "stored" : "dropped"}`,
+					);
+			}
+			expect(mismatches).toEqual([]);
+		});
+	}
+
+	test("installation events are stored whoever owns the installation", async () => {
+		for (const [eventName, name] of [
+			["installation", "installation.created.json"],
+			["installation_repositories", "installation_repositories.added.json"],
+		] as const) {
+			const body = await fixture(name);
+			const deliveryId = `parity-${name}`;
+			await app.request("/webhooks/github", {
+				method: "POST",
+				headers: {
+					"x-github-delivery": deliveryId,
+					"x-github-event": eventName,
+					"x-hub-signature-256": signWebhookBody(body, SECRET),
+				},
+				body,
+			});
+			const rows = await pool.query(
+				"SELECT 1 FROM events WHERE delivery_id = $1",
+				[deliveryId],
+			);
+			expect(rows.rows.length).toBe(1);
+		}
 	});
 });
