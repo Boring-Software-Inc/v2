@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import type { Db, QueueHealth } from "@tripwire/db";
+import { DatabaseError } from "pg";
 import pino from "pino";
 import { duration, startQueueAlerts } from "./queue-alerts.ts";
 
@@ -11,6 +12,8 @@ const healthy: QueueHealth = {
 	deadLetteredLastDay: 0,
 	lostDeliveriesLastDay: 0,
 	workerHeartbeatAgeSeconds: 5,
+	connectionsUsed: 6,
+	connectionsLimit: 22,
 };
 
 /** Stands in for the ops_alerts row: reports a change only when it flips. */
@@ -26,6 +29,7 @@ function memoryState() {
 
 function harness() {
 	let health = healthy;
+	let refused: Error | null = null;
 	const posts: string[] = [];
 	const issues: string[] = [];
 	const alerts = startQueueAlerts({
@@ -40,7 +44,10 @@ function harness() {
 		capture: (alert) => {
 			issues.push(alert.key);
 		},
-		readHealth: async () => health,
+		readHealth: async () => {
+			if (refused) throw refused;
+			return health;
+		},
 		recordState: memoryState(),
 		intervalMs: 60_000,
 	});
@@ -51,7 +58,21 @@ function harness() {
 		set: (next: Partial<QueueHealth>) => {
 			health = { ...healthy, ...next };
 		},
+		refuse: (error: Error | null) => {
+			refused = error;
+		},
 	};
+}
+
+/** What drizzle throws when Postgres has no connection slot left. */
+function connectionLimitError() {
+	const pgError = new DatabaseError(
+		"remaining connection slots are reserved for roles with the SUPERUSER attribute",
+		137,
+		"error",
+	);
+	pgError.code = "53300";
+	return new Error("Failed query", { cause: pgError });
 }
 
 test("a backlog pages once after two samples, and again when it clears", async () => {
@@ -106,6 +127,62 @@ test("lost GitHub deliveries page, and every alert opens a Sentry issue", async 
 	expect(posts).toHaveLength(1);
 	expect(posts[0]).toContain("GitHub webhooks were never stored");
 	expect(issues).toEqual(["github-deliveries-lost"]);
+	alerts.stop();
+});
+
+test("pages when the database is nearly out of connections", async () => {
+	const { alerts, posts, issues, set } = harness();
+	await alerts.sample();
+	set({ connectionsUsed: 17 });
+	await alerts.sample();
+	await alerts.sample();
+	expect(posts).toEqual([]);
+
+	set({ connectionsUsed: 18 });
+	await alerts.sample();
+	await alerts.sample();
+	expect(posts).toEqual([
+		"**FIRING** [production] The database is running out of connections: 18 of 22 in use (limit 80%); new requests fail once none are left.",
+	]);
+	expect(issues).toEqual(["db-connections-high"]);
+	alerts.stop();
+});
+
+test("a sample refused a connection pages once, and resolves when one is free", async () => {
+	const { alerts, posts, issues, refuse } = harness();
+	await alerts.sample();
+	refuse(connectionLimitError());
+	await alerts.sample();
+	expect(alerts.snapshot().ok).toBe(true);
+
+	await alerts.sample();
+	await alerts.sample();
+	expect(alerts.snapshot()).toMatchObject({
+		ok: false,
+		firing: ["db-connections-exhausted"],
+	});
+	expect(issues).toEqual(["db-connections-exhausted"]);
+	expect(posts).toEqual([
+		"**FIRING** [production] The database refused new connections: the alert sample couldn't connect (Postgres 53300).",
+	]);
+
+	refuse(null);
+	await alerts.sample();
+	expect(alerts.snapshot().ok).toBe(true);
+	expect(posts.at(-1)).toBe(
+		"**RESOLVED** [production] The database refused new connections.",
+	);
+	alerts.stop();
+});
+
+test("other sample failures only log", async () => {
+	const { alerts, posts, issues, refuse } = harness();
+	refuse(new Error("network blip"));
+	await alerts.sample();
+	await alerts.sample();
+	await alerts.sample();
+	expect(posts).toEqual([]);
+	expect(issues).toEqual([]);
 	alerts.stop();
 });
 

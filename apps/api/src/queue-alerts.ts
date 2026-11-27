@@ -1,6 +1,7 @@
 import { captureMessage } from "@sentry/bun";
 import { type Db, type QueueHealth, queueServices } from "@tripwire/db";
 import { getErrorMessage, guardedPost } from "@tripwire/utils";
+import { DatabaseError } from "pg";
 import type { Logger } from "pino";
 
 /**
@@ -16,6 +17,9 @@ export interface QueueAlertRule {
 	firing(health: QueueHealth): boolean;
 	detail(health: QueueHealth): string;
 }
+
+/** Pages with a fifth of the connections still free, before requests fail. */
+const CONNECTIONS_ALERT_SHARE = 0.8;
 
 export const QUEUE_ALERT_RULES: readonly QueueAlertRule[] = [
 	{
@@ -55,7 +59,26 @@ export const QUEUE_ALERT_RULES: readonly QueueAlertRule[] = [
 		detail: (health) =>
 			`${health.lostDeliveriesLastDay} in the last day that should have run or been kept, listed in github_delivery_audit`,
 	},
+	{
+		key: "db-connections-high",
+		title: "The database is running out of connections",
+		firing: (health) =>
+			health.connectionsUsed >=
+			Math.ceil(health.connectionsLimit * CONNECTIONS_ALERT_SHARE),
+		detail: (health) =>
+			`${health.connectionsUsed} of ${health.connectionsLimit} in use (limit ${CONNECTIONS_ALERT_SHARE * 100}%); new requests fail once none are left`,
+	},
 ];
+
+/**
+ * Fires when the sample itself is refused a connection. Then the database
+ * can't record the alert either, so each replica reports it on its own.
+ */
+export const CONNECTIONS_EXHAUSTED_ALERT = {
+	key: "db-connections-exhausted",
+	title: "The database refused new connections",
+	detail: "the alert sample couldn't connect (Postgres 53300)",
+} as const;
 
 /** A rule fires after this many samples in a row, so one slow minute doesn't page. */
 const SAMPLES_TO_FIRE = 2;
@@ -79,7 +102,7 @@ export interface QueueAlertsOptions {
 	 * notify no one, so without this an alert with no Discord webhook was
 	 * silent.
 	 */
-	capture?: (alert: QueueAlertRule, message: string) => void;
+	capture?: (alert: Pick<QueueAlertRule, "key">, message: string) => void;
 	readHealth?: typeof queueServices.readQueueHealth;
 	recordState?: typeof queueServices.recordAlertState;
 	intervalMs?: number;
@@ -91,6 +114,7 @@ export function startQueueAlerts(options: QueueAlertsOptions) {
 	const readHealth = options.readHealth ?? queueServices.readQueueHealth;
 	const recordState = options.recordState ?? queueServices.recordAlertState;
 	const streaks = new Map<string, number>();
+	let refusedStreak = 0;
 	let snapshot: QueueAlertsSnapshot = {
 		ok: true,
 		firing: [],
@@ -141,11 +165,35 @@ export function startQueueAlerts(options: QueueAlertsOptions) {
 				health,
 				sampledAt: new Date().toISOString(),
 			};
+			if (refusedStreak >= SAMPLES_TO_FIRE) {
+				await notify(
+					`**RESOLVED** [${options.environment}] ${CONNECTIONS_EXHAUSTED_ALERT.title}.`,
+				);
+			}
+			refusedStreak = 0;
 		} catch (error) {
-			options.logger.warn(
-				{ event: "queue.alert.sample.failed", error: getErrorMessage(error) },
-				"queue alert sample failed",
-			);
+			if (!(error instanceof Error && isConnectionLimitError(error))) {
+				options.logger.warn(
+					{ event: "queue.alert.sample.failed", error: getErrorMessage(error) },
+					"queue alert sample failed",
+				);
+				return;
+			}
+			const alert = CONNECTIONS_EXHAUSTED_ALERT;
+			refusedStreak++;
+			if (refusedStreak < SAMPLES_TO_FIRE) return;
+			snapshot = {
+				ok: false,
+				firing: [...new Set([...snapshot.firing, alert.key])],
+				health: snapshot.health,
+				sampledAt: new Date().toISOString(),
+			};
+			// Reported once per run of refusals.
+			if (refusedStreak > SAMPLES_TO_FIRE) return;
+			const message = `[${options.environment}] ${alert.title}: ${alert.detail}`;
+			options.logger.error({ event: "queue.alert", alert: alert.key }, message);
+			capture(alert, message);
+			await notify(`**FIRING** ${message}.`);
 		}
 	};
 
@@ -158,8 +206,17 @@ export function startQueueAlerts(options: QueueAlertsOptions) {
 	};
 }
 
+/**
+ * Postgres 53300: every slot the apps may use is taken. Drizzle wraps driver
+ * errors, so the code can sit on a `cause`.
+ */
+export function isConnectionLimitError(error: Error): boolean {
+	if (error instanceof DatabaseError) return error.code === "53300";
+	return error.cause instanceof Error && isConnectionLimitError(error.cause);
+}
+
 /** One Sentry issue per alert, so each firing adds an event to it. */
-function captureAlert(alert: QueueAlertRule, message: string) {
+function captureAlert(alert: Pick<QueueAlertRule, "key">, message: string) {
 	captureMessage(message, {
 		level: "error",
 		fingerprint: ["queue-alert", alert.key],

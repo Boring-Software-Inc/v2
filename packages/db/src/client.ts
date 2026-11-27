@@ -3,6 +3,10 @@ import { drizzle, type NodePgQueryResultHKT } from "drizzle-orm/node-postgres";
 import type { PgDatabase } from "drizzle-orm/pg-core";
 import type { PgliteQueryResultHKT } from "drizzle-orm/pglite";
 import { Pool } from "pg";
+import {
+	assertPooledDatabaseUrl,
+	assertSessionDatabaseUrl,
+} from "./database-url.ts";
 import * as schema from "./schema/index.ts";
 
 /**
@@ -14,8 +18,24 @@ export function createDb(databaseUrl = process.env.DATABASE_URL, max = 10) {
 	if (!databaseUrl) {
 		throw new Error("DATABASE_URL is not set");
 	}
-	const pool = new Pool({ connectionString: databaseUrl, max });
+	assertPooledDatabaseUrl(databaseUrl);
+	const pool = survivesDroppedConnections(
+		new Pool({ connectionString: databaseUrl, max }),
+	);
 	return { db: drizzle(pool, { schema }), pool };
+}
+
+/**
+ * When the database closes an idle connection (a restart, a resize, a
+ * failover), `pg` emits `error` on the pool, and with no listener that throws
+ * and kills the process. The pool has already dropped the dead connection
+ * and opens a new one on the next query, so there is nothing else to do.
+ */
+function survivesDroppedConnections(pool: Pool): Pool {
+	pool.on("error", (error) => {
+		console.warn(`postgres dropped an idle connection: ${error.message}`);
+	});
+	return pool;
 }
 
 /**
@@ -34,7 +54,10 @@ export function createDirectPool(
 	if (!directUrl) {
 		throw new Error("DATABASE_URL_DIRECT (or DATABASE_URL) is not set");
 	}
-	return new Pool({ connectionString: directUrl, max });
+	assertSessionDatabaseUrl(directUrl);
+	return survivesDroppedConnections(
+		new Pool({ connectionString: directUrl, max }),
+	);
 }
 
 /** Shared schema and query surface of the two supported PostgreSQL drivers. */
