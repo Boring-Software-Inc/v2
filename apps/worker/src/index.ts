@@ -11,6 +11,7 @@ import {
 	createBoss,
 	createDb,
 	createDirectPool,
+	DRAIN_BACKLOG_WORK_OPTIONS,
 	PROCESS_EVENT_QUEUE,
 	type ProcessEventJob,
 	RECOVER_INSTALLATION_QUEUE,
@@ -32,6 +33,7 @@ import {
 	type SyncRepoLabelsJob,
 	type SyncRepoReviewersJob,
 	syncFlagOverridesOptions,
+	syncRepoBranchesOptions,
 	syncRepoLabelsOptions,
 	syncRepoReviewersOptions,
 } from "@tripwire/db";
@@ -286,12 +288,24 @@ if (import.meta.main && workerMode === "standard") {
 		);
 	};
 
+	const enqueueBranchSync = async (repoId: string): Promise<void> => {
+		await boss.send(
+			SYNC_REPO_BRANCHES_QUEUE,
+			{ repoId },
+			syncRepoBranchesOptions(repoId),
+		);
+	};
+
 	const working = new Set<string>();
 	const work = async <T>(name: string, handler: WorkHandler<T>) => {
 		if (working.has(name)) {
 			return;
 		}
-		await boss.work<T>(name, captureJobFailures(name, handler));
+		await boss.work<T>(
+			name,
+			DRAIN_BACKLOG_WORK_OPTIONS,
+			captureJobFailures(name, handler),
+		);
 		working.add(name);
 	};
 
@@ -300,6 +314,8 @@ if (import.meta.main && workerMode === "standard") {
 			for (const job of jobs) {
 				await processEvent(
 					{
+						// A retry must redo the work the failed attempt didn't finish.
+						resumeNormalized: true,
 						db,
 						pool: directPool,
 						resolveForge,
@@ -309,6 +325,7 @@ if (import.meta.main && workerMode === "standard") {
 						logger: logger.child({ eventId: job.data.eventId }),
 						enqueueReviewerSync,
 						enqueueLabelSync,
+						enqueueBranchSync,
 						selfLogins,
 					},
 					job.data,

@@ -1,8 +1,23 @@
 import { GITCAFE_CONNECT_QUEUE } from "@tripwire/contracts";
-import { type ConstructorOptions, PgBoss } from "pg-boss";
+import { type ConstructorOptions, PgBoss, type WorkOptions } from "pg-boss";
 
 /** Keeps queue maintenance inside the smallest supported database connection budget. */
 export const QUEUE_POOL_MAX = 4;
+
+/**
+ * Without this a worker sleeps the 2 s polling interval after every job, even
+ * with thousands queued: a 0.05 s job cost 2.05 s, capping one worker at about
+ * 1,800 jobs an hour. Burst fetches the next job immediately while the queue's
+ * ready count (refreshed by pg-boss every minute) is above 1, and falls back to
+ * polling once a fetch comes back short. One job in flight per worker, so FIFO
+ * order is unchanged.
+ */
+export const DRAIN_BACKLOG_WORK_OPTIONS = {
+	burstWhenReadyExceeds: 1,
+} satisfies WorkOptions;
+
+/** pg-boss emits a `queue_backlog` warning once a queue holds more than this. */
+export const QUEUE_BACKLOG_WARNING_SIZE = 500;
 
 export function queueDatabaseOptions(
 	databaseUrl: string,
@@ -144,6 +159,7 @@ export interface RefreshSurfacesJob {
 /** Minimal logger surface — satisfied by pino, console, etc. */
 export interface BossErrorLogger {
 	error(obj: { error: Error | string }, msg?: string): void;
+	warn?(obj: { warning: unknown }, msg?: string): void;
 }
 
 /** Connection producers and the isolated worker must leave general backlog maintenance stopped. */
@@ -194,12 +210,22 @@ export async function createBoss(
 	if (!databaseUrl) {
 		throw new Error("DATABASE_URL is not set");
 	}
-	const boss = new PgBoss(queueDatabaseOptions(databaseUrl));
+	const boss = new PgBoss({
+		...queueDatabaseOptions(databaseUrl),
+		warningQueueSize: QUEUE_BACKLOG_WARNING_SIZE,
+	});
 	boss.on("error", (error) => {
 		if (logger) {
 			logger.error({ error }, "pg-boss error (queue maintenance/fetch)");
 		} else {
 			console.error("pg-boss error (queue maintenance/fetch):", error);
+		}
+	});
+	boss.on("warning", (warning) => {
+		if (logger?.warn) {
+			logger.warn({ warning }, "pg-boss warning (backlog or slow query)");
+		} else {
+			console.warn("pg-boss warning (backlog or slow query):", warning);
 		}
 	});
 	await boss.start();
