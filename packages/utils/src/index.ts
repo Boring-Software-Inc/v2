@@ -42,7 +42,6 @@ export {
 	type DitherChartOptions,
 	encodePng,
 	renderDitherChart,
-	renderSparklinePng,
 	type SparklineOptions,
 	type SparkSeries,
 } from "./sparkline-png.ts";
