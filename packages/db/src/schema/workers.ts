@@ -59,7 +59,7 @@ export const githubDeliveryAudit = pgTable(
 	{
 		guid: text("guid").primaryKey(),
 		/** GitHub's id for the attempt the audit last acted on. */
-		attemptId: bigint("attempt_id", { mode: "number" }).notNull(),
+		attemptId: bigint("attempt_id", { mode: "bigint" }).notNull(),
 		event: text("event").notNull(),
 		action: text("action"),
 		installationId: text("installation_id"),

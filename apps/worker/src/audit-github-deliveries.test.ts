@@ -19,7 +19,7 @@ const CLAIMED_INSTALL = "7";
 
 function attempt(overrides: Partial<GithubDelivery>): GithubDelivery {
 	return {
-		id: 1,
+		id: "1",
 		guid: "guid-1",
 		deliveredAt: new Date("2026-11-27T02:50:00Z"),
 		redelivery: false,
@@ -93,6 +93,13 @@ function fakeStore(
 						problem.status === "redelivered" && problem.updatedAt < before,
 				)
 				.map(([guid]) => ({ guid, event: "pull_request" })),
+		lostDeliveryGuids: async () =>
+			[...problems]
+				.filter(
+					([, problem]) =>
+						problem.status === "missed" || problem.status === "failed",
+				)
+				.map(([guid]) => guid),
 		setDeliveryProblemStatus: async (guid, status) => {
 			statuses.push([guid, status]);
 			problems.set(guid, { status, updatedAt: NOW });
@@ -104,24 +111,24 @@ function fakeStore(
 
 function fakeDeliveries(
 	attempts: GithubDelivery[],
-	payloads = new Map<number, object>(),
+	payloads = new Map<string, object>(),
 ) {
-	const redelivered: number[] = [];
-	const reads: number[] = [];
+	const redelivered: string[] = [];
+	const reads: string[] = [];
 	return {
 		redelivered,
 		reads,
 		deliveries: {
 			listSince: async (since: Date) =>
 				attempts.filter((a) => a.deliveredAt >= since),
-			payload: async (id: number) => {
+			payload: async (id: string) => {
 				reads.push(id);
 				return {
 					event: "pull_request",
 					body: JSON.stringify(payloads.get(id) ?? pullRequestOpened),
 				};
 			},
-			redeliver: async (id: number) => {
+			redeliver: async (id: string) => {
 				redelivered.push(id);
 			},
 		},
@@ -148,15 +155,15 @@ describe("auditGithubDeliveries", () => {
 	test("a delivery ingest never answered is redelivered once", async () => {
 		const { store, recorded } = fakeStore();
 		const { deliveries, redelivered } = fakeDeliveries([
-			attempt({ id: 5, statusCode: 502 }),
+			attempt({ id: "5", statusCode: 502 }),
 		]);
 		await auditGithubDeliveries({ store, deliveries, logger, now: () => NOW });
-		expect(redelivered).toEqual([5]);
+		expect(redelivered).toEqual(["5"]);
 		expect(recorded.map((p) => p.status)).toEqual(["redelivered"]);
 
 		// The next run doesn't ask again while the redelivery is pending.
 		await auditGithubDeliveries({ store, deliveries, logger, now: () => NOW });
-		expect(redelivered).toEqual([5]);
+		expect(redelivered).toEqual(["5"]);
 	});
 
 	test("a redelivery that fails too pages", async () => {
@@ -172,9 +179,9 @@ describe("auditGithubDeliveries", () => {
 			]),
 		});
 		const { deliveries } = fakeDeliveries([
-			attempt({ id: 5, statusCode: 502 }),
+			attempt({ id: "5", statusCode: 502 }),
 			attempt({
-				id: 6,
+				id: "6",
 				statusCode: 500,
 				redelivery: true,
 				deliveredAt: new Date("2026-11-27T02:55:00Z"),
@@ -187,7 +194,7 @@ describe("auditGithubDeliveries", () => {
 			now: () => NOW,
 		});
 		expect(summary.failed).toBe(1);
-		expect(recorded.at(-1)).toMatchObject({ status: "failed", attemptId: 6 });
+		expect(recorded.at(-1)).toMatchObject({ status: "failed", attemptId: "6" });
 	});
 
 	test("a redelivery GitHub never sent pages once it is out of the log window", async () => {
@@ -213,9 +220,32 @@ describe("auditGithubDeliveries", () => {
 		expect(statuses).toEqual([["guid-old", "failed"]]);
 	});
 
+	test("a lost delivery stored after it left the scan window stops paging", async () => {
+		const { store, statuses } = fakeStore({
+			stored: ["guid-missed", "guid-failed"],
+			problems: new Map([
+				["guid-missed", { status: "missed", updatedAt: NOW }],
+				["guid-failed", { status: "failed", updatedAt: NOW }],
+				["guid-still-lost", { status: "missed", updatedAt: NOW }],
+			]),
+		});
+		const { deliveries } = fakeDeliveries([]);
+		const summary = await auditGithubDeliveries({
+			store,
+			deliveries,
+			logger,
+			now: () => NOW,
+		});
+		expect(summary.recovered).toBe(2);
+		expect(statuses).toEqual([
+			["guid-missed", "recovered"],
+			["guid-failed", "recovered"],
+		]);
+	});
+
 	test("a delivery answered 200 but never stored pages as missed", async () => {
 		const { store, recorded } = fakeStore();
-		const { deliveries, redelivered } = fakeDeliveries([attempt({ id: 9 })]);
+		const { deliveries, redelivered } = fakeDeliveries([attempt({ id: "9" })]);
 		const summary = await auditGithubDeliveries({
 			store,
 			deliveries,
@@ -231,8 +261,8 @@ describe("auditGithubDeliveries", () => {
 	test("a bot edit that normalizes to nothing is read once, not paged", async () => {
 		const { store, recorded } = fakeStore();
 		const { deliveries, reads } = fakeDeliveries(
-			[attempt({ id: 9, action: "edited" })],
-			new Map([[9, editedByBot]]),
+			[attempt({ id: "9", action: "edited" })],
+			new Map([["9", editedByBot]]),
 		);
 		const summary = await auditGithubDeliveries({
 			store,
@@ -245,7 +275,7 @@ describe("auditGithubDeliveries", () => {
 
 		// The overlap rescans it; its payload isn't read again.
 		await auditGithubDeliveries({ store, deliveries, logger, now: () => NOW });
-		expect(reads).toEqual([9]);
+		expect(reads).toEqual(["9"]);
 	});
 
 	test("a redelivered no-op edit resolves instead of paging later", async () => {
@@ -256,18 +286,21 @@ describe("auditGithubDeliveries", () => {
 		});
 		const { deliveries } = fakeDeliveries(
 			[
-				attempt({ id: 5, action: "edited", statusCode: 502 }),
+				attempt({ id: "5", action: "edited", statusCode: 502 }),
 				attempt({
-					id: 6,
+					id: "6",
 					action: "edited",
 					redelivery: true,
 					deliveredAt: new Date("2026-11-27T02:55:00Z"),
 				}),
 			],
-			new Map([[6, editedByBot]]),
+			new Map([["6", editedByBot]]),
 		);
 		await auditGithubDeliveries({ store, deliveries, logger, now: () => NOW });
-		expect(recorded.at(-1)).toMatchObject({ status: "ignored", attemptId: 6 });
+		expect(recorded.at(-1)).toMatchObject({
+			status: "ignored",
+			attemptId: "6",
+		});
 		const later = new Date(NOW.getTime() + REDELIVERY_WAIT_MS * 2);
 		const summary = await auditGithubDeliveries({
 			store,
@@ -336,9 +369,9 @@ describe("auditGithubDeliveries", () => {
 			]),
 		});
 		const { deliveries } = fakeDeliveries([
-			attempt({ id: 5, statusCode: 502 }),
+			attempt({ id: "5", statusCode: 502 }),
 			attempt({
-				id: 6,
+				id: "6",
 				redelivery: true,
 				deliveredAt: new Date("2026-11-27T02:55:00Z"),
 			}),

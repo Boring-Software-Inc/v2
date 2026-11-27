@@ -145,7 +145,7 @@ export async function deliveryProblems(
 
 export interface DeliveryProblemInput {
 	guid: string;
-	attemptId: number;
+	attemptId: string;
 	event: string;
 	action: string | null;
 	installationId: string | null;
@@ -159,13 +159,14 @@ export async function recordDeliveryProblem(
 	db: Db,
 	input: DeliveryProblemInput,
 ): Promise<void> {
+	const attemptId = BigInt(input.attemptId);
 	await db
 		.insert(githubDeliveryAudit)
-		.values(input)
+		.values({ ...input, attemptId })
 		.onConflictDoUpdate({
 			target: githubDeliveryAudit.guid,
 			set: {
-				attemptId: input.attemptId,
+				attemptId,
 				status: input.status,
 				statusCode: input.statusCode,
 				updatedAt: sql`now()`,
@@ -190,6 +191,15 @@ export async function redeliveriesUpdatedBefore(
 				lt(githubDeliveryAudit.updatedAt, before),
 			),
 		);
+}
+
+/** Deliveries the audit paged on as missed or failed. */
+export async function lostDeliveryGuids(db: Db): Promise<string[]> {
+	const rows = await db
+		.select({ guid: githubDeliveryAudit.guid })
+		.from(githubDeliveryAudit)
+		.where(inArray(githubDeliveryAudit.status, ["missed", "failed"]));
+	return rows.map((row) => row.guid);
 }
 
 export async function setDeliveryProblemStatus(
@@ -229,6 +239,7 @@ export function deliveryAuditStore(db: Db) {
 			recordDeliveryProblem(db, input),
 		redeliveriesUpdatedBefore: (before: Date) =>
 			redeliveriesUpdatedBefore(db, before),
+		lostDeliveryGuids: () => lostDeliveryGuids(db),
 		setDeliveryProblemStatus: (guid: string, status: DeliveryProblemStatus) =>
 			setDeliveryProblemStatus(db, guid, status),
 		prune: () => pruneDeliveryAudit(db),

@@ -6,7 +6,7 @@ const PAGE_SIZE = 100;
 const MAX_PAGES = 200;
 
 const deliverySchema = z.object({
-	id: z.number(),
+	id: z.string().regex(/^\d+$/),
 	guid: z.string(),
 	delivered_at: z.string(),
 	redelivery: z.boolean(),
@@ -24,7 +24,8 @@ const deliveryDetailSchema = z.object({
 
 /** One attempt at a webhook delivery; a redelivery keeps the original guid. */
 export interface GithubDelivery {
-	id: number;
+	/** Past 2^53, so kept as the digits GitHub sent; a number would round. */
+	id: string;
 	/** X-GitHub-Delivery, which ingest stores as the event's delivery id. */
 	guid: string;
 	deliveredAt: Date;
@@ -80,7 +81,9 @@ export class GithubAppDeliveries {
 			const res = await this.request(path);
 			if (!res.ok)
 				throw new Error(`GET /app/hook/deliveries failed: ${res.status}`);
-			const rows = z.array(deliverySchema).parse(await res.json());
+			const rows = z
+				.array(deliverySchema)
+				.parse(JSON.parse(quoteDeliveryIds(await res.text())));
 			let reachedSince = rows.length === 0;
 			for (const row of rows) {
 				const deliveredAt = new Date(row.delivered_at);
@@ -112,7 +115,7 @@ export class GithubAppDeliveries {
 	}
 
 	/** The payload GitHub sent, as the raw body ingest would have received. */
-	async payload(deliveryId: number): Promise<{ event: string; body: string }> {
+	async payload(deliveryId: string): Promise<{ event: string; body: string }> {
 		const res = await this.request(`/app/hook/deliveries/${deliveryId}`);
 		if (!res.ok)
 			throw new Error(
@@ -126,7 +129,7 @@ export class GithubAppDeliveries {
 	}
 
 	/** Asks GitHub to send the delivery again; it arrives with the same guid. */
-	async redeliver(deliveryId: number): Promise<void> {
+	async redeliver(deliveryId: string): Promise<void> {
 		const res = await this.request(
 			`/app/hook/deliveries/${deliveryId}/attempts`,
 			"POST",
@@ -136,6 +139,14 @@ export class GithubAppDeliveries {
 				`POST /app/hook/deliveries/${deliveryId}/attempts failed: ${res.status}`,
 			);
 	}
+}
+
+/**
+ * Delivery ids run past Number.MAX_SAFE_INTEGER, so JSON.parse would round
+ * them to ids GitHub 404s on. Quote them first so they parse as strings.
+ */
+function quoteDeliveryIds(json: string): string {
+	return json.replace(/"id":\s*(\d+)/g, '"id":"$1"');
 }
 
 /** The `rel="next"` page of a Link header, as a path on the API. */

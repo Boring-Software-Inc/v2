@@ -215,6 +215,17 @@ export async function auditGithubDeliveries(
 			);
 	}
 
+	// A lost delivery stored later, by a manual redelivery or a backfill, stops
+	// paging even once it is past the scan window.
+	const lost = (await store.lostDeliveryGuids()).filter(
+		(guid) => !byGuid.has(guid),
+	);
+	for (const guid of await store.storedDeliveryGuids(lost)) {
+		await store.setDeliveryProblemStatus(guid, "recovered");
+		summary.recovered++;
+		deps.logger.info({ guid }, "lost GitHub delivery recovered");
+	}
+
 	await store.advanceCursor(reached);
 	await store.prune();
 	if (summary.checked > 0 || summary.failed > 0)
