@@ -630,11 +630,18 @@ describe("ingest keeps exactly what the delivery audit requires", () => {
 });
 
 describe("a repo renamed on GitHub", () => {
-	/** A comment on `repo`, under the name GitHub gives it at `at`. */
+	/**
+	 * A comment on `repo`, under the name GitHub gives it at `at`. By default a
+	 * second from now: a time taken in the same millisecond as the row's last
+	 * change, which Postgres keeps in microseconds, can sort before it.
+	 */
 	async function commentOn(
 		repo: { id: number; name: string },
 		id: string,
-		{ at = new Date(), installation = LINKED_INSTALLATION } = {},
+		{
+			at = new Date(Date.now() + 1000),
+			installation = LINKED_INSTALLATION,
+		} = {},
 	) {
 		const raw = JSON.parse(await fixture("issue_comment.created.json"));
 		raw.installation = { id: Number(installation) };
