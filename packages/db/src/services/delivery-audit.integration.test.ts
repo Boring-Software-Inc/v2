@@ -148,8 +148,11 @@ test("stored deliveries, problems and the cursor round-trip", async () => {
 		await store.redeliveriesUpdatedBefore(new Date(Date.now() + 60_000)),
 	).toEqual([{ guid: "guid-lost", event: "pull_request" }]);
 
+	expect(await store.lostDeliveryGuids()).toEqual([]);
 	await store.recordDeliveryProblem({ ...problem, status: "missed" });
+	expect(await store.lostDeliveryGuids()).toEqual(["guid-lost"]);
 	await store.setDeliveryProblemStatus("guid-lost", "recovered");
+	expect(await store.lostDeliveryGuids()).toEqual([]);
 	expect(
 		(await store.deliveryProblems(["guid-lost"])).get("guid-lost")?.status,
 	).toBe("recovered");

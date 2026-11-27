@@ -93,6 +93,13 @@ function fakeStore(
 						problem.status === "redelivered" && problem.updatedAt < before,
 				)
 				.map(([guid]) => ({ guid, event: "pull_request" })),
+		lostDeliveryGuids: async () =>
+			[...problems]
+				.filter(
+					([, problem]) =>
+						problem.status === "missed" || problem.status === "failed",
+				)
+				.map(([guid]) => guid),
 		setDeliveryProblemStatus: async (guid, status) => {
 			statuses.push([guid, status]);
 			problems.set(guid, { status, updatedAt: NOW });
@@ -211,6 +218,29 @@ describe("auditGithubDeliveries", () => {
 		});
 		expect(summary.failed).toBe(1);
 		expect(statuses).toEqual([["guid-old", "failed"]]);
+	});
+
+	test("a lost delivery stored after it left the scan window stops paging", async () => {
+		const { store, statuses } = fakeStore({
+			stored: ["guid-missed", "guid-failed"],
+			problems: new Map([
+				["guid-missed", { status: "missed", updatedAt: NOW }],
+				["guid-failed", { status: "failed", updatedAt: NOW }],
+				["guid-still-lost", { status: "missed", updatedAt: NOW }],
+			]),
+		});
+		const { deliveries } = fakeDeliveries([]);
+		const summary = await auditGithubDeliveries({
+			store,
+			deliveries,
+			logger,
+			now: () => NOW,
+		});
+		expect(summary.recovered).toBe(2);
+		expect(statuses).toEqual([
+			["guid-missed", "recovered"],
+			["guid-failed", "recovered"],
+		]);
 	});
 
 	test("a delivery answered 200 but never stored pages as missed", async () => {

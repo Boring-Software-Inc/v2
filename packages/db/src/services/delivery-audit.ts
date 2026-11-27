@@ -193,6 +193,15 @@ export async function redeliveriesUpdatedBefore(
 		);
 }
 
+/** Deliveries the audit paged on as missed or failed. */
+export async function lostDeliveryGuids(db: Db): Promise<string[]> {
+	const rows = await db
+		.select({ guid: githubDeliveryAudit.guid })
+		.from(githubDeliveryAudit)
+		.where(inArray(githubDeliveryAudit.status, ["missed", "failed"]));
+	return rows.map((row) => row.guid);
+}
+
 export async function setDeliveryProblemStatus(
 	db: Db,
 	guid: string,
@@ -230,6 +239,7 @@ export function deliveryAuditStore(db: Db) {
 			recordDeliveryProblem(db, input),
 		redeliveriesUpdatedBefore: (before: Date) =>
 			redeliveriesUpdatedBefore(db, before),
+		lostDeliveryGuids: () => lostDeliveryGuids(db),
 		setDeliveryProblemStatus: (guid: string, status: DeliveryProblemStatus) =>
 			setDeliveryProblemStatus(db, guid, status),
 		prune: () => pruneDeliveryAudit(db),
