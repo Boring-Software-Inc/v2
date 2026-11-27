@@ -82,7 +82,7 @@ test("lost GitHub deliveries count until they recover", async () => {
 	const store = deliveryAuditStore(db);
 	const problem = {
 		guid: "guid-health",
-		attemptId: 1,
+		attemptId: "1",
 		event: "pull_request",
 		action: "opened",
 		installationId: "1",

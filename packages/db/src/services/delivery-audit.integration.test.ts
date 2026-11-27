@@ -132,7 +132,7 @@ test("stored deliveries, problems and the cursor round-trip", async () => {
 
 	const problem = {
 		guid: "guid-lost",
-		attemptId: 7,
+		attemptId: "7",
 		event: "pull_request",
 		action: "opened",
 		installationId: "11",

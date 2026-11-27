@@ -80,7 +80,7 @@ describe("GithubAppDeliveries", () => {
 			),
 		});
 		const found = await client.listSince(new Date("2026-11-27T01:00:00Z"));
-		expect(found.map((d) => d.id)).toEqual([3, 2, 1]);
+		expect(found.map((d) => d.id)).toEqual(["3", "2", "1"]);
 		expect(found[1]).toMatchObject({
 			guid: "guid-2",
 			statusCode: 502,
@@ -90,6 +90,43 @@ describe("GithubAppDeliveries", () => {
 		});
 		// It stopped once a page reached `since` instead of following `def`.
 		expect(calls).toHaveLength(2);
+	});
+
+	test("keeps delivery ids past 2^53 exact, so they can be read and redelivered", async () => {
+		// The size of ids in the staging App's log. As a JS number it rounds to
+		// 3856363353404342300, an id GitHub 404s on.
+		const id = "3856363353404342293";
+		const calls: string[] = [];
+		const client = new GithubAppDeliveries({
+			credentials,
+			fetchImpl: fakeFetch(
+				{
+					"GET /app/hook/deliveries?per_page=100": () =>
+						new Response(
+							JSON.stringify([delivery(0, "2026-11-27T05:58:43Z")]).replace(
+								'"id":0',
+								`"id": ${id}`,
+							),
+						),
+					[`GET /app/hook/deliveries/${id}`]: () =>
+						Response.json({
+							event: "issues",
+							request: { payload: { action: "opened" } },
+						}),
+					[`POST /app/hook/deliveries/${id}/attempts`]: () =>
+						new Response(null, { status: 202 }),
+				},
+				calls,
+			),
+		});
+		const [found] = await client.listSince(new Date("2026-11-27T05:00:00Z"));
+		expect(found?.id).toBe(id);
+		await client.payload(id);
+		await client.redeliver(id);
+		expect(calls.slice(1)).toEqual([
+			`GET /app/hook/deliveries/${id}`,
+			`POST /app/hook/deliveries/${id}/attempts`,
+		]);
 	});
 
 	test("fails rather than return a log it couldn't read to `since`", async () => {
@@ -123,7 +160,7 @@ describe("GithubAppDeliveries", () => {
 					}),
 			}),
 		});
-		expect(await client.payload(9)).toEqual({
+		expect(await client.payload("9")).toEqual({
 			event: "pull_request",
 			body: '{"action":"opened"}',
 		});
@@ -141,8 +178,8 @@ describe("GithubAppDeliveries", () => {
 				calls,
 			),
 		});
-		await client.redeliver(9);
+		await client.redeliver("9");
 		expect(calls).toEqual(["POST /app/hook/deliveries/9/attempts"]);
-		await expect(client.redeliver(10)).rejects.toThrow("404");
+		await expect(client.redeliver("10")).rejects.toThrow("404");
 	});
 });
