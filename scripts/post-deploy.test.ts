@@ -42,14 +42,15 @@ const deployment = (
 	...fields,
 });
 
-test("in production, stops every running deployment Unkey isn't serving", () => {
+test("in production, stops the running deployments older than the one Unkey serves", () => {
 	const [production] = TARGETS.main.replaced;
 	if (!production) throw new Error("main replaces production deployments");
 	const stopped = replacedDeployments(
 		[
-			deployment("serving", { isCurrent: true, sha: "new" }),
+			deployment("serving", { isCurrent: true, sha: "new", createdAt: 2 }),
 			deployment("yesterday", {}),
-			deployment("first-try", { sha: "new" }),
+			deployment("first-try", { sha: "new", createdAt: 1 }),
+			deployment("rollout-by-hand", { sha: "next", createdAt: 3 }),
 			deployment("already-stopped", { status: "stopped" }),
 			deployment("a-preview", { environment: "preview" }),
 		],
@@ -57,6 +58,9 @@ test("in production, stops every running deployment Unkey isn't serving", () => 
 		"new",
 	);
 	expect(stopped.map((d) => d.id)).toEqual(["yesterday", "first-try"]);
+	// Unkey serving nothing says nothing about what was replaced.
+	const unserved = [deployment("yesterday", {}), deployment("new", {})];
+	expect(replacedDeployments(unserved, production, "new")).toEqual([]);
 });
 
 test("in a preview environment, stops only this branch's older deploys", () => {
@@ -74,6 +78,12 @@ test("in a preview environment, stops only this branch's older deploys", () => {
 			sha: "new",
 			createdAt: 2,
 		}),
+		deployment("ours-redeployed", {
+			environment: "preview",
+			branch: "staging",
+			sha: "new",
+			createdAt: 2.5,
+		}),
 		deployment("newer-push", {
 			environment: "preview",
 			branch: "staging",
@@ -88,7 +98,7 @@ test("in a preview environment, stops only this branch's older deploys", () => {
 	];
 	expect(
 		replacedDeployments(previews, preview, "new").map((d) => d.id),
-	).toEqual(["older"]);
+	).toEqual(["older", "ours"]);
 	// When this commit's deploy isn't there, nothing is known to replace anything.
 	expect(replacedDeployments(previews, preview, "missing")).toEqual([]);
 });
