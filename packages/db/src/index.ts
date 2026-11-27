@@ -133,6 +133,7 @@ export type {
 	SaveCustomRuleResult,
 } from "./services/custom-rules.ts";
 export * as customRuleServices from "./services/custom-rules.ts";
+export * as deliveryAuditServices from "./services/delivery-audit.ts";
 export type {
 	AiReviewUsageInput,
 	BackfillUsageResult,

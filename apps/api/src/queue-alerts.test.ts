@@ -9,6 +9,7 @@ const healthy: QueueHealth = {
 	processReady: 0,
 	processAgeSeconds: 0,
 	deadLetteredLastDay: 0,
+	lostDeliveriesLastDay: 0,
 	workerHeartbeatAgeSeconds: 5,
 };
 
@@ -26,6 +27,7 @@ function memoryState() {
 function harness() {
 	let health = healthy;
 	const posts: string[] = [];
+	const issues: string[] = [];
 	const alerts = startQueueAlerts({
 		db: {} as Db,
 		logger: pino({ level: "silent" }),
@@ -35,6 +37,9 @@ function harness() {
 			posts.push(body.content);
 			return { ok: true };
 		},
+		capture: (alert) => {
+			issues.push(alert.key);
+		},
 		readHealth: async () => health,
 		recordState: memoryState(),
 		intervalMs: 60_000,
@@ -42,6 +47,7 @@ function harness() {
 	return {
 		alerts,
 		posts,
+		issues,
 		set: (next: Partial<QueueHealth>) => {
 			health = { ...healthy, ...next };
 		},
@@ -87,6 +93,19 @@ test("a worker that never ran against this database is not down", async () => {
 	expect(posts).toEqual([
 		"**FIRING** [production] The GitHub worker stopped checking in: last check-in 10m 0s ago (limit 3m).",
 	]);
+	alerts.stop();
+});
+
+test("lost GitHub deliveries page, and every alert opens a Sentry issue", async () => {
+	const { alerts, posts, issues, set } = harness();
+	await alerts.sample();
+	set({ lostDeliveriesLastDay: 2 });
+	await alerts.sample();
+	await alerts.sample();
+	expect(alerts.snapshot().firing).toEqual(["github-deliveries-lost"]);
+	expect(posts).toHaveLength(1);
+	expect(posts[0]).toContain("GitHub webhooks were never stored");
+	expect(issues).toEqual(["github-deliveries-lost"]);
 	alerts.stop();
 });
 

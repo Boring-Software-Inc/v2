@@ -12,6 +12,7 @@ import {
 	createDb,
 	createDirectPool,
 	DRAIN_BACKLOG_WORK_OPTIONS,
+	deliveryAuditServices,
 	GITHUB_EVALUATE_QUEUE,
 	type GithubEvaluateJob,
 	PROCESS_EVENT_QUEUE,
@@ -43,6 +44,7 @@ import {
 import type { ForgeAdapter } from "@tripwire/forge";
 import {
 	checkAppCredentials,
+	GithubAppDeliveries,
 	GithubInstallations,
 } from "@tripwire/forge-github";
 import { createDatabuddyApi, getErrorMessage } from "@tripwire/utils";
@@ -68,6 +70,11 @@ import {
 	startGitCafeProtectionRuntime,
 	startGitCafeProtectionWorker,
 } from "./gitcafe-protection-worker.ts";
+import {
+	AUDIT_GITHUB_DELIVERIES_CRON,
+	AUDIT_GITHUB_DELIVERIES_QUEUE,
+	auditGithubDeliveries,
+} from "./jobs/audit-github-deliveries.ts";
 import {
 	AUDIT_INSTALLATION_CLAIMS_QUEUE,
 	auditInstallationClaims,
@@ -588,6 +595,30 @@ if (import.meta.main && workerMode === "standard") {
 			});
 		});
 
+		if (appId && privateKey) {
+			const deliveries = new GithubAppDeliveries({
+				credentials: { appId, privateKey },
+			});
+			await boss.createQueue(AUDIT_GITHUB_DELIVERIES_QUEUE);
+			await boss.schedule(
+				AUDIT_GITHUB_DELIVERIES_QUEUE,
+				AUDIT_GITHUB_DELIVERIES_CRON,
+				{},
+				{},
+			);
+			await work(AUDIT_GITHUB_DELIVERIES_QUEUE, async () => {
+				await auditGithubDeliveries({
+					store: deliveryAuditServices.deliveryAuditStore(db),
+					deliveries,
+					logger: logger.child({ job: AUDIT_GITHUB_DELIVERIES_QUEUE }),
+				});
+			});
+		} else {
+			logger.warn(
+				"no GitHub App credentials: lost webhook deliveries will go unnoticed",
+			);
+		}
+
 		await boss.createQueue(PRUNE_EVENTS_QUEUE);
 		await boss.schedule(PRUNE_EVENTS_QUEUE, PRUNE_EVENTS_CRON, {}, {});
 		await work(PRUNE_EVENTS_QUEUE, async () => {
@@ -773,6 +804,7 @@ if (import.meta.main && workerMode === "standard") {
 				AUDIT_INSTALLATION_CLAIMS_QUEUE,
 				PRUNE_INSTALLATION_ACCESS_CHECKS_QUEUE,
 				PRUNE_EVENTS_QUEUE,
+				AUDIT_GITHUB_DELIVERIES_QUEUE,
 				"sweep-actions",
 				SCHEDULE_TICK_QUEUE,
 				"deliver-webhook",

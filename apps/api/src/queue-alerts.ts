@@ -1,3 +1,4 @@
+import { captureMessage } from "@sentry/bun";
 import { type Db, type QueueHealth, queueServices } from "@tripwire/db";
 import { getErrorMessage, guardedPost } from "@tripwire/utils";
 import type { Logger } from "pino";
@@ -47,6 +48,13 @@ export const QUEUE_ALERT_RULES: readonly QueueAlertRule[] = [
 		detail: (health) =>
 			`${health.deadLetteredLastDay} in the last day, kept in the github-evaluate-dead queue`,
 	},
+	{
+		key: "github-deliveries-lost",
+		title: "GitHub webhooks were never stored",
+		firing: (health) => health.lostDeliveriesLastDay > 0,
+		detail: (health) =>
+			`${health.lostDeliveriesLastDay} in the last day that should have run or been kept, listed in github_delivery_audit`,
+	},
 ];
 
 /** A rule fires after this many samples in a row, so one slow minute doesn't page. */
@@ -62,10 +70,16 @@ export interface QueueAlertsSnapshot {
 export interface QueueAlertsOptions {
 	db: Db;
 	logger: Logger;
-	/** Discord webhook; without one, alerts only reach the logs and Sentry. */
+	/** Discord webhook; without one, alerts reach only the logs and Sentry. */
 	webhookUrl: string | null;
 	environment: string;
 	post?: (url: string, body: { content: string }) => Promise<{ ok: boolean }>;
+	/**
+	 * Opens an issue per firing alert. Sentry keeps pino logs as logs, which
+	 * notify no one, so without this an alert with no Discord webhook was
+	 * silent.
+	 */
+	capture?: (alert: QueueAlertRule, message: string) => void;
 	readHealth?: typeof queueServices.readQueueHealth;
 	recordState?: typeof queueServices.recordAlertState;
 	intervalMs?: number;
@@ -73,6 +87,7 @@ export interface QueueAlertsOptions {
 
 export function startQueueAlerts(options: QueueAlertsOptions) {
 	const post = options.post ?? guardedPost;
+	const capture = options.capture ?? captureAlert;
 	const readHealth = options.readHealth ?? queueServices.readQueueHealth;
 	const recordState = options.recordState ?? queueServices.recordAlertState;
 	const streaks = new Map<string, number>();
@@ -108,6 +123,7 @@ export function startQueueAlerts(options: QueueAlertsOptions) {
 						{ event: "queue.alert", alert: rule.key, health },
 						`${rule.title}: ${rule.detail(health)}`,
 					);
+					capture(rule, `${where}: ${rule.detail(health)}`);
 					await notify(`**FIRING** ${where}: ${rule.detail(health)}.`);
 				} else {
 					options.logger.info(
@@ -140,6 +156,15 @@ export function startQueueAlerts(options: QueueAlertsOptions) {
 		sample,
 		stop: () => clearInterval(timer),
 	};
+}
+
+/** One Sentry issue per alert, so each firing adds an event to it. */
+function captureAlert(alert: QueueAlertRule, message: string) {
+	captureMessage(message, {
+		level: "error",
+		fingerprint: ["queue-alert", alert.key],
+		tags: { service: "api", alert: alert.key },
+	});
 }
 
 export function duration(seconds: number): string {

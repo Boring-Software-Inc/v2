@@ -40,6 +40,7 @@ test("queue health reads the waiting backlog and the worker's last check-in", as
 		evaluateReady: 0,
 		evaluateAgeSeconds: 0,
 		deadLetteredLastDay: 0,
+		lostDeliveriesLastDay: 0,
 		workerHeartbeatAgeSeconds: null,
 	});
 
