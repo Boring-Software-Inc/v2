@@ -2,7 +2,8 @@ import { z } from "zod";
 import { createAppJwt, type GithubAppCredentials } from "./auth.ts";
 
 const PAGE_SIZE = 100;
-const MAX_PAGES = 50;
+/** 20,000 deliveries; past that `listSince` fails rather than skip any. */
+const MAX_PAGES = 200;
 
 const deliverySchema = z.object({
 	id: z.number(),
@@ -67,7 +68,11 @@ export class GithubAppDeliveries {
 		});
 	}
 
-	/** Every attempt delivered at or after `since`, newest first. */
+	/**
+	 * Every attempt delivered at or after `since`, newest first. Throws when
+	 * there are more than it reads: the log pages newest first, so a partial
+	 * list would leave the oldest deliveries unchecked.
+	 */
 	async listSince(since: Date): Promise<GithubDelivery[]> {
 		const found: GithubDelivery[] = [];
 		let path: string | null = `/app/hook/deliveries?per_page=${PAGE_SIZE}`;
@@ -99,6 +104,10 @@ export class GithubAppDeliveries {
 			}
 			path = reachedSince ? null : nextPath(res.headers.get("link"));
 		}
+		if (path)
+			throw new Error(
+				`more than ${MAX_PAGES * PAGE_SIZE} webhook deliveries since ${since.toISOString()}; read none rather than skip the oldest`,
+			);
 		return found;
 	}
 

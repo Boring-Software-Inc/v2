@@ -15,6 +15,8 @@ export interface DeliveryRepoTarget {
 	claimed: boolean;
 	removed: boolean;
 	pushTriggered: boolean;
+	/** The last change to the repo's routing settings or its workflows. */
+	changedAt: Date;
 }
 
 export async function readCursor(db: Db, key: string): Promise<Date | null> {
@@ -57,7 +59,7 @@ export async function storedDeliveryGuids(
 /**
  * Tripwire's state for the repos and installations deliveries name, keyed by
  * GitHub's ids. Repos are matched by id, not name, so a renamed repo still
- * counts as armed.
+ * counts as armed. Claimed installations map to when the org claimed them.
  */
 export async function deliveryTargets(
 	db: Db,
@@ -67,7 +69,7 @@ export async function deliveryTargets(
 	},
 ): Promise<{
 	repos: Map<string, DeliveryRepoTarget>;
-	claimedInstallations: Set<string>;
+	claimedInstallations: Map<string, Date>;
 }> {
 	const repoRows =
 		input.repositoryIds.length === 0
@@ -83,6 +85,11 @@ export async function deliveryTargets(
 							WHERE w.repo_id = ${repos.id} AND w.enabled
 								AND jsonb_path_exists(w.definition,
 									'$.nodes[*] ? (@.type == "trigger" && @.kinds[*] == "push")'))`,
+						changedAt: sql<Date>`GREATEST(${repos.routingChangedAt},
+							(SELECT max(w.updated_at) FROM workflow_definitions w
+								WHERE w.repo_id = ${repos.id}))`.mapWith(
+							repos.routingChangedAt,
+						),
 					})
 					.from(repos)
 					.where(
@@ -95,7 +102,10 @@ export async function deliveryTargets(
 		input.installationIds.length === 0
 			? []
 			: await db
-					.select({ installationId: organizationInstallations.installationId })
+					.select({
+						installationId: organizationInstallations.installationId,
+						createdAt: organizationInstallations.createdAt,
+					})
 					.from(organizationInstallations)
 					.where(
 						and(
@@ -109,8 +119,8 @@ export async function deliveryTargets(
 		repos: new Map(
 			repoRows.map(({ externalId, ...target }) => [externalId, target]),
 		),
-		claimedInstallations: new Set(
-			installationRows.map((row) => row.installationId),
+		claimedInstallations: new Map(
+			installationRows.map((row) => [row.installationId, row.createdAt]),
 		),
 	};
 }

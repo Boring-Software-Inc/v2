@@ -18,4 +18,21 @@ CREATE TABLE "ops_cursors" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE INDEX "github_delivery_audit_status_idx" ON "github_delivery_audit" USING btree ("status","updated_at");
+ALTER TABLE "repos" ADD COLUMN "routing_changed_at" timestamp with time zone DEFAULT now() NOT NULL;--> statement-breakpoint
+CREATE INDEX "github_delivery_audit_status_idx" ON "github_delivery_audit" USING btree ("status","updated_at");--> statement-breakpoint
+CREATE OR REPLACE FUNCTION "repos_routing_changed"() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+	NEW.routing_changed_at := now();
+	RETURN NEW;
+END;
+$$;
+--> statement-breakpoint
+CREATE TRIGGER "repos_routing_changed"
+	BEFORE UPDATE OF "armed", "org_id", "removed_at", "full_name" ON "repos"
+	FOR EACH ROW
+	WHEN (OLD.armed IS DISTINCT FROM NEW.armed
+		OR OLD.org_id IS DISTINCT FROM NEW.org_id
+		OR OLD.removed_at IS DISTINCT FROM NEW.removed_at
+		OR OLD.full_name IS DISTINCT FROM NEW.full_name)
+	EXECUTE FUNCTION "repos_routing_changed"();

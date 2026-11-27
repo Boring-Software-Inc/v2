@@ -32,10 +32,15 @@ function attempt(overrides: Partial<GithubDelivery>): GithubDelivery {
 	};
 }
 
+/** Before every attempt in these tests: settings that predate the deliveries. */
+const SETTLED = new Date("2026-11-01T00:00:00Z");
+
 function fakeStore(
 	state: {
 		stored?: string[];
 		problems?: Map<string, { status: Problem["status"]; updatedAt: Date }>;
+		/** When the armed repo's settings last changed. */
+		armedChangedAt?: Date;
 	} = {},
 ) {
 	const stored = new Set(state.stored ?? []);
@@ -54,14 +59,26 @@ function fakeStore(
 			repos: new Map([
 				[
 					ARMED_REPO,
-					{ armed: true, claimed: true, removed: false, pushTriggered: false },
+					{
+						armed: true,
+						claimed: true,
+						removed: false,
+						pushTriggered: false,
+						changedAt: state.armedChangedAt ?? SETTLED,
+					},
 				],
 				[
 					OFF_REPO,
-					{ armed: false, claimed: true, removed: false, pushTriggered: false },
+					{
+						armed: false,
+						claimed: true,
+						removed: false,
+						pushTriggered: false,
+						changedAt: SETTLED,
+					},
 				],
 			]),
-			claimedInstallations: new Set([CLAIMED_INSTALL]),
+			claimedInstallations: new Map([[CLAIMED_INSTALL, SETTLED]]),
 		}),
 		deliveryProblems: async (guids) =>
 			new Map([...problems].filter(([guid]) => guids.includes(guid))),
@@ -90,15 +107,20 @@ function fakeDeliveries(
 	payloads = new Map<number, object>(),
 ) {
 	const redelivered: number[] = [];
+	const reads: number[] = [];
 	return {
 		redelivered,
+		reads,
 		deliveries: {
 			listSince: async (since: Date) =>
 				attempts.filter((a) => a.deliveredAt >= since),
-			payload: async (id: number) => ({
-				event: "pull_request",
-				body: JSON.stringify(payloads.get(id) ?? pullRequestOpened),
-			}),
+			payload: async (id: number) => {
+				reads.push(id);
+				return {
+					event: "pull_request",
+					body: JSON.stringify(payloads.get(id) ?? pullRequestOpened),
+				};
+			},
 			redeliver: async (id: number) => {
 				redelivered.push(id);
 			},
@@ -206,9 +228,9 @@ describe("auditGithubDeliveries", () => {
 		expect(redelivered).toEqual([]);
 	});
 
-	test("a bot edit that normalizes to nothing is rightly not stored", async () => {
+	test("a bot edit that normalizes to nothing is read once, not paged", async () => {
 		const { store, recorded } = fakeStore();
-		const { deliveries } = fakeDeliveries(
+		const { deliveries, reads } = fakeDeliveries(
 			[attempt({ id: 9, action: "edited" })],
 			new Map([[9, editedByBot]]),
 		);
@@ -219,7 +241,60 @@ describe("auditGithubDeliveries", () => {
 			now: () => NOW,
 		});
 		expect(summary.missed).toBe(0);
+		expect(recorded.map((p) => p.status)).toEqual(["ignored"]);
+
+		// The overlap rescans it; its payload isn't read again.
+		await auditGithubDeliveries({ store, deliveries, logger, now: () => NOW });
+		expect(reads).toEqual([9]);
+	});
+
+	test("a redelivered no-op edit resolves instead of paging later", async () => {
+		const { store, recorded } = fakeStore({
+			problems: new Map([
+				["guid-1", { status: "redelivered", updatedAt: NOW }],
+			]),
+		});
+		const { deliveries } = fakeDeliveries(
+			[
+				attempt({ id: 5, action: "edited", statusCode: 502 }),
+				attempt({
+					id: 6,
+					action: "edited",
+					redelivery: true,
+					deliveredAt: new Date("2026-11-27T02:55:00Z"),
+				}),
+			],
+			new Map([[6, editedByBot]]),
+		);
+		await auditGithubDeliveries({ store, deliveries, logger, now: () => NOW });
+		expect(recorded.at(-1)).toMatchObject({ status: "ignored", attemptId: 6 });
+		const later = new Date(NOW.getTime() + REDELIVERY_WAIT_MS * 2);
+		const summary = await auditGithubDeliveries({
+			store,
+			deliveries,
+			logger,
+			now: () => later,
+		});
+		expect(summary.failed).toBe(0);
+	});
+
+	test("a delivery from before the repo was armed is not called missed", async () => {
+		// A comment dropped while Tripwire was off; the repo was armed after.
+		const { store, recorded } = fakeStore({
+			armedChangedAt: new Date("2026-11-27T02:52:00Z"),
+		});
+		const { deliveries, reads } = fakeDeliveries([
+			attempt({ event: "issue_comment", action: "created" }),
+		]);
+		const summary = await auditGithubDeliveries({
+			store,
+			deliveries,
+			logger,
+			now: () => NOW,
+		});
+		expect(summary.missed).toBe(0);
 		expect(recorded).toEqual([]);
+		expect(reads).toEqual([]);
 	});
 
 	test("deliveries ingest may drop are not checked", async () => {

@@ -1,5 +1,5 @@
 {
-  "id": "c3490cc6-805d-4640-b6ba-215ffe90a70a",
+  "id": "d7878ede-e249-46c2-b9c1-1cf4029a26b5",
   "prevId": "c94df7f5-86ff-4d4a-aea6-143ff7e2093b",
   "version": "7",
   "dialect": "postgresql",
@@ -5611,6 +5611,13 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
+        },
+        "routing_changed_at": {
+          "name": "routing_changed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         },
         "onboarding_started_at": {
           "name": "onboarding_started_at",

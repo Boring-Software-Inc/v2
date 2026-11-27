@@ -43,14 +43,16 @@ export const opsAlerts = pgTable("ops_alerts", {
 });
 
 /**
- * GitHub deliveries the delivery audit found ingest never stored. Only
- * problems get a row; a stored delivery leaves none.
+ * GitHub deliveries the delivery audit found ingest never stored. A stored
+ * delivery leaves no row.
  * - `redelivered`: every attempt failed, so the audit asked GitHub to send it
  *   again.
  * - `failed`: the redelivery failed too.
  * - `missed`: ingest answered 200 but stored nothing, though the delivery
  *   should have produced an event.
  * - `recovered`: it was stored later, usually by the redelivery.
+ * - `ignored`: its payload normalizes to nothing, so ingest rightly stored
+ *   nothing. Kept so later scans don't read the payload again.
  */
 export const githubDeliveryAudit = pgTable(
 	"github_delivery_audit",
@@ -64,7 +66,7 @@ export const githubDeliveryAudit = pgTable(
 		repositoryId: text("repository_id"),
 		deliveredAt: timestamp("delivered_at", { withTimezone: true }).notNull(),
 		status: text("status", {
-			enum: ["redelivered", "failed", "missed", "recovered"],
+			enum: ["redelivered", "failed", "missed", "recovered", "ignored"],
 		}).notNull(),
 		statusCode: integer("status_code"),
 		createdAt: timestamp("created_at", { withTimezone: true })

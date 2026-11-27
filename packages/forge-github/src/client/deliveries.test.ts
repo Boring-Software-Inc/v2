@@ -92,6 +92,25 @@ describe("GithubAppDeliveries", () => {
 		expect(calls).toHaveLength(2);
 	});
 
+	test("fails rather than return a log it couldn't read to `since`", async () => {
+		let calls = 0;
+		const client = new GithubAppDeliveries({
+			credentials,
+			fetchImpl: (async (_input: string | URL | Request) => {
+				calls++;
+				return Response.json([delivery(calls, "2026-11-27T02:00:00Z")], {
+					headers: {
+						link: `<https://api.github.com/app/hook/deliveries?per_page=100&cursor=${calls}>; rel="next"`,
+					},
+				});
+			}) as typeof fetch,
+		});
+		await expect(
+			client.listSince(new Date("2026-11-27T01:00:00Z")),
+		).rejects.toThrow("webhook deliveries since");
+		expect(calls).toBe(200);
+	});
+
 	test("reads a payload as the raw body ingest receives", async () => {
 		const client = new GithubAppDeliveries({
 			credentials,

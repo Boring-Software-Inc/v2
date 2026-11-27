@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { generateId } from "@tripwire/utils";
+import { sql } from "drizzle-orm";
 import {
 	applyMigrations,
 	createDb,
@@ -65,20 +66,50 @@ test("repos are found by GitHub id with what the audit needs to know", async () 
 		repositoryIds: ["501", "502", "503"],
 		installationIds: ["11", "12"],
 	});
-	expect(targets.repos.get("501")).toEqual({
+	expect(targets.repos.get("501")).toMatchObject({
 		armed: true,
 		claimed: true,
 		removed: false,
 		pushTriggered: true,
 	});
-	expect(targets.repos.get("502")).toEqual({
+	expect(targets.repos.get("502")).toMatchObject({
 		armed: false,
 		claimed: false,
 		removed: false,
 		pushTriggered: false,
 	});
 	expect(targets.repos.has("503")).toBe(false);
-	expect([...targets.claimedInstallations]).toEqual(["11"]);
+	expect([...targets.claimedInstallations.keys()]).toEqual(["11"]);
+	expect(targets.claimedInstallations.get("11")).toBeInstanceOf(Date);
+});
+
+test("changing what ingest routes on moves the repo's change time", async () => {
+	const id = await ensureRepo(db, {
+		externalId: "601",
+		owner: "audit",
+		name: "routing",
+		fullName: "audit/routing",
+		installationId: "11",
+	});
+	const store = deliveryAuditStore(db);
+	const changedAt = async () =>
+		(
+			await store.deliveryTargets({
+				repositoryIds: ["601"],
+				installationIds: [],
+			})
+		).repos.get("601")?.changedAt;
+	const created = await changedAt();
+	expect(created).toBeInstanceOf(Date);
+
+	// Unrelated columns leave it alone.
+	await db.execute(sql`UPDATE repos SET private = true WHERE id = ${id}`);
+	expect(await changedAt()).toEqual(created);
+
+	await new Promise((resolve) => setTimeout(resolve, 20));
+	await setRepoArmed(db, id, true);
+	const armed = await changedAt();
+	expect(armed && created && armed > created).toBe(true);
 });
 
 test("stored deliveries, problems and the cursor round-trip", async () => {

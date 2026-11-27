@@ -62,6 +62,15 @@ export const repos = pgTable(
 			.defaultNow(),
 		/** Soft removal on uninstall — history stays interpretable. */
 		removedAt: timestamp("removed_at", { withTimezone: true }),
+		/**
+		 * When something ingest routes on last changed: armed, org, removal or
+		 * name. Set by the `repos_routing_changed` trigger, so every writer is
+		 * covered. The delivery audit skips deliveries from before it, since
+		 * today's settings don't say how ingest routed them.
+		 */
+		routingChangedAt: timestamp("routing_changed_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
 		onboardingStartedAt: timestamp("onboarding_started_at", {
 			withTimezone: true,
 		}),

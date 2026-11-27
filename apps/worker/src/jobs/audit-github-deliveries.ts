@@ -92,18 +92,18 @@ export async function auditGithubDeliveries(
 		const first = tries[0];
 		const latest = tries[tries.length - 1];
 		if (!(first && latest)) continue;
+		const repo =
+			latest.repositoryId === null
+				? null
+				: (targets.repos.get(latest.repositoryId) ?? null);
+		const claimedAt =
+			latest.installationId === null
+				? null
+				: (targets.claimedInstallations.get(latest.installationId) ?? null);
 		const mustStore = githubDeliveryMustBeStored(
 			latest.event,
 			latest.action ?? undefined,
-			{
-				installationClaimed:
-					latest.installationId !== null &&
-					targets.claimedInstallations.has(latest.installationId),
-				repo:
-					latest.repositoryId === null
-						? null
-						: (targets.repos.get(latest.repositoryId) ?? null),
-			},
+			{ installationClaimed: claimedAt !== null, repo },
 		);
 		if (!mustStore) continue;
 		summary.checked++;
@@ -122,7 +122,11 @@ export async function auditGithubDeliveries(
 			});
 
 		if (stored.has(guid)) {
-			if (problem && problem.status !== "recovered") {
+			if (
+				problem &&
+				problem.status !== "recovered" &&
+				problem.status !== "ignored"
+			) {
 				await record(latest, "recovered");
 				summary.recovered++;
 				deps.logger.info({ guid }, "lost GitHub delivery recovered");
@@ -158,13 +162,26 @@ export async function auditGithubDeliveries(
 			continue;
 		}
 
-		if (problem?.status === "missed") continue;
+		if (problem?.status === "missed" || problem?.status === "ignored") continue;
+		// Ingest routed this attempt on the settings of the time. After a repo
+		// is armed or claimed, or gains a push workflow, today's settings would
+		// call an earlier, rightly dropped delivery missed.
+		if (
+			(repo && repo.changedAt > answered.deliveredAt) ||
+			(claimedAt && claimedAt > answered.deliveredAt)
+		)
+			continue;
 		if (payloadReads >= MAX_PAYLOAD_READS) {
 			reached = minDate(reached, first.deliveredAt);
 			continue;
 		}
 		payloadReads++;
-		if (!(await producesEvent(deps.deliveries, answered))) continue;
+		if (!(await producesEvent(deps.deliveries, answered))) {
+			// Recorded so overlapping scans don't read the payload again, and so
+			// a redelivery of a no-op edit resolves instead of timing out.
+			await record(answered, "ignored");
+			continue;
+		}
 		await record(answered, "missed");
 		summary.missed++;
 		deps.logger.error(
